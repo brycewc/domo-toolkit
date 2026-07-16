@@ -312,7 +312,10 @@ export async function getOwnedCodeEnginePackages(userId, tabId = null) {
  * @returns {Promise<Object>} Server response with new version info
  */
 export async function postCodeEnginePackageVersion(definition, tabId = null) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed create report success. See executeInPage.
+  const result = await executeInPage(
     async (definition) => {
       const response = await fetch('/api/codeengine/v2/packages', {
         body: JSON.stringify(definition),
@@ -321,13 +324,16 @@ export async function postCodeEnginePackageVersion(definition, tabId = null) {
       });
       if (!response.ok) {
         const text = await response.text().catch(() => '');
-        throw new Error(`HTTP ${response.status}${text ? `: ${text}` : ''}`);
+        return { error: `HTTP ${response.status}${text ? `: ${text}` : ''}`, ok: false };
       }
-      return response.json();
+      const created = await response.json();
+      return { created, ok: true };
     },
     [definition],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to create package version');
+  return result.created;
 }
 
 /**
@@ -339,19 +345,24 @@ export async function postCodeEnginePackageVersion(definition, tabId = null) {
  * @returns {Promise<void>}
  */
 export async function releaseCodeEnginePackageVersion(packageId, version, tabId = null) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed release report success. See executeInPage.
+  const result = await executeInPage(
     async (packageId, version) => {
       const response = await fetch(`/api/codeengine/v2/packages/${packageId}/versions/${version}/release`, {
         method: 'POST'
       });
       if (!response.ok) {
         const text = await response.text().catch(() => '');
-        throw new Error(`HTTP ${response.status}${text ? `: ${text}` : ''}`);
+        return { error: `HTTP ${response.status}${text ? `: ${text}` : ''}`, ok: false };
       }
+      return { ok: true };
     },
     [packageId, version],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to release package version');
 }
 
 /**

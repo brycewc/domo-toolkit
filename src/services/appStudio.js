@@ -204,7 +204,10 @@ export async function getUserOwnedWorksheets(ownerId, tabId = null, ownerType = 
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
 export async function shareStudioApp({ appId, tabId = null, userId }) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed share report success. See executeInPage.
+  const result = await executeInPage(
     async (appId, userId) => {
       const response = await fetch('/api/content/v1/dataapps/share?sendEmail=false', {
         body: JSON.stringify({
@@ -215,11 +218,13 @@ export async function shareStudioApp({ appId, tabId = null, userId }) {
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) return { error: `HTTP ${response.status}`, ok: false };
+      return { ok: true };
     },
     [appId, userId],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to share app');
 }
 
 /**

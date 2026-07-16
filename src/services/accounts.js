@@ -228,18 +228,23 @@ export function isLegacyAccountStructure(domoObject) {
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
 export async function shareAccount({ accessLevel = 'CAN_VIEW', accountId, tabId = null, userId }) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed share report success. See executeInPage.
+  const result = await executeInPage(
     async (accountId, userId, accessLevel) => {
       const response = await fetch(`/api/data/v2/accounts/share/${accountId}`, {
         body: JSON.stringify({ accessLevel, id: userId, type: 'USER' }),
         headers: { 'Content-Type': 'application/json' },
         method: 'PUT'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) return { error: `HTTP ${response.status}`, ok: false };
+      return { ok: true };
     },
     [accountId, userId, accessLevel],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to share account');
 }
 
 /**

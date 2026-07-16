@@ -178,23 +178,27 @@ export function UpdateTriggerVersionsView({
       ]);
 
       if (!mountedRef.current) return;
-      setWorkflowName(name);
-      setVersions(versionList);
       // Flatten each ALERT trigger to the fields the version-update flow needs:
       // the alert it lives on (alertId), the live action bound to this trigger
       // (actionId, which ignores stale orphaned actions), the version it runs
       // (currentVersion), its display name, and the bound dataset (resourceId).
-      setTriggers(
-        rawTriggers
-          .filter((t) => t.type === 'ALERT')
-          .map((t) => ({
-            actionId: t.entityVersion,
-            alertId: t.entityId,
-            currentVersion: t.modelVersion,
-            name: t.name,
-            resourceId: t.metadata?.resourceId ?? null
-          }))
-      );
+      const alertTriggers = rawTriggers
+        .filter((t) => t.type === 'ALERT')
+        .map((t) => ({
+          actionId: t.entityVersion,
+          alertId: t.entityId,
+          currentVersion: t.modelVersion,
+          name: t.name,
+          resourceId: t.metadata?.resourceId ?? null
+        }));
+      if (alertTriggers.length === 0) {
+        onStatusUpdate?.('No Alert Triggers', `**${name}** has no alert triggers to update.`, 'warning', 3000);
+        onBackToDefault?.();
+        return;
+      }
+      setWorkflowName(name);
+      setVersions(versionList);
+      setTriggers(alertTriggers);
       setTargetVersion(latestVersion(versionList));
     } catch (error) {
       if (mountedRef.current) {

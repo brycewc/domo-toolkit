@@ -1559,7 +1559,7 @@ export function MigrateDownstreamContentView({
               excludeIds={excludeIds}
               instanceBaseUrl={origin}
               label='To DataSet'
-              maxListHeight='max-h-120'
+              maxListHeight={480}
               selectedDisplayName={selectedDatasetName}
               selectedKey={selectedDatasetId}
               tabId={tabId}

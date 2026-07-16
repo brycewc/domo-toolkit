@@ -63,6 +63,22 @@ const result = await executeInPage(
 - Functions are serialized — no closure variables allowed
 - Pass all needed data as arguments
 - Import from `@/utils`, not `@/utils/executeInPage`
+- **Never `throw` inside the injected function to signal a failure the caller acts on.** Chrome does not propagate a rejected promise from an async injected function: it returns `{ result: null }` with no `error`, so `executeInPage` returns `null` instead of throwing and the rejection is silently swallowed. For a void mutation that means a failed operation looks exactly like success. Instead, **return a structured result** and throw in the outer service function:
+
+  ```javascript
+  const result = await executeInPage(
+    async (id) => {
+      const res = await fetch(`/api/...`, { method: 'DELETE' });
+      if (!res.ok) return { error: `HTTP ${res.status}`, ok: false };
+      return { ok: true };
+    },
+    [id],
+    tabId
+  );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to ...');
+  ```
+
+  This is why `deleteWorkflow`, `deleteDataset`, `sharePages`, `transferDatasets`, `deleteDataflowAndOutputs`, etc. all return an `{ ok, ... }`-style object rather than throwing inside the page. A read whose return value the caller consumes can still `throw` inside (a swallowed throw surfaces as a `null` the caller handles), but any mutation, or any failure the caller branches on, must use the return-and-throw pattern above.
 
 ## Services Pattern
 

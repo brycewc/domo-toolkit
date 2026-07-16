@@ -628,8 +628,11 @@ export async function sharePages({ pageIds, tabId, userId }) {
   }
 
   try {
-    // Execute fetch in page context to use authenticated session
-    await executeInPage(
+    // Execute fetch in page context to use authenticated session.
+    // Return a structured result rather than throwing: Chrome swallows a rejected
+    // promise from an async injected function (null result, no error), which would
+    // make a failed share report success. See executeInPage.
+    const result = await executeInPage(
       async (pageIds, userId) => {
         // Build request body
         const body = {
@@ -653,12 +656,12 @@ export async function sharePages({ pageIds, tabId, userId }) {
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to share pages (HTTP ${response.status})`);
+          return { error: `Failed to share pages (HTTP ${response.status})`, ok: false };
         }
 
         // Sharing only grants access; the page stays hidden from the recipient's
         // navigation until it is explicitly marked visible.
-        await Promise.all(
+        const visibilityResults = await Promise.all(
           pageIds.map(async (id) => {
             const visibilityResponse = await fetch(`/api/content/v1/pages/${id}`, {
               body: JSON.stringify({ pageVisible: true }),
@@ -670,14 +673,20 @@ export async function sharePages({ pageIds, tabId, userId }) {
             });
 
             if (!visibilityResponse.ok) {
-              throw new Error(`Failed to make page ${id} visible (HTTP ${visibilityResponse.status})`);
+              return { error: `Failed to make page ${id} visible (HTTP ${visibilityResponse.status})`, ok: false };
             }
+            return { ok: true };
           })
         );
+        const failure = visibilityResults.find((r) => !r.ok);
+        if (failure) return failure;
+
+        return { ok: true };
       },
       [validPageIds, userId],
       tabId
     );
+    if (!result?.ok) throw new Error(result?.error || 'Failed to share pages');
   } catch (error) {
     console.error('Error sharing pages:', error);
     throw error;

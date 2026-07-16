@@ -63,6 +63,8 @@
 - The readable timestamps and user/group names shown next to values in the context JSON view now match the size of the item count shown next to objects and arrays.
 - The Current Context detail tabs now show left and right scroll arrows when they overflow the panel width.
 - Copy Color Rules no longer lists the dataset you're copying from in its destination picker.
+- The Update Owner dialog now opens at the top of the popup, while staying centered in the side panel.
+- The dropdowns for searching a user, group, or dataset now size to their results instead of showing empty space below the list.
 
 ## Performance
 
@@ -71,6 +73,7 @@
 
 ## Bug Fixes
 
+- Update Trigger Versions now shows a message when a workflow has no alert triggers instead of opening a blank panel.
 - The action buttons no longer briefly collapse and reopen when an action finds nothing to show and reports it with a message instead of opening a results panel.
 - Sharing a page now makes it appear in your navigation instead of only granting access by direct link.
 - Get Card Pages now tells you when none of an object's cards appear on any page, instead of listing them under a lone Orphaned Cards category.
@@ -98,3 +101,4 @@
 - Hovering an object's name in a list now underlines it.
 - Viewing Objects Owned by someone who owns nothing now shows a brief message instead of a list of empty categories.
 - Expanding Current Context in the popup no longer stretches the popup taller or wider to fit the details, which now scroll within it instead.
+- Actions that fail on the server, such as deleting, sharing, changing ownership, or updating details, now report the error instead of showing a success message as if they worked.

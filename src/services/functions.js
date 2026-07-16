@@ -85,14 +85,19 @@ export async function createDatasetFunctions({ functions, tabId = null }) {
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  */
 export async function deleteFunction({ functionId, tabId = null }) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed delete report success. See executeInPage.
+  const result = await executeInPage(
     async (functionId) => {
       const response = await fetch(`/api/query/v1/functions/template/${functionId}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) return { error: `HTTP ${response.status}`, ok: false };
+      return { ok: true };
     },
     [functionId],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to delete');
 }
 
 /**

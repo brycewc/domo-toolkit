@@ -5,7 +5,6 @@ import { UserComboBox } from '@/components/UserComboBox';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { updateAlertOwner } from '@/services/alerts';
 import { updateWorkflowOwner } from '@/services/workflows';
-import { isSidepanel } from '@/utils/sidepanel';
 import IconPencil from '@icons/pencil.svg?react';
 import IconPerson from '@icons/person.svg?react';
 import IconX from '@icons/x.svg?react';
@@ -87,7 +86,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
         </Tooltip.Content>
       </Tooltip>
       <Modal.Backdrop>
-        <Modal.Container className='p-1' placement='center' scroll='outside'>
+        <Modal.Container className='p-1' placement='top' scroll='outside'>
           <Modal.Dialog className='p-2'>
             <Modal.CloseTrigger className='absolute top-2 right-2' variant='ghost'>
               <IconX />
@@ -104,7 +103,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                   className='w-[95%]'
                   isActive={isOpen}
                   label='Owner'
-                  maxListHeight={isSidepanel() ? 'max-h-100' : 'max-h-30'}
+                  maxListHeight={400}
                   menuTrigger='input'
                   selectedKey={selectedOwnerId}
                   tabId={currentContext?.tabId}

@@ -129,7 +129,7 @@ export function TransferApproval({ currentContext, isDisabled, onStatusUpdate })
                   avatarBaseUrl={currentContext?.domoObject?.baseUrl}
                   isActive={isOpen}
                   label='New Approver'
-                  maxListHeight={isSidepanel() ? 'max-h-100' : 'max-h-30'}
+                  maxListHeight={isSidepanel() ? 400 : 120}
                   menuTrigger='input'
                   selectedKey={selectedApproverId}
                   tabId={currentContext?.tabId}

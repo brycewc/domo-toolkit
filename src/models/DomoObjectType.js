@@ -421,7 +421,7 @@ export const ObjectTypeRegistry = {
     icon: { component: 'ApprovalCenter' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['TEMPLATE'],
-    relatedData: [{ label: 'Template', source: 'parentId', typeId: 'TEMPLATE' }],
+    relatedData: [{ label: 'Approval Template', source: 'parentId', typeId: 'TEMPLATE' }],
     urlPath: '/approval/request-details/{id}'
   }),
   AUTHORITY: new DomoObjectType('AUTHORITY', 'Grant', { idPattern: /.*/ }),

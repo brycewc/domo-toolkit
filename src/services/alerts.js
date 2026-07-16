@@ -649,7 +649,10 @@ export async function transferAlerts(alertIds, fromUserId, toUserId, tabId = nul
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
 export async function updateAlertOwner({ alertId, newOwnerId, tabId = null }) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed owner update report success. See executeInPage.
+  const result = await executeInPage(
     async (alertId, newOwnerId) => {
       const response = await fetch(`/api/social/v4/alerts/${alertId}`, {
         body: JSON.stringify({
@@ -659,11 +662,13 @@ export async function updateAlertOwner({ alertId, newOwnerId, tabId = null }) {
         headers: { 'Content-Type': 'application/json' },
         method: 'PATCH'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) return { error: `HTTP ${response.status}`, ok: false };
+      return { ok: true };
     },
     [alertId, newOwnerId],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to update alert owner');
 }
 
 /**

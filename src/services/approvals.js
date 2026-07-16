@@ -9,7 +9,10 @@ import { executeInPage } from '@/utils/executeInPage';
  *   a GraphQL response missing `success`
  */
 export async function deleteApprovalTemplate({ tabId = null, templateId }) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed archive report success. See executeInPage.
+  const result = await executeInPage(
     async (templateId) => {
       const response = await fetch('/api/synapse/approval/graphql', {
         body: JSON.stringify({
@@ -20,15 +23,17 @@ export async function deleteApprovalTemplate({ tabId = null, templateId }) {
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) return { error: `HTTP ${response.status}`, ok: false };
       const data = await response.json();
       if (!data.data?.success) {
-        throw new Error(data.data?.error || 'Archive template failed');
+        return { error: data.data?.error || 'Archive template failed', ok: false };
       }
+      return { ok: true };
     },
     [templateId],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to archive template');
 }
 
 /**

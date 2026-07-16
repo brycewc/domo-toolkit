@@ -522,7 +522,7 @@ export function DeleteObjectView({
                   Cancel
                 </Button>
                 <Button isDisabled={isDeleting} size='sm' variant='danger' onPress={() => performDelete(pendingAction)}>
-                  {pendingAction?.label}
+                  Delete
                 </Button>
               </AlertDialog.Footer>
             </AlertDialog.Dialog>
@@ -624,7 +624,7 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry }) 
         <Alert.Content>
           <Alert.Title className='flex items-center gap-1'>
             <AlertStatusIcon />
-            Dependency check not supported for this object type
+            Dependency check not supported
           </Alert.Title>
           <Alert.Description>Verify dependencies manually before deleting</Alert.Description>
         </Alert.Content>

@@ -38,7 +38,10 @@ export async function sendEmail(
 
   const emailsParam = Array.isArray(recipientEmails) ? recipientEmails.join(',') : recipientEmails || '';
 
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed send report success. See executeInPage.
+  const result = await executeInPage(
     async (payload, emailsParam) => {
       const url = `/api/social/v3/messages/domoWrapperNew:plainText/send?route=recipients&method=EMAIL&recipients=${encodeURIComponent(emailsParam)}`;
       const response = await fetch(url, {
@@ -47,8 +50,9 @@ export async function sendEmail(
         method: 'POST'
       });
       if (!response.ok) {
-        throw new Error(`Send email failed: HTTP ${response.status}`);
+        return { error: `Send email failed: HTTP ${response.status}`, ok: false };
       }
+      return { ok: true };
     },
     [
       {
@@ -63,4 +67,5 @@ export async function sendEmail(
     ],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to send email');
 }

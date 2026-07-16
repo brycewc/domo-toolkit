@@ -74,16 +74,21 @@ export async function cancelStreamExecution({ streamId, tabId }) {
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
 export async function deleteDataset({ datasetId, tabId = null }) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed delete report success. See executeInPage.
+  const result = await executeInPage(
     async (datasetId) => {
       const response = await fetch(`/api/data/v3/datasources/${datasetId}`, {
         method: 'DELETE'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) return { error: `HTTP ${response.status}`, ok: false };
+      return { ok: true };
     },
     [datasetId],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to delete dataset');
 }
 
 /**
@@ -743,19 +748,25 @@ export function isViewType(details) {
  * @returns {Promise<Object|null>} The created execution, or null
  */
 export async function runStream({ streamId, tabId }) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed run report success. See executeInPage.
+  const result = await executeInPage(
     async (streamId) => {
       const response = await fetch(`/api/data/v1/streams/${streamId}/executions`, {
         method: 'POST'
       });
       if (!response.ok) {
-        throw new Error(`Failed to run stream ${streamId}. HTTP status: ${response.status}`);
+        return { error: `Failed to run stream ${streamId}. HTTP status: ${response.status}`, ok: false };
       }
-      return response.json().catch(() => null);
+      const execution = await response.json().catch(() => null);
+      return { execution, ok: true };
     },
     [streamId],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to run stream');
+  return result.execution;
 }
 
 /**
@@ -839,7 +850,10 @@ export async function setColorRules(datasetId, rules, tabId = null) {
     condition: { ...rule.condition, dataSourceId: datasetId },
     dataSourceId: datasetId
   }));
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed save report success. See executeInPage.
+  const result = await executeInPage(
     async (id, body) => {
       const response = await fetch(`/api/content/v1/datasources/conditionalFormats/${id}`, {
         body,
@@ -847,21 +861,25 @@ export async function setColorRules(datasetId, rules, tabId = null) {
         method: 'PUT'
       });
       if (!response.ok) {
-        throw new Error(`Failed to save color rules. HTTP status: ${response.status}`);
+        return { error: `Failed to save color rules. HTTP status: ${response.status}`, ok: false };
       }
-      return response.json().catch(() => null);
+      return { ok: true };
     },
     [datasetId, JSON.stringify(rewritten)],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to save color rules');
 }
 
 export async function setStreamScheduleToManual({ streamId, tabId }) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed schedule update report success. See executeInPage.
+  const result = await executeInPage(
     async (streamId) => {
       const getResponse = await fetch(`/api/data/v1/streams/${streamId}?fields=all`);
       if (!getResponse.ok) {
-        throw new Error(`Failed to fetch stream ${streamId}. HTTP status: ${getResponse.status}`);
+        return { error: `Failed to fetch stream ${streamId}. HTTP status: ${getResponse.status}`, ok: false };
       }
 
       const definition = await getResponse.json();
@@ -877,14 +895,15 @@ export async function setStreamScheduleToManual({ streamId, tabId }) {
         method: 'PUT'
       });
       if (!putResponse.ok) {
-        throw new Error(`Failed to update stream ${streamId}. HTTP status: ${putResponse.status}`);
+        return { error: `Failed to update stream ${streamId}. HTTP status: ${putResponse.status}`, ok: false };
       }
 
-      return putResponse.json();
+      return { ok: true };
     },
     [streamId],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to update stream schedule');
 }
 
 /**
@@ -955,18 +974,22 @@ export async function transferDatasets(datasetIds, fromOwnerId, toOwnerId, tabId
 }
 
 export async function updateDatasetProperties(datasetId, updates) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed properties update report success. See executeInPage.
+  const result = await executeInPage(
     async (id, body) => {
       const res = await fetch(`/api/data/v3/datasources/${id}/properties`, {
         body,
         headers: { 'Content-Type': 'application/json' },
         method: 'PUT'
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json().catch(() => null);
+      if (!res.ok) return { error: `HTTP ${res.status}`, ok: false };
+      return { ok: true };
     },
     [datasetId, JSON.stringify(updates)]
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to update dataset properties');
 }
 
 /**
@@ -988,14 +1011,17 @@ export async function updateDatasetProperties(datasetId, updates) {
  * @param {string|number} params.streamId - The stream ID
  * @param {Object} params.accountChanges - Map of oldAccountId -> newAccountId
  * @param {number} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<Object>} The updated stream definition
+ * @returns {Promise<void>} Resolves on success, throws on failure
  */
 export async function updateStreamAccounts({ accountChanges, streamId, tabId }) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed account switch report success. See executeInPage.
+  const result = await executeInPage(
     async (streamId, changes) => {
       const getResponse = await fetch(`/api/data/v1/streams/${streamId}?fields=all`);
       if (!getResponse.ok) {
-        throw new Error(`Failed to fetch stream ${streamId}. HTTP status: ${getResponse.status}`);
+        return { error: `Failed to fetch stream ${streamId}. HTTP status: ${getResponse.status}`, ok: false };
       }
       const definition = await getResponse.json();
 
@@ -1024,7 +1050,7 @@ export async function updateStreamAccounts({ accountChanges, streamId, tabId }) 
       }
 
       if (replaced === 0) {
-        throw new Error('Could not locate the account on the stream definition to switch.');
+        return { error: 'Could not locate the account on the stream definition to switch.', ok: false };
       }
 
       const putResponse = await fetch(`/api/data/v1/streams/${streamId}`, {
@@ -1033,11 +1059,12 @@ export async function updateStreamAccounts({ accountChanges, streamId, tabId }) 
         method: 'PUT'
       });
       if (!putResponse.ok) {
-        throw new Error(`Failed to update stream ${streamId}. HTTP status: ${putResponse.status}`);
+        return { error: `Failed to update stream ${streamId}. HTTP status: ${putResponse.status}`, ok: false };
       }
-      return putResponse.json();
+      return { ok: true };
     },
     [streamId, accountChanges],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to update stream accounts');
 }

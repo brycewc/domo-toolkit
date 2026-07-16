@@ -10,36 +10,42 @@ import { executeInPage } from '@/utils/executeInPage';
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
 export async function deleteWorkflow({ modelId, tabId = null }) {
-  return executeInPage(
+  // The injected function reports failure by returning a structured result
+  // rather than throwing: Chrome does not propagate a rejected promise from an
+  // async injected function to the InjectionResult (it returns a null result
+  // with no error), so a thrown failure here would be silently swallowed and
+  // the delete would report success. See executeInPage for the same reason.
+  const result = await executeInPage(
     async (modelId) => {
       const versionsRes = await fetch(`/api/workflow/v2/models/${modelId}/versions`);
       if (!versionsRes.ok) {
-        throw new Error(`Failed to list workflow versions: HTTP ${versionsRes.status}`);
+        return { error: `Failed to list workflow versions: HTTP ${versionsRes.status}`, ok: false };
       }
       const versions = await versionsRes.json();
       const activeVersions = versions.filter((v) => v.active);
       for (const ver of activeVersions) {
-        const deactivateRes = await fetch(`/api/workflow/v2/models/${modelId}/versions/${ver.version}`, {
+        const deactivateRes = await fetch(`/api/workflow/v1/models/${modelId}/versions/${ver.version}/deployment`, {
           body: JSON.stringify({
-            active: false,
-            description: ver.description
+            active: false
           }),
           headers: { 'Content-Type': 'application/json' },
           method: 'PUT'
         });
         if (!deactivateRes.ok) {
-          throw new Error(`Failed to deactivate version ${ver.version}: HTTP ${deactivateRes.status}`);
+          return { error: `Failed to deactivate version ${ver.version}: HTTP ${deactivateRes.status}`, ok: false };
         }
       }
 
       const deleteRes = await fetch(`/api/workflow/v1/models/${modelId}`, {
         method: 'DELETE'
       });
-      if (!deleteRes.ok) throw new Error(`HTTP ${deleteRes.status}`);
+      if (!deleteRes.ok) return { error: `HTTP ${deleteRes.status}`, ok: false };
+      return { ok: true };
     },
     [modelId],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to delete workflow');
 }
 
 /**
@@ -79,10 +85,9 @@ export async function ensureWorkflowVersionEditable({ modelId, tabId = null, ver
       // Locked by someone else within the last 24 hours: leave it alone.
       if (!isOwnLock && !isStale) return false;
 
-      const unlockRes = await fetch(
-        `/api/workflow/v1/models/${modelId}/versions/${versionNumber}/lock/false?admin=false`,
-        { method: 'PUT' }
-      );
+      const unlockRes = await fetch(`/api/workflow/v1/models/${modelId}/versions/${versionNumber}/lock/false?admin=false`, {
+        method: 'PUT'
+      });
       return unlockRes.ok;
     },
     [modelId, versionNumber],

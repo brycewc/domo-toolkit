@@ -25,7 +25,7 @@ import IconChevronDown from '@icons/chevron-down.svg?react';
  * @param {string} [props.avatarBaseUrl] - Base URL for avatar images (e.g. "https://instance.domo.com")
  * @param {string} [props.className] - Additional CSS class for the ComboBox
  * @param {boolean} [props.isActive=true] - Whether to fetch groups (use false when inside a closed modal)
- * @param {string} [props.maxListHeight] - Override max height class for the list
+ * @param {number} [props.maxListHeight] - Max height (px) for the dropdown list; React Aria caps it to the smaller of this and the available space, so it never overflows the popup edge
  * @param {string} [props.selectedDisplayName] - Display name for an externally-set selection
  * @param {number|null} [props.tabId] - Chrome tab ID for API calls
  * @param {Object} rest - All other props are forwarded to the ComboBox (e.g. aria-label, selectedKey, onSelectionChange)
@@ -159,7 +159,8 @@ export function GroupComboBox({
     onSelectionChange?.(key);
   };
 
-  const listHeight = maxListHeight || (isSidepanel() ? 'max-h-60' : 'max-h-30');
+  // Passed to the popover's maxHeight so React Aria caps it to min(this, available space).
+  const listHeight = maxListHeight ?? (isSidepanel() ? 240 : 120);
 
   return (
     <ComboBox
@@ -181,11 +182,8 @@ export function GroupComboBox({
           <IconChevronDown />
         </ComboBox.Trigger>
       </ComboBox.InputGroup>
-      <ComboBox.Popover placement='bottom start'>
-        <ListBox
-          className={`overflow-y-auto ${listHeight}`}
-          renderEmptyState={() => <EmptyState>No groups found</EmptyState>}
-        >
+      <ComboBox.Popover maxHeight={listHeight} placement='bottom start'>
+        <ListBox renderEmptyState={() => <EmptyState>No groups found</EmptyState>}>
           <Collection items={groups}>
             {(group) => (
               <ListBox.Item id={group.id} key={group.id} textValue={group.name}>

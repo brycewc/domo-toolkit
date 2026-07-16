@@ -536,7 +536,11 @@ export async function setCardsLocked({ cardIds, locked, tabId = null }) {
 
   for (const batch of batches) {
     try {
-      await executeInPage(
+      // Return a structured result rather than throwing: Chrome swallows a
+      // rejected promise from an async injected function (null result, no
+      // error), which would bypass the failed-batch accounting below and make a
+      // failed lock/unlock report success. See executeInPage.
+      const result = await executeInPage(
         async (batch, locked) => {
           let response;
           if (locked) {
@@ -553,13 +557,19 @@ export async function setCardsLocked({ cardIds, locked, tabId = null }) {
             });
           }
           if (!response.ok) {
-            throw new Error(`HTTP status: ${response.status}`);
+            return { error: `HTTP status: ${response.status}`, ok: false };
           }
+          return { ok: true };
         },
         [batch, locked],
         tabId
       );
-      succeeded += batch.length;
+      if (!result?.ok) {
+        failed += batch.length;
+        errors.push(...batch.map((id) => ({ error: result?.error || 'HTTP error', id })));
+      } else {
+        succeeded += batch.length;
+      }
     } catch (error) {
       failed += batch.length;
       errors.push(...batch.map((id) => ({ error: error.message, id })));
@@ -666,7 +676,10 @@ export async function updateCardDefinition({ cardId, definition, tabId = null })
       };
     }
 
-    // Update the card with the modifications
+    // Update the card with the modifications.
+    // Return a structured result rather than throwing: Chrome swallows a rejected
+    // promise from an async injected function (null result, no error), which would
+    // make a failed card update report success. See executeInPage.
     const result = await executeInPage(
       async (cardId, definition) => {
         const response = await fetch(`/api/content/v3/cards/kpi/${cardId}`, {
@@ -681,16 +694,16 @@ export async function updateCardDefinition({ cardId, definition, tabId = null })
           try {
             bodyText = await response.text();
           } catch {
-            // body unreadable — fall through with empty
+            // body unreadable, fall through with empty
           }
-          throw new Error(`Failed to update card ${cardId}. HTTP ${response.status}: ${bodyText}`.trim());
+          return { error: `Failed to update card ${cardId}. HTTP ${response.status}: ${bodyText}`.trim(), ok: false };
         }
-        return response.json();
+        return { ok: true };
       },
       [cardId, definition],
       tabId
     );
-    return result;
+    if (!result?.ok) throw new Error(result?.error || 'Failed to update card definition');
   } catch (error) {
     console.error('Error updating card definition:', error);
     throw error;

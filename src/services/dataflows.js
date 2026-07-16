@@ -553,39 +553,36 @@ export async function transferDataflows(dataflowIds, fromUserId, toUserId, tabId
 }
 
 export async function updateDataflowDetails(dataflowId, updates) {
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed details update report success. See executeInPage.
   const result = await executeInPage(
     async (dataflowId, updates) => {
-      try {
-        // Build payload from updates - allow empty string for description (to clear it)
-        const payload = {};
-        if ('name' in updates && updates.name?.trim()) {
-          payload.name = updates.name.trim();
-        }
-        if ('description' in updates) {
-          payload.description = updates.description?.trim() ?? '';
-        }
-
-        // Update the DataFlow using PATCH
-        const updateResponse = await fetch(`/api/dataprocessing/v1/dataflows/${dataflowId}/patch`, {
-          body: JSON.stringify(payload),
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          method: 'PUT'
-        });
-
-        if (!updateResponse.ok) {
-          throw new Error(`HTTP ${updateResponse.status}`);
-        }
-
-        const data = await updateResponse.json();
-        return data;
-      } catch (error) {
-        console.error('Error in updateDataflowInPage:', error);
-        throw error;
+      // Build payload from updates - allow empty string for description (to clear it)
+      const payload = {};
+      if ('name' in updates && updates.name?.trim()) {
+        payload.name = updates.name.trim();
       }
+      if ('description' in updates) {
+        payload.description = updates.description?.trim() ?? '';
+      }
+
+      // Update the DataFlow using PATCH
+      const updateResponse = await fetch(`/api/dataprocessing/v1/dataflows/${dataflowId}/patch`, {
+        body: JSON.stringify(payload),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        method: 'PUT'
+      });
+
+      if (!updateResponse.ok) {
+        return { error: `HTTP ${updateResponse.status}`, ok: false };
+      }
+
+      return { ok: true };
     },
     [dataflowId, updates]
   );
-  return result;
+  if (!result?.ok) throw new Error(result?.error || 'Failed to update dataflow details');
 }
