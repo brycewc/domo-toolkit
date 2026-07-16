@@ -1419,22 +1419,22 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tanstack/react-virtual@npm:^3.14.2":
-  version: 3.14.2
-  resolution: "@tanstack/react-virtual@npm:3.14.2"
+"@tanstack/react-virtual@npm:3.14.6, @tanstack/react-virtual@npm:^3.14.6":
+  version: 3.14.6
+  resolution: "@tanstack/react-virtual@npm:3.14.6"
   dependencies:
-    "@tanstack/virtual-core": "npm:3.17.0"
+    "@tanstack/virtual-core": "npm:3.17.4"
   peerDependencies:
     react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
     react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-  checksum: 10c0/6d42161f17fc037663270d68d14340e8d2561bd1b8ea17c295477adf99fa6d5ba4e4cde2ee050047c673217f7f71db92749159d25885530de1c78ca18ef6536d
+  checksum: 10c0/66b2b7e8e6281920ff69450a4e4d57762969ad2c530f21718484af0e561504f568231486778fc402e7862de0c7783b08ab94570b7aa4d62422512b77e6f9f06d
   languageName: node
   linkType: hard
 
-"@tanstack/virtual-core@npm:3.17.0":
-  version: 3.17.0
-  resolution: "@tanstack/virtual-core@npm:3.17.0"
-  checksum: 10c0/313c5762343ad93ec0569b528c111a43f9615acc572293a71efc6dcf94ff9d791c97f1ada32b7dfbda79ed7d472834b14315ebe54d74b0221224732e501def6f
+"@tanstack/virtual-core@npm:3.17.4":
+  version: 3.17.4
+  resolution: "@tanstack/virtual-core@npm:3.17.4"
+  checksum: 10c0/63682ded2c977abf80893370175ea0af98a5686ffc5ede80b6f90cd7591d7d5bd85a4057d09ecf660f058f956ce4462d32b399b3b6818b649f900551cb692fad
   languageName: node
   linkType: hard
 
@@ -2387,7 +2387,7 @@ __metadata:
     "@stylistic/eslint-plugin": "npm:^5.10.0"
     "@tabler/icons-react": "npm:^3.44.0"
     "@tailwindcss/vite": "npm:^4.3.0"
-    "@tanstack/react-virtual": "npm:^3.14.2"
+    "@tanstack/react-virtual": "npm:^3.14.6"
     "@vitejs/plugin-react": "npm:^6.0.2"
     "@xyflow/react": "npm:^12.11.0"
     acorn: "npm:^8.16.0"
@@ -2403,7 +2403,7 @@ __metadata:
     prismjs: "npm:^1.30.0"
     react: "npm:^19.2.7"
     react-dom: "npm:^19.2.7"
-    react18-json-view: "npm:^0.2.10"
+    react18-json-view: "file:../react18-json-view"
     rollup-plugin-visualizer: "npm:^7.0.1"
     tailwindcss: "npm:^4.3.0"
     vite: "npm:^8.0.16"
@@ -4017,14 +4017,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react18-json-view@npm:^0.2.10":
-  version: 0.2.10
-  resolution: "react18-json-view@npm:0.2.10"
+"react18-json-view@file:../react18-json-view::locator=domo-toolkit%40workspace%3A.":
+  version: 0.3.0
+  resolution: "react18-json-view@file:../react18-json-view#../react18-json-view::hash=241532&locator=domo-toolkit%40workspace%3A."
   dependencies:
+    "@tanstack/react-virtual": "npm:3.14.6"
     copy-to-clipboard: "npm:^3.3.3"
   peerDependencies:
     react: ">=16.8.0"
-  checksum: 10c0/967cfc0047ea3bde8f3d68f491067e9e01e1f7ba1ade922178c8ca971f7a2928ec837102943f9bb03e48dfac92f17ff84c0128d98ca61f273488a7f9df98e371
+    react-dom: ">=16.8.0"
+  checksum: 10c0/38bf87c4957b32d072119aae8c612d2716048ca9c2f6db98f64b1057cd296c8c45faa707640f1be753732e1ec12e09ecd31361af92aa11cb3dea529f89e18da9
   languageName: node
   linkType: hard
 
