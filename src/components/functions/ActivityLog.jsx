@@ -283,49 +283,49 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
         <Dropdown.Menu onAction={handleClick}>
           {hasParent && (
             <Dropdown.Item id='parent' textValue={parentTypeName || 'Parent'}>
-              <div className='flex h-fit items-start justify-start gap-2'>
-                <ObjectTypeIcon className='size-4 shrink-0' typeId={parentTypeId} />
-                <div className='flex flex-col'>
+              <div className='flex flex-col'>
+                <div className='flex items-center gap-2'>
+                  <ObjectTypeIcon className='size-4 shrink-0' typeId={parentTypeId} />
                   <Label>{parentTypeName}</Label>
-                  <Description className='text-xs'>
-                    View activity log for the parent {parentTypeName?.toLowerCase()} this{' '}
-                    {currentContext?.domoObject?.typeName?.toLowerCase() || 'page'} belongs to
-                  </Description>
                 </div>
+                <Description className='ml-6 text-xs'>
+                  View activity log for the parent {parentTypeName?.toLowerCase()} this{' '}
+                  {currentContext?.domoObject?.typeName?.toLowerCase() || 'page'} belongs to
+                </Description>
               </div>
             </Dropdown.Item>
           )}
           <Dropdown.Item id='cards' textValue='Cards'>
-            <div className='flex h-fit items-start justify-start gap-2'>
-              <IconChartBarBox className='size-4 shrink-0' />
-              <div className='flex flex-col'>
+            <div className='flex flex-col'>
+              <div className='flex items-center gap-2'>
+                <IconChartBarBox className='size-4 shrink-0' />
                 <Label>Cards</Label>
-                <Description className='text-xs'>
-                  View activity log for all cards on this {currentContext?.domoObject?.typeName?.toLowerCase() || 'object'}
-                </Description>
               </div>
+              <Description className='ml-6 text-xs'>
+                View activity log for all cards on this {currentContext?.domoObject?.typeName?.toLowerCase() || 'object'}
+              </Description>
             </div>
           </Dropdown.Item>
           <Dropdown.Item id='card-pages' textValue='Card Pages'>
-            <div className='flex h-fit items-start justify-start gap-2'>
-              <IconPagesBars className='size-4 shrink-0' />
-              <div className='flex flex-col'>
+            <div className='flex flex-col'>
+              <div className='flex items-center gap-2'>
+                <IconPagesBars className='size-4 shrink-0' />
                 <Label>Card Pages</Label>
-                <Description className='text-xs'>
-                  View activity log for pages where cards from this{' '}
-                  {currentContext?.domoObject?.typeName?.toLowerCase() || 'object'} appear
-                </Description>
               </div>
+              <Description className='ml-6 text-xs'>
+                View activity log for pages where cards from this{' '}
+                {currentContext?.domoObject?.typeName?.toLowerCase() || 'object'} appear
+              </Description>
             </div>
           </Dropdown.Item>
           {hasChildPages && (
             <Dropdown.Item id='child-pages' textValue='Child Pages'>
-              <div className='flex h-fit items-start justify-start gap-2'>
-                <IconTree className='size-4 shrink-0' />
-                <div className='flex flex-col'>
+              <div className='flex flex-col'>
+                <div className='flex items-center gap-2'>
+                  <IconTree className='size-4 shrink-0' />
                   <Label>Child Pages</Label>
-                  <Description className='text-xs'>View activity log for hierarchical child pages</Description>
                 </div>
+                <Description className='ml-6 text-xs'>View activity log for hierarchical child pages</Description>
               </div>
             </Dropdown.Item>
           )}

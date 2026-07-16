@@ -67,14 +67,19 @@ export default function App() {
   }, [currentTabId]);
 
   return (
-    <div className='flex h-full max-h-[600px] max-w-[800px] min-w-100 flex-col items-start justify-start space-y-1 overflow-hidden overscroll-contain p-1'>
+    <div className='flex h-full max-h-150 w-100 flex-col items-start justify-start space-y-1 overflow-hidden overscroll-contain p-1'>
       <ActionButtons
         collapsable={false}
         currentContext={currentContext}
         isLoading={isLoadingCurrentContext}
         onStatusUpdate={showStatus}
       />
-      <ContextFooter currentContext={currentContext} isLoading={isLoadingCurrentContext} onStatusUpdate={showStatus} />
+      <ContextFooter
+        currentContext={currentContext}
+        isLoading={isLoadingCurrentContext}
+        viewportHeightCap={600}
+        onStatusUpdate={showStatus}
+      />
       <ToastProvider className='right-2 bottom-2' placement='bottom' />
     </div>
   );

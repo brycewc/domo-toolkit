@@ -66,13 +66,18 @@ const deletersByType = {
         loadingMessage: ({ appName }) => `Deleting **${appName}** and all its cards…`,
         run: async ({ context, deps }) => {
           const appId = context.domoObject.parentId;
-          return deleteAppAndAllContent({
+          const result = await deleteAppAndAllContent({
             appId,
             cardIds: deps?.appSummary?.cardIds ?? null,
             currentPageId: context.domoObject.id,
             currentPageType: context.domoObject.typeId,
             tabId: context.tabId
           });
+          // The tab is still on the now-deleted app's page, so send it to the
+          // App Studio list (both apps and worksheets live under /app-studio).
+          const origin = `https://${context.instance}.domo.com`;
+          chrome.tabs.update(context.tabId, { url: `${origin}/app-studio` });
+          return result;
         },
         successMessage: ({ appName }, result) =>
           `**${appName}** and ${result.cardCount} card${result.cardCount !== 1 ? 's' : ''} deleted`,

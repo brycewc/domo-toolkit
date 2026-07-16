@@ -1,9 +1,10 @@
 import { Chip, Disclosure, Link, ScrollShadow, Skeleton, Spinner, Tabs, Tooltip } from '@heroui/react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
 import { Alert } from '@/components/Alert';
+import { useConnectorVersion } from '@/hooks/useConnectorVersion';
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
 import { useWheelHorizontalScroll } from '@/hooks/useWheelHorizontalScroll';
@@ -55,6 +56,7 @@ const LAZY_OBJECT_FETCHERS = {
 
 import { AlertStatusIcon } from './AlertStatusIcon';
 import { AnimatedCheck } from './AnimatedCheck';
+import { ConnectorVersionAnnotation } from './ConnectorVersionAnnotation';
 import { GroupIdAnnotation } from './GroupIdAnnotation';
 import { ObjectTypeIcon } from './ObjectTypeIcon';
 import { TimestampAnnotation } from './TimestampAnnotation';
@@ -85,9 +87,11 @@ const ARRAY_VIRTUAL_OVERSCAN = 6;
 const ARRAY_VIRTUAL_ROW_ESTIMATE = 160;
 const ARRAY_VIRTUAL_THRESHOLD = 50;
 
-export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onStatusUpdate }) {
+export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onStatusUpdate, viewportHeightCap }) {
   const [developerMode, setDeveloperMode] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [scrollMaxHeight, setScrollMaxHeight] = useState(undefined);
+  const scrollWrapperRef = useRef(null);
   const [relatedCache, setRelatedCache] = useState({});
   const [loadingTabs, setLoadingTabs] = useState({});
   const [activeTabId, setActiveTabId] = useState(null);
@@ -290,6 +294,31 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
     }
   }, [tabs, activeTabId]);
 
+  // Popup only (viewportHeightCap set): cap the JSON scroll area to the space
+  // left below it, so the popup grows with the disclosure's open animation but
+  // never past its height limit. Without the cap a tall object grows the popup
+  // to that limit and then clips; with it the extra rows scroll instead. The
+  // scroll area's top sits below the (fixed-height) action bar, alert, and tabs,
+  // so it doesn't move as the content below animates open, making a single
+  // measurement stable. The side panel passes no cap and keeps its flex-fill.
+  useLayoutEffect(() => {
+    if (!viewportHeightCap || !isExpanded) {
+      setScrollMaxHeight(undefined);
+      return;
+    }
+    const measure = () => {
+      const el = scrollWrapperRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top;
+      // Leave the popup's bottom padding plus a small safety margin so the
+      // content reaches, but never exceeds, the height cap.
+      setScrollMaxHeight(Math.max(96, viewportHeightCap - top - 8));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [activeTabId, currentContext, isExpanded, tabs, viewportHeightCap]);
+
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const activeSrc = useMemo(() => {
     if (!activeTab) {
@@ -304,6 +333,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
     if (activeTab.isFullContext) return currentContext;
     return relatedCache[activeTabId] || null;
   }, [activeTab, activeTabId, currentContext, relatedCache]);
+  const connectorLatestVersion = useConnectorVersion(activeSrc, currentContext?.tabId);
   const groupMap = useGroupLookup(activeSrc, currentContext?.tabId);
   const userMap = useUserLookup(activeSrc, currentContext?.tabId);
   const tabScrollRef = useWheelHorizontalScroll();
@@ -499,7 +529,14 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
         parentId: activeTab.parentId,
         typeId: activeTab.typeId
       });
-      return <MetadataJsonView groupMap={groupMap} src={src} userMap={userMap} />;
+      return (
+        <MetadataJsonView
+          connectorLatestVersion={connectorLatestVersion}
+          groupMap={groupMap}
+          src={src}
+          userMap={userMap}
+        />
+      );
     }
 
     return <p className='py-2 text-center text-sm text-muted'>Select this tab to load details</p>;
@@ -620,7 +657,7 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
         <Disclosure.Trigger className='w-full cursor-pointer'>{alertContent}</Disclosure.Trigger>
       </Disclosure.Heading>
       <Disclosure.Content className={`card flex min-h-0 flex-1 flex-col bg-surface p-0 ${isExpanded ? '' : 'collapse'}`}>
-        <div className='card__content flex min-h-0 w-full flex-1 flex-col gap-2 p-2'>
+        <div className='card__content flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 p-2'>
           {tabs.length > 1 && (
             <Tabs
               className='w-full shrink-0'
@@ -662,22 +699,31 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
               </Tabs.ListContainer>
             </Tabs>
           )}
-          {shouldVirtualizeArray ? (
-            // Virtualized array: this component owns the scroll viewport, so it
-            // bypasses ScrollShadow (whose scroll element the virtualizer can't
-            // listen on). Loses the edge-fade gradient, worth it for windowing a
-            // long related list.
-            <VirtualizedArrayJsonView groupMap={groupMap} items={activeArrayItems} userMap={userMap} />
-          ) : (
-            <ScrollShadow
-              hideScrollBar
-              className='min-h-0 flex-1 overflow-y-auto overscroll-y-contain'
-              offset={2}
-              orientation='vertical'
-            >
-              {renderJsonContent()}
-            </ScrollShadow>
-          )}
+          {/* Wrapper carries the popup's measured height cap (scrollMaxHeight);
+              in the side panel it's undefined and this stays a plain flex-fill
+              container. Either way the scroll child fills it and scrolls. */}
+          <div
+            className='flex min-h-0 w-full min-w-0 flex-1 flex-col'
+            ref={scrollWrapperRef}
+            style={scrollMaxHeight ? { maxHeight: scrollMaxHeight } : undefined}
+          >
+            {shouldVirtualizeArray ? (
+              // Virtualized array: this component owns the scroll viewport, so it
+              // bypasses ScrollShadow (whose scroll element the virtualizer can't
+              // listen on). Loses the edge-fade gradient, worth it for windowing a
+              // long related list.
+              <VirtualizedArrayJsonView groupMap={groupMap} items={activeArrayItems} userMap={userMap} />
+            ) : (
+              <ScrollShadow
+                hideScrollBar
+                className='min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain'
+                offset={2}
+                orientation='vertical'
+              >
+                {renderJsonContent()}
+              </ScrollShadow>
+            )}
+          </div>
         </div>
       </Disclosure.Content>
     </Disclosure>
@@ -728,12 +774,12 @@ function injectUrls(src, { baseUrl, isArray, itemIdField, itemTypeField, itemTyp
   return src;
 }
 
-function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
+function MetadataJsonView({ collapsed = 1, connectorLatestVersion = null, groupMap = {}, src, userMap = {} }) {
   // Remount when lookup maps change — react18-json-view's JsonNode calls
   // useContext before customizeNode's early return but useState after it, so
   // switching a node between element/config return types across renders
   // breaks the Rules of Hooks. Remounting sidesteps the library bug.
-  const jsonViewKey = `${Object.keys(userMap).sort().join(',')}|${Object.keys(groupMap).sort().join(',')}`;
+  const jsonViewKey = `${Object.keys(userMap).sort().join(',')}|${Object.keys(groupMap).sort().join(',')}|${connectorLatestVersion ?? ''}`;
   return (
     <JsonView
       displaySize
@@ -771,6 +817,16 @@ function MetadataJsonView({ collapsed = 1, groupMap = {}, src, userMap = {} }) {
           if (formatted) {
             return <TimestampAnnotation formatted={formatted} value={params.node} />;
           }
+        }
+        // Annotate the stream's installed connector version with the latest
+        // published version. Pinned to transport.version by matching the value,
+        // so a stray field named 'version' elsewhere is not annotated.
+        if (
+          connectorLatestVersion &&
+          params?.indexOrName === 'version' &&
+          String(params.node) === String(src?.transport?.version)
+        ) {
+          return <ConnectorVersionAnnotation latestVersion={connectorLatestVersion} value={params.node} />;
         }
         if ((typeof params.node === 'number' || typeof params.node === 'string') && Object.keys(userMap).length > 0) {
           const numericValue = Number(params.node);
@@ -874,7 +930,7 @@ function VirtualizedArrayJsonView({ groupMap, items, userMap }) {
     overscan: ARRAY_VIRTUAL_OVERSCAN
   });
   return (
-    <div className='min-h-0 w-full flex-1 overflow-auto overscroll-y-contain' ref={parentRef}>
+    <div className='min-h-0 w-full min-w-0 flex-1 overflow-auto overscroll-contain' ref={parentRef}>
       <div
         className='divide-y divide-border'
         style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}

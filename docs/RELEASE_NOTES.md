@@ -22,6 +22,7 @@
 - A person's profile page now has a View in Admin buttonn to quickly navigate between the two.
 - Get Owned Objects now works on a group, listing everything the group owns.
 - Transfer Ownership now works on a group, moving the group's objects to another group.
+- The Stream tab for a connector-backed dataset now shows the latest published connector version next to the version it currently runs.
 
 ## Newly Supported Object Types
 
@@ -50,6 +51,7 @@
 - Get Card Pages on a page, app studio app, or worksheet now lists the cards that live only there under a "Cards that Only Live Here" category.
 - The Update Details view now shows the object's type icon next to its name in the title instead of next to the ID below.
 - Delete now shows a type icon on each dependency category, such as a card icon on Cards on This Page.
+- The activity log button's hold-for-more-options menu now aligns each option's icon with its title instead of the top of its description.
 - Renamed the action button "Update <Object> Details" to "Update Details".
 - System pages (Overview, Favorites, or Shared) in a list now carry a "System" chip next to their name.
 - Copying an object from a JSON viewer now produces formatted, indented JSON in every view.
@@ -87,6 +89,8 @@
 - Transferring a user's objects now shows a green checkmark on each object type that finishes successfully, not only a red X on the ones that fail.
 - Opening a Task Center task with a reference-style ID (such as "15AUG25_TS551E") is now recognized instead of leaving the current context empty.
 - Opening the settings page without a specific tab now lands on General Settings instead of a blank page with no tab selected.
+- Deleting an entire app and all its cards now sends you to App Studio instead of leaving you on the deleted app's broken page.
 - The delete confirmation now disables its delete buttons when the dependency check fails.
 - Hovering an object's name in a list now underlines it.
 - Viewing Objects Owned by someone who owns nothing now shows a brief message instead of a list of empty categories.
+- Expanding Current Context in the popup no longer stretches the popup taller or wider to fit the details, which now scroll within it instead.

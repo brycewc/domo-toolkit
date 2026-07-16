@@ -11,6 +11,7 @@ node_modules
 dist
 release
 dist-ssr
+.playwriter-shots
 *.local
 *.env.*
 !.env.development.local.example

@@ -58,6 +58,7 @@ export const ACTION_COLOR_PATTERNS = {
 // (e.g. /datacenter/dataflows before /datacenter).
 export const SECTION_TITLES = {
   '/admin/people': 'People',
+  '/app-studio': 'App Studio Apps',
   '/codeengine': 'Code Engine Packages',
   '/datacenter/accounts': 'Accounts',
   '/datacenter/beastmode': 'Beast Mode',
