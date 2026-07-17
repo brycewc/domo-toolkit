@@ -74,9 +74,11 @@ const deletersByType = {
             tabId: context.tabId
           });
           // The tab is still on the now-deleted app's page, so send it to the
-          // App Studio list (both apps and worksheets live under /app-studio).
+          // matching App Studio list: worksheets have their own tab, everything
+          // else lands on the main app-studio list.
           const origin = `https://${context.instance}.domo.com`;
-          chrome.tabs.update(context.tabId, { url: `${origin}/app-studio` });
+          const listPath = context.domoObject.typeId === 'WORKSHEET_VIEW' ? '/app-studio/worksheets' : '/app-studio';
+          chrome.tabs.update(context.tabId, { url: `${origin}${listPath}` });
           return result;
         },
         successMessage: ({ appName }, result) =>
@@ -198,7 +200,53 @@ const deletersByType = {
     typeName: 'Worksheet Page'
   }
 };
+// The "Delete Page and Cards that Only Live Here" alternate action, shared by
+// plain pages, app studio pages, and worksheet pages. It deletes the page and
+// only the cards that appear on no other page, leaving shared cards in place, and
+// honors the same child-page block as the primary delete (both remove just this
+// one page).
+const onlyHereCardsCascade = {
+  available: ({ deps }) => (deps?.groups || []).some((g) => g.key === 'pageCards' && g.items.length > 0),
+  blockedReason: ({ blockingReason }) => blockingReason || 'Resolve the blocking dependencies before deleting.',
+  buildContext: ({ context, deps }) => {
+    const isWorksheet = context.domoObject?.typeId === 'WORKSHEET_VIEW';
+    return {
+      blocked: (deps?.blockingCount ?? 0) > 0,
+      blockingReason: deps?.blockingReason || null,
+      onlyHereCount: deps?.onlyHereCardCount ?? null,
+      pageId: context.domoObject.id,
+      pageLabel: isWorksheet ? 'Worksheet Page' : 'Page',
+      pageName: context.domoObject.metadata?.name || context.domoObject.id
+    };
+  },
+  confirmText: ({ onlyHereCount, pageId, pageLabel, pageName }) => {
+    const base = `Delete the ${pageLabel.toLowerCase()} **${pageName} (ID: ${pageId})**`;
+    // No count yet (lookup pending or failed): describe the scope without a number.
+    if (onlyHereCount == null) {
+      return `${base} and only the cards that appear on no other page permanently? Cards also used on other pages are left in place.`;
+    }
+    // Every card is shared elsewhere: the delete removes just the page.
+    if (onlyHereCount === 0) {
+      return `${base} permanently? All of its cards also appear on other pages and will be left in place.`;
+    }
+    return `${base} and its **${onlyHereCount} card${onlyHereCount !== 1 ? 's' : ''}** that appear on no other page permanently? Cards also used on other pages are left in place.`;
+  },
+  isBlocked: ({ blocked }) => blocked,
+  label: ({ pageLabel }) => `Delete ${pageLabel} and Cards that Only Live Here`,
+  loadingMessage: ({ pageName }) => `Deleting **${pageName}** and cards that only live here…`,
+  run: ({ context }) => runPageDelete({ cardScope: 'onlyHere', context, parentAppId: context.domoObject.parentId }),
+  successMessage: ({ pageName }, result) =>
+    result.cardsDeleted === 0
+      ? `**${pageName}** deleted; its cards live elsewhere and were left in place`
+      : `**${pageName}** and ${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's' : ''} that only lived here deleted`,
+  tooltip: () => 'Deletes only the cards that live on no other page, leaving shared cards in place'
+};
+// App studio and worksheet pages already share one cascade array; add the
+// only-here action to all three page types. Prepending it via unshift mutates the
+// shared array in place, so both app and worksheet views pick it up.
 deletersByType.WORKSHEET_VIEW.cascadeButtons = deletersByType.DATA_APP_VIEW.cascadeButtons;
+deletersByType.DATA_APP_VIEW.cascadeButtons.unshift(onlyHereCardsCascade);
+deletersByType.PAGE.cascadeButtons = [onlyHereCardsCascade];
 // Bricks and pro-code apps are both custom app designs deleted the same way, so
 // the pro-code type reuses the brick's delete config.
 deletersByType.RYUU_APP = deletersByType.APP;
@@ -684,9 +732,10 @@ function resolveSuffix(config, context) {
   return config.confirmSuffix || '';
 }
 
-async function runPageDelete({ context, parentAppId = null }) {
+async function runPageDelete({ cardScope = 'all', context, parentAppId = null }) {
   const result = await deletePageAndAllCards({
     appId: parentAppId ? parseInt(parentAppId) : null,
+    cardScope,
     currentContext: context,
     pageId: parseInt(context.domoObject.id),
     pageType: context.domoObject.typeId,
@@ -696,6 +745,16 @@ async function runPageDelete({ context, parentAppId = null }) {
   if (!result.success) {
     throw new Error(result.statusDescription || 'Failed to delete page');
   }
+  // The tab is still on the now-deleted page, so send it somewhere valid. This
+  // path deletes only the page, not its app, so an app studio or worksheet page
+  // (the ones carrying a parentAppId) returns to its still-existing app, where
+  // /app-studio/<appId> opens the app's default page. A regular page has no
+  // parent app to fall back to, so it goes to Domo's default page (-100000),
+  // which every instance resolves to the user's Overview. The full-app cascade
+  // deletes handle their own redirect to the App Studio list.
+  const origin = `https://${context.instance}.domo.com`;
+  const redirectUrl = parentAppId ? `${origin}/app-studio/${parentAppId}` : `${origin}/page/-100000`;
+  chrome.tabs.update(context.tabId, { url: redirectUrl });
   return result;
 }
 

@@ -3,7 +3,7 @@ import { getTemplateApprovalCount } from './approvals';
 import { getCardsForObject } from './cards';
 import { getAppContentSummary } from './customApps';
 import { getDatasetDependentCount, getDownstreamViewsForDatasets, searchDatasets } from './datasets';
-import { getChildPages } from './pages';
+import { getChildPages, getOnlyHereCardIds } from './pages';
 
 /**
  * Per-type dependency fetchers. Each returns an array of group objects:
@@ -49,6 +49,14 @@ async function fetchAppPageDependencies({ id, instance, parentId, typeId }, tabI
     objectType: typeId,
     tabId
   });
+  // Kick off the "cards that only live here" lookup in parallel with the
+  // sibling-page work below; it feeds the alternate delete's card-count preview.
+  // Best-effort: a failed lookup leaves the count unknown rather than blocking.
+  const cardIdList = cards.map((c) => c.id).filter((cid) => Number.isFinite(cid));
+  const onlyHerePromise =
+    cardIdList.length > 0
+      ? getOnlyHereCardIds({ cardIds: cardIdList, pageId: id, tabId }).catch(() => null)
+      : Promise.resolve([]);
   if (cards.length > 0) {
     groups.push({
       blocking: false,
@@ -59,6 +67,7 @@ async function fetchAppPageDependencies({ id, instance, parentId, typeId }, tabI
         typeId: 'CARD',
         url: `${origin}/kpis/details/${c.id}`
       })),
+      key: 'pageCards',
       label: 'Cards on This Page'
     });
   }
@@ -89,18 +98,24 @@ async function fetchAppPageDependencies({ id, instance, parentId, typeId }, tabI
         blocking: false,
         deleted: false,
         items: siblings.map((p) => {
-          const cardChildren = (appSummary?.cardsByView?.[p.pageId] || []).map((c) => ({
+          const pageCards = appSummary?.cardsByView?.[p.pageId];
+          const cardChildren = (pageCards || []).map((c) => ({
             id: c.id,
             label: c.title || `Card ${c.id}`,
             typeId: 'CARD',
             url: `${origin}/kpis/details/${c.id}`
           }));
-          const hasCards = cardChildren.length > 0;
-          const cardLabel = cardChildren.length === 1 ? 'card' : 'cards';
+          // The summary lists a page even when it has no cards, so a known count
+          // of zero shows "(0 cards)" to signal the page is empty (and equally
+          // safe to delete), while an unknown count (no summary, e.g. a
+          // worksheet) shows no count rather than a misleading "(0 cards)".
+          const cardCountKnown = pageCards !== undefined;
+          const cardCount = cardChildren.length;
+          const cardLabel = cardCount === 1 ? 'card' : 'cards';
           return {
-            children: hasCards ? cardChildren : undefined,
-            count: hasCards ? cardChildren.length : undefined,
-            countLabel: hasCards ? cardLabel : undefined,
+            children: cardCount > 0 ? cardChildren : undefined,
+            count: cardCountKnown ? cardCount : undefined,
+            countLabel: cardCountKnown ? cardLabel : undefined,
             id: p.pageId,
             label: p.pageTitle || `Page ${p.pageId}`,
             typeId
@@ -111,7 +126,8 @@ async function fetchAppPageDependencies({ id, instance, parentId, typeId }, tabI
     }
   }
 
-  return { appSummary, groups };
+  const onlyHereCardIds = await onlyHerePromise;
+  return { appSummary, groups, onlyHereCardIds };
 }
 
 const FETCHERS = {
@@ -223,6 +239,14 @@ const FETCHERS = {
       objectType: 'PAGE',
       tabId
     });
+    // Kick off the "cards that only live here" lookup in parallel with the
+    // child-page work below; it feeds the alternate delete's card-count preview.
+    // Best-effort: a failed lookup leaves the count unknown rather than blocking.
+    const cardIdList = cards.map((c) => c.id).filter((cid) => Number.isFinite(cid));
+    const onlyHerePromise =
+      cardIdList.length > 0
+        ? getOnlyHereCardIds({ cardIds: cardIdList, pageId: id, tabId }).catch(() => null)
+        : Promise.resolve([]);
     if (cards.length > 0) {
       groups.push({
         blocking: false,
@@ -233,6 +257,7 @@ const FETCHERS = {
           typeId: 'CARD',
           url: `${origin}/kpis/details/${c.id}`
         })),
+        key: 'pageCards',
         label: 'Cards on This Page'
       });
     }
@@ -257,7 +282,8 @@ const FETCHERS = {
       });
     }
 
-    return groups;
+    const onlyHereCardIds = await onlyHerePromise;
+    return { groups, onlyHereCardIds };
   },
   TEMPLATE: async ({ id, instance, metadata }, tabId) => {
     const origin = `https://${instance}.domo.com`;
@@ -329,7 +355,8 @@ const FETCHERS = {
  *   blockingCount: number,
  *   blockingReason: string|null,
  *   supported: boolean,
- *   appSummary: {cardCount: number, cardIds: number[], pageCount: number}|null
+ *   appSummary: {cardCount: number, cardIds: number[], pageCount: number}|null,
+ *   onlyHereCardCount: number|null
  * }>}
  */
 export async function getDependenciesForDelete({ instance, object, tabId = null }) {
@@ -340,6 +367,7 @@ export async function getDependenciesForDelete({ instance, object, tabId = null 
       blockingCount: 0,
       blockingReason: null,
       groups: [],
+      onlyHereCardCount: null,
       supported: false,
       totalCount: 0
     };
@@ -356,10 +384,13 @@ export async function getDependenciesForDelete({ instance, object, tabId = null 
     tabId
   );
 
-  // Fetchers return either a bare groups array or `{ groups, appSummary }` when
-  // they carry extra data the cascade delete reads (app-wide page/card totals).
+  // Fetchers return either a bare groups array or an object carrying extra data
+  // the view reads: `appSummary` (app-wide page/card totals for the cascade
+  // delete) and `onlyHereCardIds` (cards that live only on this page, for the
+  // alternate delete's card-count preview).
   const allGroups = Array.isArray(fetched) ? fetched : fetched.groups;
   const appSummary = Array.isArray(fetched) ? null : (fetched.appSummary ?? null);
+  const onlyHereCardIds = Array.isArray(fetched) ? null : (fetched.onlyHereCardIds ?? null);
 
   const groups = allGroups.filter((g) => g.items.length > 0 || (g.count ?? 0) > 0);
 
@@ -379,6 +410,7 @@ export async function getDependenciesForDelete({ instance, object, tabId = null 
     blockingCount,
     blockingReason,
     groups,
+    onlyHereCardCount: onlyHereCardIds == null ? null : onlyHereCardIds.length,
     supported: true,
     totalCount
   };

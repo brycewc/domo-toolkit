@@ -154,15 +154,15 @@ export default function App() {
       >
         <Tabs.ListContainer className='fixed top-0 z-10 flex h-fit w-full max-w-3xl flex-row items-end justify-center bg-background pt-4'>
           <Tabs.List>
-            <Tabs.Tab id='favicon-preferences'>
+            <Tabs.Tab className='whitespace-nowrap' id='favicon-preferences'>
               Favicon Preferences
               <Tabs.Indicator />
             </Tabs.Tab>
-            <Tabs.Tab id='per-instance-settings'>
+            <Tabs.Tab className='whitespace-nowrap' id='per-instance-settings'>
               Per-Instance Settings
               <Tabs.Indicator />
             </Tabs.Tab>
-            <Tabs.Tab id='general-settings'>
+            <Tabs.Tab className='whitespace-nowrap' id='general-settings'>
               General Settings
               <Tabs.Indicator />
             </Tabs.Tab>

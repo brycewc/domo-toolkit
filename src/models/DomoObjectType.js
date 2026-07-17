@@ -1189,7 +1189,10 @@ export const ObjectTypeRegistry = {
     parents: ['REPORT_BUILDER']
   }),
   REPORT_SCHEDULE: new DomoObjectType('REPORT_SCHEDULE', 'Scheduled Report', {
-    api: { endpoint: '/content/v1/reportschedules/{id}', paths: { name: 'title', parentId: 'viewId' } },
+    api: {
+      endpoint: '/content/v1/reportschedules/{id}',
+      paths: { created: 'schedule.startDate', name: 'title', parentId: 'viewId' }
+    },
     icon: { component: 'CalendarTime' },
     idPattern: /^\d+$/,
     // Single, fixed parent type, so getParent() enriches metadata.parent with the

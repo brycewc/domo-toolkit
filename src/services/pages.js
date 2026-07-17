@@ -33,6 +33,7 @@ export async function checkPageType(pageId) {
 
 export async function deletePageAndAllCards({
   appId = null,
+  cardScope = 'all',
   currentContext = null,
   pageId,
   pageType,
@@ -96,6 +97,23 @@ export async function deletePageAndAllCards({
       };
     }
 
+    // For the "only live here" scope, narrow the delete to cards that appear on
+    // no other page, so shared cards survive. A failed lookup aborts the delete
+    // rather than falling back to deleting all cards (the more destructive
+    // action the user did not choose).
+    if (cardScope === 'onlyHere' && cardIds.length > 0) {
+      try {
+        cardIds = await getOnlyHereCardIds({ cardIds, pageId, tabId });
+      } catch (error) {
+        return {
+          statusDescription: `Could not determine which cards live only on this page (${error.message}).`,
+          statusTitle: 'Error',
+          statusType: 'danger',
+          success: false
+        };
+      }
+    }
+
     // Execute deletion logic in page context to inherit authentication
     const result = await executeInPage(
       async (pageId, pageType, appId, cardIds) => {
@@ -146,9 +164,11 @@ export async function deletePageAndAllCards({
     );
 
     if (result.success) {
+      const cardNoun = `**${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's' : ''}**`;
+      const cardPhrase = cardScope === 'onlyHere' ? `${cardNoun} that only lived here` : `all ${cardNoun}`;
       return {
         cardsDeleted: result.cardsDeleted,
-        statusDescription: `Page **${pageId}** and all **${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's' : ''}** were deleted successfully`,
+        statusDescription: `Page **${pageId}** and ${cardPhrase} were deleted successfully`,
         statusTitle: 'Delete Successful',
         statusType: 'success',
         success: true
@@ -356,6 +376,26 @@ export async function getChildPages({ appId = null, includeGrandchildren = false
     console.error('Error fetching child pages:', error);
     throw error;
   }
+}
+
+/**
+ * Given a page's card IDs, return the subset that live on no other page.
+ *
+ * Looks up every page each card appears on (via `getPagesForCards`) and keeps
+ * only the cards that appear on no page other than this one; orphaned cards (on
+ * no page) count as only-here too. Shared by the "only live here" delete and its
+ * confirm-dialog card-count preview, so both act on the same definition.
+ *
+ * @param {Object} params
+ * @param {Array<number>} params.cardIds - The page's card IDs
+ * @param {string|number} params.pageId - The page in question
+ * @param {number|null} [params.tabId=null] - Optional Chrome tab ID
+ * @returns {Promise<Array<number>>} The card IDs that live only on this page
+ */
+export async function getOnlyHereCardIds({ cardIds, pageId, tabId = null }) {
+  if (!cardIds || cardIds.length === 0) return [];
+  const { cardsByPage } = await getPagesForCards(cardIds, tabId);
+  return cardIdsOnlyOnPage({ cardIds, cardsByPage, pageId });
 }
 
 /**
@@ -740,4 +780,29 @@ export async function transferPages(pageIds, fromOwnerId, toOwnerId, tabId = nul
     [pageIds, fromOwnerId, toOwnerId, ownerType],
     tabId
   );
+}
+
+/**
+ * From a page's card IDs, return only those that live on no other page.
+ *
+ * Given the page-reach map from `getPagesForCards`, a card is "only here" when
+ * it appears under no page key other than this page's own. Cards the pages API
+ * reports on no page at all (orphaned) are absent from every page key, so they
+ * pass through as only-here too. Used by the "Delete Page and Cards that Only
+ * Live Here" scope so cards shared to other pages are left in place.
+ *
+ * @param {Object} params
+ * @param {Array<number>} params.cardIds - The page's card IDs (delete candidates)
+ * @param {Object} [params.cardsByPage] - Mapping of pageId -> [{ id, name }]
+ * @param {string|number} params.pageId - The page being deleted
+ * @returns {Array<number>} The subset of cardIds that live only on this page
+ */
+function cardIdsOnlyOnPage({ cardIds, cardsByPage, pageId }) {
+  const selfId = String(pageId);
+  const cardsOnOtherPages = new Set();
+  for (const [pid, cards] of Object.entries(cardsByPage || {})) {
+    if (pid === selfId) continue;
+    for (const card of cards) cardsOnOtherPages.add(card.id);
+  }
+  return cardIds.filter((id) => !cardsOnOtherPages.has(id));
 }

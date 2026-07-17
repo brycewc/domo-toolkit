@@ -10,6 +10,7 @@
 - Migrate Content's Auto Map now matches columns that share the same words, not only names that are identical apart from case and separators.
 - Deleting a dataflow now also lists the alerts on its output datasets that will be deleted with it.
 - Deleting a dataflow is now blocked, with the offending views listed, when its output datasets feed downstream dataset views, instead of failing partway through.
+- Deleting a page, app studio page, or worksheet page now offers a "Delete Page and Cards that Only Live Here" action that removes the page and only the cards that live on no other page.
 - Viewing a workflow now includes a Triggers tab listing every trigger attached to it.
 - Selecting a user task in a workflow now identifies its Task Center Queue in Current Context.
 - Locking cards now opens a list where you can review each card's current lock status and unselect any before applying the change.
@@ -100,6 +101,8 @@
 - Opening a Task Center task with a reference-style ID (such as "15AUG25_TS551E") is now recognized instead of leaving the current context empty.
 - Opening the settings page without a specific tab now lands on General Settings instead of a blank page with no tab selected.
 - Deleting an entire app and all its cards now sends you to App Studio instead of leaving you on the deleted app's broken page.
+- Deleting a page now sends you to your Overview instead of leaving you on the deleted page's broken URL.
+- Deleting a single app studio or worksheet page now returns you to its app instead of leaving you on the deleted page's broken URL.
 - The delete confirmation now disables its delete buttons when the dependency check fails.
 - Hovering an object's name in a list now underlines it.
 - Viewing Objects Owned by someone who owns nothing now shows a brief message instead of a list of empty categories.
