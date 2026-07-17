@@ -36,7 +36,7 @@ Evaluate proposals on technical merit (correctness and fit), not against a "is t
 
 - No backwards compatibility, since the extension runs locally and the entire codebase is the same version
 - Named exports only (no default exports), **except** SVG icons in `src/components/icons/` which are imported as default via SVGR's `?react` query
-- **No barrel files.** Import every symbol directly from its source file. Example: `import { Copy } from '@/components/functions/Copy';` not `import { Copy } from '@/components';`. Barrels were removed because they caused TDZ initialization errors with circular dependencies and were no longer best practice for Vite 7+ (which tree-shakes per-file imports without needing the indirection)
+- **No barrel files.** Import every symbol directly from its source file. Example: `import { Copy } from '@/components/buttons/Copy';` not `import { Copy } from '@/components';`. Barrels were removed because they caused TDZ initialization errors with circular dependencies and were no longer best practice for Vite 7+ (which tree-shakes per-file imports without needing the indirection)
 - SVG icons live in `src/assets/icons/` and are imported as default via SVGR's `?react` query: `import IconCard from '@icons/card.svg?react';`
 - Path aliases: `@/` maps to `src/`; `@icons/` maps to `src/assets/icons/` (shortcut for the icon set)
 

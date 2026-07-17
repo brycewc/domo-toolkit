@@ -129,11 +129,11 @@ Content script detects objects via:
 - Validates clipboard contains Domo object ID (numeric or UUID)
 - Identifies object type, fetches metadata, navigates to object's URL
 
-## Action Buttons — Function Component Gating
+## Action Buttons — Button Component Gating
 
-Action function components in `src/components/functions/` (e.g., `GetCardPages`, `GetCards`, `DeleteCurrentObject`) are gated by `getAvailableActions()` in `src/components/ActionButtons.jsx`. **A function component will not render in the expandable section unless its action is in the set returned by `getAvailableActions()` for the current object's `typeId`.**
+Action button components in `src/components/buttons/` (e.g., `GetCardPages`, `GetCards`, `DeleteCurrentObject`) are gated by `getAvailableActions()` in `src/components/ActionButtons.jsx`. **A button component will not render in the expandable section unless its action is in the set returned by `getAvailableActions()` for the current object's `typeId`.**
 
-When adding support for a new `DomoObjectType` to any function component, immediately check `getAvailableActions()` and add the type to the relevant action set. This applies even to always-visible buttons that self-manage their disabled state — verify the full render path so the button actually shows up.
+When adding support for a new `DomoObjectType` to any button component, immediately check `getAvailableActions()` and add the type to the relevant action set. This applies even to always-visible buttons that self-manage their disabled state — verify the full render path so the button actually shows up.
 
 ## Configuration Files
 
