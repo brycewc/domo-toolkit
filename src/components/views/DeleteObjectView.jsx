@@ -437,7 +437,7 @@ export function DeleteObjectView({
                   <Button
                     fullWidth
                     isDisabled={isDeleting || blocked || hasDepsError}
-                    variant='tertiary'
+                    variant='danger-soft'
                     onPress={() =>
                       setPendingAction({
                         cascade,
@@ -446,7 +446,7 @@ export function DeleteObjectView({
                       })
                     }
                   >
-                    <IconTrash className='text-danger' />
+                    <IconTrash />
                     {cascadeLabel}
                   </Button>
                   <Tooltip.Content className='max-w-60'>
@@ -549,7 +549,20 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
       });
     }
     const children = group.items.map((item) => {
+      // Some items (e.g. another app page) carry their own objects to nest, such
+      // as the cards on that page, so they render as an expandable row.
+      const nestedChildren = item.children?.map(
+        (child) =>
+          new DataListItem({
+            domoObject: baseUrl ? new DomoObject(child.typeId, child.id, baseUrl) : null,
+            id: child.id,
+            label: child.label,
+            typeId: child.typeId,
+            url: child.url
+          })
+      );
       const dli = new DataListItem({
+        children: nestedChildren,
         count: item.count,
         countLabel: item.countLabel,
         domoObject: baseUrl ? new DomoObject(item.typeId, item.id, baseUrl) : null,

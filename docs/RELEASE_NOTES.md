@@ -65,6 +65,7 @@
 - Copy Color Rules no longer lists the dataset you're copying from in its destination picker.
 - The Update Owner dialog now opens at the top of the popup, while staying centered in the side panel.
 - The dropdowns for searching a user, group, or dataset now size to their results instead of showing empty space below the list.
+- Alternate delete actions, such as Delete App and All Cards, now appear in red instead of gray.
 
 ## Performance
 
@@ -77,6 +78,8 @@
 - The action buttons no longer briefly collapse and reopen when an action finds nothing to show and reports it with a message instead of opening a results panel.
 - Sharing a page now makes it appear in your navigation instead of only granting access by direct link.
 - Get Card Pages now tells you when none of an object's cards appear on any page, instead of listing them under a lone Orphaned Cards category.
+- A category's count in a grouped list now reflects the total objects it contains rather than the number of subcategories beneath it.
+- When deleting a page in an app studio app, each of the app's other pages now expands to list the cards on it.
 - Get View Inputs now lists the source datasets of union views (and other views that nest their inputs) instead of finding none.
 - Inspect DataFlow now shows the output field name on each formula tile's expressions, which previously appeared blank.
 - Sharing objects with yourself from a list now closes the row's actions menu and shows a progress toast immediately, instead of appearing to do nothing until every share finished.

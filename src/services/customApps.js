@@ -116,10 +116,14 @@ export async function deleteCustomApp({ designId, tabId = null }) {
  * counts in the confirmation and reuse the same card IDs for the delete,
  * instead of looping a per-page cards request.
  *
+ * `cardsByView` maps each page (view) ID to that page's cards, so the delete
+ * confirmation can list the cards under each other page in the app without any
+ * extra requests: the same admin-summary response already carries them.
+ *
  * @param {Object} params
  * @param {string|number} params.appId - The app ID
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<{cardCount: number, cardIds: number[], pageCount: number}>}
+ * @returns {Promise<{cardCount: number, cardIds: number[], cardsByView: Object<string, {id: number, title: string|null}[]>, pageCount: number}>}
  */
 export async function getAppContentSummary({ appId, tabId = null }) {
   return executeInPage(
@@ -131,14 +135,20 @@ export async function getAppContentSummary({ appId, tabId = null }) {
       const data = await res.json();
       const views = data.viewDetails || [];
       const cardIds = new Set();
+      const cardsByView = {};
       for (const view of views) {
+        const viewCards = [];
         for (const card of view.cardTitles || []) {
-          if (card.cardId != null) cardIds.add(card.cardId);
+          if (card.cardId == null) continue;
+          cardIds.add(card.cardId);
+          viewCards.push({ id: card.cardId, title: card.title || null });
         }
+        cardsByView[view.viewId] = viewCards;
       }
       return {
         cardCount: cardIds.size,
         cardIds: [...cardIds],
+        cardsByView,
         pageCount: views.length
       };
     },

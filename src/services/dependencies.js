@@ -71,28 +71,44 @@ async function fetchAppPageDependencies({ id, instance, parentId, typeId }, tabI
       tabId
     });
     const siblings = allPages.filter((p) => String(p.pageId) !== String(id));
-    if (siblings.length > 0) {
-      groups.push({
-        blocking: false,
-        deleted: false,
-        items: siblings.map((p) => ({
-          id: p.pageId,
-          label: p.pageTitle || `Page ${p.pageId}`,
-          typeId
-        })),
-        label: 'Other Pages in This App'
-      });
-    }
 
     // App-wide page/card totals for the cascade ("Delete App and All Cards"):
     // one admin-summary call covers every page, and its card IDs are reused at
-    // delete time so the delete doesn't re-walk each page. Best-effort, so a
-    // worksheet whose admin summary isn't available (or any failed call) just
-    // omits the counts and the delete falls back to a per-page walk.
+    // delete time so the delete doesn't re-walk each page. It also carries each
+    // page's cards, which we nest under the other-pages list below so the user
+    // sees exactly what the cascade would remove. Best-effort, so a worksheet
+    // whose admin summary isn't available (or any failed call) just omits the
+    // counts and nested cards, and the delete falls back to a per-page walk.
     appSummary = await getAppContentSummary({
       appId: parseInt(parentId),
       tabId
     }).catch(() => null);
+
+    if (siblings.length > 0) {
+      groups.push({
+        blocking: false,
+        deleted: false,
+        items: siblings.map((p) => {
+          const cardChildren = (appSummary?.cardsByView?.[p.pageId] || []).map((c) => ({
+            id: c.id,
+            label: c.title || `Card ${c.id}`,
+            typeId: 'CARD',
+            url: `${origin}/kpis/details/${c.id}`
+          }));
+          const hasCards = cardChildren.length > 0;
+          const cardLabel = cardChildren.length === 1 ? 'card' : 'cards';
+          return {
+            children: hasCards ? cardChildren : undefined,
+            count: hasCards ? cardChildren.length : undefined,
+            countLabel: hasCards ? cardLabel : undefined,
+            id: p.pageId,
+            label: p.pageTitle || `Page ${p.pageId}`,
+            typeId
+          };
+        }),
+        label: 'Other Pages in This App'
+      });
+    }
   }
 
   return { appSummary, groups };

@@ -102,9 +102,14 @@ export class DataListItem {
    * @param {string} [config.childTypeId] - The object type of this group's rows
    *   when they are homogeneous (e.g. 'DATA_APP'), so DataList can derive the
    *   group's "all" actions from that type. Omit for mixed-type groups.
-   * @param {number} [config.count] - Override child count (defaults to children.length).
-   *   Useful for async-loading rows where children aren't populated yet but a
-   *   total is known.
+   * @param {number} [config.count] - Override the displayed count. When omitted,
+   *   the count is the number of underlying objects the group contains, not the
+   *   number of direct rows: a nested subgroup contributes its own (already
+   *   aggregated) count, while a plain object row counts as one. So a section
+   *   holding a single subgroup of 10 objects shows 10, not 1, and a group
+   *   sitting directly over object rows still shows its row count. Pass an
+   *   explicit value for async-loading rows where children aren't populated yet
+   *   but a total is known.
    * @param {string} [config.metadata] - Optional metadata (defaults to child count description)
    * @param {'loading'|'loaded'|'transferring'|'transferred'|'error'|'failed'} [config.status]
    *   Async state that DataList renders as a spinner or X icon in the count slot.
@@ -121,7 +126,7 @@ export class DataListItem {
     return new DataListItem({
       children,
       childTypeId,
-      count: count !== undefined ? count : childCount,
+      count: count !== undefined ? count : aggregateObjectCount(children),
       domoObject: null,
       error,
       id,
@@ -233,4 +238,18 @@ export class DataListItem {
       url: this.url
     };
   }
+}
+
+/**
+ * Total underlying objects across a group's children, so a group's count
+ * reflects how many objects it holds rather than how many direct rows it shows.
+ * A child that is itself a virtual parent contributes its own already-aggregated
+ * count; a plain object row counts as one, regardless of any count annotation it
+ * carries (e.g. a page row labelled "3 cards" is still one object to its parent).
+ * @param {DataListItem[]} [children] - The group's direct children
+ * @returns {number}
+ */
+function aggregateObjectCount(children) {
+  if (!Array.isArray(children)) return 0;
+  return children.reduce((total, child) => total + (child.isVirtualParent ? (child.count ?? 0) : 1), 0);
 }
