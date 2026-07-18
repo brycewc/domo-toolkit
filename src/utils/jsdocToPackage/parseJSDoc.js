@@ -25,6 +25,14 @@ export function parseJSDoc(source) {
   return { functionDocs, typedefs };
 }
 
+function collapseWhitespace(text) {
+  // JSDoc lets a description wrap across several comment lines, and comment-parser
+  // preserves those line breaks. Collapse any run of whitespace (newlines
+  // included) into a single space so a wrapped description reads and writes as one
+  // line, matching the single-line field the package definition expects.
+  return (text || '').replace(/\s+/g, ' ').trim();
+}
+
 function computeBlockRange(source, block) {
   const indicator = `/**${block.source[0]?.tokens?.delimiter ? '' : ''}`;
   void indicator;
@@ -58,7 +66,7 @@ function buildFunctionDoc({ block, functionName, range }) {
   const summary = singleTagText(block, 'summary');
   const explicitDesc = singleTagText(block, 'description');
   const implicitDesc = (block.description || '').trim();
-  const description = explicitDesc || implicitDesc || '';
+  const description = collapseWhitespace(explicitDesc || implicitDesc);
   const isPrivate = block.tags.some((t) => t.tag === 'private');
   const params = extractParams(block.tags.filter((t) => t.tag === 'param'));
   const returns = extractReturns(block.tags.filter((t) => t.tag === 'returns' || t.tag === 'return'));
@@ -79,7 +87,7 @@ function buildParamFromTag(tag) {
   if (!rawName) return null;
   return {
     defaultRaw: typeof tag.default === 'string' ? tag.default : null,
-    description: (tag.description || '').trim(),
+    description: collapseWhitespace(tag.description),
     optional: Boolean(tag.optional),
     rawName,
     rawType: tag.type || ''
@@ -107,7 +115,7 @@ function extractReturns(returnsTags) {
   const [rootTag, ...rest] = returnsTags;
   const rawType = rootTag.type || '';
   const nameRaw = (rootTag.name || '').trim();
-  const descRaw = (rootTag.description || '').trim();
+  const descRaw = collapseWhitespace(rootTag.description);
   const isIdentifier = nameRaw && /^[A-Za-z_$][\w$]*$/.test(nameRaw);
 
   // Additional @returns tags whose name carries a dotted/bracket path (e.g.

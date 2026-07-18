@@ -241,17 +241,21 @@ function preserveNullableInEntry(derived, existing) {
 
 function walkDiff(a, b, path, out) {
   if (deepEqual(a, b)) return;
-  if (a === undefined && b === undefined) return;
-  if (a === undefined) {
+  // Treat an empty value (undefined, null, or empty string) the same as an
+  // absent one: a field going from empty to a real value reads as an addition
+  // (green only), and the reverse as a removal, rather than a "change" with a
+  // misleading empty red "before" row. This mirrors how an undefined output
+  // being defined already renders as `added`, so a description filled in for the
+  // first time renders the same way.
+  const aEmpty = a == null || a === '';
+  const bEmpty = b == null || b === '';
+  if (aEmpty && bEmpty) return;
+  if (aEmpty) {
     out.push({ kind: 'added', path: [...path], value: b });
     return;
   }
-  if (b === undefined) {
+  if (bEmpty) {
     out.push({ kind: 'removed', path: [...path], value: a });
-    return;
-  }
-  if (a === null || b === null) {
-    out.push({ after: b, before: a, kind: 'changed', path: [...path] });
     return;
   }
   const aIsArr = Array.isArray(a);

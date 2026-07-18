@@ -96,6 +96,8 @@
 - Generate Definition from JSDoc now recognizes when an optional output field is made required again, instead of reporting nothing to sync.
 - Generate Definition from JSDoc no longer flags function inputs that have no nested fields as changed when they aren't.
 - Generate Definition from JSDoc now marks an input as optional when the JSDoc brackets its name, not only when it has a default value.
+- Generate Definition from JSDoc now shows a description or other field filled in for the first time as a plain green addition instead of pairing it with an empty red removed row.
+- Generate Definition from JSDoc now combines a description that wraps across multiple JSDoc lines into a single line, both in the diff and in the saved definition.
 - Copied values throughout the extension now appear in Windows clipboard history (Win+V).
 - Transferring a user's objects now shows a green checkmark on each object type that finishes successfully, not only a red X on the ones that fail.
 - Opening a Task Center task with a reference-style ID (such as "15AUG25_TS551E") is now recognized instead of leaving the current context empty.
