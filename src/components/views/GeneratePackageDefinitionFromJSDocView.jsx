@@ -1,4 +1,13 @@
 import { Button, Card, Chip, Disclosure, DisclosureGroup, ScrollShadow, Separator, Spinner, Tooltip } from '@heroui/react';
+import {
+  appendModuleExports,
+  computeStructuralDiff,
+  findCurrentVersionInfo,
+  findVersionForBaseline,
+  parseSourceToManifest,
+  preparePackagePayload,
+  resolveTargetVersion
+} from 'domo-codeengine-manifest';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
@@ -13,15 +22,6 @@ import {
   setCodeEngineEditorSource
 } from '@/services/codeEngine';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
-import {
-  computeStructuralDiff,
-  findCurrentVersionInfo,
-  findVersionForBaseline,
-  preparePackagePayload,
-  resolveTargetVersion
-} from '@/utils/jsdocToPackage/mergeManifest';
-import { appendModuleExports } from '@/utils/jsdocToPackage/moduleExports';
-import { parseSourceToManifest } from '@/utils/jsdocToPackage/parseSourceToManifest';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';

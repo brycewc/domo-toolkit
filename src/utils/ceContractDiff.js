@@ -1,5 +1,6 @@
+import { computeStructuralDiff } from 'domo-codeengine-manifest';
+
 import { getCodeEnginePackageVersion } from '@/services/codeEngine';
-import { computeStructuralDiff } from '@/utils/jsdocToPackage/mergeManifest';
 
 /**
  * Compare a function's input/output contract between two Code Engine versions

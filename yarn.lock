@@ -2390,6 +2390,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"domo-codeengine-manifest@file:../domo-codeengine-manifest::locator=domo-toolkit%40workspace%3A.":
+  version: 0.1.0
+  resolution: "domo-codeengine-manifest@file:../domo-codeengine-manifest#../domo-codeengine-manifest::hash=d371d7&locator=domo-toolkit%40workspace%3A."
+  dependencies:
+    acorn: "npm:^8.16.0"
+    comment-parser: "npm:^1.4.7"
+  checksum: 10c0/1facf7fd538f3087f31ae96d9e17f5c8305d1924e24eeee172a4c5f0876cc570cfec6d076930994f98a2c57c7f878675b29bccae67eebd416aff5dad69ab24c5
+  languageName: node
+  linkType: hard
+
 "domo-toolkit@workspace:.":
   version: 0.0.0-use.local
   resolution: "domo-toolkit@workspace:."
@@ -2405,9 +2415,8 @@ __metadata:
     "@tanstack/react-virtual": "npm:^3.14.6"
     "@vitejs/plugin-react": "npm:^6.0.2"
     "@xyflow/react": "npm:^12.11.0"
-    acorn: "npm:^8.16.0"
     archiver: "npm:^8.0.0"
-    comment-parser: "npm:^1.4.7"
+    domo-codeengine-manifest: "file:../domo-codeengine-manifest"
     eslint: "npm:^10.4.1"
     eslint-plugin-perfectionist: "npm:^5.9.0"
     globals: "npm:^17.6.0"
@@ -4087,14 +4096,14 @@ __metadata:
 
 "react18-json-view@file:../react18-json-view::locator=domo-toolkit%40workspace%3A.":
   version: 0.3.0
-  resolution: "react18-json-view@file:../react18-json-view#../react18-json-view::hash=f7a7eb&locator=domo-toolkit%40workspace%3A."
+  resolution: "react18-json-view@file:../react18-json-view#../react18-json-view::hash=cb3e1d&locator=domo-toolkit%40workspace%3A."
   dependencies:
     "@tanstack/react-virtual": "npm:3.14.6"
     copy-to-clipboard: "npm:^3.3.3"
   peerDependencies:
     react: ">=16.8.0"
     react-dom: ">=16.8.0"
-  checksum: 10c0/c81a1883915563a1716dc02b769f2faeeb061cfd48c284011be886f791552ecc8342e13e050fd905bc022155993db5482d221e14d0f254cbf097b79854de8867
+  checksum: 10c0/5f7ad4319fec292d60169ccb8a99f0b58a4ceafa32a1530684211f52d81041056447d6af1b50e58839844e4d115eaf79ef232c18b92ace77eee4d0db6496c0fc
   languageName: node
   linkType: hard
 
