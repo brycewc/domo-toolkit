@@ -773,7 +773,7 @@ export async function runStream({ streamId, tabId }) {
  * Search datasets by name (paginated) or look up a single dataset by ID.
  *
  * Mirrors the signature of `searchUsers` so consumers like DatasetComboBox can
- * stay structurally identical to UserComboBox. When `text` parses as a
+ * stay structurally identical to OwnerComboBox. When `text` parses as a
  * DATA_SOURCE UUID the call swaps in a `databaseId` term filter so the result
  * collapses to that single dataset; otherwise it runs a name search.
  *

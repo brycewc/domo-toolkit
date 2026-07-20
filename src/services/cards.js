@@ -213,6 +213,61 @@ export async function getCardDefinition({ cardId, tabId = null }) {
 }
 
 /**
+ * Fetch the current owners of a batch of cards.
+ *
+ * Cards do not carry owner data in the card-list pipeline, so owners are read
+ * separately via the batch `/api/content/v1/cards?urns=...&parts=owners`
+ * endpoint (the same endpoint `getCardDatasets` uses with `parts=datasources`).
+ * URNs are chunked to keep the query string within a safe length. Each owner is
+ * `{ id, type, displayName }` where `type` is `'USER' | 'GROUP'`.
+ *
+ * @param {Object} params
+ * @param {number[]} params.cardIds - Card IDs to read owners for
+ * @param {number|null} [params.tabId=null] - Optional Chrome tab ID
+ * @returns {Promise<Object<string, Array<{displayName: string, id: string, type: string}>>>}
+ *   Map of card ID (string) to its owners. Cards missing from the response are
+ *   absent from the map, so the caller can treat them as unreadable.
+ * @throws {Error} If a batch request fails
+ */
+export async function getCardOwners({ cardIds, tabId = null }) {
+  const OWNERS_READ_BATCH_SIZE = 100;
+  const batches = [];
+  for (let i = 0; i < cardIds.length; i += OWNERS_READ_BATCH_SIZE) {
+    batches.push(cardIds.slice(i, i + OWNERS_READ_BATCH_SIZE));
+  }
+
+  const ownersByCardId = {};
+  for (const batch of batches) {
+    // Return a structured result rather than throwing inside the page: Chrome
+    // swallows a rejected promise from an async injected function (null result,
+    // no error), which would make every card look ownerless and block the save.
+    const result = await executeInPage(
+      async (batch) => {
+        const params = new URLSearchParams();
+        for (const id of batch) params.append('urns', id);
+        params.append('parts', 'owners');
+        const response = await fetch(`/api/content/v1/cards?${params.toString()}`);
+        if (!response.ok) return { error: `HTTP status: ${response.status}`, ok: false };
+        return { cards: await response.json(), ok: true };
+      },
+      [batch],
+      tabId
+    );
+    if (!result?.ok) throw new Error(result?.error || 'Failed to fetch card owners');
+    for (const card of [].concat(result.cards || [])) {
+      const rawId = card?.id ?? (typeof card?.urn === 'string' ? card.urn.split(':').pop() : null);
+      if (rawId == null) continue;
+      ownersByCardId[String(rawId)] = (card.owners || []).map((o) => ({
+        displayName: o.displayName || '',
+        id: String(o.id),
+        type: o.type
+      }));
+    }
+  }
+  return ownersByCardId;
+}
+
+/**
  * Get all cards for a given object (page, dataset, or dataflow)
  * @param {Object} params - Parameters for fetching cards
  * @param {string} params.objectId - The object ID (page, dataset, or dataflow ID)
@@ -708,6 +763,91 @@ export async function updateCardDefinition({ cardId, definition, tabId = null })
     console.error('Error updating card definition:', error);
     throw error;
   }
+}
+
+/**
+ * Add and/or remove owners across a batch of cards in two bulk calls.
+ *
+ * Card ownership is additive: `owners/add` adds each owner to every listed card
+ * (idempotent when a card already has it) and `owners/remove` removes each from
+ * every listed card. Owners left untouched (neither added nor removed) keep
+ * their existing per-card assignment. Both lists are `{ id, type }` objects that
+ * mix USER and GROUP freely. Cards are processed in batches; a failed batch is
+ * recorded rather than aborting the rest, so the caller can surface partial
+ * results, mirroring `setCardsLocked`.
+ *
+ * @param {Object} params
+ * @param {Array<{id: (string|number), type: string}>} [params.addOwners=[]] - Owners to add to every card
+ * @param {number[]} params.cardIds - Card IDs to update
+ * @param {Array<{id: (string|number), type: string}>} [params.removeOwners=[]] - Owners to remove from every card
+ * @param {number|null} [params.tabId=null] - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
+ */
+export async function updateCardOwners({ addOwners = [], cardIds, removeOwners = [], tabId = null }) {
+  if (cardIds.length === 0 || (addOwners.length === 0 && removeOwners.length === 0)) {
+    return { errors: [], failed: 0, succeeded: 0 };
+  }
+
+  const OWNERS_WRITE_BATCH_SIZE = 100;
+  const batches = [];
+  for (let i = 0; i < cardIds.length; i += OWNERS_WRITE_BATCH_SIZE) {
+    batches.push(cardIds.slice(i, i + OWNERS_WRITE_BATCH_SIZE));
+  }
+
+  const errors = [];
+  let failed = 0;
+  let succeeded = 0;
+
+  for (const batch of batches) {
+    try {
+      // Return a structured result rather than throwing: Chrome swallows a
+      // rejected promise from an async injected function (null result, no
+      // error), which would make a failed owner change report success. See
+      // executeInPage.
+      const result = await executeInPage(
+        async (cardIds, addOwners, removeOwners) => {
+          if (addOwners.length > 0) {
+            const addResponse = await fetch('/api/content/v1/cards/owners/add', {
+              body: JSON.stringify({
+                cardIds,
+                cardOwners: addOwners.map((o) => ({ id: o.id, type: o.type })),
+                note: '',
+                sendEmail: false
+              }),
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            });
+            if (!addResponse.ok) return { error: `Add owners failed. HTTP ${addResponse.status}`, ok: false };
+          }
+          if (removeOwners.length > 0) {
+            const removeResponse = await fetch('/api/content/v1/cards/owners/remove', {
+              body: JSON.stringify({
+                cardIds,
+                cardOwners: removeOwners.map((o) => ({ id: o.id, type: o.type }))
+              }),
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            });
+            if (!removeResponse.ok) return { error: `Remove owners failed. HTTP ${removeResponse.status}`, ok: false };
+          }
+          return { ok: true };
+        },
+        [batch, addOwners, removeOwners],
+        tabId
+      );
+      if (!result?.ok) {
+        failed += batch.length;
+        errors.push(...batch.map((id) => ({ error: result?.error || 'HTTP error', id })));
+      } else {
+        succeeded += batch.length;
+      }
+    } catch (error) {
+      failed += batch.length;
+      errors.push(...batch.map((id) => ({ error: error.message, id })));
+    }
+  }
+
+  return { errors, failed, succeeded };
 }
 
 /**

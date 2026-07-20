@@ -63,9 +63,9 @@ export function ColumnUsagesModal({ cardsById, columnName, items, origin, total,
                 </Description>
               </Modal.Heading>
             </Modal.Header>
-            <Modal.Body className='max-h-[60vh] overflow-y-auto text-foreground'>
+            <Modal.Body className='flex max-h-[60vh] min-h-0 flex-col overflow-hidden text-foreground'>
               {hasIndirectCards && (
-                <p className='mb-2 text-xs text-muted'>
+                <p className='mb-2 shrink-0 text-xs text-muted'>
                   <span className='mr-1 inline-flex align-text-bottom text-accent'>
                     <IconInfoCircle className='size-3.5 shrink-0' />
                   </span>
@@ -74,6 +74,7 @@ export function ColumnUsagesModal({ cardsById, columnName, items, origin, total,
               )}
               <DataList
                 allowsMultipleExpanded
+                fillHeight
                 defaultExpandedIds={expandedIds}
                 items={usageItems}
                 showActions={false}

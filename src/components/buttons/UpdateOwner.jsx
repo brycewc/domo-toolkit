@@ -1,7 +1,7 @@
 import { Button, Form, Modal, Tooltip } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
-import { UserComboBox } from '@/components/UserComboBox';
+import { OwnerComboBox } from '@/components/OwnerComboBox';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { updateAlertOwner } from '@/services/alerts';
 import { updateWorkflowOwner } from '@/services/workflows';
@@ -96,7 +96,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                 <Modal.Heading>{/* Update {currentContext?.domoObject.typeName} Owner */}</Modal.Heading>
               </Modal.Header>
               <Modal.Body className='flex justify-center'>
-                <UserComboBox
+                <OwnerComboBox
                   autoFocus
                   isRequired
                   avatarBaseUrl={currentContext?.domoObject?.baseUrl}
@@ -106,6 +106,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
                   maxListHeight={400}
                   menuTrigger='input'
                   selectedKey={selectedOwnerId}
+                  sources={['USER']}
                   tabId={currentContext?.tabId}
                   onSelectionChange={setSelectedOwnerId}
                 />

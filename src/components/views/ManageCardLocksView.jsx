@@ -256,7 +256,7 @@ export function ManageCardLocksView({
       selectionMode
       banner={banner}
       currentContext={currentContext || liveContext}
-      feature='Card locks for'
+      feature='Card Locks for'
       featureIcon={<IconLockClosed />}
       footer={footer}
       getItemBadge={getItemBadge}

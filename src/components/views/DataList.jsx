@@ -1913,6 +1913,10 @@ function VirtualizedItems({ bounded = false, items, renderItem }) {
       ref={parentRef}
       style={containerStyle}
       className={
+        // Hide the native scrollbar (`[scrollbar-width:none]` +
+        // `[&::-webkit-scrollbar]:hidden`) so the virtualized scroll container
+        // matches the non-virtualized `ScrollShadow hideScrollBar` list instead
+        // of showing a bar the smaller lists don't.
         bounded
           ? // `overscroll-auto` (not `contain`) lets a bounded child list chain
             // its scroll to the parent once it hits its top/bottom edge — so
@@ -1920,8 +1924,8 @@ function VirtualizedItems({ bounded = false, items, renderItem }) {
             // DataList instead of dead-stopping at the group's boundary. The
             // unbounded top-level container keeps `overscroll-y-contain` so the
             // sidepanel/page itself never bounce-scrolls past the list.
-            'w-full overflow-y-auto overscroll-auto'
-          : 'min-h-0 w-full flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain'
+            'w-full overflow-y-auto overscroll-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]'
+          : 'min-h-0 w-full flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain [&::-webkit-scrollbar]:hidden [scrollbar-width:none]'
       }
     >
       <div

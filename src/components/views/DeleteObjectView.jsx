@@ -484,7 +484,7 @@ export function DeleteObjectView({
                 <Tooltip key={idx}>
                   <Button
                     fullWidth
-                    isDisabled={isDeleting || blocked || hasDepsError}
+                    isDisabled={isDeleting || blocked || hasDepsError || isLoadingDeps}
                     variant='danger-soft'
                     onPress={() =>
                       setPendingAction({
@@ -498,19 +498,21 @@ export function DeleteObjectView({
                     {cascadeLabel}
                   </Button>
                   <Tooltip.Content className='max-w-60'>
-                    {hasDepsError
-                      ? 'Retry the dependency check before deleting.'
-                      : blocked
-                        ? cascade.blockedReason(ctx)
-                        : cascade.tooltip(ctx)}
+                    {isLoadingDeps
+                      ? 'Checking dependencies…'
+                      : hasDepsError
+                        ? 'Retry the dependency check before deleting.'
+                        : blocked
+                          ? cascade.blockedReason(ctx)
+                          : cascade.tooltip(ctx)}
                   </Tooltip.Content>
                 </Tooltip>
               );
             })}
-            <Tooltip isDisabled={!isBlocked && !hasDepsError}>
+            <Tooltip isDisabled={!isBlocked && !hasDepsError && !isLoadingDeps}>
               <Button
                 fullWidth
-                isDisabled={isDeleting || isBlocked || hasDepsError}
+                isDisabled={isDeleting || isBlocked || hasDepsError || isLoadingDeps}
                 isPending={isDeleting}
                 variant='danger'
                 onPress={() => setPendingAction({ kind: 'primary', label: primaryLabel })}
@@ -519,7 +521,11 @@ export function DeleteObjectView({
                 {primaryLabel}
               </Button>
               <Tooltip.Content className='max-w-60'>
-                {hasDepsError ? 'Retry the dependency check before deleting.' : deps?.blockingReason || 'Blocked'}
+                {isLoadingDeps
+                  ? 'Checking dependencies…'
+                  : hasDepsError
+                    ? 'Retry the dependency check before deleting.'
+                    : deps?.blockingReason || 'Blocked'}
               </Tooltip.Content>
             </Tooltip>
           </div>

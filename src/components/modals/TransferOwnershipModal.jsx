@@ -1,8 +1,7 @@
 import { Button, Description, Form, Input, Label, Modal, Switch, TextField, Tooltip } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
-import { GroupComboBox } from '@/components/GroupComboBox';
-import { UserComboBox } from '@/components/UserComboBox';
+import { OwnerComboBox } from '@/components/OwnerComboBox';
 import { fetchGroupDisplayNames } from '@/services/groups';
 import { getFullUserDetails, getUserDetails } from '@/services/users';
 import IconPerson from '@icons/person.svg?react';
@@ -215,29 +214,17 @@ export function TransferOwnershipModal({
                 </TextField>
 
                 <div className='flex items-end gap-1'>
-                  {isGroup ? (
-                    <GroupComboBox
-                      avatarBaseUrl={currentContext?.domoObject?.baseUrl}
-                      className='min-w-0 flex-1'
-                      isActive={isOpen}
-                      label='Transfer To'
-                      selectedDisplayName={selectedDisplayName}
-                      selectedKey={selectedOwnerId}
-                      tabId={currentContext?.tabId}
-                      onSelectionChange={handleDestinationChange}
-                    />
-                  ) : (
-                    <UserComboBox
-                      avatarBaseUrl={currentContext?.domoObject?.baseUrl}
-                      className='min-w-0 flex-1'
-                      isActive={isOpen}
-                      label='Transfer To'
-                      selectedDisplayName={selectedDisplayName}
-                      selectedKey={selectedOwnerId}
-                      tabId={currentContext?.tabId}
-                      onSelectionChange={handleDestinationChange}
-                    />
-                  )}
+                  <OwnerComboBox
+                    avatarBaseUrl={currentContext?.domoObject?.baseUrl}
+                    className='min-w-0 flex-1'
+                    isActive={isOpen}
+                    label='Transfer To'
+                    selectedDisplayName={selectedDisplayName}
+                    selectedKey={selectedOwnerId}
+                    sources={[isGroup ? 'GROUP' : 'USER']}
+                    tabId={currentContext?.tabId}
+                    onSelectionChange={handleDestinationChange}
+                  />
                   {!isGroup && (
                     <Tooltip>
                       <Button

@@ -17,6 +17,7 @@ export function getAvailableActions(currentContext) {
     actions.add('getCards');
     if (userRights.includes('content.admin')) {
       actions.add('manageCardLocks');
+      actions.add('manageCardOwners');
     }
   }
 

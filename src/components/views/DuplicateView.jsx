@@ -14,7 +14,7 @@ import {
 } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { UserComboBox } from '@/components/UserComboBox';
+import { OwnerComboBox } from '@/components/OwnerComboBox';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
@@ -461,11 +461,12 @@ export function DuplicateView({ instance = null, liveContext = null, onBackToDef
             ))
           ) : (
             <div className='flex flex-col gap-1'>
-              <UserComboBox
+              <OwnerComboBox
                 isRequired
                 avatarBaseUrl={currentContext?.domoObject?.baseUrl}
                 label='Add access to'
                 selectedKey={targetUser?.id ?? null}
+                sources={['USER']}
                 tabId={currentContext?.tabId}
                 onSelectionChange={handleTargetChange}
               />

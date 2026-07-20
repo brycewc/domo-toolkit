@@ -159,6 +159,10 @@ Prettier owns formatting for every file type in the repo, **including Markdown**
 
 Button labels use **Title Case**, not sentence case: capitalize the first letter of each significant word. Write `Save and Run`, `Choose Account`, `Delete Unused Beast Modes`, not `Save and run` or `Choose account`. Minor words (articles, short conjunctions, and short prepositions such as `a`, `an`, `and`, `the`, `to`, `of`, `for`) stay lowercase unless they are the first word. This is a content convention, not a formatter-enforced rule, so ESLint/Prettier won't catch violations; apply it by hand when adding or editing any button.
 
+## UI Copy: View Titles
+
+A view's header title uses **Title Case**, the same convention as button labels above. This is the `feature` string passed to `DataList` (which renders before the object's name), and any standalone heading a view renders itself. Write `Card Owners for`, `Manage Tags for`, `Card Locks for`, not `Card owners for` or `Card locks for`. The same minor-word exceptions apply (`for` stays lowercase because it isn't the first word). Like button labels, this is a content convention ESLint/Prettier won't catch, so apply it by hand.
+
 ## Unused Variables
 
 - Prefix unused variables/args with `_`: `(_event)`, `_unused`.

@@ -20,6 +20,7 @@ import { GetWorkspacesView } from '@/components/views/GetWorkspacesView';
 import { InspectDataflowView } from '@/components/views/InspectDataflowView';
 import { LinkPreview } from '@/components/views/LinkPreview';
 import { ManageCardLocksView } from '@/components/views/ManageCardLocksView';
+import { ManageCardOwnersView } from '@/components/views/ManageCardOwnersView';
 import { ManageTagsView } from '@/components/views/ManageTagsView';
 import { MigrateDownstreamContentView } from '@/components/views/MigrateDownstreamContentView';
 import { ObjectDetailsView } from '@/components/views/ObjectDetailsView';
@@ -458,6 +459,15 @@ export default function App() {
             isActive={isActive}
             key={slot.viewKey}
             liveContext={currentContext}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'manageCardOwners' && (
+          <ManageCardOwnersView
+            instance={instance}
+            key={slot.viewKey}
             onBackToDefault={backToDefault}
             onStatusUpdate={showStatus}
           />

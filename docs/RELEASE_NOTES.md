@@ -15,6 +15,7 @@
 - Selecting a user task in a workflow now identifies its Task Center Queue in Current Context.
 - Locking cards now opens a list where you can review each card's current lock status and unselect any before applying the change.
 - That same list now lets you unlock cards, not just lock them, via a Lock/Unlock toggle.
+- Manage Card Owners now shows every owner across all cards on a page, dataset, or app and lets you add or remove users and groups on many cards at once.
 - Cancelling a stuck dataset update now cancels every running update on the stream at once, not just the most recent.
 - The Switch Account feature is now called Swap Account.
 - Swapping a dataset's account now offers a Save and Run button that applies the change and immediately runs the dataset, alongside the existing Save.
@@ -93,6 +94,7 @@
 - Opening a person now keeps their name in the browser tab instead of reverting to "People" a moment later.
 - The Definition tab in Current Context now shows a text card's content instead of failing to load.
 - The cross-input collision warning in Migrate Content now reads as a single flowing paragraph instead of breaking its text into misaligned, staggered columns.
+- The row of action buttons at the top of the side panel no longer shows a stray hairline between two buttons at certain widths.
 - Generate Definition from JSDoc now recognizes when an optional output field is made required again, instead of reporting nothing to sync.
 - Generate Definition from JSDoc no longer flags function inputs that have no nested fields as changed when they aren't.
 - Generate Definition from JSDoc now marks an input as optional when the JSDoc brackets its name, not only when it has a default value.
@@ -106,6 +108,7 @@
 - Deleting a page now sends you to your Overview instead of leaving you on the deleted page's broken URL.
 - Deleting a single app studio or worksheet page now returns you to its app instead of leaving you on the deleted page's broken URL.
 - The delete confirmation now disables its delete buttons when the dependency check fails.
+- The delete confirmation now disables its delete buttons while the dependency check is still running.
 - Hovering an object's name in a list now underlines it.
 - Viewing Objects Owned by someone who owns nothing now shows a brief message instead of a list of empty categories.
 - Expanding Current Context in the popup no longer stretches the popup taller or wider to fit the details, which now scroll within it instead.

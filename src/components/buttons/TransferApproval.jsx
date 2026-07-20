@@ -1,7 +1,7 @@
 import { Button, Form, Input, Label, Modal, TextField, Tooltip } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
-import { UserComboBox } from '@/components/UserComboBox';
+import { OwnerComboBox } from '@/components/OwnerComboBox';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { transferApprovals } from '@/services/approvals';
 import { isSidepanel } from '@/utils/sidepanel';
@@ -123,7 +123,7 @@ export function TransferApproval({ currentContext, isDisabled, onStatusUpdate })
                   <Label>Current Approver</Label>
                   <Input value={pendingApproverName} variant='secondary' />
                 </TextField>
-                <UserComboBox
+                <OwnerComboBox
                   autoFocus
                   isRequired
                   avatarBaseUrl={currentContext?.domoObject?.baseUrl}
@@ -132,6 +132,7 @@ export function TransferApproval({ currentContext, isDisabled, onStatusUpdate })
                   maxListHeight={isSidepanel() ? 400 : 120}
                   menuTrigger='input'
                   selectedKey={selectedApproverId}
+                  sources={['USER']}
                   tabId={currentContext?.tabId}
                   onSelectionChange={setSelectedApproverId}
                 />

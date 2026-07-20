@@ -26,6 +26,7 @@ import { GetViewInputs } from '@/components/buttons/GetViewInputs';
 import { GetWorkspaces } from '@/components/buttons/GetWorkspaces';
 import { InspectDataflow } from '@/components/buttons/InspectDataflow';
 import { ManageCardLocks } from '@/components/buttons/ManageCardLocks';
+import { ManageCardOwners } from '@/components/buttons/ManageCardOwners';
 import { ManageTags } from '@/components/buttons/ManageTags';
 import { MigrateDownstreamContent } from '@/components/buttons/MigrateDownstreamContent';
 import { NavigateToCopiedObject } from '@/components/buttons/NavigateToCopiedObject';
@@ -121,7 +122,7 @@ export function ActionButtons({
         ) : (
           <Disclosure className='flex w-full flex-col' isExpanded={isExpanded} onExpandedChange={setIsExpanded}>
             <Disclosure.Heading className='w-full'>
-              <ButtonGroup fullWidth>
+              <ButtonGroup fullWidth className='[&>*:not(:first-child)]:-ml-px'>
                 <Copy currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 <ShareWithSelf currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 <ActivityLog currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
@@ -337,6 +338,13 @@ export function ActionButtons({
                 )}
                 {availableActions.has('manageCardLocks') && (
                   <ManageCardLocks
+                    currentContext={currentContext}
+                    isDisabled={!isDomoPage}
+                    onStatusUpdate={onStatusUpdate}
+                  />
+                )}
+                {availableActions.has('manageCardOwners') && (
+                  <ManageCardOwners
                     currentContext={currentContext}
                     isDisabled={!isDomoPage}
                     onStatusUpdate={onStatusUpdate}
