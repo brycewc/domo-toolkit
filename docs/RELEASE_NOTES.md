@@ -48,6 +48,7 @@
 - The Select all checkbox in multi-select lists now sits directly above the list instead of up in the header.
 - Migrate Content now has a Select all checkbox for selecting or clearing all downstream content at once.
 - The expandable sections in Update Action Versions and Inspect DataFlow now have fully rounded corners.
+- A per-action override in Update Action Versions now offers a No Change option to keep that one action on its current version while the rest of the package updates.
 - The transform detail values in Inspect DataFlow now appear in input-style boxes.
 - The expression, aggregate, column, and configuration boxes in Inspect DataFlow no longer have a border.
 - Get Card Pages now labels the page count on each app studio app, report, and worksheet (e.g. "3 pages") instead of showing a bare number.
@@ -77,6 +78,9 @@
 ## Bug Fixes
 
 - Update Trigger Versions now shows a message when a workflow has no alert triggers instead of opening a blank panel.
+- Update Action Versions now warns when bumping an action to a version that makes an existing input required while that input has no value set, instead of silently leaving the action broken.
+- Side panel actions on a very large workflow, such as Update Action Versions, now open instead of failing to load.
+- Update Action Versions now updates the type of a variable nested inside an object variable when you opt in, not only top-level variables.
 - The action buttons no longer briefly collapse and reopen when an action finds nothing to show and reports it with a message instead of opening a results panel.
 - Sharing a page now makes it appear in your navigation instead of only granting access by direct link.
 - Get Card Pages now tells you when none of an object's cards appear on any page, instead of listing them under a lone Orphaned Cards category.
@@ -88,6 +92,7 @@
 - Migrate Content: mapping a column onto one of the target dataset's Beast Modes now saves the affected cards successfully instead of erroring out.
 - API Errors now captures failed requests from apps embedded on a page, which were previously missed.
 - Viewing a Code Engine action inside a workflow again shows its parent Workflow and Workflow Version as tabs in Current Context.
+- The activity log button on a Code Engine package version now opens the parent package's activity instead of an empty log.
 - When a grouped result list auto-opens its only populated category, it now also expands the single item inside that category instead of leaving it collapsed.
 - When swapping a dataset's account, each account's owner now shows their full name instead of just their last name.
 - A count of a single card or page now reads "1 card" or "1 page" instead of "1 cards" or "1 pages".

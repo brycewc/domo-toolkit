@@ -20,8 +20,8 @@ import { getCodeEnginePackageVersion } from '@/services/codeEngine';
  * @returns {{
  *   functionDeleted: boolean,
  *   hasChanges: boolean,
- *   inputs: { added: Object[], removed: Object[], renamed: Object[], schemaChanged: Object[], typeChanged: Object[] },
- *   outputs: { added: Object[], removed: Object[], renamed: Object[], schemaChanged: Object[], typeChanged: Object[] }
+ *   inputs: { added: Object[], becameRequired: Object[], removed: Object[], renamed: Object[], schemaChanged: Object[], typeChanged: Object[] },
+ *   outputs: { added: Object[], becameRequired: Object[], removed: Object[], renamed: Object[], schemaChanged: Object[], typeChanged: Object[] }
  * }}
  */
 export function classifyContractChanges(oldFn, newFn) {
@@ -40,6 +40,7 @@ export function classifyContractChanges(oldFn, newFn) {
   const hasChanges = [inputs, outputs].some(
     (c) =>
       c.added.length > 0 ||
+      c.becameRequired.length > 0 ||
       c.removed.length > 0 ||
       c.renamed.length > 0 ||
       c.typeChanged.length > 0 ||
@@ -139,6 +140,7 @@ function classifyEntries(oldEntries, newEntries) {
   const newByName = new Map(newList.map((e) => [e.name, e]));
 
   const added = [];
+  const becameRequired = [];
   const removed = [];
   const renamed = [];
   const schemaChanged = [];
@@ -148,13 +150,22 @@ function classifyEntries(oldEntries, newEntries) {
     const prev = oldByName.get(entry.name);
     if (!prev) {
       added.push(entry);
-    } else if (!variableTypeEqual(prev, entry)) {
+      continue;
+    }
+    if (!variableTypeEqual(prev, entry)) {
       // The data type itself changed (dataType, list-ness, or entity subtype).
       typeChanged.push({ name: entry.name, new: entry, old: prev });
     } else if (!entriesStructurallyEqual(prev, entry)) {
       // Same data type, but the nested property schema differs (e.g. the fields
       // of the objects in an array changed). Surface it as its own kind.
       schemaChanged.push({ name: entry.name, new: entry, old: prev });
+    }
+    // Requiredness is orthogonal to type/schema: an existing entry can flip from
+    // optional (nullable) to required (nullable === false) with an otherwise
+    // identical shape. That lands in no bucket above, so detect it on its own or
+    // the version bumps silently and a now-required input can be left unset.
+    if (prev.nullable !== false && entry.nullable === false) {
+      becameRequired.push({ name: entry.name, new: entry, old: prev });
     }
   }
   for (const entry of oldList) {
@@ -176,11 +187,11 @@ function classifyEntries(oldEntries, newEntries) {
     removed.splice(removed.indexOf(oldEntry), 1);
   }
 
-  return { added, removed, renamed, schemaChanged, typeChanged };
+  return { added, becameRequired, removed, renamed, schemaChanged, typeChanged };
 }
 
 function emptyClassification() {
-  return { added: [], removed: [], renamed: [], schemaChanged: [], typeChanged: [] };
+  return { added: [], becameRequired: [], removed: [], renamed: [], schemaChanged: [], typeChanged: [] };
 }
 
 function entriesStructurallyEqual(a, b) {

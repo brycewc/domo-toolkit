@@ -10,8 +10,15 @@ import { buildExcelBlob, generateExportFilename } from '@/utils/exportData';
 import IconAiSparkle from '@icons/ai-sparkle.svg?react';
 import IconCode from '@icons/code.svg?react';
 import IconEnvelope from '@icons/envelope.svg?react';
+import IconShield from '@icons/shield.svg?react';
+import IconTrash from '@icons/trash.svg?react';
 
 const DEV_ACTIONS = [
+  {
+    icon: IconTrash,
+    id: 'clearSessionStorage',
+    label: 'Clear Session Storage'
+  },
   {
     icon: IconAiSparkle,
     id: 'releaseToast',
@@ -41,18 +48,24 @@ const DEV_LOG_COLUMNS = [
 
 export function DevMenu() {
   const [developerMode, setDeveloperMode] = useState(false);
+  const [supportModeOverride, setSupportModeOverride] = useState(false);
   const { showStatus } = useStatusBar();
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
 
-    chrome.storage.local.get(['developerMode'], (result) => {
+    chrome.storage.local.get(['developerMode', 'supportModeOverride'], (result) => {
       setDeveloperMode(result.developerMode ?? false);
+      setSupportModeOverride(result.supportModeOverride ?? false);
     });
 
     const handleStorageChange = (changes, areaName) => {
-      if (areaName === 'local' && changes.developerMode !== undefined) {
+      if (areaName !== 'local') return;
+      if (changes.developerMode !== undefined) {
         setDeveloperMode(changes.developerMode.newValue ?? false);
+      }
+      if (changes.supportModeOverride !== undefined) {
+        setSupportModeOverride(changes.supportModeOverride.newValue ?? false);
       }
     };
 
@@ -64,16 +77,27 @@ export function DevMenu() {
 
   const handleAction = async (key) => {
     switch (key) {
+      case 'clearSessionStorage':
+        await clearSessionStorage(showStatus);
+        break;
       case 'releaseToast':
         showReleaseToast();
         break;
       case 'testTransferEmail':
         await runTestTransferEmail(showStatus);
         break;
+      case 'toggleSupportMode':
+        chrome.storage.local.set({ supportModeOverride: !supportModeOverride });
+        break;
       default:
         break;
     }
   };
+
+  const menuItems = [
+    ...DEV_ACTIONS,
+    { icon: IconShield, id: 'toggleSupportMode', label: `${supportModeOverride ? 'Exit' : 'Enter'} Support Mode` }
+  ];
 
   return (
     <Dropdown>
@@ -86,7 +110,7 @@ export function DevMenu() {
       </Tooltip>
       <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
         <Dropdown.Menu onAction={handleAction}>
-          {DEV_ACTIONS.map((action) => (
+          {menuItems.map((action) => (
             <Dropdown.Item id={action.id} key={action.id} textValue={action.label}>
               <action.icon className='size-4 shrink-0' />
               <Label>{action.label}</Label>
@@ -96,6 +120,23 @@ export function DevMenu() {
       </Dropdown.Popover>
     </Dropdown>
   );
+}
+
+/**
+ * Wipe chrome.storage.session. Everything there is either a re-derivable backup
+ * (the background's in-memory tab-context and instance-user caches survive, and
+ * rewrite their backups on the next update) or a transient handoff re-created on
+ * the next action, so clearing is non-destructive: no settings live here (those
+ * are in chrome.storage.local / .sync). An open side panel in this window resets
+ * to its default view because its data record is one of the keys removed.
+ */
+async function clearSessionStorage(showStatus) {
+  try {
+    await chrome.storage.session.clear();
+    showStatus('Session Storage Cleared', 'Removed all cached contexts and handoff data', 'success');
+  } catch (error) {
+    showStatus('Clear Failed', error.message || 'Unknown error', 'danger');
+  }
 }
 
 /**

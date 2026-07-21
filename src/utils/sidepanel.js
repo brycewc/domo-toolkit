@@ -189,17 +189,85 @@ export async function storeSidepanelData(options) {
 
   const data = {
     ...rest,
-    // Full serialization (not toStorageJSON): this single per-window record is
-    // read back by views via getSidepanelData, and some need the heavy fields
+    // Near-full serialization (not toStorageJSON): this single per-window record
+    // is read back by views via getSidepanelData, and some need the heavy fields
     // toStorageJSON drops, e.g. CopyColorRules reads metadata.details.properties
-    // and Ownership reads user. The quota problem is the background's per-tab
-    // backup duplicating those across many tabs, not this one record.
-    currentContext: currentContext?.toJSON?.() || currentContext,
+    // and Ownership reads user. slimContextForSidepanel trims metadata.context to
+    // its small routing fields, dropping the re-fetchable enrichment payloads (the
+    // workflow definition chief among them) that no view reads back from here and
+    // that overflow the session quota for a large object.
+    currentContext: slimContextForSidepanel(currentContext),
     tabId: tabId || null,
     timestamp: Date.now()
   };
 
   const key = sidepanelStorageKey(windowId, effectiveInstance);
   console.log(`[storeSidepanelData] Storing data for window ${windowId}, instance ${effectiveInstance}:`, data);
-  await chrome.storage.session.set({ [key]: data });
+  try {
+    await chrome.storage.session.set({ [key]: data });
+  } catch (error) {
+    // A large object context can still exceed the session quota after the
+    // definition is dropped (e.g. a dataset's full Beast Mode property dump under
+    // metadata.details). Retry once without that blob rather than fail the whole
+    // launch and leave the panel unable to open; views re-derive details from the
+    // live background context when they need them.
+    console.warn('[storeSidepanelData] Session store failed, retrying without heavy details:', error);
+    const slimData = { ...data, currentContext: dropContextDetails(data.currentContext) };
+    await chrome.storage.session.set({ [key]: slimData });
+  }
+}
+
+/**
+ * Strip the (potentially large) `details` blob from an already-serialized context.
+ * Quota backstop for storeSidepanelData: mirrors the background backup's "store
+ * without details" fallback so an over-budget record can still be written. Views
+ * re-derive details from the live background context when they need them.
+ * @param {Object} serializedContext - A context already run through toJSON.
+ * @returns {Object}
+ */
+function dropContextDetails(serializedContext) {
+  const metadata = serializedContext?.domoObject?.metadata;
+  if (!metadata?.details) return serializedContext;
+  const { details: _details, ...slimMetadata } = metadata;
+  return {
+    ...serializedContext,
+    domoObject: { ...serializedContext.domoObject, metadata: slimMetadata }
+  };
+}
+
+/**
+ * Serialize a DomoContext for the per-window sidepanel record, dropping every
+ * array or object on metadata.context. The fields a view reads back from the
+ * stored record (workflowModelId, workflowVersionNumber, dataflowVersionId, and
+ * the other routing ids) are all primitives; every non-primitive on context is a
+ * re-fetchable enrichment payload read only from the live context, and some of it
+ * (the workflow definition, a page's full card or child-page list) is large
+ * enough to overflow the chrome.storage.session quota, which rejects the whole
+ * set() and leaves the panel unable to open. Keying off type rather than a name
+ * list means new enrichment payloads are dropped automatically. This mirrors
+ * DomoContext.toStorageJSON's trimming for the background backup.
+ *
+ * toJSON returns a fresh top-level object but keeps a live reference to metadata,
+ * so build fresh objects down to the trimmed node rather than mutating in place,
+ * which would strip fields from the context still rendering and from the live
+ * background context that waitForDefinition polls as a fallback.
+ *
+ * @param {Object} currentContext - A DomoContext instance (or already-plain object).
+ * @returns {Object}
+ */
+function slimContextForSidepanel(currentContext) {
+  const json = currentContext?.toJSON?.() || currentContext;
+  const context = json?.domoObject?.metadata?.context;
+  if (!context) return json;
+  const slimContext = {};
+  for (const [key, value] of Object.entries(context)) {
+    if (typeof value !== 'object' || value === null) slimContext[key] = value;
+  }
+  return {
+    ...json,
+    domoObject: {
+      ...json.domoObject,
+      metadata: { ...json.domoObject.metadata, context: slimContext }
+    }
+  };
 }

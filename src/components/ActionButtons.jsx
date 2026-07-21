@@ -44,6 +44,7 @@ import { UpdateTriggerVersions } from '@/components/buttons/UpdateTriggerVersion
 import { UpdateWorkflowActionVersions } from '@/components/buttons/UpdateWorkflowActionVersions';
 import { ViewInAdmin } from '@/components/buttons/ViewInAdmin';
 import { ViewLineage } from '@/components/buttons/ViewLineage';
+import { useSupportMode } from '@/hooks/useSupportMode';
 import { ACTION_BAR_COLLAPSED_EVENT } from '@/hooks/useViewReady';
 import { getAvailableActions } from '@/utils/availableActions';
 import { isSidepanel, openSidepanel } from '@/utils/sidepanel';
@@ -104,7 +105,8 @@ export function ActionButtons({
   }, [isLoading]);
 
   const isDomoPage = currentContext?.isDomoPage ?? false;
-  const availableActions = getAvailableActions(currentContext);
+  const isSupportActive = useSupportMode(currentContext);
+  const availableActions = getAvailableActions(currentContext, isSupportActive);
 
   return (
     <Card className='w-full shrink-0 p-0'>

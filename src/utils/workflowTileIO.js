@@ -201,6 +201,29 @@ function createOutputVariable(definition, entry) {
   return variable.id;
 }
 
+/**
+ * Find a workflow variable node by id anywhere in the dataList tree, not just at
+ * the top level. A tile param can bind to a nested field of an object variable
+ * (e.g. `employee.last_day_of_work`), whose id is namespaced under its parent
+ * (`parentId.childId`) and lives in the parent's `children`, absent from the flat
+ * dataList. A top-level-only lookup misses it, so a type/schema update against a
+ * child field silently does nothing. Walking the tree fixes the write path the
+ * same way indexVariablesById fixes the read path.
+ * @param {Object} definition - The workflow definition.
+ * @param {string} variableId - The variable (or nested field) id to locate.
+ * @returns {Object|null} The node, or null if not found.
+ */
+function findVariableNodeById(definition, variableId) {
+  const stack = [...(definition?.dataList || [])];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (!node) continue;
+    if (node.id === variableId) return node;
+    if (Array.isArray(node.children)) stack.push(...node.children);
+  }
+  return null;
+}
+
 function generateTileId() {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   const bytes = crypto.getRandomValues(new Uint8Array(15));
@@ -463,7 +486,7 @@ function reconcileVariableChildren(existingChildren, manifestChildren, parentId)
 }
 
 function setVariableType(definition, variableId, { children, dataType, entitySubType, isList }) {
-  const variable = (definition?.dataList || []).find((v) => v.id === variableId);
+  const variable = findVariableNodeById(definition, variableId);
   if (!variable) return false;
   if (children !== undefined) variable.children = reconcileVariableChildren(variable.children, children, variable.id);
   if (dataType !== undefined) variable.dataType = dataType;

@@ -212,7 +212,11 @@ export function UpdateWorkflowActionVersionsView({
       for (const action of pkg.actions) {
         let effectiveVersion = null;
 
-        if (action.selectedVersion !== 'inherit') {
+        // An action override of 'no-change' pins this action to its current
+        // version, ignoring the package-level selection; 'inherit' defers to it.
+        if (action.selectedVersion === 'no-change') {
+          effectiveVersion = null;
+        } else if (action.selectedVersion !== 'inherit') {
           effectiveVersion = action.selectedVersion;
         } else if (pkg.selectedVersion !== 'no-change') {
           effectiveVersion = pkg.selectedVersion;
@@ -531,12 +535,14 @@ export function UpdateWorkflowActionVersionsView({
         </Select.Trigger>
         <Select.Popover className='max-h-60!'>
           <ListBox>
-            <ListBox.Item
-              id={isActionLevel ? 'inherit' : 'no-change'}
-              key={isActionLevel ? 'inherit' : 'no-change'}
-              textValue={isActionLevel ? 'Inherit' : 'No Change'}
-            >
-              <Label>{isActionLevel ? 'Inherit' : 'No Change'}</Label>
+            {isActionLevel && (
+              <ListBox.Item id='inherit' key='inherit' textValue='Inherit'>
+                <Label>Inherit</Label>
+                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+              </ListBox.Item>
+            )}
+            <ListBox.Item id='no-change' key='no-change' textValue='No Change'>
+              <Label>No Change</Label>
               <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
             </ListBox.Item>
             {availableVersions.map((v) => (
@@ -819,6 +825,7 @@ function actionNeedsReview(info) {
   return (
     info.removedBoundInputs.length > 0 ||
     info.addedRequiredInputs.length > 0 ||
+    info.newlyRequiredUnboundInputs.length > 0 ||
     info.typeChangeImpacts.length > 0 ||
     info.schemaChangeImpacts.length > 0 ||
     info.breakingRemovedOutputs.length > 0
@@ -951,6 +958,22 @@ function ActionReconciliation({
                   New required input{info.addedRequiredInputs.length === 1 ? '' : 's'}{' '}
                   <span className='font-mono font-bold'>{info.addedRequiredInputs.join(', ')}</span> will be unset. Set{' '}
                   {info.addedRequiredInputs.length === 1 ? 'it' : 'them'} in Domo after updating.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
+
+          {info.newlyRequiredUnboundInputs.length > 0 && (
+            <Alert className='w-full' status='warning'>
+              <Alert.Content>
+                <Alert.Title className='flex items-center gap-1'>
+                  <AlertStatusIcon />
+                  Input{info.newlyRequiredUnboundInputs.length === 1 ? '' : 's'} Now Required
+                </Alert.Title>
+                <Alert.Description>
+                  <span className='font-mono font-bold'>{info.newlyRequiredUnboundInputs.join(', ')}</span> changed from
+                  optional to required but {info.newlyRequiredUnboundInputs.length === 1 ? 'has' : 'have'} no value set. Set{' '}
+                  {info.newlyRequiredUnboundInputs.length === 1 ? 'it' : 'them'} in Domo after updating.
                 </Alert.Description>
               </Alert.Content>
             </Alert>
@@ -1110,6 +1133,13 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
   const addedOutputs = classified.outputs.added.map((e) => e.name);
   const addedRequiredInputs = classified.inputs.added.filter((e) => e.nullable === false).map((e) => e.name);
 
+  // Existing inputs that flipped optional -> required. Only those with no binding
+  // will break the action (a required input left unset), so those need review; one
+  // that already carries a binding is fine and surfaces as an auto note below.
+  const newlyRequiredUnboundInputs = classified.inputs.becameRequired
+    .filter((e) => !hasBinding(inputParams.get(e.name)))
+    .map((e) => e.name);
+
   const removedBoundInputs = classified.inputs.removed
     .filter((e) => hasBinding(inputParams.get(e.name)))
     .map((e) => ({
@@ -1228,6 +1258,11 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
   for (const e of classified.inputs.removed) {
     if (!hasBinding(inputParams.get(e.name))) autoNotes.push(['Unused input ', { code: e.name }, ' removed']);
   }
+  for (const e of classified.inputs.becameRequired) {
+    if (hasBinding(inputParams.get(e.name))) {
+      autoNotes.push(['Input ', { code: e.name }, ' is now required and already set']);
+    }
+  }
   for (const t of typeChanged) {
     if (!t.param?.mappedTo) {
       autoNotes.push(['Type of ', { code: t.name }, ' changed to ', { code: t.newType }, ', no variable bound']);
@@ -1273,6 +1308,7 @@ function buildActionContractInfo({ change, definition, newFn, oldFn }) {
     classified,
     functionDeleted: classified.functionDeleted,
     newFn,
+    newlyRequiredUnboundInputs,
     removedBoundInputs,
     schemaChangeImpacts,
     typeChangeImpacts

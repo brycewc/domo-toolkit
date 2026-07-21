@@ -1,4 +1,5 @@
 import { getAccountIdsForDomoObject } from '@/services/accounts';
+import { isSupportUser } from '@/utils/supportMode';
 
 /**
  * Determine which expandable action buttons are available for the current context.
@@ -6,7 +7,7 @@ import { getAccountIdsForDomoObject } from '@/services/accounts';
  * for DataList's `reload` header action to decide whether the user's current
  * object can re-run the active view.
  */
-export function getAvailableActions(currentContext) {
+export function getAvailableActions(currentContext, isSupportActive = isSupportUser(currentContext)) {
   const actions = new Set();
   const typeId = currentContext?.domoObject?.typeId;
   const metadata = currentContext?.domoObject?.metadata;
@@ -235,6 +236,13 @@ export function getAvailableActions(currentContext) {
   // available whenever there is a current object. Routing key only.
   if (typeId) {
     actions.add('viewObjectDetails');
+  }
+
+  // Support-only actions surface for the Domo Support system users, or when the
+  // dev-menu override is on (see src/utils/supportMode.js, src/hooks/useSupportMode.js).
+  // Future support features add their keys here, e.g. `actions.add('revealCapturedSaml');`.
+  if (isSupportActive) {
+    // no support-only actions yet
   }
 
   return actions;

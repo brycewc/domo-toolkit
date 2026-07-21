@@ -37,7 +37,12 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
   // parent option needs no extra fetch. The parent type comes straight from the
   // registry so the two view types stay in sync with their declared parents.
   const hasParent = ['DATA_APP_VIEW', 'WORKSHEET_VIEW'].includes(typeId);
-  const parentTypeId = hasParent ? getObjectType(typeId)?.parents?.[0] : null;
+  // Code Engine package versions are never written to the activity log; only the
+  // parent package is. So a version's Activity Log button launches the parent
+  // package's log instead of the (empty) version log. Unlike hasParent above,
+  // this redirects to the parent rather than producing a combined object-and-parent log.
+  const usesParentLog = typeId === 'CODEENGINE_PACKAGE_VERSION';
+  const parentTypeId = hasParent || usesParentLog ? getObjectType(typeId)?.parents?.[0] : null;
   const parentTypeName = parentTypeId ? getObjectType(parentTypeId)?.name : null;
 
   const handleClick = async (key = null) => {
@@ -57,7 +62,11 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
       currentContext?.domoObject.metadata?.name ?? `${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`;
 
     try {
-      switch (key) {
+      // A Code Engine package version isn't recorded in the activity log, so a plain
+      // click routes to the parent package via the existing 'parent' handling.
+      const action = key ?? (usesParentLog ? 'parent' : null);
+
+      switch (action) {
         case 'card-pages': {
           activityLogType = 'card-pages';
           let pages = currentContext?.domoObject?.metadata?.context?.cardPages;
