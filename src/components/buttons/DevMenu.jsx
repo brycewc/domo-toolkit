@@ -1,4 +1,4 @@
-import { Button, Dropdown, Label, Tooltip } from '@heroui/react';
+import { Button, Chip, Dropdown, Label, Tooltip } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
 import { showReleaseToast } from '@/hooks/useReleaseNotification';
@@ -95,8 +95,8 @@ export function DevMenu() {
   };
 
   const menuItems = [
-    ...DEV_ACTIONS,
-    { icon: IconShield, id: 'toggleSupportMode', label: `${supportModeOverride ? 'Exit' : 'Enter'} Support Mode` }
+    { icon: IconShield, id: 'toggleSupportMode', label: `${supportModeOverride ? 'Exit' : 'Enter'} Support Mode` },
+    ...DEV_ACTIONS
   ];
 
   return (
@@ -105,6 +105,11 @@ export function DevMenu() {
         <Button fullWidth className='min-w-36 flex-1 whitespace-normal' variant='tertiary'>
           <IconCode />
           Dev
+          {supportModeOverride && (
+            <Chip className='h-5 w-5 items-center justify-center rounded-full' color='accent' size='sm' variant='soft'>
+              <IconShield className='size-3' />
+            </Chip>
+          )}
         </Button>
         <Tooltip.Content offset={4}>Developer testing utilities</Tooltip.Content>
       </Tooltip>

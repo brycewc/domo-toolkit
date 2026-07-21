@@ -232,7 +232,7 @@ const onlyHereCardsCascade = {
     return `${base} and its **${onlyHereCount} card${onlyHereCount !== 1 ? 's' : ''}** that appear on no other page permanently? Cards also used on other pages are left in place.`;
   },
   isBlocked: ({ blocked }) => blocked,
-  label: ({ pageLabel }) => `Delete ${pageLabel} and Cards that Only Live Here`,
+  label: () => 'Delete Page and Cards that Only Live Here',
   loadingMessage: ({ pageName }) => `Deleting **${pageName}** and cards that only live here…`,
   run: ({ context }) => runPageDelete({ cardScope: 'onlyHere', context, parentAppId: context.domoObject.parentId }),
   successMessage: ({ pageName }, result) =>
