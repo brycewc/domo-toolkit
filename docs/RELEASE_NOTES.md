@@ -69,6 +69,7 @@
 - The Update Owner dialog now opens at the top of the popup, while staying centered in the side panel.
 - The dropdowns for searching a user, group, or dataset now size to their results instead of showing empty space below the list.
 - Alternate delete actions, such as Delete App and All Cards, now appear in red instead of gray.
+- FileSets are now labeled "Document Collections" throughout the extension.
 
 ## Performance
 

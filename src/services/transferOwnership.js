@@ -147,7 +147,7 @@ export const TRANSFER_TYPES = [
   {
     getOwned: getOwnedFilesets,
     key: 'filesets',
-    label: 'FileSets',
+    label: 'Document Collections',
     requiredAuthority: 'fileset.admin',
     transfer: transferFilesets
   },

@@ -114,7 +114,7 @@ Both show the current context (instance, object type, object ID) and update as y
 
 ## Supported Object Types
 
-Pages, cards, datasets, dataflows, app studio apps (and their pages), worksheets (and their pages), workspaces, users, groups, alerts, workflows (including versions, executions, triggers, and actions), code engine packages (and versions), pro-code apps, beast modes, variables, drill paths, access tokens, appdb collections, approvals, approval templates, jupyter workspaces, filesets, files, forms, governance toolkit jobs, certification processes, AI toolkits, AI agents, and dozens more.
+Pages, cards, datasets, dataflows, app studio apps (and their pages), worksheets (and their pages), workspaces, users, groups, alerts, workflows (including versions, executions, triggers, and actions), code engine packages (and versions), pro-code apps, beast modes, variables, drill paths, access tokens, appdb collections, approvals, approval templates, jupyter workspaces, document collections, files, forms, governance toolkit jobs, certification processes, AI toolkits, AI agents, and dozens more.
 
 ## Privacy
 

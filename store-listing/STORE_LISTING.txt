@@ -8,13 +8,13 @@ Domo Toolkit automatically detects what you're looking at. Navigate to any page,
 
 AUTOMATIC 431 ERROR RESOLVING
 Domo's 431 "Request Header Fields Too Large" errors are a constant headache when working across instances. Domo Toolkit gives you three independent cookie controls:
-- Auto-clear on 431 errors (default on): Detects 431 errors, clears cookies (preserving your last 2 instances), and refreshes the page instantly.
+- Auto-clear on 431 errors (default on): Detects 431 errors, clears cookies (preserving your last 2 instances), and refreshes the page.
 - Manual cookie button (default on): A one-click toolbar button to clear without waiting for a 431.
 - Button behavior (default preserve): Preserve your last 2 instances or clear all Domo cookies, leaving other websites and your history untouched either way.
 
 ONE-CLICK ACTIONS
 A compact toolbar gives instant access to the operations you use most:
-- Copy ID: Copy the current object's ID instantly. Long-press for related IDs like stream ID (datasets) or app ID (app studio pages). Shortcut: Ctrl+Shift+1 (Cmd on Mac).
+- Copy ID: Copy the current object's ID. Long-press for related IDs like stream ID (datasets) or app ID (app studio pages). Shortcut: Ctrl+Shift+1 (Cmd on Mac).
 - Share With Self: Instantly grant yourself access to pages, studio apps, and custom app designs.
 - Activity Log: View activity log records for the current object. Long-press for advanced scopes: all cards on the object, all pages containing those cards, all child pages, or just the parent Studio App / Worksheet. Supports multi-user filtering with an include/exclude toggle, and can pull from a DomoStats Activity Log dataset to bypass the audit API's retention limit.
 - Clipboard Navigation: Read your clipboard, identify the Domo object by its ID, and navigate straight to it. Works with any Domo object ID copied from anywhere: a card, spreadsheet, Slack message, etc. Objects that don't support navigation show details in the side panel instead.
@@ -22,7 +22,7 @@ A compact toolbar gives instant access to the operations you use most:
 
 DATA DISCOVERY
 View dependencies and take actions on them from the side panel:
-- Get Cards: See every card on a page, app studio page, worksheet page, report builder page, dataset, or dataflow outputs. For pages, forms and queues are included, separated from cards. Open them all in new tabs at once.
+- Get Cards: See every card on a page, app studio page, worksheet page, report builder page, dataset, or dataflow outputs. For pages, forms and queues are included, separated from cards. Open them all in new tabs.
 - Get Card Pages: Shows where cards on an object live. For pages, shows other pages containing the same cards. For datasets and dataflows, shows all pages and app studio pages with cards that use them as a source.
 - Get Child Pages: For pages, shows all child and grandchild pages in a tree.
 - Get DataSets: Shows datasets for an object, including dataflow inputs and outputs, dependent views, and all datasets used in cards on a page or app.
@@ -30,7 +30,7 @@ View dependencies and take actions on them from the side panel:
 All discovery lists support applicable actions like open all, copy ID, share with self, open lineage, and open in views explorer. Items are grouped with expand/collapse, counts, direct links, and icons, and a reload button reruns the action as you navigate.
 
 API ERROR TRACKING
-API errors are automatically captured as you browse. Click the API Errors button to view the count at a glance, expand individual errors for the full JSON response, and clear all with one click.
+API errors are automatically captured as you browse. Click the API Errors button to view the count at a glance, expand individual errors for the full JSON response, and clear all.
 
 USER MANAGEMENT
 - Transfer Ownership: Reassign every object owned by a user to another in one flow. Select which object types to include, preview counts before you commit, and optionally delete the user afterward. A quick button transfers to the user's manager, and you can email the recipient an Excel attachment listing everything transferred.
@@ -52,7 +52,7 @@ OBJECT-SPECIFIC ACTIONS
 - Copy Color Rules: Copy a dataset's color rules to another.
 - Cancel Stuck Stream Update: Cancel a dataset stream execution stuck in a storing state with no UI cancel option.
 - Generate Definition from JSDoc: Derive a Code Engine package manifest (function names, parameters, types, descriptions) from JSDoc in a package's source and update the definition to match, with a structural diff before you confirm.
-- Lock Cards: Lock all cards on a page, app studio page, dataset, worksheet, report builder report, or all dataflow outputs at once.
+- Lock Cards: Lock all cards on a page, app studio page, dataset, worksheet, report builder report, or all dataflow outputs.
 - Set Schedule to Manual: Set a dataset's update schedule to manual.
 - Fix Empty String Filters: Remove empty string default values from "contains" quick filters on cards, so null values display instead of being filtered out.
 
@@ -78,7 +78,7 @@ SETTINGS
 - Per-Instance Settings: View, manage, and clear values stored per Domo instance, like the auto-discovered DomoStats Activity Log dataset.
 
 SUPPORTED OBJECT TYPES
-Domo Toolkit works with nearly every object type in Domo: pages, cards, datasets, dataflows, app studio apps/pages, worksheets, workspaces, report builder, users, groups, alerts, workflows, code engine packages, pro-code apps, beast modes, variables, access tokens, appdb collections, approvals, approval templates, drill paths, jupyter workspaces, filesets, files, forms, governance toolkit jobs, certification processes, AI toolkits, AI agents, and dozens more.
+Works with nearly every object type in Domo: pages, cards, datasets, dataflows, app studio apps/pages, worksheets, workspaces, report builder, users, groups, alerts, workflows, code engine packages, pro-code apps, beast modes, variables, access tokens, appdb collections, approvals, approval templates, drill paths, jupyter workspaces, document collections, files, forms, governance toolkit jobs, certification processes, AI toolkits, AI agents, and dozens more.
 
 PRIVACY & PERMISSIONS
 - Only runs on .domo.com domains

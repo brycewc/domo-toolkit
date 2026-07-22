@@ -930,18 +930,18 @@ export const ObjectTypeRegistry = {
     parents: ['FILE'],
     relatedData: [{ label: 'Document', source: 'parentId', typeId: 'FILE' }]
   }),
-  FILESET: new DomoObjectType('FILESET', 'FileSet', {
+  FILESET: new DomoObjectType('FILESET', 'Document Collection', {
     api: { endpoint: '/files/v1/filesets/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'filesets' },
     icon: { component: 'Folder' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/datacenter/filesets/{id}/overview'
   }),
-  FILESET_DIRECTORY: new DomoObjectType('FILESET_DIRECTORY', 'FileSet Directory', {
+  FILESET_DIRECTORY: new DomoObjectType('FILESET_DIRECTORY', 'Document Collection Directory', {
     icon: { component: 'Folder' },
     idPattern: /.*/
   }),
-  FILESET_FILE: new DomoObjectType('FILESET_FILE', 'FileSet File', {
+  FILESET_FILE: new DomoObjectType('FILESET_FILE', 'Document Collection Document', {
     api: {
       endpoint: '/files/v1/filesets/{parent}/files/{id}',
       paths: { name: 'name' }
@@ -951,7 +951,7 @@ export const ObjectTypeRegistry = {
     parents: ['FILESET'],
     relatedData: [
       { label: 'Document', source: 'self' },
-      { label: 'FileSet', source: 'parentId', typeId: 'FILESET' }
+      { label: 'Document Collection', source: 'parentId', typeId: 'FILESET' }
     ]
   }),
   GOAL: new DomoObjectType('GOAL', 'Goal', {
