@@ -230,34 +230,41 @@ const FETCHERS = {
 
     return groups;
   },
-  MAGNUM_COLLECTION: async ({ id, instance, parentId }, tabId) => {
+  MAGNUM_COLLECTION: async ({ id, instance, metadata, parentId }, tabId) => {
     // The parent datastore ID is enriched onto the collection as parentId, and
-    // doubles as the connected app's instance ID.
+    // doubles as the connected app's instance ID. The synced dataset's ID is
+    // enriched onto the collection details, so no extra fetch is needed for it.
     if (!parentId) return [];
     const origin = `https://${instance}.domo.com`;
-    const [collections, connectedApps] = await Promise.all([
+    const datasetId = metadata?.details?.datasourceId || null;
+    const [collections, connectedApps, datasetInfo, datasetDependents] = await Promise.all([
       getAppInstanceCollections({ appInstanceId: parentId, tabId }),
       // Best-effort: a collection no app uses returns none, and a failed lookup
       // just omits the group rather than blocking the delete.
-      getCollectionConnectedApps({ collectionId: id, tabId }).catch(() => [])
+      getCollectionConnectedApps({ collectionId: id, tabId }).catch(() => []),
+      datasetId ? searchDatasets(datasetId, tabId).catch(() => null) : Promise.resolve(null),
+      datasetId ? getDatasetDependentCount({ datasetId, tabId }).catch(() => 0) : Promise.resolve(0)
     ]);
     const groups = [];
-    // Other collections in the datastore aren't touched by the primary "Delete
-    // Collection", so they're advisory (deleted: false); only the datastore
-    // cascade removes them. The cascade button reads this group's count via its key.
-    const siblings = collections.filter((c) => String(c.id) !== String(id));
-    if (siblings.length > 0) {
+    // The synced dataset isn't deleted with the collection, so it's advisory. Its
+    // downstream dependent count shows on the row as a "(N dependencies)" badge.
+    if (datasetId) {
       groups.push({
         blocking: false,
         deleted: false,
-        items: siblings.map((c) => ({
-          id: c.id,
-          label: c.name || c.id,
-          typeId: 'MAGNUM_COLLECTION',
-          url: `${origin}/appDb/${c.id}/permissions`
-        })),
-        key: 'siblingCollections',
-        label: 'Other Collections in This Datastore'
+        flat: true,
+        items: [
+          {
+            count: datasetDependents,
+            countLabel: datasetDependents === 1 ? 'dependency' : 'dependencies',
+            id: datasetId,
+            label: datasetInfo?.datasets?.[0]?.name || `DataSet ${datasetId}`,
+            typeId: 'DATA_SOURCE',
+            url: `${origin}/datasources/${datasetId}/details/overview`
+          }
+        ],
+        key: 'syncedDataset',
+        label: 'Synced DataSet'
       });
     }
     // The connected apps aren't deleted, but deleting the collection (or the
@@ -274,6 +281,24 @@ const FETCHERS = {
         })),
         key: 'connectedApps',
         label: connectedApps.length === 1 ? 'Connected App' : 'Connected Apps'
+      });
+    }
+    // Other collections in the datastore aren't touched by the primary "Delete
+    // Collection", so they're advisory (deleted: false); only the datastore
+    // cascade removes them. The cascade button reads this group's count via its key.
+    const siblings = collections.filter((c) => String(c.id) !== String(id));
+    if (siblings.length > 0) {
+      groups.push({
+        blocking: false,
+        deleted: false,
+        items: siblings.map((c) => ({
+          id: c.id,
+          label: c.name || c.id,
+          typeId: 'MAGNUM_COLLECTION',
+          url: `${origin}/appDb/${c.id}/permissions`
+        })),
+        key: 'siblingCollections',
+        label: 'Other Collections in This Datastore'
       });
     }
     return groups;

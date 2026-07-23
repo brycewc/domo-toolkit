@@ -14,6 +14,8 @@
 - Deleting an AppDB collection now offers a "Delete Datastore and All Collections" action that removes the entire datastore and every collection in it.
 - Viewing a workflow now includes a Triggers tab listing every trigger attached to it.
 - Selecting a user task in a workflow now identifies its Task Center Queue in Current Context.
+- A custom app card now links to the app instance behind it and the app design powering it in Current Context.
+- A custom app design now lists its deployed instances and the cards that use it in Current Context.
 - Locking cards now opens a list where you can review each card's current lock status and unselect any before applying the change.
 - That same list now lets you unlock cards, not just lock them, via a Lock/Unlock toggle.
 - Manage Card Owners now shows every owner across all cards on a page, dataset, or app and lets you add or remove users and groups on many cards at once.
@@ -31,6 +33,7 @@
 ## Newly Supported Object Types
 
 - Pro-code custom apps are now recognized as their own type instead of being treated as bricks.
+- Custom app instances are now recognized as their own type, "Custom App".
 
 ## UI Improvements
 
@@ -56,7 +59,7 @@
 - Get Card Pages on a page, app studio app, or worksheet now lists the cards that live only there under a "Cards that Only Live Here" category.
 - The Update Details view now shows the object's type icon next to its name in the title instead of next to the ID below.
 - Delete now shows a type icon on each dependency category, such as a card icon on Cards on This Page.
-- Deleting an AppDB collection now lists the datastore's other collections and the app connected to it, instead of reporting that dependencies could not be checked.
+- Deleting an AppDB collection now lists the datastore's other collections, the apps connected to it, and its synced dataset, instead of reporting that dependencies could not be checked.
 - The activity log button's hold-for-more-options menu now aligns each option's icon with its title instead of the top of its description.
 - Renamed the action button "Update <Object> Details" to "Update Details".
 - System pages (Overview, Favorites, or Shared) in a list now carry a "System" chip next to their name.

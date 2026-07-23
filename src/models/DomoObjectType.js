@@ -388,14 +388,18 @@ export const ObjectTypeRegistry = {
     relatedData: [{ fetcher: 'alertActions', field: 'actions', isArray: true, label: 'Actions' }],
     urlPath: '/alerts/{id}'
   }),
-  APP: new DomoObjectType('APP', 'Custom App (Brick)', {
+  APP: new DomoObjectType('APP', 'Custom App Design (Brick)', {
     api: {
       endpoint: '/apps/v1/designs/{id}?parts=versions',
-      paths: { created: 'createdDate', name: 'name' }
+      paths: { created: 'createdDate', latestVersion: 'latestVersion', name: 'name', versions: 'versions' }
     },
     extractConfig: { keyword: 'assetlibrary' },
     icon: { component: 'CodeTags' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    relatedData: [
+      { fetcher: 'designInstances', isArray: true, itemTypeId: 'RYUU_INSTANCE', label: 'Instances' },
+      { fetcher: 'designCards', isArray: true, itemTypeId: 'CARD', label: 'Cards' }
+    ],
     urlPath: '/assetlibrary/{id}/overview'
   }),
   APPROVAL: new DomoObjectType('APPROVAL', 'Approval', {
@@ -483,6 +487,19 @@ export const ObjectTypeRegistry = {
         fieldSource: 'context',
         label: 'Studio App',
         typeId: 'DATA_APP'
+      },
+      {
+        // Only present on domoapp cards (the app instance behind the card).
+        field: 'domoapp.id',
+        label: 'Custom App',
+        typeId: 'RYUU_INSTANCE'
+      },
+      {
+        // designId is enriched onto context from the instance (see enrichments.js).
+        field: 'designId',
+        fieldSource: 'context',
+        label: 'App Design',
+        typeId: 'RYUU_APP'
       }
     ],
     urlPath: '/kpis/details/{id}'
@@ -1221,12 +1238,27 @@ export const ObjectTypeRegistry = {
     idPattern: /^\d+$/,
     urlPath: '/admin/roles/{id}?tab=grants'
   }),
-  RYUU_APP: new DomoObjectType('RYUU_APP', 'Custom App (Pro-Code)', {
-    api: { endpoint: '/apps/v1/designs/{id}?parts=versions', paths: { created: 'createdDate', name: 'name' } },
+  RYUU_APP: new DomoObjectType('RYUU_APP', 'Custom App Design (Pro-Code)', {
+    api: {
+      endpoint: '/apps/v1/designs/{id}?parts=versions',
+      paths: { created: 'createdDate', latestVersion: 'latestVersion', name: 'name', versions: 'versions' }
+    },
     extractConfig: { keyword: 'assetlibrary' },
     icon: { component: 'Code' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    relatedData: [
+      { fetcher: 'designInstances', isArray: true, itemTypeId: 'RYUU_INSTANCE', label: 'Instances' },
+      { fetcher: 'designCards', isArray: true, itemTypeId: 'CARD', label: 'Cards' }
+    ],
     urlPath: '/assetlibrary/{id}/overview'
+  }),
+  RYUU_INSTANCE: new DomoObjectType('RYUU_INSTANCE', 'Custom App', {
+    api: { endpoint: '/apps/v1/instances/{id}', paths: { created: 'createdDate', parentId: 'designId' } },
+    icon: { component: 'Code' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['RYUU_APP'],
+    relatedData: [{ label: 'App Design', source: 'parentId', typeId: 'RYUU_APP' }]
+    // No urlPath: an instance has no standalone page; it's reached as a related object from a card.
   }),
   SCHEDULE: new DomoObjectType('SCHEDULE', 'Schedule', {
     icon: { component: 'CalendarTime' }

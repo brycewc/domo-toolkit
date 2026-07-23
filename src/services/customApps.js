@@ -178,6 +178,64 @@ export async function getAppInstance({ appInstanceId, tabId = null }) {
 }
 
 /**
+ * List the cards that reference a custom app design. Returns [] on any failure,
+ * including the cross-customer 404 a built-in/global template returns.
+ * @param {Object} params
+ * @param {string} params.designId - The app design ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: number, instanceId: string, title: string}>>}
+ */
+export async function getDesignCards({ designId, tabId = null }) {
+  return executeInPage(
+    async (designId) => {
+      const response = await fetch(`/api/apps/v1/designs/${designId}?parts=cards`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      return (data.referencingCards || []).map((card) => ({
+        id: card.id,
+        instanceId: card.domoapp?.id ?? null,
+        title: card.title || `Card ${card.id}`
+      }));
+    },
+    [designId],
+    tabId
+  );
+}
+
+/**
+ * List the deployed instances of a custom app design, each labeled by a
+ * referencing card's title when one can be matched (a card carries its instance
+ * id at `domoapp.id`). Returns [] on any failure, including the cross-customer
+ * 404 a built-in/global template returns.
+ * @param {Object} params
+ * @param {string} params.designId - The app design ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<{disabled: boolean, id: string, name: string, version: string|null}>>}
+ */
+export async function getDesignInstances({ designId, tabId = null }) {
+  return executeInPage(
+    async (designId) => {
+      const response = await fetch(`/api/apps/v1/designs/${designId}?parts=apps,cards`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      const titleByInstance = {};
+      for (const card of data.referencingCards || []) {
+        const instanceId = card.domoapp?.id;
+        if (instanceId && !titleByInstance[instanceId]) titleByInstance[instanceId] = card.title;
+      }
+      return (data.instances || []).map((instance) => ({
+        disabled: !!instance.disabled,
+        id: instance.id,
+        name: titleByInstance[instance.id] || `Instance ${String(instance.id).slice(0, 8)}`,
+        version: instance.designVersion ?? null
+      }));
+    },
+    [designId],
+    tabId
+  );
+}
+
+/**
  * Get all custom apps (bricks and pro code apps) owned by a user.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID

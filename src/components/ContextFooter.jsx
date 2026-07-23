@@ -10,6 +10,7 @@ import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType
 import { getAlertActions } from '@/services/alerts';
 import { getTemplateApprovals } from '@/services/approvals';
 import { getCardDefinition, getNotebookCardText } from '@/services/cards';
+import { getDesignCards, getDesignInstances } from '@/services/customApps';
 import { getDatasetColumns, getDatasetDetailsForList, getDatasetsForPage } from '@/services/datasets';
 import { getJupyterWorkspaceAccounts, getJupyterWorkspaceDatasets } from '@/services/jupyterWorkspaces';
 import { getWorkflowTriggers } from '@/services/workflows';
@@ -32,6 +33,8 @@ const LAZY_ARRAY_FETCHERS = {
   datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),
   datasetsForAccountDetails: ({ context, tabId }) => getDatasetDetailsForList({ datasets: context?.accountDatasets, tabId }),
   datasetsForPage: ({ objectId, tabId }) => getDatasetsForPage({ pageId: objectId, tabId }),
+  designCards: ({ objectId, tabId }) => getDesignCards({ designId: objectId, tabId }),
+  designInstances: ({ objectId, tabId }) => getDesignInstances({ designId: objectId, tabId }),
   jupyterWorkspaceAccounts: ({ details, tabId }) =>
     getJupyterWorkspaceAccounts({ entries: details?.accountConfiguration, tabId }),
   jupyterWorkspaceInputs: ({ details, tabId }) =>

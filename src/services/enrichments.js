@@ -4,6 +4,7 @@ import { executeInPage } from '@/utils/executeInPage';
 import { getAppDbCollectionPermission } from './appDb';
 import { extractPageContentIds, getFormsForPage, getQueuesForPage } from './appStudio';
 import { getCardsForObject } from './cards';
+import { getAppInstance } from './customApps';
 import { getDataflowPermission } from './dataflows';
 import { getDatasetsForAccount } from './datasets';
 import { getChildPages, getPagesForCards, getSubpageIds } from './pages';
@@ -200,6 +201,23 @@ const ENRICHMENTS = [
     id: 'appdb-permission',
     storePath: 'permission',
     types: ['MAGNUM_COLLECTION']
+  },
+
+  // Custom App instance behind a domoapp card: resolve its design so the card
+  // can link to the app design (and the instance). Errors are swallowed (no
+  // fallback), so a non-domoapp card or a cross-customer app just omits the link.
+  {
+    fetch: async ({ enrichedMetadata, tabId }) => {
+      if (enrichedMetadata.details?.type !== 'domoapp') return undefined;
+      const appInstanceId = enrichedMetadata.details?.domoapp?.id;
+      if (!appInstanceId) return undefined;
+      const instance = await getAppInstance({ appInstanceId, tabId });
+      if (!instance?.designId) return undefined;
+      return { designId: instance.designId, designVersion: instance.designVersion ?? null };
+    },
+    id: 'card-app-instance',
+    storePath: { 'context.designId': 'designId', 'context.designVersion': 'designVersion' },
+    types: ['CARD']
   },
 
   // DataFlow permission

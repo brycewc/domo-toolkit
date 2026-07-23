@@ -1318,14 +1318,28 @@ async function detectAndStoreContext(tabId) {
 
     // Bricks and pro-code apps share the same URL (/assetlibrary/{id}/overview)
     // and design endpoint, so URL detection can't tell them apart; it defaults
-    // every custom app to APP (brick). The design record's `createdBy` is null
-    // for a brick and populated for a pro-code app, so refine the type here after
-    // enrichment. Both types share `urlPath`, so the already-built URL stays
+    // every custom app to APP (brick). Refine the type here after enrichment.
+    // The authoritative signal is the design's latest version carrying the
+    // `client-code-enabled` flag (a brick); a design is effectively one type, so
+    // the latest version reflects its current nature. If version data isn't
+    // available, fall back to the older heuristic (a brick design has no
+    // `createdBy`). Both types share `urlPath`, so the already-built URL stays
     // valid; we only swap the type model (which drives icon, label, endpoint).
-    if (detected.typeId === 'APP' && enrichedMetadata.details?.createdBy != null) {
-      detected.typeId = 'RYUU_APP';
-      typeModel = getObjectType('RYUU_APP');
-      domoObject.objectType = typeModel;
+    if (detected.typeId === 'APP') {
+      const versions = enrichedMetadata.versions;
+      let isBrick;
+      if (Array.isArray(versions) && versions.length > 0) {
+        const latest =
+          versions.find((v) => v.version === enrichedMetadata.latestVersion) ?? versions[versions.length - 1];
+        isBrick = latest?.flags?.['client-code-enabled'] === true;
+      } else {
+        isBrick = enrichedMetadata.details?.createdBy == null;
+      }
+      if (!isBrick) {
+        detected.typeId = 'RYUU_APP';
+        typeModel = getObjectType('RYUU_APP');
+        domoObject.objectType = typeModel;
+      }
     }
 
     // Preserve workflow context from CE tile detection within a workflow
