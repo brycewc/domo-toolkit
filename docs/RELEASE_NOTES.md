@@ -11,6 +11,7 @@
 - Deleting a dataflow now also lists the alerts on its output datasets that will be deleted with it.
 - Deleting a dataflow is now blocked, with the offending views listed, when its output datasets feed downstream dataset views, instead of failing partway through.
 - Deleting a page, app studio page, or worksheet page now offers a "Delete Page and Cards that Only Live Here" action that removes the page and only the cards that live on no other page.
+- Deleting an AppDB collection now offers a "Delete Datastore and All Collections" action that removes the entire datastore and every collection in it.
 - Viewing a workflow now includes a Triggers tab listing every trigger attached to it.
 - Selecting a user task in a workflow now identifies its Task Center Queue in Current Context.
 - Locking cards now opens a list where you can review each card's current lock status and unselect any before applying the change.
@@ -55,6 +56,7 @@
 - Get Card Pages on a page, app studio app, or worksheet now lists the cards that live only there under a "Cards that Only Live Here" category.
 - The Update Details view now shows the object's type icon next to its name in the title instead of next to the ID below.
 - Delete now shows a type icon on each dependency category, such as a card icon on Cards on This Page.
+- Deleting an AppDB collection now lists the datastore's other collections and the app connected to it, instead of reporting that dependencies could not be checked.
 - The activity log button's hold-for-more-options menu now aligns each option's icon with its title instead of the top of its description.
 - Renamed the action button "Update <Object> Details" to "Update Details".
 - System pages (Overview, Favorites, or Shared) in a list now carry a "System" chip next to their name.
@@ -113,6 +115,7 @@
 - Deleting an entire app and all its cards now sends you to App Studio instead of leaving you on the deleted app's broken page.
 - Deleting a page now sends you to your Overview instead of leaving you on the deleted page's broken URL.
 - Deleting a single app studio or worksheet page now returns you to its app instead of leaving you on the deleted page's broken URL.
+- Deleting an AppDB collection now sends you to the AppDB list instead of leaving you on the deleted collection's broken page.
 - The delete confirmation now disables its delete buttons when the dependency check fails.
 - The delete confirmation now disables its delete buttons while the dependency check is still running.
 - Hovering an object's name in a list now underlines it.

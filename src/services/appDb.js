@@ -24,6 +24,57 @@ export async function deleteAppDbCollection({ collectionId, tabId = null }) {
 }
 
 /**
+ * Delete an AppDB datastore and every collection it contains. Deleting the
+ * datastore does not cascade to its collections, so the collections are removed
+ * first and the datastore only after they all succeed. Mirrors
+ * `deleteDataflowAndOutputs`: on any collection failure it returns early without
+ * touching the datastore, so a partial delete never leaves an emptied-out
+ * datastore behind.
+ * @param {Object} params
+ * @param {string} params.datastoreId - The AppDB datastore ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{collectionsDeleted: number, collectionsFailed?: number, statusCode?: number, success: boolean}>}
+ */
+export async function deleteDatastoreAndAllCollections({ datastoreId, tabId = null }) {
+  return executeInPage(
+    async (datastoreId) => {
+      // Fetch the collections fresh in the page rather than trusting a snapshot
+      // from the dependency check, which may be stale.
+      const listResponse = await fetch(`/api/datastores/v1/${datastoreId}/collections`);
+      if (!listResponse.ok) return { collectionsDeleted: 0, statusCode: listResponse.status, success: false };
+      const listData = await listResponse.json();
+      const collectionIds = (Array.isArray(listData) ? listData : []).map((c) => c.id).filter(Boolean);
+
+      // Step 1: delete every collection.
+      if (collectionIds.length > 0) {
+        const results = await Promise.allSettled(
+          collectionIds.map((id) => fetch(`/api/datastores/v1/collections/${id}`, { method: 'DELETE' }))
+        );
+        const failures = results.filter((r) => r.status === 'rejected' || !r.value?.ok);
+        if (failures.length > 0) {
+          return {
+            collectionsDeleted: collectionIds.length - failures.length,
+            collectionsFailed: failures.length,
+            success: false
+          };
+        }
+      }
+
+      // Step 2: delete the datastore. Tolerate not-found in case the datastore
+      // was already gone; any other failure is reported with its status code.
+      const response = await fetch(`/api/datastores/v1/${datastoreId}`, { method: 'DELETE' });
+      if (!response.ok && response.status !== 404 && response.status !== 410) {
+        return { collectionsDeleted: collectionIds.length, statusCode: response.status, success: false };
+      }
+
+      return { collectionsDeleted: collectionIds.length, success: true };
+    },
+    [datastoreId],
+    tabId
+  );
+}
+
+/**
  * Get permissions for an AppDB collection.
  * @param {string} collectionId - The AppDB collection ID
  * @param {number|null} tabId - Optional Chrome tab ID
@@ -57,6 +108,46 @@ export async function getAppInstanceCollections({ appInstanceId, tabId = null })
       return Array.isArray(data) ? data : [];
     },
     [appInstanceId],
+    tabId
+  );
+}
+
+/**
+ * List the Custom Apps connected to an AppDB collection. Domo grants each
+ * connected app a permission on the collection, so the collection's permission
+ * record names the app instance IDs (under `RYUU_APP`); those IDs are resolved
+ * to their cards (title + card ID) via the domoapps card endpoint. Instance IDs
+ * that no longer resolve to a card (a deleted app that left a stale permission
+ * entry) drop out, matching Domo's own "Apps Connected" panel. Best-effort:
+ * returns [] on any failure.
+ * @param {Object} params
+ * @param {string} params.collectionId - The AppDB collection ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<{cardId: number, instanceId: string, title: string}>>}
+ */
+export async function getCollectionConnectedApps({ collectionId, tabId = null }) {
+  return executeInPage(
+    async (collectionId) => {
+      const permResponse = await fetch(`/api/datastores/v1/collections/${collectionId}/permission`);
+      if (!permResponse.ok) return [];
+      const permission = await permResponse.json();
+      const instanceIds = (permission?.RYUU_APP || []).map((entry) => entry.id).filter(Boolean);
+      if (instanceIds.length === 0) return [];
+      // Resolve the instance IDs to real app cards. The response is keyed by
+      // instance ID and only includes apps that still exist, so a stale
+      // permission entry for a deleted app is naturally excluded.
+      const cardResponse = await fetch('/domoapps/apps/v2/card', {
+        body: JSON.stringify(instanceIds),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+      if (!cardResponse.ok) return [];
+      const cards = await cardResponse.json();
+      return Object.values(cards || {})
+        .filter((card) => card && card.id)
+        .map((card) => ({ cardId: card.id, instanceId: card.domoapp?.id || card.urn, title: card.title || `App ${card.id}` }));
+    },
+    [collectionId],
     tabId
   );
 }

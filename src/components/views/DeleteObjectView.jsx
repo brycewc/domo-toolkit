@@ -7,6 +7,7 @@ import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
+import { deleteDatastoreAndAllCollections } from '@/services/appDb';
 import { deleteApprovalTemplate } from '@/services/approvals';
 import { deleteAppAndAllContent } from '@/services/customApps';
 import { deleteDataflowAndOutputs } from '@/services/dataflows';
@@ -117,9 +118,62 @@ const deletersByType = {
     typeName: 'DataFlow'
   },
   MAGNUM_COLLECTION: {
+    cascadeButtons: [
+      {
+        available: ({ context }) => !!context.domoObject?.parentId,
+        buildContext: ({ context, deps }) => {
+          const datastoreId = context.domoObject.parentId;
+          // Sibling collections come from the dependency check; +1 counts this
+          // collection, which the cascade also removes.
+          const siblings = (deps?.groups || []).find((g) => g.key === 'siblingCollections')?.items || [];
+          return {
+            collectionCount: siblings.length + 1,
+            datastoreId,
+            datastoreName: context.domoObject.metadata?.parent?.name || `Datastore ${datastoreId}`
+          };
+        },
+        confirmText: ({ collectionCount, datastoreId, datastoreName }) =>
+          `Delete the datastore **${datastoreName} (ID: ${datastoreId})** and all **${collectionCount} collection${collectionCount !== 1 ? 's' : ''}** it contains permanently? This cannot be undone.`,
+        label: () => 'Delete Datastore and All Collections',
+        loadingMessage: ({ datastoreName }) => `Deleting **${datastoreName}** and all its collections…`,
+        run: async ({ context }) => {
+          const result = await deleteDatastoreAndAllCollections({
+            datastoreId: context.domoObject.parentId,
+            tabId: context.tabId
+          });
+          if (!result.success) {
+            if (result.collectionsFailed > 0) {
+              const total = result.collectionsFailed + result.collectionsDeleted;
+              throw new Error(
+                `Failed to delete ${result.collectionsFailed} of ${total} collection${total !== 1 ? 's' : ''}. Datastore was not deleted.`
+              );
+            }
+            throw new Error(`Collections deleted, but datastore deletion failed (HTTP ${result.statusCode}).`);
+          }
+          // The tab is still on the now-deleted collection's page, so send it to
+          // the AppDB list.
+          const origin = `https://${context.instance}.domo.com`;
+          chrome.tabs.update(context.tabId, { url: `${origin}/appDb` });
+          return result;
+        },
+        successMessage: ({ datastoreName }, result) =>
+          `**${datastoreName}** and ${result.collectionsDeleted} collection${result.collectionsDeleted !== 1 ? 's' : ''} deleted`,
+        tooltip: () => 'Deletes the entire datastore and every collection in it, not just this collection'
+      }
+    ],
     confirmSuffix: '',
     primaryLabel: 'Delete Collection',
-    run: ({ context }) => deleteObject({ object: context.domoObject, tabId: context.tabId }),
+    run: async ({ context }) => {
+      const result = await deleteObject({ object: context.domoObject, tabId: context.tabId });
+      if (result.statusType !== 'success') {
+        throw new Error(result.statusDescription || 'Delete failed');
+      }
+      // The tab is still on the now-deleted collection's page, so send it to the
+      // AppDB list.
+      const origin = `https://${context.instance}.domo.com`;
+      chrome.tabs.update(context.tabId, { url: `${origin}/appDb` });
+      return result;
+    },
     typeName: 'Collection'
   },
   PAGE: {

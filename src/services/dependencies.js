@@ -1,4 +1,5 @@
 import { getDownstreamAlertsForDatasets } from './alerts';
+import { getAppInstanceCollections, getCollectionConnectedApps } from './appDb';
 import { getTemplateApprovalCount } from './approvals';
 import { getCardsForObject } from './cards';
 import { getAppContentSummary } from './customApps';
@@ -227,6 +228,54 @@ const FETCHERS = {
       });
     }
 
+    return groups;
+  },
+  MAGNUM_COLLECTION: async ({ id, instance, parentId }, tabId) => {
+    // The parent datastore ID is enriched onto the collection as parentId, and
+    // doubles as the connected app's instance ID.
+    if (!parentId) return [];
+    const origin = `https://${instance}.domo.com`;
+    const [collections, connectedApps] = await Promise.all([
+      getAppInstanceCollections({ appInstanceId: parentId, tabId }),
+      // Best-effort: a collection no app uses returns none, and a failed lookup
+      // just omits the group rather than blocking the delete.
+      getCollectionConnectedApps({ collectionId: id, tabId }).catch(() => [])
+    ]);
+    const groups = [];
+    // Other collections in the datastore aren't touched by the primary "Delete
+    // Collection", so they're advisory (deleted: false); only the datastore
+    // cascade removes them. The cascade button reads this group's count via its key.
+    const siblings = collections.filter((c) => String(c.id) !== String(id));
+    if (siblings.length > 0) {
+      groups.push({
+        blocking: false,
+        deleted: false,
+        items: siblings.map((c) => ({
+          id: c.id,
+          label: c.name || c.id,
+          typeId: 'MAGNUM_COLLECTION',
+          url: `${origin}/appDb/${c.id}/permissions`
+        })),
+        key: 'siblingCollections',
+        label: 'Other Collections in This Datastore'
+      });
+    }
+    // The connected apps aren't deleted, but deleting the collection (or the
+    // whole datastore) breaks them, so surface them as advisory.
+    if (connectedApps.length > 0) {
+      groups.push({
+        blocking: false,
+        deleted: false,
+        items: connectedApps.map((app) => ({
+          id: app.cardId,
+          label: app.title,
+          typeId: 'CARD',
+          url: `${origin}/kpis/details/${app.cardId}`
+        })),
+        key: 'connectedApps',
+        label: connectedApps.length === 1 ? 'Connected App' : 'Connected Apps'
+      });
+    }
     return groups;
   },
 

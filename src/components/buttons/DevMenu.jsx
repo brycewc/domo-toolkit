@@ -11,9 +11,15 @@ import IconAiSparkle from '@icons/ai-sparkle.svg?react';
 import IconCode from '@icons/code.svg?react';
 import IconEnvelope from '@icons/envelope.svg?react';
 import IconShield from '@icons/shield.svg?react';
+import IconSync from '@icons/sync.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 
 const DEV_ACTIONS = [
+  {
+    icon: IconSync,
+    id: 'refreshContext',
+    label: 'Refresh Context'
+  },
   {
     icon: IconTrash,
     id: 'clearSessionStorage',
@@ -80,6 +86,9 @@ export function DevMenu() {
       case 'clearSessionStorage':
         await clearSessionStorage(showStatus);
         break;
+      case 'refreshContext':
+        await refreshCurrentContext(showStatus);
+        break;
       case 'releaseToast':
         showReleaseToast();
         break;
@@ -141,6 +150,31 @@ async function clearSessionStorage(showStatus) {
     showStatus('Session Storage Cleared', 'Removed all cached contexts and handoff data', 'success');
   } catch (error) {
     showStatus('Clear Failed', error.message || 'Unknown error', 'danger');
+  }
+}
+
+/**
+ * Force a fresh re-detection of the active tab's context. Sends DETECT_CONTEXT
+ * to the background, which discards the cached context, re-runs detection from
+ * scratch, and broadcasts TAB_CONTEXT_UPDATED so the popup/side panel refresh.
+ * Unlike Clear Session Storage (which wipes every cached tab), this targets only
+ * the current tab and does not reload the page.
+ */
+async function refreshCurrentContext(showStatus) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      showStatus('Refresh Failed', 'No active tab found', 'danger');
+      return;
+    }
+    const response = await chrome.runtime.sendMessage({ tabId: tab.id, type: 'DETECT_CONTEXT' });
+    if (response?.success) {
+      showStatus('Context Refreshed', 'Re-detected the current tab context', 'success');
+    } else {
+      showStatus('Refresh Failed', response?.error || 'Unknown error', 'danger');
+    }
+  } catch (error) {
+    showStatus('Refresh Failed', error.message || 'Unknown error', 'danger');
   }
 }
 

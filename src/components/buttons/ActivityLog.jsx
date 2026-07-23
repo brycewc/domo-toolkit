@@ -59,7 +59,8 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
     let activityLogType;
     let message;
     const objectName =
-      currentContext?.domoObject.metadata?.name ?? `${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`;
+      currentContext?.domoObject.metadata?.name ??
+      `${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}**`;
 
     try {
       // A Code Engine package version isn't recorded in the activity log, so a plain
@@ -165,7 +166,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           if (childPageIds.length === 0) {
             onStatusUpdate?.(
               'No Child Pages Found',
-              `No child pages found for ${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`,
+              `No child pages found for ${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}**`,
               'warning',
               5000
             );
@@ -203,7 +204,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
             }
           ];
           activityLogType = 'single-object';
-          message = `Navigating to activity log for ${parentTypeName} ${parentName ? `"${parentName}"` : parentId}`;
+          message = `Navigating to activity log for ${parentTypeName?.toLowerCase()} **${parentName ? `"${parentName}"` : parentId}**`;
           break;
         }
         default: {
@@ -232,11 +233,11 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
               }
             ];
             activityLogType = 'object-and-parent';
-            message = `Navigating to activity log for ${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id} and its parent ${parentTypeName}`;
+            message = `Navigating to activity log for ${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}** and its parent ${parentTypeName?.toLowerCase()}`;
           } else {
             activityLogObjects = [self];
             activityLogType = 'single-object';
-            message = `Navigating to activity log for ${currentContext?.domoObject.typeName} ${currentContext?.domoObject.id}`;
+            message = `Navigating to activity log for ${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}**`;
           }
           break;
         }
