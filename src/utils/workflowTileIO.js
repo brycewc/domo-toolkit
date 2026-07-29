@@ -226,9 +226,19 @@ function findVariableNodeById(definition, variableId) {
 
 function generateTileId() {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const bytes = crypto.getRandomValues(new Uint8Array(15));
+  // 256 is not a multiple of 62, so a bare `byte % 62` would pick the first eight
+  // letters more often than the rest. Discard bytes at or above the largest
+  // multiple of 62 (248) so the remainder is drawn from a uniform range, refilling
+  // until 15 characters survive.
+  const limit = 256 - (256 % alphabet.length);
   let id = '';
-  for (let i = 0; i < bytes.length; i++) id += alphabet[bytes[i] % alphabet.length];
+  while (id.length < 15) {
+    const bytes = crypto.getRandomValues(new Uint8Array(15 - id.length));
+    for (let i = 0; i < bytes.length; i++) {
+      if (bytes[i] >= limit) continue;
+      id += alphabet[bytes[i] % alphabet.length];
+    }
+  }
   return id;
 }
 

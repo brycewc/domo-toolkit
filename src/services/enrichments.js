@@ -361,15 +361,22 @@ export function runEnrichments(ctx) {
  * Set a value at a dot-path on an object, creating intermediate objects as needed.
  * e.g., setNestedValue(obj, 'context.cards', []) creates obj.context if needed
  * and sets obj.context.cards = [].
+ * A segment named `__proto__` or `constructor` is refused, so a path can never
+ * reach through to a built-in prototype. Every storePath in the registry is a
+ * literal today, but the guard keeps that from being load-bearing.
  */
 function setNestedValue(obj, path, value) {
   const parts = path.split('.');
   let current = obj;
   for (let i = 0; i < parts.length - 1; i++) {
-    if (!current[parts[i]]) current[parts[i]] = {};
-    current = current[parts[i]];
+    const key = parts[i];
+    if (key === '__proto__' || key === 'constructor') return;
+    if (!current[key]) current[key] = {};
+    current = current[key];
   }
-  current[parts[parts.length - 1]] = value;
+  const lastKey = parts[parts.length - 1];
+  if (lastKey === '__proto__' || lastKey === 'constructor') return;
+  current[lastKey] = value;
 }
 
 /**

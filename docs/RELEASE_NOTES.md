@@ -178,3 +178,4 @@
 - An input is now marked optional when the JSDoc brackets its name, not only when it has a default value.
 - A description or other field filled in for the first time now shows as a plain green addition instead of being paired with an empty red removed row.
 - A description that wraps across multiple JSDoc lines is now combined into a single line, both in the diff and in the saved definition.
+- A default value containing a backslash is now written correctly instead of breaking the saved definition.
