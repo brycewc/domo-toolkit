@@ -2390,15 +2390,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"domo-codeengine-manifest@file:../domo-codeengine-manifest::locator=domo-toolkit%40workspace%3A.":
-  version: 0.1.0
-  resolution: "domo-codeengine-manifest@file:../domo-codeengine-manifest#../domo-codeengine-manifest::hash=83201f&locator=domo-toolkit%40workspace%3A."
+"domo-codeengine-manifest@portal:../domo-codeengine-manifest::locator=domo-toolkit%40workspace%3A.":
+  version: 0.0.0-use.local
+  resolution: "domo-codeengine-manifest@portal:../domo-codeengine-manifest::locator=domo-toolkit%40workspace%3A."
   dependencies:
     acorn: "npm:^8.16.0"
     comment-parser: "npm:^1.4.7"
-  checksum: 10c0/b01bf8cd769207a877d64030fb67195c2959379c9dd09fcc9631663ad84feda79d0d3bf4da83c6366a17f520bba0a185dbfe7325a72338af5556b711524432aa
   languageName: node
-  linkType: hard
+  linkType: soft
 
 "domo-toolkit@workspace:.":
   version: 0.0.0-use.local
@@ -2416,7 +2415,7 @@ __metadata:
     "@vitejs/plugin-react": "npm:^6.0.2"
     "@xyflow/react": "npm:^12.11.0"
     archiver: "npm:^8.0.0"
-    domo-codeengine-manifest: "file:../domo-codeengine-manifest"
+    domo-codeengine-manifest: "portal:../domo-codeengine-manifest"
     eslint: "npm:^10.4.1"
     eslint-plugin-perfectionist: "npm:^5.9.0"
     globals: "npm:^17.6.0"
@@ -2427,7 +2426,7 @@ __metadata:
     prismjs: "npm:^1.30.0"
     react: "npm:^19.2.7"
     react-dom: "npm:^19.2.7"
-    react18-json-view: "file:../react18-json-view"
+    react18-json-view: "portal:../react18-json-view"
     rollup-plugin-visualizer: "npm:^7.0.1"
     tailwindcss: "npm:^4.3.0"
     vite: "npm:^8.0.16"
@@ -4094,18 +4093,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react18-json-view@file:../react18-json-view::locator=domo-toolkit%40workspace%3A.":
-  version: 0.3.0
-  resolution: "react18-json-view@file:../react18-json-view#../react18-json-view::hash=609c57&locator=domo-toolkit%40workspace%3A."
+"react18-json-view@portal:../react18-json-view::locator=domo-toolkit%40workspace%3A.":
+  version: 0.0.0-use.local
+  resolution: "react18-json-view@portal:../react18-json-view::locator=domo-toolkit%40workspace%3A."
   dependencies:
     "@tanstack/react-virtual": "npm:3.14.6"
     copy-to-clipboard: "npm:^3.3.3"
   peerDependencies:
     react: ">=16.8.0"
     react-dom: ">=16.8.0"
-  checksum: 10c0/338b8e8013c2735e2250c9fc87ef6407d361e6635bc7029c384ac6ef7d889095011463fa1f86ae3995d77771e839e15ca6f20e44e45f90a5f386507a632e9a37
   languageName: node
-  linkType: hard
+  linkType: soft
 
 "react@npm:^19.2.7":
   version: 19.2.7

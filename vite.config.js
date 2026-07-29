@@ -164,7 +164,14 @@ export default defineConfig(({ mode }) => {
         },
         { find: '@', replacement: path.resolve(__dirname, 'src') },
         { find: '@icons', replacement: path.resolve(__dirname, 'src/assets/icons') }
-      ]
+      ],
+      // The local sibling packages are linked with portal:, so Vite resolves
+      // through the symlink to their real directory. react18-json-view keeps its
+      // own React 18 in a pnpm store, and a bare 'react' import from inside it
+      // would resolve there instead of to our React 19, giving two React copies
+      // and "invalid hook call" at runtime. Pinning both to a single copy is what
+      // makes the symlink safe.
+      dedupe: ['react', 'react-dom']
     },
     server: {
       cors: {
