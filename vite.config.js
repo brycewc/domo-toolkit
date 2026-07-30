@@ -76,8 +76,16 @@ export default defineConfig(({ mode }) => {
     // now-outdated dep chunk, whose export map predates the request, surfacing
     // as "does not provide an export named 'Position'". Pre-bundling avoids the
     // mid-session re-optimize entirely.
+    //
+    // The two local siblings are here for the same reason, by a different route.
+    // They are linked with portal:, and Vite skips pre-bundling linked packages
+    // by default on the assumption you are editing them. Their own imports
+    // (@tanstack/react-virtual, copy-to-clipboard, acorn, comment-parser) then
+    // get discovered mid-session and trigger the same stranding re-optimize,
+    // which is why a popup opens once and fails on reopen. Naming them here
+    // forces the pre-bundle that the old file: copies used to get for free.
     optimizeDeps: {
-      include: ['@dagrejs/dagre', '@xyflow/react']
+      include: ['@dagrejs/dagre', '@xyflow/react', 'domo-codeengine-manifest', 'react18-json-view']
     },
     plugins: [
       // Serve the standalone lineage dev page via middleware so CRXJS
@@ -176,6 +184,19 @@ export default defineConfig(({ mode }) => {
     server: {
       cors: {
         origin: [/chrome-extension:\/\//]
+      },
+      fs: {
+        // The sibling packages are linked with portal:, so Vite resolves them
+        // through the symlink to their real directory, which sits outside this
+        // project root. fs.strict defaults to on and the default allow list is
+        // just the root, so serving them would be refused and the surface fails
+        // to load. Listing the root explicitly is required: setting allow
+        // replaces the default rather than extending it.
+        allow: [
+          __dirname,
+          path.resolve(__dirname, '../react18-json-view'),
+          path.resolve(__dirname, '../domo-codeengine-manifest')
+        ]
       },
       hmr: {
         host: 'localhost',
