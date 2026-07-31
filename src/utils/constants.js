@@ -59,6 +59,7 @@ export const ACTION_COLOR_PATTERNS = {
 export const SECTION_TITLES = {
   '/admin/people': 'People',
   '/app-studio': 'App Studio Apps',
+  '/appDb': 'AppDB Admin',
   '/approval': 'Approvals',
   '/codeengine': 'Code Engine Packages',
   '/datacenter/accounts': 'Accounts',

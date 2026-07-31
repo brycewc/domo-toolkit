@@ -576,11 +576,10 @@ export function DataList({
         </div>
       )}
       {sortedItems.length > virtualThreshold
-        ? // Virtualized top-level: VirtualizedItems is the scroll container.
-          // Bypass ScrollShadow so TanStack Virtual listens for scroll on an
-          // element that actually scrolls. Loses ScrollShadow's edge-fade
-          // gradient — acceptable for high-volume lists where windowing matters
-          // more than the visual flourish.
+        ? // Virtualized top-level: VirtualizedItems is the scroll container, so
+          // it renders its own ScrollShadow around the windowed rows rather than
+          // being wrapped in one here. Same edge fade, and TanStack still
+          // listens for scroll on the element that actually scrolls.
           withSelectionGroup(
             <Card.Content className='flex min-h-0 w-full flex-1 flex-col p-0'>
               <DisclosureGroup
@@ -601,6 +600,7 @@ export function DataList({
                       getItemLock={getItemLock}
                       getUnselectableTooltip={getUnselectableTooltip}
                       isSelectable={isSelectable}
+                      isSoleItem={sortedItems.length === 1}
                       item={item}
                       itemActions={itemActions}
                       objectType={objectType}
@@ -652,6 +652,7 @@ export function DataList({
                       getItemLock={getItemLock}
                       getUnselectableTooltip={getUnselectableTooltip}
                       isSelectable={isSelectable}
+                      isSoleItem={sortedItems.length === 1}
                       item={item}
                       itemActions={itemActions}
                       key={item.id || index}
@@ -780,7 +781,9 @@ function collectAllUrls(itemList, filter = null) {
 // Row geometry for virtualization. ROW_HEIGHT matches `min-h-9` on flat rows
 // and Disclosure headings; long-wrapping labels self-correct via
 // `measureElement`. MAX_VISIBLE_CHILDREN_ROWS caps the height of bounded child
-// lists so an expanded group with 1000s of items doesn't push the page.
+// lists so an expanded group with 1000s of items doesn't push the page. The cap
+// is lifted for a lone group in a `fillHeight` DataList, which owns a
+// height-constrained scroll viewport that nothing else is competing for.
 const ROW_HEIGHT = 36;
 const MAX_VISIBLE_CHILDREN_ROWS = 12;
 const VIRTUAL_OVERSCAN = 5;
@@ -816,6 +819,9 @@ function arePropsEqualForRow(prev, next) {
   if (prev.selectionMode !== next.selectionMode) return false;
   if (prev.isSelectable !== next.isSelectable) return false;
   if (prev.depth !== next.depth) return false;
+  // Deleting or filtering a group away can leave a row as the list's only item
+  // (or stop it being one), which flips how an expanded group sizes itself.
+  if (prev.isSoleItem !== next.isSoleItem) return false;
   const prevOpen = prev.expandedIds?.has(prev.item.id) ?? false;
   const nextOpen = next.expandedIds?.has(next.item.id) ?? false;
   if (prevOpen !== nextOpen) return false;
@@ -864,6 +870,7 @@ function arePropsEqualForRow(prev, next) {
  * @param {Boolean} props.showActions - Whether to show action buttons
  * @param {Boolean} props.showCounts - Whether to show counts
  * @param {String} props.objectType - The type of object being displayed
+ * @param {Boolean} props.isSoleItem - True when this row is the only item in its own list. A virtualized group only spreads into the DataList's whole viewport when nothing sits beside it; with siblings around, it keeps its capped window so the other groups stay reachable.
  * @param {Set} props.expandedIds - Centralized set of expanded item ids (lifted from local state to survive virtualization unmount/remount).
  * @param {Function} props.onToggleExpanded - (id, isExpanded) => void. Toggles expansion in the parent's expandedIds set.
  * @param {Number} props.virtualThreshold - Children array length above which children virtualize. Threaded recursively from DataList.
@@ -878,6 +885,7 @@ function DataListItemImpl({
   getItemLock,
   getUnselectableTooltip,
   isSelectable,
+  isSoleItem = false,
   item,
   itemActions,
   objectType,
@@ -1545,6 +1553,9 @@ function DataListItemImpl({
     getItemLock,
     getUnselectableTooltip,
     isSelectable,
+    // A nested group inherits the fill only when this row filled and the group
+    // is that row's lone child, so the "nothing beside it" rule holds at depth.
+    isSoleItem: isSoleItem && item.children.length === 1,
     item: child,
     itemActions,
     objectType,
@@ -1830,6 +1841,7 @@ function DataListItemImpl({
               {item.children.length > virtualThreshold ? (
                 <VirtualizedItems
                   bounded
+                  fillHeight={fillHeight && isSoleItem}
                   items={item.children}
                   renderItem={(child) => <DataListItem {...childRenderProps(child)} />}
                 />
@@ -1860,6 +1872,18 @@ function DataListItemImpl({
   );
 }
 
+// Walks up from `el` to the nearest ancestor that actually scrolls vertically.
+// That's the DataList's own list viewport (the `ScrollShadow`, or the top-level
+// virtualized container when the outer list is windowed too), which a nested
+// virtual list borrows instead of opening a scroll region of its own.
+function scrollParentOf(el) {
+  for (let node = el?.parentElement; node && node !== document.body; node = node.parentElement) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') return node;
+  }
+  return null;
+}
+
 // Recursively reports whether any descendant of `item` changed selection or
 // expansion between renders. Lets arePropsEqualForRow re-render a parent row
 // when a nested child toggles, keeping indeterminate state and nested
@@ -1877,6 +1901,52 @@ function subtreeStateChanged(item, prevSelected, nextSelected, prevExpanded, nex
 }
 
 /**
+ * Tracks the scroll viewport a nested virtual list should borrow, plus how far
+ * down that viewport's content the list starts. Only active while `enabled`;
+ * otherwise the list scrolls itself and neither value is needed.
+ *
+ * The offset is measured in the viewport's scroll-content coordinates (client
+ * rects plus `scrollTop`), so it stays put as the user scrolls and as the list
+ * itself grows. Only reflow *above* the list moves it, which is what the
+ * ResizeObserver watches for: the viewport resizing (panel resize) and its
+ * content resizing (a sibling group expanding or collapsing).
+ *
+ * @param {{ current: HTMLElement | null }} ref - Ref on the list container.
+ * @param {boolean} enabled - Whether to share an ancestor's scroll viewport.
+ * @returns {{ scrollMargin: number, scroller: HTMLElement | null }}
+ */
+function useSharedScroller(ref, enabled) {
+  const [scroller, setScroller] = useState(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  useEffect(() => {
+    if (!enabled) {
+      setScroller(null);
+      setScrollMargin(0);
+      return;
+    }
+    const el = ref.current;
+    const viewport = scrollParentOf(el);
+    if (!viewport) return;
+    setScroller(viewport);
+
+    const measure = () => {
+      const offset =
+        el.getBoundingClientRect().top - viewport.getBoundingClientRect().top - viewport.clientTop + viewport.scrollTop;
+      setScrollMargin(Math.max(0, Math.round(offset)));
+    };
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    if (viewport.firstElementChild) observer.observe(viewport.firstElementChild);
+    return () => observer.disconnect();
+  }, [enabled, ref]);
+
+  return { scroller, scrollMargin };
+}
+
+/**
  * Renders an items array via TanStack Virtual when the array is large enough
  * that mounting every row would be wasteful. Used at two call sites in
  * `DataList`: the top-level items map and each `Disclosure.Body`'s children
@@ -1884,79 +1954,117 @@ function subtreeStateChanged(item, prevSelected, nextSelected, prevExpanded, nex
  * owns the scroll viewport; child usage passes `bounded=true` so an expanded
  * group's height is capped.
  *
- * The `renderItem` callback is passed the item — typically a `DataListItem`
+ * A lone group in a `fillHeight` DataList is the exception: there the DataList
+ * already owns a height-constrained viewport that nothing else is competing
+ * for, so capping the group at MAX_VISIBLE_CHILDREN_ROWS would strand empty
+ * space below it. That one list runs "inline" instead: no height of its own and
+ * no nested scrollbar, windowing off the DataList's viewport via `scrollMargin`
+ * so its rows reach the bottom of the panel. Groups with siblings keep the cap,
+ * which is what keeps the other groups' headings reachable without scrolling
+ * past thousands of rows.
+ *
+ * The `renderItem` callback is passed the item, typically a `DataListItem`
  * with appropriate props for the call site (top-level has no `depth`, child
  * call site passes `depth + 1`).
  *
  * @param {Object} props
  * @param {boolean} props.bounded - When true, cap height at MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT.
+ * @param {boolean} props.fillHeight - When true alongside `bounded`, window off the DataList's viewport instead of capping. The child call site passes this only for a group with no siblings.
  * @param {Array} props.items - Items to render.
  * @param {(item: Object, index: number) => React.ReactNode} props.renderItem
  */
-function VirtualizedItems({ bounded = false, items, renderItem }) {
+function VirtualizedItems({ bounded = false, fillHeight = false, items, renderItem }) {
   const parentRef = useRef(null);
+  const inline = bounded && fillHeight;
+  const { scroller, scrollMargin } = useSharedScroller(parentRef, inline);
   const virtualizer = useVirtualizer({
     count: items.length,
     estimateSize: () => ROW_HEIGHT,
-    getScrollElement: () => parentRef.current,
-    overscan: VIRTUAL_OVERSCAN
+    // Inline lists don't scroll themselves, so the virtualizer has to watch the
+    // ancestor that does. Null until the effect resolves it, which the
+    // virtualizer tolerates (it measures nothing until it has an element).
+    getScrollElement: () => (inline ? scroller : parentRef.current),
+    overscan: VIRTUAL_OVERSCAN,
+    scrollMargin: inline ? scrollMargin : 0
   });
 
   const containerStyle = bounded
     ? {
-        height: Math.min(items.length * ROW_HEIGHT, MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT)
+        // Inline: the wrapper below already spans the full run of rows, so the
+        // container just wraps it. Nested scroller: cap the visible window.
+        height: inline ? undefined : Math.min(items.length * ROW_HEIGHT, MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT)
       }
     : undefined;
 
-  return (
+  const rows = (
     <div
+      className='divide-y divide-border'
+      style={{
+        height: virtualizer.getTotalSize(),
+        position: 'relative',
+        width: '100%'
+      }}
+    >
+      {virtualizer.getVirtualItems().map((vRow) => {
+        const item = items[vRow.index];
+        return (
+          <div
+            data-index={vRow.index}
+            key={item?.id ?? vRow.index}
+            ref={virtualizer.measureElement}
+            style={{
+              left: 0,
+              position: 'absolute',
+              top: 0,
+              // Row offsets are absolute within the scroll viewport, so the
+              // shared-scroller case has to subtract where this list starts
+              // to get back to a position inside the wrapper. `scrollMargin`
+              // is 0 whenever the list owns its own scroller.
+              transform: `translateY(${vRow.start - virtualizer.options.scrollMargin}px)`,
+              width: '100%'
+            }}
+          >
+            {renderItem(item, vRow.index)}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // An inline list borrows an ancestor's viewport, so its wrapper neither
+  // scrolls nor needs a scroll cue of its own.
+  if (inline) {
+    return (
+      <div className='w-full' ref={parentRef}>
+        {rows}
+      </div>
+    );
+  }
+
+  return (
+    // Every other case owns its scroll viewport, and `ScrollShadow` *is* that
+    // viewport: its own class supplies `overflow-y: auto` and it forwards the
+    // ref, so TanStack still listens on the element that actually scrolls. Going
+    // through it (rather than a bare `overflow-y-auto` div) is what gives these
+    // lists the same edge fade the non-virtualized lists have. Without it, a
+    // list that hides its scrollbar to match everywhere else has no cue at all
+    // that more rows are below.
+    <ScrollShadow
+      hideScrollBar
+      // `overscroll-auto` (not `contain`) lets a bounded child list chain its
+      // scroll to the parent once it hits its top/bottom edge, so scrolling
+      // inside an expanded group keeps scrolling the whole DataList instead of
+      // dead-stopping at the group's boundary. The unbounded top-level
+      // container keeps `overscroll-y-contain` so the sidepanel/page itself
+      // never bounce-scrolls past the list.
+      className={bounded ? 'w-full overscroll-auto' : 'min-h-0 w-full flex-1 overscroll-x-none overscroll-y-contain'}
+      offset={2}
+      orientation='vertical'
       ref={parentRef}
       style={containerStyle}
-      className={
-        // Hide the native scrollbar (`[scrollbar-width:none]` +
-        // `[&::-webkit-scrollbar]:hidden`) so the virtualized scroll container
-        // matches the non-virtualized `ScrollShadow hideScrollBar` list instead
-        // of showing a bar the smaller lists don't.
-        bounded
-          ? // `overscroll-auto` (not `contain`) lets a bounded child list chain
-            // its scroll to the parent once it hits its top/bottom edge — so
-            // scrolling inside an expanded group keeps scrolling the whole
-            // DataList instead of dead-stopping at the group's boundary. The
-            // unbounded top-level container keeps `overscroll-y-contain` so the
-            // sidepanel/page itself never bounce-scrolls past the list.
-            'w-full overflow-y-auto overscroll-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]'
-          : 'min-h-0 w-full flex-1 overflow-y-auto overscroll-x-none overscroll-y-contain [&::-webkit-scrollbar]:hidden [scrollbar-width:none]'
-      }
     >
-      <div
-        className='divide-y divide-border'
-        style={{
-          height: virtualizer.getTotalSize(),
-          position: 'relative',
-          width: '100%'
-        }}
-      >
-        {virtualizer.getVirtualItems().map((vRow) => {
-          const item = items[vRow.index];
-          return (
-            <div
-              data-index={vRow.index}
-              key={item?.id ?? vRow.index}
-              ref={virtualizer.measureElement}
-              style={{
-                left: 0,
-                position: 'absolute',
-                top: 0,
-                transform: `translateY(${vRow.start}px)`,
-                width: '100%'
-              }}
-            >
-              {renderItem(item, vRow.index)}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+      {rows}
+    </ScrollShadow>
   );
 }
 
