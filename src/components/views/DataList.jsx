@@ -1852,15 +1852,21 @@ function DataListItemImpl({
                 // already grows the disclosure tall enough to push the rest of
                 // the list, so we wrap in a bounded scroll viewport. Dividers
                 // move from `DisclosureGroup` onto this wrapper since the
-                // group now has a single child.
-                <div
-                  className='w-full divide-y divide-border overflow-y-auto overscroll-auto'
+                // group now has a single child. `ScrollShadow` supplies the
+                // `overflow-y: auto` here, and its edge fade is the cue that
+                // replaces the scrollbar `hideScrollBar` takes away, so this
+                // capped list looks like every other scrollable list.
+                <ScrollShadow
+                  hideScrollBar
+                  className='w-full divide-y divide-border overscroll-auto'
+                  offset={2}
+                  orientation='vertical'
                   style={{ height: MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT }}
                 >
                   {item.children.map((child, index) => (
                     <DataListItem key={child.id || index} {...childRenderProps(child)} />
                   ))}
-                </div>
+                </ScrollShadow>
               ) : (
                 item.children.map((child, index) => <DataListItem key={child.id || index} {...childRenderProps(child)} />)
               )}

@@ -66,7 +66,7 @@
 - System pages (Overview, Favorites, or Shared) in a list now carry a "System" chip next to their name.
 - FileSets are now labeled "Document Collections" throughout the extension.
 - A long list that is a panel's only expandable section now fills the panel's full height.
-- Lists with hundreds of items now fade out at the top and bottom edges when there is more to scroll, matching shorter lists.
+- Every scrollable list now fades out at the top and bottom edges when there is more to scroll, instead of some fading and others showing a scrollbar.
 
 ### Copy
 

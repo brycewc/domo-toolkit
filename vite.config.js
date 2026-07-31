@@ -84,8 +84,21 @@ export default defineConfig(({ mode }) => {
     // get discovered mid-session and trigger the same stranding re-optimize,
     // which is why a popup opens once and fails on reopen. Naming them here
     // forces the pre-bundle that the old file: copies used to get for free.
+    //
+    // @internationalized/date is a third route to the same stranding. It is a
+    // transitive dep (HeroUI's date components pull it in) that our own code
+    // imports directly, and the only importer is ActivityLogTable, which the
+    // options page loads with lazy(). So the startup scan never reaches it and
+    // it is always discovered the first time Activity Log opens, surfacing as
+    // "does not provide an export named 'getLocalTimeZone'".
     optimizeDeps: {
-      include: ['@dagrejs/dagre', '@xyflow/react', 'domo-codeengine-manifest', 'react18-json-view']
+      include: [
+        '@dagrejs/dagre',
+        '@internationalized/date',
+        '@xyflow/react',
+        'domo-codeengine-manifest',
+        'react18-json-view'
+      ]
     },
     plugins: [
       // Serve the standalone lineage dev page via middleware so CRXJS
