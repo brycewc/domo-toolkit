@@ -8,6 +8,7 @@
 - Opening an App Studio page by its page link now redirects you into its app automatically, instead of landing on Domo's "This content must be viewed within its app" page.
 - The Stream tab for a connector-backed dataset now shows the latest published connector version next to the version it currently runs.
 - Text cards can now be exported as Markdown or HTML from the Export button.
+- Added a setting that lets Domo developers use the toolkit on a Domo instance running on their own machine.
 
 ### Update Action Versions
 

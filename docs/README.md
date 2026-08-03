@@ -118,7 +118,8 @@ Pages, cards, datasets, dataflows, app studio apps (and their pages), worksheets
 
 ## Privacy
 
-- Only runs on `.domo.com` domains.
+- Only runs on `.domo.com` domains. Domo developers can additionally opt in, from the options page, to running on a Domo
+  instance hosted on their own machine; nothing on localhost is touched unless that is turned on.
 - Uses Domo's existing authenticated session - no additional login required.
 - No data leaves the browser; no external servers are contacted.
 - Settings sync via Chrome's built-in storage.

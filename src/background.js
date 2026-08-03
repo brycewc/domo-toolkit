@@ -8,10 +8,13 @@ import { getFeatureSwitches } from '@/services/features';
 import { checkPageType } from '@/services/pages';
 import { getCurrentUser, getUserGroups } from '@/services/users';
 import { clearCookies } from '@/utils/clearCookies';
-import { EXCLUDED_HOSTNAMES, SECTION_TITLES } from '@/utils/constants';
+import { DOMO_MATCH_PATTERNS, EXCLUDED_HOSTNAMES, LOCAL_MATCH_PATTERN, SECTION_TITLES } from '@/utils/constants';
 import { copyToClipboard } from '@/utils/copyToClipboard';
 import { detectCurrentObject, isDomoUrl } from '@/utils/currentObject';
 import { executeInPage } from '@/utils/executeInPage';
+import { pathnameOf } from '@/utils/general';
+import { instanceKeyFromUrl, isLocalDomoHostname } from '@/utils/instance';
+import { hasLocalAccess, registerLocalContentScript, unregisterLocalContentScript } from '@/utils/localInstance';
 import { sidepanelStorageKeyPrefix } from '@/utils/sidepanel';
 
 // Generic titles the toolkit applies to list/index pages, in both the bare and
@@ -195,6 +198,7 @@ const MAX_BACKUP_ENTRY_CHARS = 250000;
 // Session storage keys
 const SESSION_STORAGE_KEY = 'tabContextsBackup';
 const INSTANCE_USERS_KEY = 'instanceUsersBackup';
+const VERIFIED_LOCAL_ORIGINS_KEY = 'verifiedLocalOrigins';
 
 // Persisted instance-user entries older than this are treated as stale on
 // restore and re-fetched, so group changes can't be served indefinitely from a
@@ -213,8 +217,62 @@ const tabDetectionInFlight = new Map();
 // (instance -> { user, userGroups, featureSwitches, promise })
 const instanceUserCache = new Map();
 
+// Local origins confirmed to actually be running Domo (see confirmDomoTab).
+// Only positive verdicts are cached: a page whose window.bootstrap had not been
+// assigned yet, or an unauthenticated login page that never defines it, must be
+// able to pass on a later detection. Backed by session storage so it survives a
+// service worker restart but not a browser restart, which is what a developer
+// repointing their dev server at something else needs.
+const verifiedLocalOrigins = new Set();
+
 // Cached setting: omit the " - Domo" suffix when renaming Domo tabs (synced from storage)
 let removeDomoTitleSuffix = false;
+
+/**
+ * Confirm a tab really is a Domo page.
+ *
+ * Hosted instances are settled by their hostname alone. A `*.localhost` host is
+ * only a candidate, since any local dev server can sit on one, so it is probed in
+ * the page for Domo's `window.bootstrap` global. Positive verdicts are cached per
+ * origin; negative ones are not, so a page that had not assigned `bootstrap` yet
+ * (or an unauthenticated login page, which never does) can still pass later.
+ * @param {chrome.tabs.Tab} tab - The tab to confirm
+ * @returns {Promise<boolean>}
+ */
+async function confirmDomoTab(tab) {
+  let origin;
+  try {
+    const url = new URL(tab.url);
+    if (!isLocalDomoHostname(url.hostname)) {
+      return true;
+    }
+    origin = url.origin;
+  } catch {
+    return false;
+  }
+
+  if (verifiedLocalOrigins.has(origin)) {
+    return true;
+  }
+
+  try {
+    const isDomo = await executeInPage(() => typeof window.bootstrap !== 'undefined', [], tab.id);
+    if (!isDomo) {
+      console.log(`[Background] ${origin} has no Domo bootstrap, not treating it as an instance`);
+      return false;
+    }
+  } catch (error) {
+    console.log(`[Background] Could not probe ${origin} for Domo:`, error.message);
+    return false;
+  }
+
+  verifiedLocalOrigins.add(origin);
+  chrome.storage.session
+    .set({ [VERIFIED_LOCAL_ORIGINS_KEY]: [...verifiedLocalOrigins] })
+    .catch((error) => console.warn('[Background] Could not persist verified local origins:', error.message));
+  console.log(`[Background] Confirmed ${origin} is a local Domo instance`);
+  return true;
+}
 
 /**
  * Get or fetch the current user, their groups, and the instance's enabled
@@ -452,14 +510,6 @@ async function migrateClearCookiesSetting() {
   console.log('[Background] Migrated cookie clearing setting:', defaultClearCookiesHandling, '→', newSettings);
 }
 
-function pathnameOf(url) {
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return url ?? null;
-  }
-}
-
 /**
  * Persist the per-instance user/groups cache to session storage. These are
  * identical across every tab on an instance, so they live here once instead of
@@ -527,6 +577,7 @@ async function restoreFromSession() {
     // Restore the instance-user cache first so contexts (which no longer carry
     // their own user/userGroups in the backup) can be rehydrated from it.
     await restoreInstanceUsers();
+    await restoreVerifiedLocalOrigins();
 
     const result = await chrome.storage.session.get(SESSION_STORAGE_KEY);
     if (result[SESSION_STORAGE_KEY]) {
@@ -581,6 +632,21 @@ async function restoreInstanceUsers() {
     console.log(`[Background] Restored ${instanceUserCache.size} instance user(s) from session`);
   } catch (error) {
     console.error('[Background] Error restoring instance users:', error);
+  }
+}
+
+/**
+ * Restore confirmed local Domo origins on service worker wake, so a developer
+ * doesn't have to re-probe every origin each time the worker restarts.
+ */
+async function restoreVerifiedLocalOrigins() {
+  try {
+    const result = await chrome.storage.session.get(VERIFIED_LOCAL_ORIGINS_KEY);
+    for (const origin of result[VERIFIED_LOCAL_ORIGINS_KEY] || []) {
+      verifiedLocalOrigins.add(origin);
+    }
+  } catch (error) {
+    console.error('[Background] Error restoring verified local origins:', error);
   }
 }
 
@@ -762,9 +828,28 @@ chrome.runtime.onInstalled.addListener((details) => {
   });
 });
 
+// Keep the dynamically registered local-instance content script in step with the
+// optional host permission, including when it is granted or revoked from Chrome's
+// own extension settings rather than from our options page.
+chrome.permissions.onAdded.addListener(async (permissions) => {
+  if (permissions.origins?.includes(LOCAL_MATCH_PATTERN)) {
+    await registerLocalContentScript();
+  }
+});
+
+chrome.permissions.onRemoved.addListener(async (permissions) => {
+  if (permissions.origins?.includes(LOCAL_MATCH_PATTERN)) {
+    await unregisterLocalContentScript();
+  }
+});
+
 // Restore contexts on service worker startup
 restoreFromSession();
 applyIconFromStorage();
+// Registration does not survive an extension reload in dev, and a granted
+// permission with no registered script means local instances silently stop
+// working, so re-assert it on every worker start.
+hasLocalAccess().then((granted) => granted && registerLocalContentScript());
 
 chrome.runtime.onStartup.addListener(applyIconFromStorage);
 
@@ -776,7 +861,7 @@ async function handle431Response(details) {
       console.log('[Background] 431 detected, auto-clearing with preservation');
 
       // Find all Domo tabs to determine which instances to preserve
-      const allTabs = await chrome.tabs.query({ url: '*://*.domo.com/*' });
+      const allTabs = await chrome.tabs.query({ url: DOMO_MATCH_PATTERNS });
       const domoTabs = allTabs.filter((tab) => {
         try {
           const tabHostname = new URL(tab.url).hostname;
@@ -845,7 +930,7 @@ async function handle431Response(details) {
 
 const webRequestFilter = {
   types: ['main_frame'],
-  urls: ['*://*.domo.com/*']
+  urls: DOMO_MATCH_PATTERNS
 };
 
 // Track if 431 listener is currently active
@@ -932,14 +1017,13 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
 
 // Detect context when URL changes (lazy detection for background tabs)
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  // Invalidate user cache when navigating to auth pages (logout)
-  if (changeInfo.url && changeInfo.url.includes('domo.com/auth/')) {
-    try {
-      const hostname = new URL(changeInfo.url).hostname;
-      const instance = hostname.replace('.domo.com', '');
+  // Invalidate user cache when navigating to auth pages (logout). Matched on the
+  // path rather than the URL string so a local instance, whose host carries a
+  // port and may not contain "domo.com" at all, is covered too.
+  if (changeInfo.url && pathnameOf(changeInfo.url).startsWith('/auth/')) {
+    const instance = instanceKeyFromUrl(changeInfo.url);
+    if (instance) {
       invalidateInstanceUser(instance);
-    } catch {
-      /* empty */
     }
   }
 
@@ -984,7 +1068,10 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       } else if (tab.url) {
         setSectionTitle(tabId, tab.url);
       }
-    } else if (objectName && (allowedTitles.includes(changeInfo.title) || SECTION_TITLE_STRINGS.includes(changeInfo.title))) {
+    } else if (
+      objectName &&
+      (allowedTitles.includes(changeInfo.title) || SECTION_TITLE_STRINGS.includes(changeInfo.title))
+    ) {
       // Domo re-applied a generic title after we set the object name: either a
       // stale parent-only title (e.g., "MyApp - Domo") or a section title it
       // reuses across a list and its detail pages (e.g., "Code Engine
@@ -1026,7 +1113,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
 
     // Re-title open Domo tabs so the change applies without a reload
     const tabs = await chrome.tabs.query({
-      url: '*://*.domo.com/*',
+      url: DOMO_MATCH_PATTERNS,
       windowType: 'normal'
     });
     for (const tab of tabs) {
@@ -1054,7 +1141,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
 
     // Get all tabs with domo.com URLs
     const tabs = await chrome.tabs.query({
-      url: '*://*.domo.com/*',
+      url: DOMO_MATCH_PATTERNS,
       windowType: 'normal'
     });
 
@@ -1093,7 +1180,9 @@ async function detectAndStoreContext(tabId) {
   try {
     // Get tab info for URL
     const tab = await chrome.tabs.get(tabId);
-    if (!tab || !isDomoUrl(tab.url)) {
+    // isDomoUrl is structural, so a *.localhost host passes it on shape alone.
+    // confirmDomoTab settles those by probing the page for Domo's bootstrap.
+    if (!tab || !isDomoUrl(tab.url) || !(await confirmDomoTab(tab))) {
       // Not a Domo domain - clear any existing context and broadcast the update
       console.log(`[Background] Tab ${tabId} is not on a Domo domain, clearing context`);
       const hadContext = tabContexts.has(tabId);
@@ -1117,6 +1206,10 @@ async function detectAndStoreContext(tabId) {
       return null;
     }
     const context = new DomoContext(tabId, tab.url, null);
+    // isDomoUrl plus confirmDomoTab have already established this is a real Domo
+    // page. The constructor is deliberately conservative about local hosts, which
+    // it has no way to verify on its own, so settle it here.
+    context.isDomoPage = true;
 
     // If a context already exists for this tab (redetection), suppress
     // broadcasts until the new domoObject is ready so the UI doesn't flash
@@ -1329,8 +1422,7 @@ async function detectAndStoreContext(tabId) {
       const versions = enrichedMetadata.versions;
       let isBrick;
       if (Array.isArray(versions) && versions.length > 0) {
-        const latest =
-          versions.find((v) => v.version === enrichedMetadata.latestVersion) ?? versions[versions.length - 1];
+        const latest = versions.find((v) => v.version === enrichedMetadata.latestVersion) ?? versions[versions.length - 1];
         isBrick = latest?.flags?.['client-code-enabled'] === true;
       } else {
         isBrick = enrichedMetadata.details?.createdBy == null;
@@ -1595,6 +1687,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             success: true,
             tabId: activeTabId
           });
+          break;
+        }
+
+        // Asked by the content script before it touches a page on a *.localhost
+        // host. The content script runs in the ISOLATED world so it cannot read
+        // window.bootstrap itself, and it may well ask before any detection has
+        // run, so this confirms on demand rather than only reading the cache.
+        case 'IS_VERIFIED_DOMO_ORIGIN': {
+          const confirmed = sender.tab ? await confirmDomoTab(sender.tab) : false;
+          sendResponse({ confirmed, success: true });
           break;
         }
 

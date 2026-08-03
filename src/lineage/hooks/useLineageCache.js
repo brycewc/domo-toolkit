@@ -21,16 +21,16 @@ export function useLineageCache() {
 
   const rebuildGraph = useCallback(() => {
     if (!rootRef.current) return null;
-    const { entityId, entityType, instance } = rootRef.current;
-    const baseUrl = instance ? `https://${instance}.domo.com` : '';
+    const { entityId, entityType, origin } = rootRef.current;
+    const baseUrl = origin || '';
     const newGraph = convertToGraph(rawCacheRef.current, entityType, entityId, baseUrl);
     setGraph(newGraph);
     return newGraph;
   }, []);
 
   const init = useCallback(
-    async (entityType, entityId, initTabId, initInstance) => {
-      rootRef.current = { entityId, entityType, instance: initInstance };
+    async (entityType, entityId, initTabId, initInstance, initOrigin) => {
+      rootRef.current = { entityId, entityType, instance: initInstance, origin: initOrigin };
       rawCacheRef.current = {};
       inflightRef.current.clear();
       setLoading(true);

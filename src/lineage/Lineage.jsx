@@ -63,7 +63,7 @@ export function Lineage() {
 
   useEffect(() => {
     chrome.storage.session
-      .get(['lineageEntityId', 'lineageEntityType', 'lineageInstance', 'lineageObjectName', 'lineageTabId'])
+      .get(['lineageEntityId', 'lineageEntityType', 'lineageInstance', 'lineageObjectName', 'lineageOrigin', 'lineageTabId'])
       .then((result) => {
         if (result.lineageEntityId && result.lineageEntityType) {
           setParams({
@@ -71,6 +71,7 @@ export function Lineage() {
             entityType: result.lineageEntityType,
             instance: result.lineageInstance,
             objectName: result.lineageObjectName,
+            origin: result.lineageOrigin,
             tabId: result.lineageTabId
           });
         } else {
@@ -85,7 +86,7 @@ export function Lineage() {
     previewHeightRef.current = 300;
     previewCacheRef.current.clear();
     inspectorCacheRef.current.clear();
-    init(params.entityType, params.entityId, params.tabId, params.instance).catch((err) => {
+    init(params.entityType, params.entityId, params.tabId, params.instance, params.origin).catch((err) => {
       console.error('[Lineage] Failed to fetch trace:', err);
       setError(err.message || 'Failed to load pipeline trace');
     });
@@ -144,7 +145,7 @@ export function Lineage() {
     inspectorCacheRef.current.clear();
     if (params) {
       preserveExpansion();
-      init(params.entityType, params.entityId, params.tabId, params.instance).catch((err) => {
+      init(params.entityType, params.entityId, params.tabId, params.instance, params.origin).catch((err) => {
         console.error('[Lineage] Failed to refresh:', err);
         setError(err.message || 'Failed to reload pipeline trace');
       });

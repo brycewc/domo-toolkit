@@ -26,6 +26,7 @@ import { launchActivityLog } from '@/utils/activityLog';
 import { copyToClipboard } from '@/utils/copyToClipboard';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
+import { instanceKeyFromUrl } from '@/utils/instance';
 import {
   collectShareableObjects,
   getRowActionsForType,
@@ -261,10 +262,11 @@ export function DataList({
         switch (actionType) {
           case 'activityLogAll': {
             if (headerLogObjects.length === 0) break;
-            const instance = activityLogInstanceFor(items) ?? currentContext?.instance ?? null;
+            const origin = activityLogBaseUrlFor(items) ?? currentContext?.origin ?? null;
+            const instance = origin ? instanceKeyFromUrl(origin) : null;
             if (instance) {
               const tabId = await getValidTabForInstance(instance);
-              await launchActivityLog({ instance, objects: headerLogObjects, tabId, type: 'multi-object' });
+              await launchActivityLog({ instance, objects: headerLogObjects, origin, tabId, type: 'multi-object' });
             }
             break;
           }
@@ -333,14 +335,14 @@ export function DataList({
       try {
         switch (actionType) {
           case 'activityLog': {
-            const instance = item.domoObject?.baseUrl
-              ? new URL(item.domoObject.baseUrl).hostname.replace('.domo.com', '')
-              : null;
+            const origin = item.domoObject?.baseUrl ?? null;
+            const instance = origin ? instanceKeyFromUrl(origin) : null;
             if (item.id && item.typeId && instance) {
               const tabId = await getValidTabForInstance(instance);
               await launchActivityLog({
                 instance,
                 objects: [{ id: String(item.originalId ?? item.id), name: item.label ?? '', type: item.typeId }],
+                origin,
                 tabId,
                 type: 'single-object'
               });
@@ -353,10 +355,11 @@ export function DataList({
               onStatusUpdate?.('No Objects', 'No loggable objects found here', 'warning', 3000);
               break;
             }
-            const instance = activityLogInstanceFor([item]);
+            const origin = activityLogBaseUrlFor([item]);
+            const instance = origin ? instanceKeyFromUrl(origin) : null;
             if (instance) {
               const tabId = await getValidTabForInstance(instance);
-              await launchActivityLog({ instance, objects, tabId, type: 'multi-object' });
+              await launchActivityLog({ instance, objects, origin, tabId, type: 'multi-object' });
             }
             break;
           }
@@ -371,9 +374,8 @@ export function DataList({
           }
           case 'lineage': {
             const id = item.id;
-            const instance = item.domoObject?.baseUrl
-              ? new URL(item.domoObject.baseUrl).hostname.replace('.domo.com', '')
-              : null;
+            const origin = item.domoObject?.baseUrl ?? null;
+            const instance = origin ? instanceKeyFromUrl(origin) : null;
             if (id && instance) {
               const tabId = await getValidTabForInstance(instance);
               await chrome.storage.session.set({
@@ -381,6 +383,7 @@ export function DataList({
                 lineageEntityType: item.typeId || 'DATA_SOURCE',
                 lineageInstance: instance,
                 lineageObjectName: item.label || `${item.typeId || 'DATA_SOURCE'} ${id}`,
+                lineageOrigin: origin,
                 lineageTabId: tabId
               });
               const tab = await chrome.tabs.get(tabId);
@@ -700,19 +703,19 @@ export function DataList({
  */
 
 /**
- * Finds the Domo instance subdomain for an item tree by walking to the first
- * row that carries a real object base URL. Used to resolve the instance for the
+ * Finds the instance origin for an item tree by walking to the first row that
+ * carries a real object base URL. Used to resolve the instance for the
  * activity-log "for all" actions, where the clicked row may be a virtual group
  * header with no object of its own.
  * @param {Array} itemList - Array of items (and their children) to walk.
- * @returns {string|null} Instance subdomain (e.g. `my-co`) or null if none found.
+ * @returns {string|null} Instance origin (e.g. `https://my-co.domo.com`) or null if none found.
  */
-function activityLogInstanceFor(itemList) {
+function activityLogBaseUrlFor(itemList) {
   for (const item of itemList) {
     const baseUrl = item.domoObject?.baseUrl;
-    if (baseUrl) return new URL(baseUrl).hostname.replace('.domo.com', '');
+    if (baseUrl) return baseUrl;
     if (item.children && item.children.length > 0) {
-      const fromChild = activityLogInstanceFor(item.children);
+      const fromChild = activityLogBaseUrlFor(item.children);
       if (fromChild) return fromChild;
     }
   }

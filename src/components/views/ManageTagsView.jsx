@@ -85,7 +85,7 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
 
       const dataflowId = String(domoObject.id);
       const name = domoObject.metadata?.name || `DataFlow ${dataflowId}`;
-      const origin = `https://${context.instance}.domo.com`;
+      const origin = context.origin;
       const { inputs, outputs } = getDatasetsForDataflow({ details: domoObject.metadata?.details });
       const datasetIds = [...outputs, ...inputs].map((d) => d.id).filter(Boolean);
 
@@ -398,7 +398,9 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
     count: readableObjects.filter((o) => selectedIds.has(o.id)).length,
     isDisabled: isSubmitting,
     onToggle: (checked) =>
-      setSelectedIds(checked ? reconcileGroupSelection(new Set(readableObjects.map((o) => o.id)), groupChildren) : new Set()),
+      setSelectedIds(
+        checked ? reconcileGroupSelection(new Set(readableObjects.map((o) => o.id)), groupChildren) : new Set()
+      ),
     total: readableObjects.length
   };
 

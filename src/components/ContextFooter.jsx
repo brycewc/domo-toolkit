@@ -17,6 +17,7 @@ import { getWorkflowTriggers } from '@/services/workflows';
 import { copyJsonNode } from '@/utils/copyToClipboard';
 import { executeInPage } from '@/utils/executeInPage';
 import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
+import { instanceLabel } from '@/utils/instance';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 // Maps relatedData[].fetcher key → (params) => Promise<Array>. Lives here
@@ -559,7 +560,9 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                         <Chip.Label className='min-w-0 truncate'>{currentContext?.instance}</Chip.Label>
                       </Chip>
                     </Tooltip.Trigger>
-                    <Tooltip.Content className='max-w-60'>Instance: {currentContext?.instance}.domo.com</Tooltip.Content>
+                    <Tooltip.Content className='max-w-60'>
+                      Instance: {instanceLabel(currentContext?.instance)}
+                    </Tooltip.Content>
                   </Tooltip>
                   <Tooltip>
                     <Tooltip.Trigger className='flex min-w-0 shrink items-center'>

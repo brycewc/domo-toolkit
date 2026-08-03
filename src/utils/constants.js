@@ -25,6 +25,16 @@ export const EXCLUDED_INSTANCES = EXCLUDED_HOSTNAMES.map((hostname) =>
   hostname.endsWith('.domo.com') ? hostname.replace('.domo.com', '') : hostname
 );
 
+// Chrome match patterns for every host the extension may act on: hosted Domo
+// instances plus locally run ones. Match patterns cannot contain a port, so
+// `*.localhost` covers every local dev port, and local hosts of the form
+// `<customer>.localhost.domo.com` already fall inside the domo.com pattern.
+// Access to the localhost pattern is an optional permission, so queries and
+// listeners using these simply return nothing for local hosts until the
+// developer opts in.
+export const LOCAL_MATCH_PATTERN = '*://*.localhost/*';
+export const DOMO_MATCH_PATTERNS = ['*://*.domo.com/*', LOCAL_MATCH_PATTERN];
+
 // Partial match patterns for action colors
 // Checked after exact matches, uses .includes() for matching
 export const ACTION_COLOR_PATTERNS = {

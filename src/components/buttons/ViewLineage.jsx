@@ -16,6 +16,7 @@ export function ViewLineage({ currentContext, onStatusUpdate }) {
         lineageObjectName:
           currentContext.domoObject.metadata?.name ||
           `${currentContext.domoObject.typeName} ${currentContext.domoObject.id}`,
+        lineageOrigin: currentContext.origin,
         lineageTabId: currentContext.tabId
       });
 

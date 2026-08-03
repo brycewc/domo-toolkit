@@ -14,6 +14,7 @@ import {
 import { toast } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
+import { hasLocalAccess, requestLocalAccess, revokeLocalAccess } from '@/utils/localInstance';
 import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconComputer from '@icons/computer.svg?react';
@@ -42,6 +43,11 @@ export function GeneralSettings() {
 
   // Track original settings to detect changes
   const [originalSettings, setOriginalSettings] = useState(DEFAULT_SETTINGS);
+
+  // Access to locally run Domo instances is a browser permission, not a stored
+  // setting, so it lives outside `settings`: it applies the moment it is granted
+  // and must not wait for Save (requesting it needs a live user gesture).
+  const [hasLocalDevAccess, setHasLocalDevAccess] = useState(false);
 
   useEffect(() => {
     // Load all settings from storage
@@ -77,8 +83,17 @@ export function GeneralSettings() {
 
     chrome.storage.onChanged.addListener(handleStorageChange);
 
+    // Track the local-instance permission separately, including when it is granted
+    // or revoked from Chrome's own extension settings rather than from here.
+    hasLocalAccess().then(setHasLocalDevAccess);
+    const syncLocalAccess = () => hasLocalAccess().then(setHasLocalDevAccess);
+    chrome.permissions.onAdded.addListener(syncLocalAccess);
+    chrome.permissions.onRemoved.addListener(syncLocalAccess);
+
     return () => {
       chrome.storage.onChanged.removeListener(handleStorageChange);
+      chrome.permissions.onAdded.removeListener(syncLocalAccess);
+      chrome.permissions.onRemoved.removeListener(syncLocalAccess);
     };
   }, []);
 
@@ -143,6 +158,20 @@ export function GeneralSettings() {
       ...prev,
       clearCookiesButtonBehavior: value
     }));
+  };
+
+  const handleLocalDevAccessChange = async (value) => {
+    if (!value) {
+      await revokeLocalAccess();
+      setHasLocalDevAccess(false);
+      return;
+    }
+
+    const granted = await requestLocalAccess();
+    setHasLocalDevAccess(granted);
+    if (!granted) {
+      showStatus('Permission not granted', 'Local Domo instances stay unsupported until you allow access.', 'warning');
+    }
   };
 
   // Check if settings have changed
@@ -269,7 +298,7 @@ export function GeneralSettings() {
               <Input placeholder='Enter an instance' value={settings.defaultDomoInstance} />
               <Description className='w-lg'>
                 This is used when navigating to copied objects from non-Domo websites. Enter without .domo.com (e.g., company
-                for company.domo.com)
+                for company.domo.com), or a local address with its port (e.g., dev.localhost:9128)
               </Description>
             </TextField>
             <Switch isSelected={settings.removeDomoTitleSuffix} onChange={handleRemoveDomoSuffixChange}>
@@ -282,6 +311,19 @@ export function GeneralSettings() {
               <Description className='w-lg'>
                 When the extension renames a Domo tab to the object name, it leaves off the {'" - Domo"'} suffix. This also
                 changes the title used as link text when copying a filtered URL.
+              </Description>
+            </Switch>
+            <Separator className='my-2 w-lg' />
+            <Switch isSelected={hasLocalDevAccess} onChange={handleLocalDevAccessChange}>
+              <Switch.Content>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+                Enable on locally run Domo instances
+              </Switch.Content>
+              <Description className='w-lg'>
+                For Domo developers running Domo on their own machine. Turning this on asks the browser for access to
+                localhost addresses, then treats a local instance like any other. Applies immediately, no save needed.
               </Description>
             </Switch>
             <Separator className='my-2 w-lg' />

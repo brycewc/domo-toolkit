@@ -284,7 +284,7 @@ export function SwapAccountView({ instance = null, liveContext = null, onBackToD
                 </Tooltip.Content>
               </Tooltip>
               <UserFilterAutocomplete
-                domoInstance={currentContext.instance}
+                domoOrigin={currentContext.origin}
                 knownUsers={datasetOwnerIsUser ? [{ displayName: datasetOwner.name, id: datasetOwner.id }] : undefined}
                 label='Owner'
                 mode={ownerFilterMode}

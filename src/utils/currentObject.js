@@ -1,4 +1,5 @@
-import { EXCLUDED_HOSTNAMES } from './constants';
+import { DOMO_MATCH_PATTERNS, EXCLUDED_HOSTNAMES } from './constants';
+import { instanceKeyFromUrl, instanceLabel, isDomoHostname, isLocalInstanceKey } from './instance';
 
 /**
  * Main detection function that runs in page context
@@ -9,7 +10,11 @@ import { EXCLUDED_HOSTNAMES } from './constants';
 export async function detectCurrentObject() {
   const url = location.href.toLowerCase();
 
-  if (location.hostname !== 'domo.com' && !location.hostname.endsWith('.domo.com')) {
+  // Inlined copy of isDomoHostname from utils/instance.js: this function is
+  // stringified and injected, so it cannot import. Keep the two in sync.
+  const labels = location.hostname.split('.');
+  const isLocalCandidate = labels.length > 1 && labels.includes('localhost');
+  if (!isLocalCandidate && location.hostname !== 'domo.com' && !location.hostname.endsWith('.domo.com')) {
     return null;
   }
 
@@ -42,14 +47,14 @@ export async function detectCurrentObject() {
         return {
           appId: parts[parts.indexOf('dataappid') + 1],
           appViewId: parts[parts.indexOf('pageid') + 1],
-          baseUrl: `${location.protocol}//${location.hostname}`,
+          baseUrl: location.origin,
           id,
           typeId: objectType,
           url
         };
       } else if (parts.includes('pageid')) {
         return {
-          baseUrl: `${location.protocol}//${location.hostname}`,
+          baseUrl: location.origin,
           id,
           pageId: parts[parts.indexOf('pageid') + 1],
           typeId: objectType,
@@ -66,14 +71,14 @@ export async function detectCurrentObject() {
         return {
           appId: parts[parts.indexOf('dataappid') + 1],
           appViewId: parts[parts.indexOf('pageid') + 1],
-          baseUrl: `${location.protocol}//${location.hostname}`,
+          baseUrl: location.origin,
           id,
           typeId: objectType,
           url
         };
       } else if (parts.includes('pageid')) {
         return {
-          baseUrl: `${location.protocol}//${location.hostname}`,
+          baseUrl: location.origin,
           id,
           pageId: parts[parts.indexOf('pageid') + 1],
           typeId: objectType,
@@ -109,14 +114,14 @@ export async function detectCurrentObject() {
         return {
           appId: parts[parts.indexOf('app-studio') + 1],
           appViewId: parts[parts.indexOf('pages') + 1],
-          baseUrl: `${location.protocol}//${location.hostname}`,
+          baseUrl: location.origin,
           id,
           typeId: objectType,
           url
         };
       } else if (parts.includes('page')) {
         return {
-          baseUrl: `${location.protocol}//${location.hostname}`,
+          baseUrl: location.origin,
           id,
           pageId: parts[parts.indexOf('page') + 1],
           typeId: objectType,
@@ -137,14 +142,14 @@ export async function detectCurrentObject() {
           return {
             appId: parts[parts.indexOf('app-studio') + 1],
             appViewId: parts[parts.indexOf('pages') + 1],
-            baseUrl: `${location.protocol}//${location.hostname}`,
+            baseUrl: location.origin,
             id,
             typeId: objectType,
             url
           };
         }
         return {
-          baseUrl: `${location.protocol}//${location.hostname}`,
+          baseUrl: location.origin,
           id,
           pageId: parts[parts.indexOf('page') + 1],
           typeId: objectType,
@@ -205,7 +210,7 @@ export async function detectCurrentObject() {
       // location.search, which preserves case, since `url` above is lowercased). The object is
       // still the live DataFlow; the version is a qualifier the service worker stashes in context.
       return {
-        baseUrl: `${location.protocol}//${location.hostname}`,
+        baseUrl: location.origin,
         dataflowVersionId: new URLSearchParams(location.search).get('versionId') || null,
         typeId: objectType,
         url
@@ -261,7 +266,7 @@ export async function detectCurrentObject() {
               if (element?.data?.taskType === 'nebulaFunction' && element.data.metadata?.packageId) {
                 if (element.data.metadata.version) {
                   return {
-                    baseUrl: `${location.protocol}//${location.hostname}`,
+                    baseUrl: location.origin,
                     id: element.data.metadata.version,
                     parentId: element.data.metadata.packageId,
                     typeId: 'CODEENGINE_PACKAGE_VERSION',
@@ -271,7 +276,7 @@ export async function detectCurrentObject() {
                   };
                 }
                 return {
-                  baseUrl: `${location.protocol}//${location.hostname}`,
+                  baseUrl: location.origin,
                   id: element.data.metadata.packageId,
                   typeId: 'CODEENGINE_PACKAGE',
                   url
@@ -280,7 +285,7 @@ export async function detectCurrentObject() {
 
               if (element?.data?.isFormStart && element.data.formId) {
                 return {
-                  baseUrl: `${location.protocol}//${location.hostname}`,
+                  baseUrl: location.origin,
                   id: element.data.formId,
                   typeId: 'ENIGMA_FORM',
                   url
@@ -330,7 +335,7 @@ export async function detectCurrentObject() {
       }
 
       return {
-        baseUrl: `${location.protocol}//${location.hostname}`,
+        baseUrl: location.origin,
         id: triggerId,
         parentId: parts[parts.indexOf('triggers') + 1],
         typeId: 'WORKFLOW_TRIGGER',
@@ -350,7 +355,7 @@ export async function detectCurrentObject() {
         const ceMatch = ceInput.value.match(/^Version\s+(\d+\.\d+\.\d+)$/);
         if (ceMatch && packageId) {
           return {
-            baseUrl: `${location.protocol}//${location.hostname}`,
+            baseUrl: location.origin,
             id: ceMatch[1],
             parentId: packageId,
             typeId: 'CODEENGINE_PACKAGE_VERSION',
@@ -389,7 +394,7 @@ export async function detectCurrentObject() {
         const filePath = url.substring(previewIndex + '/preview/'.length).split('?')[0];
         // Return early with extra context for async ID resolution
         return {
-          baseUrl: `${location.protocol}//${location.hostname}`,
+          baseUrl: location.origin,
           id: null,
           resolveContext: { filePath, filesetId },
           typeId: objectType,
@@ -430,7 +435,7 @@ export async function detectCurrentObject() {
       if (!workspaceId) return null;
 
       return {
-        baseUrl: `${location.protocol}//${location.hostname}`,
+        baseUrl: location.origin,
         id: workspaceId,
         typeId: 'DATA_SCIENCE_NOTEBOOK',
         url
@@ -553,7 +558,7 @@ export async function detectCurrentObject() {
       if (!accountId) return null;
 
       return {
-        baseUrl: `${location.protocol}//${location.hostname}`,
+        baseUrl: location.origin,
         id: accountId,
         typeId: 'ACCOUNT',
         url
@@ -604,7 +609,7 @@ export async function detectCurrentObject() {
       if (!jobData) return null;
 
       return {
-        baseUrl: `${location.protocol}//${location.hostname}`,
+        baseUrl: location.origin,
         id: jobData.jobId,
         parentId: jobData.applicationId,
         typeId: 'EXECUTOR_JOB',
@@ -637,7 +642,7 @@ export async function detectCurrentObject() {
         const selectedId = scope?.details?.[adminConfig.scopeKey];
         if (selectedId) {
           return {
-            baseUrl: `${location.protocol}//${location.hostname}`,
+            baseUrl: location.origin,
             id: String(selectedId),
             typeId: adminConfig.typeId,
             url
@@ -657,7 +662,7 @@ export async function detectCurrentObject() {
   // Return plain serializable object
   // Service worker will construct DomoObject from this data
   return {
-    baseUrl: `${location.protocol}//${location.hostname}`,
+    baseUrl: location.origin,
     id: id, // May be null, will be extracted by service worker if needed
     typeId: objectType,
     url: url
@@ -667,12 +672,23 @@ export async function detectCurrentObject() {
 /**
  * Get a valid tab ID for making API calls to the specified Domo instance.
  * Prefers the current active tab if it's on the correct instance.
- * @param {string} instance - The Domo instance subdomain (e.g., 'mycompany')
+ *
+ * Matches on the tab's authority (host plus port) rather than an origin prefix.
+ * Chrome match patterns cannot express a port, so a local instance on :9128 has
+ * to be filtered client-side, and comparing authorities also means a local
+ * instance served over https (HTTPS=true) still matches.
+ * @param {string} instance - The instance key (e.g. 'mycompany' or 'dev.localhost:9128')
  * @returns {Promise<number>} The tab ID to use for API calls
  * @throws {Error} If no valid tab is found on the correct instance
  */
 export async function getValidTabForInstance(instance) {
-  const expectedOrigin = `https://${instance}.domo.com`;
+  const isOnInstance = (url) => {
+    try {
+      return instanceKeyFromUrl(url) === instance;
+    } catch {
+      return false;
+    }
+  };
 
   // First, try the current active tab
   const [activeTab] = await chrome.tabs.query({
@@ -680,29 +696,38 @@ export async function getValidTabForInstance(instance) {
     currentWindow: true
   });
 
-  if (activeTab?.url?.startsWith(expectedOrigin)) {
+  if (activeTab?.url && isOnInstance(activeTab.url)) {
     return activeTab.id;
   }
 
   // If active tab isn't on the right instance, search for any tab on that instance
-  const matchingTabs = await chrome.tabs.query({
-    url: `${expectedOrigin}/*`
-  });
+  const candidateTabs = await chrome.tabs.query(
+    isLocalInstanceKey(instance) ? { url: DOMO_MATCH_PATTERNS } : { url: `https://${instance}.domo.com/*` }
+  );
+  const matchingTab = candidateTabs.find((tab) => tab.url && isOnInstance(tab.url));
 
-  if (matchingTabs.length > 0) {
-    return matchingTabs[0].id;
+  if (matchingTab) {
+    return matchingTab.id;
   }
 
-  throw new Error(`No open tab found for ${instance}.domo.com. Please open a tab on that Domo instance and try again.`);
+  throw new Error(
+    `No open tab found for ${instanceLabel(instance)}. Please open a tab on that Domo instance and try again.`
+  );
 }
 
 /**
  * Check if a URL is an actionable Domo page: a domo.com domain (exact or any
- * subdomain) that is NOT one of the excluded hosts (support, developer,
- * marketing, embed, etc.). Excluded hosts are treated as non-Domo so that no
- * extension behavior (detection, title rewriting, in-page execution) ever runs
- * on them. This is the single gate the background and executeInPage rely on, so
- * folding the exclusion in here keeps every call site consistent.
+ * subdomain), or a local dev candidate, that is NOT one of the excluded hosts
+ * (support, developer, marketing, embed, etc.). Excluded hosts are treated as
+ * non-Domo so that no extension behavior (detection, title rewriting, in-page
+ * execution) ever runs on them. This is the single gate the background and
+ * executeInPage rely on, so folding the exclusion in here keeps every call site
+ * consistent.
+ *
+ * Deliberately structural: a `*.localhost` host passes here so the background is
+ * allowed to inject the window.bootstrap probe that decides whether it is really
+ * running Domo. Whether a local origin is *confirmed* is a separate question,
+ * answered by isVerifiedDomoOrigin in the background.
  * @param {string} url - A full URL string
  * @returns {boolean}
  */
@@ -712,7 +737,7 @@ export function isDomoUrl(url) {
     if (EXCLUDED_HOSTNAMES.includes(hostname)) {
       return false;
     }
-    return hostname === 'domo.com' || hostname.endsWith('.domo.com');
+    return isDomoHostname(hostname);
   } catch {
     return false;
   }

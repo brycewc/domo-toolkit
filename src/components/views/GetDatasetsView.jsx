@@ -82,7 +82,7 @@ export function GetDatasetsView({
       const objectType = domoObject.typeId;
       const objectId = domoObject.id;
       const instance = context.instance;
-      const origin = `https://${instance}.domo.com`;
+      const origin = context.origin;
 
       // DataFlows and Jupyter workspaces both expose their datasets as separate
       // input and output sets, so they render as two grouped sections rather

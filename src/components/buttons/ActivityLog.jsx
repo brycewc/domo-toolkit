@@ -248,6 +248,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
       await launchActivityLog({
         instance: currentContext?.instance,
         objects: activityLogObjects,
+        origin: currentContext?.origin,
         tabId: currentContext?.tabId,
         type: activityLogType
       });

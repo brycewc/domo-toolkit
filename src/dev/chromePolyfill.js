@@ -9,8 +9,13 @@
  * its absence to detect dev mode and call functions directly.
  */
 
+import { instanceKeyFromUrl } from '@/utils/instance';
+
 const baseUrl = import.meta.env.VITE_DOMO_BASE_URL || '';
-const instance = baseUrl.match(/\/\/([^.]+)\.domo\.com/)?.[1] || '';
+// Handles a locally run instance too (e.g. http://dev.localhost:9128), where the
+// key keeps the port and the origin keeps the scheme.
+const instance = instanceKeyFromUrl(baseUrl) || '';
+const origin = baseUrl ? new URL(baseUrl).origin : '';
 
 const entityId = import.meta.env.VITE_DOMO_ENTITY_ID;
 const entityType = import.meta.env.VITE_DOMO_ENTITY_TYPE;
@@ -18,12 +23,14 @@ const entityType = import.meta.env.VITE_DOMO_ENTITY_TYPE;
 const sessionData = {
   activityLogInstance: instance,
   activityLogObjects: entityId && entityType ? [{ id: entityId, type: entityType }] : [],
+  activityLogOrigin: origin,
   activityLogTabId: 1,
   activityLogType: 'single-object',
   lineageEntityId: entityId,
   lineageEntityType: entityType,
   lineageInstance: instance,
   lineageObjectName: import.meta.env.VITE_DOMO_OBJECT_NAME,
+  lineageOrigin: origin,
   lineageTabId: 1
 };
 

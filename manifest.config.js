@@ -1,12 +1,12 @@
 import { defineManifest } from '@crxjs/vite-plugin';
 import pkg from './package.json';
-import { EXCLUDED_HOSTNAMES } from './src/utils/constants.js';
+import { EXCLUDED_HOSTNAMES, LOCAL_MATCH_PATTERN } from './src/utils/constants.js';
 
 // Excluded Domo hosts (support, developer, marketing, embed, etc.) as content-script
 // exclude_matches patterns, so the content script never injects there at all. Derived
 // from the shared EXCLUDED_HOSTNAMES list so this stays in sync with the rest of the
 // extension's exclusion logic.
-const EXCLUDED_MATCHES = EXCLUDED_HOSTNAMES.map((hostname) => `https://${hostname}/*`);
+const EXCLUDED_MATCHES = EXCLUDED_HOSTNAMES.map((hostname) => `*://${hostname}/*`);
 
 export default defineManifest({
   manifest_version: 3,
@@ -38,6 +38,11 @@ export default defineManifest({
     'webRequest'
   ],
   host_permissions: ['*://*.domo.com/*'],
+  // Locally run Domo instances (Domo's own web developers) are off by default so
+  // regular users never see a broader install warning. The options page requests
+  // this from a user gesture and registers the content script dynamically, since
+  // a static content_scripts entry would reintroduce the warning.
+  optional_host_permissions: [LOCAL_MATCH_PATTERN],
   content_security_policy: {
     extension_pages: "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
   },
@@ -60,7 +65,10 @@ export default defineManifest({
   content_scripts: [
     {
       js: ['src/contentScript.js'],
-      matches: ['https://*.domo.com/*'],
+      // `*://` rather than `https://` so a local instance reached as
+      // <customer>.localhost.domo.com over http is covered. host_permissions
+      // already grants both schemes, so this adds no install warning.
+      matches: ['*://*.domo.com/*'],
       exclude_matches: EXCLUDED_MATCHES,
       run_at: 'document_idle',
       all_frames: false
@@ -91,7 +99,10 @@ export default defineManifest({
   web_accessible_resources: [
     {
       resources: ['public/apiErrors.js', 'public/domo-logo-no-background.png', 'public/domo-logo.png'],
-      matches: ['https://*.domo.com/*']
+      // The content script injects apiErrors.js into the page via <script src>,
+      // which requires the page's origin to be listed here. Declaring localhost
+      // is safe: web_accessible_resources grants no host access on its own.
+      matches: ['*://*.domo.com/*', LOCAL_MATCH_PATTERN]
     }
   ]
 });

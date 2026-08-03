@@ -35,9 +35,33 @@ Content Script (detects page context via URL/DOM)
 
 **Key message types:** `DETECT_CONTEXT`, `GET_TAB_CONTEXT`, `RELEASE_NOTES_SEEN`, `TAB_CONTEXT_UPDATED`
 
+## Instance Identity (hosted vs local)
+
+An instance is identified by one string, the **instance key**, which doubles as a storage key
+(`perInstance` settings, `sidepanelData_{windowId}_{instance}`, the background's per-instance user cache):
+
+|        | key                  | label                |
+| ------ | -------------------- | -------------------- |
+| hosted | `acme`               | `acme.domo.com`      |
+| local  | `dev.localhost:9128` | `dev.localhost:9128` |
+
+`src/utils/instance.js` is the only place that classifies a host or converts between key, label, and origin.
+Nothing else should test hostnames with its own regex. `detectCurrentObject` is the one exception: it is
+stringified and injected, so it carries an inlined copy of the host check.
+
+**Never rebuild an origin from an instance key.** A local instance is served over http on an arbitrary port
+(`PORT` env var), so use the exact `DomoContext.origin` or `DomoObject.baseUrl` that detection captured.
+`instanceOriginFromKey()` exists only for the few paths where a bare key round-trips through storage.
+
+Local support is an **optional** host permission (`*://*.localhost/*`), off by default so the install-time
+warning is unchanged for store users. See `src/utils/localInstance.js`: because it is optional, the content
+script for those hosts is registered at runtime instead of declared in the manifest. A `*.localhost` host also
+only _looks_ like Domo, so `confirmDomoTab()` in `background.js` probes the page for `window.bootstrap` and
+caches positive verdicts per origin in `chrome.storage.session`.
+
 ## Core Models
 
-- **DomoContext** (`src/models/DomoContext.js`) — Tab's full context (tabId, URL, instance, detected object). Serializable via `toJSON()`/`fromJSON()`.
+- **DomoContext** (`src/models/DomoContext.js`) — Tab's full context (tabId, URL, instance, origin, detected object). Serializable via `toJSON()`/`fromJSON()`.
 - **DomoObject** (`src/models/DomoObject.js`) — A Domo object (Card, Page, Dataset, etc.) with ID, type, metadata, URL. Methods: `buildUrl()`, `navigateTo()`, `getParent()`, `toJSON()`, `fromJSON()`.
 - **DomoObjectType** (`src/models/DomoObjectType.js`) — Registry of ~100+ types with URL patterns, ID validation, API configs. Each type has: `id`, `name`, `urlPath`, `idPattern`, `extractConfig`, `api`, `parents`.
 

@@ -1,4 +1,5 @@
 import { getAccountIdsForDomoObject } from '@/services/accounts';
+import { pathnameOf } from '@/utils/general';
 import { isSupportUser } from '@/utils/supportMode';
 
 /**
@@ -206,7 +207,8 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     actions.add('ownership');
   }
 
-  if (url?.includes('domo.com/auth/index') && !url?.includes('domoManualLogin=true')) {
+  // Matched on the path so a local instance, whose host carries a port, is covered.
+  if (pathnameOf(url) === '/auth/index' && !url?.includes('domoManualLogin=true')) {
     actions.add('directSignOn');
   }
 

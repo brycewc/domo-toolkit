@@ -70,7 +70,7 @@ export function GetWorkspacesView({
       const domoObject = context.domoObject;
       const objectType = domoObject.typeId;
       const instance = context.instance;
-      const origin = `https://${instance}.domo.com`;
+      const origin = context.origin;
 
       const entityType = workspaceEntityTypeFor(objectType);
       const isParentScoped = PARENT_SCOPED_TYPES.includes(objectType);

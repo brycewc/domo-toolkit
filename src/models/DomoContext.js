@@ -1,4 +1,5 @@
 import { EXCLUDED_HOSTNAMES } from '@/utils/constants';
+import { instanceKeyFromUrl, isLocalDomoHostname } from '@/utils/instance';
 
 import { DomoObject } from './DomoObject';
 
@@ -19,14 +20,21 @@ export class DomoContext {
 
     // Extract instance from URL and determine if this is a valid Domo page
     try {
-      const hostname = new URL(url).hostname;
-      this.instance = hostname.endsWith('.domo.com') ? hostname.replace('.domo.com', '') : null;
+      const { hostname, origin } = new URL(url);
+      this.instance = instanceKeyFromUrl(url);
+      // The exact origin, so scheme and port survive. Local instances are served
+      // over http on an arbitrary port, so no consumer may rebuild an origin from
+      // the instance key alone.
+      this.origin = origin;
 
-      // Check if this is a valid Domo page (not excluded)
-      this.isDomoPage = hostname.endsWith('.domo.com') && !EXCLUDED_HOSTNAMES.includes(hostname);
+      // A local host only looks like Domo from its URL, so isDomoPage stays false
+      // until the background's window.bootstrap probe confirms it and overrides
+      // this via fromJSON. Hosted instances are decided from the URL alone.
+      this.isDomoPage = this.instance !== null && !EXCLUDED_HOSTNAMES.includes(hostname) && !isLocalDomoHostname(hostname);
     } catch (error) {
       console.error('Error extracting instance from URL:', error);
       this.instance = null;
+      this.origin = null;
       this.isDomoPage = false;
     }
 
@@ -85,6 +93,7 @@ export class DomoContext {
       featureSwitches: this.featureSwitches || null,
       instance: this.instance,
       isDomoPage: this.isDomoPage,
+      origin: this.origin,
       tabId: this.tabId,
       url: this.url,
       user: this.user || null,

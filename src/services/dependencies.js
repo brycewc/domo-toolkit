@@ -40,8 +40,7 @@ import { getChildPages, getOnlyHereCardIds } from './pages';
  * so for `WORKSHEET_VIEW` the siblings group will be empty (which is correct,
  * since worksheets are typically single-page).
  */
-async function fetchAppPageDependencies({ id, instance, parentId, typeId }, tabId) {
-  const origin = `https://${instance}.domo.com`;
+async function fetchAppPageDependencies({ id, origin, parentId, typeId }, tabId) {
   const groups = [];
   let appSummary = null;
 
@@ -133,7 +132,7 @@ async function fetchAppPageDependencies({ id, instance, parentId, typeId }, tabI
 
 const FETCHERS = {
   DATA_APP_VIEW: fetchAppPageDependencies,
-  DATAFLOW_TYPE: async ({ id, instance, metadata }, tabId) => {
+  DATAFLOW_TYPE: async ({ id, metadata, origin }, tabId) => {
     const outputs = metadata?.details?.outputs || [];
     const outputIds = outputs.map((o) => o.dataSourceId).filter(Boolean);
     // Cards and alerts both hang off the output datasets and are both removed
@@ -150,7 +149,6 @@ const FETCHERS = {
       getDownstreamAlertsForDatasets(outputIds, tabId),
       getDownstreamViewsForDatasets(outputIds, tabId)
     ]);
-    const origin = `https://${instance}.domo.com`;
     const groups = [
       {
         blocking: false,
@@ -230,12 +228,11 @@ const FETCHERS = {
 
     return groups;
   },
-  MAGNUM_COLLECTION: async ({ id, instance, metadata, parentId }, tabId) => {
+  MAGNUM_COLLECTION: async ({ id, metadata, origin, parentId }, tabId) => {
     // The parent datastore ID is enriched onto the collection as parentId, and
     // doubles as the connected app's instance ID. The synced dataset's ID is
     // enriched onto the collection details, so no extra fetch is needed for it.
     if (!parentId) return [];
-    const origin = `https://${instance}.domo.com`;
     const datasetId = metadata?.details?.datasourceId || null;
     const [collections, connectedApps, datasetInfo, datasetDependents] = await Promise.all([
       getAppInstanceCollections({ appInstanceId: parentId, tabId }),
@@ -304,8 +301,7 @@ const FETCHERS = {
     return groups;
   },
 
-  PAGE: async ({ id, instance }, tabId) => {
-    const origin = `https://${instance}.domo.com`;
+  PAGE: async ({ id, origin }, tabId) => {
     const groups = [];
 
     const cards = await getCardsForObject({
@@ -359,8 +355,7 @@ const FETCHERS = {
     const onlyHereCardIds = await onlyHerePromise;
     return { groups, onlyHereCardIds };
   },
-  TEMPLATE: async ({ id, instance, metadata }, tabId) => {
-    const origin = `https://${instance}.domo.com`;
+  TEMPLATE: async ({ id, metadata, origin }, tabId) => {
     // datasetId is eagerly enriched onto the current object at detection time
     // (background.js), so it's present here without an extra fetch.
     const datasetId = metadata?.details?.datasetId || null;
@@ -421,7 +416,7 @@ const FETCHERS = {
  *
  * @param {Object} params
  * @param {Object} params.object - The DomoObject (must have `typeId`, `id`, `metadata`)
- * @param {string} params.instance - The Domo instance subdomain (for building URLs)
+ * @param {string} params.origin - The instance origin (for building URLs)
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<{
  *   groups: Array<{label: string, blocking: boolean, blockingReason?: string, items: Array}>,
@@ -433,7 +428,7 @@ const FETCHERS = {
  *   onlyHereCardCount: number|null
  * }>}
  */
-export async function getDependenciesForDelete({ instance, object, tabId = null }) {
+export async function getDependenciesForDelete({ object, origin, tabId = null }) {
   const fetcher = FETCHERS[object.typeId];
   if (!fetcher) {
     return {
@@ -450,8 +445,8 @@ export async function getDependenciesForDelete({ instance, object, tabId = null 
   const fetched = await fetcher(
     {
       id: object.id,
-      instance,
       metadata: object.metadata,
+      origin,
       parentId: object.parentId,
       typeId: object.typeId
     },

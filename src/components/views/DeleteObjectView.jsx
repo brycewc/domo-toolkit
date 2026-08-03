@@ -240,7 +240,7 @@ const deletersByType = {
       if (result.statusType !== 'success') {
         throw new Error(result.statusDescription || 'Delete failed');
       }
-      const origin = `https://${context.instance}.domo.com`;
+      const origin = context.origin;
       chrome.tabs.update(context.tabId, { url: `${origin}/workflows` });
       return result;
     },
@@ -365,8 +365,8 @@ export function DeleteObjectView({
     setDepsError(null);
     try {
       const result = await getDependenciesForDelete({
-        instance: context.instance,
         object: context.domoObject,
+        origin: context.origin,
         tabId: context.tabId
       });
       if (mountedRef.current) setDeps(result);

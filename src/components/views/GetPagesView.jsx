@@ -89,7 +89,7 @@ export function GetPagesView({
           ? domoObject.metadata?.name || domoObject.metadata?.parent?.name || `${domoObject.typeName} ${objectId}`
           : domoObject.metadata?.parent?.name || domoObject.metadata?.name || `${domoObject.typeName} ${objectId}`;
       const instance = context.instance;
-      const origin = `https://${instance}.domo.com`;
+      const origin = context.origin;
 
       // Get appId for DATA_APP_VIEW types (stored as parentId in domoObject)
       const appId =
@@ -98,10 +98,7 @@ export function GetPagesView({
       // Set label early so the loading spinner shows the right text
       setPageTypeLabel(
         sidepanelType === 'getCardPages'
-          ? objectType === 'CARD' ||
-            objectType === 'DATA_SOURCE' ||
-            objectType === 'DATAFLOW_TYPE' ||
-            objectType === 'USER'
+          ? objectType === 'CARD' || objectType === 'DATA_SOURCE' || objectType === 'DATAFLOW_TYPE' || objectType === 'USER'
             ? 'Pages'
             : 'Card Pages'
           : objectType === 'DATA_APP_VIEW'
@@ -286,7 +283,7 @@ export function GetPagesView({
     const parentTypeId = childTypeId === 'WORKSHEET_VIEW' ? 'WORKSHEET' : 'DATA_APP';
     const parentId = data.parentId || context.domoObject.parentId;
     const instance = context.instance;
-    const origin = `https://${instance}.domo.com`;
+    const origin = context.origin;
     const parentLabel = parentTypeId === 'WORKSHEET' ? 'worksheet' : 'app';
 
     if (!parentId) {

@@ -66,7 +66,7 @@ export function GetViewInputsView({
       const objectId = domoObject.id;
       const objectName = domoObject.metadata?.name || `DataSet ${objectId}`;
       const instance = context.instance;
-      const origin = `https://${instance}.domo.com`;
+      const origin = context.origin;
 
       setViewData({
         instance,

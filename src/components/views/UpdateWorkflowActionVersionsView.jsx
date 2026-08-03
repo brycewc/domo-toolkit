@@ -614,8 +614,8 @@ export function UpdateWorkflowActionVersionsView({
             const isSubflow = pkg.kind === 'subflow';
             const GroupIcon = isSubflow ? IconWorkflow : IconPackage;
             const groupHref = isSubflow
-              ? `https://${currentContext?.instance}.domo.com/workflows/models/${pkg.packageId}`
-              : `https://${currentContext?.instance}.domo.com/codeengine/${pkg.packageId}`;
+              ? `${currentContext?.origin}/workflows/models/${pkg.packageId}`
+              : `${currentContext?.origin}/codeengine/${pkg.packageId}`;
 
             return (
               <div className={index > 0 ? 'w-full border-t border-border pt-2 pb-1' : 'pb-1'} key={pkg.packageId}>

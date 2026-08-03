@@ -9,6 +9,7 @@ import {
   getObjectType
 } from '@/models/DomoObjectType';
 import { executeInPage } from '@/utils/executeInPage';
+import { instanceKeyFromUrl, instanceOriginFromKey } from '@/utils/instance';
 import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils/sidepanel';
 import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
@@ -93,6 +94,15 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
     return defaultDomoInstance || null;
   }, [currentContext?.isDomoPage, currentContext?.instance, defaultDomoInstance]);
 
+  // The active tab's exact origin when we have one (so a local instance keeps its
+  // scheme and port), otherwise rebuilt from the default instance setting.
+  const getOrigin = useCallback(() => {
+    if (currentContext?.isDomoPage && currentContext?.origin) {
+      return currentContext.origin;
+    }
+    return instanceOriginFromKey(defaultDomoInstance);
+  }, [currentContext?.isDomoPage, currentContext?.origin, defaultDomoInstance]);
+
   const fetchObjectMetadata = useCallback(
     async (typeConfig, objectId, baseUrl) => {
       const params = {
@@ -152,7 +162,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
 
     setCopiedId(text);
 
-    const baseUrl = `https://${instance}.domo.com`;
+    const baseUrl = getOrigin();
     const typesToTry = getAllObjectTypesWithApiConfig()
       .filter((type) => type.isValidObjectId(text))
       .sort((a, b) => {
@@ -226,8 +236,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           // Scope both writes to the object's own instance: this flow can target
           // an instance other than the active tab's (defaultDomoInstance fallback
           // on non-Domo tabs), and the loading write has no context to derive from.
-          const { hostname } = new URL(domoObject.baseUrl);
-          const instance = hostname.endsWith('.domo.com') ? hostname.replace('.domo.com', '') : null;
+          const instance = instanceKeyFromUrl(domoObject.baseUrl);
           await storeSidepanelData({
             instance,
             message: 'Loading object details...',
@@ -274,7 +283,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       const typeConfig = getObjectType(key);
       if (!typeConfig) return;
 
-      const baseUrl = `https://${instance}.domo.com`;
+      const baseUrl = getOrigin();
 
       // Sidepanel-bound types (no URL) fetch metadata up front so
       // ObjectDetailsView renders with data instead of an empty card; STREAM

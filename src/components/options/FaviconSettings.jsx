@@ -495,8 +495,8 @@ export function FaviconSettings() {
           <Accordion.Panel>
             <Accordion.Body>
               <p>
-                Use regular expressions to match Domo instance subdomains. The pattern will be tested against the
-                subdomain/instance only (i.e., before .domo.com).
+                Use regular expressions to match Domo instances. The pattern is tested against the instance name only (i.e.,
+                before .domo.com), or against the full address including its port for a locally run instance.
               </p>
               <p>
                 Examples:
@@ -512,6 +512,9 @@ export function FaviconSettings() {
                   </li>
                   <li>
                     <strong>(qa|test)</strong> - matches qa.domo.com or test.domo.com
+                  </li>
+                  <li>
+                    <strong>localhost</strong> - matches any locally run instance (e.g., dev.localhost:9128)
                   </li>
                 </ul>
               </p>

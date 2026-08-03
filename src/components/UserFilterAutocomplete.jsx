@@ -30,7 +30,7 @@ const MAX_VISIBLE_TAGS = 5;
  * render a name without waiting on a search that may not surface that user.
  */
 export function UserFilterAutocomplete({
-  domoInstance,
+  domoOrigin,
   knownUsers,
   label = 'User',
   mode = 'include',
@@ -184,10 +184,10 @@ export function UserFilterAutocomplete({
   // Build avatar URL
   const getAvatarUrl = useCallback(
     (user) => {
-      if (!domoInstance) return null;
-      return `https://${domoInstance}.domo.com/api/content/v1/avatar/USER/${user}?size=100`;
+      if (!domoOrigin) return null;
+      return `${domoOrigin}/api/content/v1/avatar/USER/${user}?size=100`;
     },
-    [domoInstance]
+    [domoOrigin]
   );
 
   // Handle selection changes — update ref map and notify parent

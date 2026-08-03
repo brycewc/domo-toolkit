@@ -71,7 +71,7 @@ export function GetBeastModesView({
       const objectType = domoObject.typeId;
       const objectId = domoObject.id;
       const instance = context.instance;
-      const origin = `https://${instance}.domo.com`;
+      const origin = context.origin;
       const tabId = await getValidTabForInstance(instance);
 
       let transformedItems = [];

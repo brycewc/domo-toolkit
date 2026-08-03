@@ -80,7 +80,7 @@ export function GetCardsView({
       const objectId = domoObject.id;
       const objectName = domoObject.metadata?.name || `${objectType} ${objectId}`;
       const instance = context.instance;
-      const origin = `https://${instance}.domo.com`;
+      const origin = context.origin;
 
       const parentId = domoObject.parentId || null;
 
@@ -195,7 +195,7 @@ export function GetCardsView({
     const parentTypeId = childTypeId === 'WORKSHEET_VIEW' ? 'WORKSHEET' : 'DATA_APP';
     const parentId = data.parentId || context.domoObject.parentId;
     const instance = context.instance;
-    const origin = `https://${instance}.domo.com`;
+    const origin = context.origin;
 
     if (!parentId) {
       setError('Could not determine parent ID.');

@@ -140,8 +140,9 @@ export function sidepanelStorageKey(windowId, instance) {
 /**
  * Build the storage key prefix for one window's sidepanel records. The
  * trailing underscore keeps window 12's prefix from matching window 123's
- * keys, and instances cannot contain underscores, so slicing the prefix off
- * a matching key always yields the instance.
+ * keys, and no instance key contains an underscore (a local one is a host with
+ * dots, a colon and a port), so slicing the prefix off a matching key always
+ * yields the instance.
  * @param {number} windowId
  * @returns {string}
  */

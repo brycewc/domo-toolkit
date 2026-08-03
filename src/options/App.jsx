@@ -172,7 +172,8 @@ export default function App() {
           <div className='w-full shrink-0 justify-start'>
             <h3 className='mb-2 text-lg font-semibold'>Favicon Preferences</h3>
             <p className='text-sm text-muted'>
-              Manage your favicon preferences. Patterns will automatically match against [subdomain].domo.com
+              Manage your favicon preferences. Patterns match against the instance name, or the full address for a locally
+              run instance
             </p>
           </div>
           <FaviconSettings />

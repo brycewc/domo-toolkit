@@ -4,7 +4,7 @@ DISCLAIMER
 This extension is an independent, community-developed project. Domo, Inc. has no responsibility for its functionality, performance, or any consequences arising from its use.
 
 INSTANT CONTEXT DETECTION
-Domo Toolkit automatically detects what you're looking at. Navigate to any page, card, dataset, dataflow, app studio page, workflow, alert, or any of many supported object types, and the extension identifies it, enriches it with metadata from the Domo API, and makes relevant actions available. It even detects modals without URLs, resolves parent objects for nested types, detects selected code engine and form actions inside workflow editors, and updates your tab title with the object's name. With one click you can explore the object's full JSON definition, with epoch timestamps shown as readable dates and user/group IDs as display names. Most objects also expose related data the same way, like a card's datasets or a dataset's columns.
+Domo Toolkit automatically detects what you're looking at. Navigate to any page, card, dataset, dataflow, app studio page, workflow, alert, or any supported object type, and the extension identifies it, enriches it with metadata from the Domo API, and makes relevant actions available. It detects modals without URLs, resolves parent objects for nested types, detects selected code engine and form actions inside workflow editors, and updates your tab title with the object's name. You can explore the object's full JSON definition, with epoch timestamps shown as readable dates and user/group IDs as display names. Most objects also expose related data the same way, like a card's datasets or a dataset's columns.
 
 AUTOMATIC 431 ERROR RESOLVING
 Domo's 431 "Request Header Fields Too Large" errors are a constant headache when working across instances. Domo Toolkit gives you three independent cookie controls:
@@ -30,7 +30,7 @@ View dependencies and take actions on them from the side panel:
 All discovery lists support applicable actions like open all, copy ID, share with self, open lineage, and open in views explorer. Items are grouped with expand/collapse, counts, direct links, and icons, and a reload button reruns the action as you navigate.
 
 API ERROR TRACKING
-API errors are automatically captured as you browse. Click the API Errors button to view the count at a glance, expand individual errors for the full JSON response, and clear all.
+API errors are captured as you browse. Click the API Errors button to view the count at a glance, expand individual errors for the full JSON response, and clear all.
 
 USER MANAGEMENT
 - Transfer Ownership: Reassign every object owned by a user to another in one flow. Select which object types to include, preview counts before you commit, and optionally delete the user afterward. A quick button transfers to the user's manager, and you can email the recipient an Excel attachment listing everything transferred.
@@ -67,8 +67,8 @@ Across multiple Domo instances, every tab looks identical: same favicon, same "D
 SIDE PANEL & POPUP
 Access Domo Toolkit in two ways:
 - Popup: Click the extension icon; there when you need it, gone when you don't.
-- Side Panel: A persistent panel alongside your page for data discovery, with collapsible action buttons so it stays compact. Opens automatically from the popup to display discovery features as a list.
-Both show the current context (instance, object type, object ID) and update automatically as you navigate.
+- Side Panel: A persistent panel alongside your page for data discovery, with collapsible action buttons so it stays compact. Opens from the popup to display discovery features as a list.
+Both show the current context (instance, object type, object ID) and update as you navigate.
 
 SETTINGS
 - Theme: System, light, or dark mode.
@@ -81,7 +81,7 @@ SUPPORTED OBJECT TYPES
 Works with nearly every object type in Domo: pages, cards, datasets, dataflows, app studio apps/pages, worksheets, workspaces, report builder, users, groups, alerts, workflows, code engine packages, pro-code apps, beast modes, variables, access tokens, appdb collections, approvals, approval templates, drill paths, jupyter workspaces, document collections, files, forms, governance toolkit jobs, certification processes, AI toolkits, AI agents, and dozens more.
 
 PRIVACY & PERMISSIONS
-- Only runs on .domo.com domains
+- Only runs on .domo.com domains, plus localhost if a Domo developer opts in from the options page
 - Uses Domo's existing authenticated session, no additional login required
 - No data leaves the browser; no external servers are contacted
 - Settings sync via Chrome's built-in storage

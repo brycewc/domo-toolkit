@@ -28,6 +28,7 @@ import { DomoObject } from '@/models/DomoObject';
 import { fetchUserDisplayNames, getCustomAvatarUserIds, getInactiveUserIds } from '@/services/users';
 import { ACTION_COLOR_PATTERNS } from '@/utils/constants';
 import { getInitials } from '@/utils/general';
+import { instanceOriginFromKey } from '@/utils/instance';
 import IconCalendar from '@icons/calendar.svg?react';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconExclamationPointCircle from '@icons/exclamation-point-circle.svg?react';
@@ -48,6 +49,9 @@ export function ActivityLogTable() {
   const [objects, setObjects] = useState([]); // Array of {type, id}
   const [activityLogType, setActivityLogType] = useState(null);
   const [domoInstance, setDomoInstance] = useState(null);
+  // The instance's exact origin, so links and avatars keep the scheme and port a
+  // locally run instance needs. domoInstance stays the identity/storage key.
+  const [domoOrigin, setDomoOrigin] = useState(null);
   const [events, setEvents] = useState([]);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
@@ -177,7 +181,8 @@ export function ActivityLogTable() {
           'activityLogTabId',
           'activityLogObjects',
           'activityLogType',
-          'activityLogInstance'
+          'activityLogInstance',
+          'activityLogOrigin'
         ]);
         const loadedObjects = result.activityLogObjects || [];
         setObjects(loadedObjects);
@@ -187,6 +192,7 @@ export function ActivityLogTable() {
         setActivityLogType(activityLogType);
         const instance = result.activityLogInstance || null;
         setDomoInstance(instance);
+        setDomoOrigin(result.activityLogOrigin || instanceOriginFromKey(instance));
 
         // Initialize state for each object
         const initialStates = {};
@@ -359,9 +365,9 @@ export function ActivityLogTable() {
   const resolvedUrlKeysRef = useRef(new Set());
 
   useEffect(() => {
-    if (!domoInstance || !tabId || events.length === 0) return;
+    if (!domoOrigin || !tabId || events.length === 0) return;
 
-    const baseUrl = `https://${domoInstance}.domo.com`;
+    const baseUrl = domoOrigin;
 
     resolveTabId().then((resolvedTabId) => {
       if (!resolvedTabId) return;
@@ -417,7 +423,7 @@ export function ActivityLogTable() {
         });
       });
     });
-  }, [events, domoInstance, tabId, resolveTabId]);
+  }, [events, domoOrigin, tabId, resolveTabId]);
 
   // Define columns. Time-column sort is server-side when source==='dataset'
   // (manualSort=true skips DataTable's local sort; toggling direction triggers
@@ -428,17 +434,17 @@ export function ActivityLogTable() {
   // Source (sourceId/sourceName/sourceType) on dataset since the dataset has
   // no description field but does carry actor info the API doesn't expose.
   const columns = useMemo(() => {
-    const baseUrl = domoInstance ? `https://${domoInstance}.domo.com` : null;
+    const baseUrl = domoOrigin || null;
     const actionTranslations = Object.fromEntries(actionOptions.map((a) => [a.type, a.translation]));
     const isDataset = source === 'dataset';
     return [
       createTimestampColumn({ manualSort: isDataset }),
-      createUserColumn({ customAvatarIds, domoInstance, inactiveUserIds, userNameMap }),
+      createUserColumn({ customAvatarIds, domoOrigin, inactiveUserIds, userNameMap }),
       createActionColumn({ actionTranslations }),
       createObjectColumn({ baseUrl, objectUrlMap }),
       isDataset ? createSourceColumn({ objectUrlMap }) : createAdditionalCommentColumn()
     ];
-  }, [domoInstance, tabId, actionOptions, customAvatarIds, inactiveUserIds, objectUrlMap, source, userNameMap]);
+  }, [domoOrigin, tabId, actionOptions, customAvatarIds, inactiveUserIds, objectUrlMap, source, userNameMap]);
 
   // Set initial column visibility based on number of objects
   const initialColumnVisibility = useMemo(
@@ -952,9 +958,7 @@ export function ActivityLogTable() {
                     <Dropdown.Item id={action.type} key={action.type} textValue={action.translation}>
                       <Dropdown.ItemIndicator>
                         {({ isSelected }) => (
-                          <AnimatePresence>
-                            {isSelected && <AnimatedCheck className='text-muted' />}
-                          </AnimatePresence>
+                          <AnimatePresence>{isSelected && <AnimatedCheck className='text-muted' />}</AnimatePresence>
                         )}
                       </Dropdown.ItemIndicator>
                       <Label>
@@ -986,9 +990,7 @@ export function ActivityLogTable() {
                     <Dropdown.Item id={type} key={type} textValue={type}>
                       <Dropdown.ItemIndicator>
                         {({ isSelected }) => (
-                          <AnimatePresence>
-                            {isSelected && <AnimatedCheck className='text-muted' />}
-                          </AnimatePresence>
+                          <AnimatePresence>{isSelected && <AnimatedCheck className='text-muted' />}</AnimatePresence>
                         )}
                       </Dropdown.ItemIndicator>
                       <Label>{type}</Label>
@@ -1000,7 +1002,7 @@ export function ActivityLogTable() {
           )}
         </ButtonGroup>
         <UserFilterAutocomplete
-          domoInstance={domoInstance}
+          domoOrigin={domoOrigin}
           mode={userFilterMode}
           tabId={tabId}
           value={userFilter}
@@ -1016,7 +1018,7 @@ export function ActivityLogTable() {
       actionOptions,
       objectTypeOptions,
       objectTypeFilter,
-      domoInstance,
+      domoOrigin,
       tabId,
       userFilter,
       userFilterMode
@@ -1498,14 +1500,13 @@ function createTimestampColumn({ allowsSorting = true, key = 'time', manualSort 
  */
 function createUserColumn({
   customAvatarIds = new Set(),
-  domoInstance = null,
+  domoOrigin = null,
   idKey = 'userId',
   inactiveUserIds = new Set(),
   nameKey = 'userName',
   userNameMap = {}
 } = {}) {
-  const getAvatarUrl = (userId) =>
-    domoInstance ? `https://${domoInstance}.domo.com/api/content/v1/avatar/USER/${userId}?size=100` : null;
+  const getAvatarUrl = (userId) => (domoOrigin ? `${domoOrigin}/api/content/v1/avatar/USER/${userId}?size=100` : null);
 
   return {
     accessor: (row) => row[nameKey] || (row[idKey] != null ? userNameMap[row[idKey]] : null),
@@ -1525,10 +1526,10 @@ function createUserColumn({
             {inactiveUserIds.has(id) && <InactiveUserOverlay />}
           </Avatar>
           <div className='flex min-w-0 flex-col'>
-            {id && domoInstance ? (
+            {id && domoOrigin ? (
               <a
                 className='truncate text-sm font-medium text-foreground no-underline decoration-accent/80 hover:text-accent/80 hover:underline'
-                href={`https://${domoInstance}.domo.com/admin/people/${id}?tab=profile`}
+                href={`${domoOrigin}/admin/people/${id}?tab=profile`}
                 rel='noopener noreferrer'
                 target='_blank'
                 title={name}

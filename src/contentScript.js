@@ -1,8 +1,16 @@
 import { applyFaviconRules, applyInstanceLogoAuto } from './faviconModifier';
+import { isLocalDomoHostname } from './utils/instance';
 
 // Apply favicon rules - called by service worker
 async function applyFavicon() {
   try {
+    // A *.localhost host could be any local dev server, so don't touch its favicon
+    // until the background has confirmed it is really running Domo. That check runs
+    // in the MAIN world, which this ISOLATED-world script can't reach itself.
+    if (isLocalDomoHostname(location.hostname) && !(await isConfirmedDomoOrigin())) {
+      return;
+    }
+
     const result = await chrome.storage.sync.get(['faviconRules']);
     if (result.faviconRules && result.faviconRules.length > 0) {
       // If rules are configured, apply them (they take precedence)
@@ -13,6 +21,19 @@ async function applyFavicon() {
     }
   } catch (error) {
     console.error('Error applying favicon rules:', error);
+  }
+}
+
+/**
+ * Ask the background whether this page's origin is a confirmed Domo instance.
+ * @returns {Promise<boolean>}
+ */
+async function isConfirmedDomoOrigin() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'IS_VERIFIED_DOMO_ORIGIN' });
+    return response?.confirmed === true;
+  } catch {
+    return false;
   }
 }
 

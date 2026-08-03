@@ -2,6 +2,7 @@ import { Accordion, Button, Card, Chip, ScrollShadow, Separator, Switch } from '
 import { Fragment } from 'react';
 
 import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
+import { instanceLabel } from '@/utils/instance';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 
@@ -65,14 +66,14 @@ export function PerInstanceSettings() {
                   <Card.Header className='flex flex-row items-center justify-between gap-2'>
                     <Card.Title className='min-w-0'>
                       <Chip className='max-w-full' color='accent' variant='soft'>
-                        <Chip.Label className='truncate' title={`${instance}.domo.com`}>
-                          {instance}.domo.com
+                        <Chip.Label className='truncate' title={instanceLabel(instance)}>
+                          {instanceLabel(instance)}
                         </Chip.Label>
                       </Chip>
                     </Card.Title>
                     <Button
                       isIconOnly
-                      aria-label={`Delete ${instance}.domo.com`}
+                      aria-label={`Delete ${instanceLabel(instance)}`}
                       className='shrink-0'
                       variant='tertiary'
                       onPress={() => clear(instance)}

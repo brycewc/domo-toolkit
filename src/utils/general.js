@@ -204,6 +204,21 @@ export function isUserFieldName(fieldName) {
   );
 }
 
+/**
+ * The pathname of a URL, or the input unchanged if it doesn't parse. Prefer this
+ * over substring-matching a full URL when testing for a route, since an instance
+ * host can carry a port and need not contain "domo.com" at all.
+ * @param {string} url - A full URL string
+ * @returns {string|null}
+ */
+export function pathnameOf(url) {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url ?? null;
+  }
+}
+
 function isValidEntityId(value) {
   const num = Number(value);
   return Number.isInteger(num) && num >= 1 && num <= 9_999_999_999;

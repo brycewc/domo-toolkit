@@ -4,6 +4,7 @@
  */
 
 import { EXCLUDED_HOSTNAMES } from './utils/constants';
+import { instanceKeyFromUrl } from './utils/instance';
 
 /**
  * Apply favicon modifications based on rules
@@ -29,16 +30,14 @@ export async function applyFaviconRules(rules) {
     return;
   }
 
-  // Extract subdomain from current URL
-  const subdomainMatch = hostname.match(/^(.+?)\.domo\.com$/);
+  // The instance key is what rule patterns are tested against: a bare subdomain
+  // for a hosted instance, or the full address with its port for a local one.
+  const subdomain = instanceKeyFromUrl(location.href);
 
-  if (!subdomainMatch) {
+  if (!subdomain) {
     // console.log('Not a Domo instance URL');
     return;
   }
-
-  const subdomain = subdomainMatch[1];
-  // console.log('Current subdomain:', subdomain);
 
   // Find the first matching rule
   // IMPORTANT: Rules are checked in array order (top to bottom in the UI).
@@ -106,7 +105,7 @@ export async function applyFaviconRules(rules) {
 }
 
 /**
- * Automatically apply instance logo for any .domo.com domain
+ * Automatically apply instance logo for any Domo instance, hosted or local
  * This runs automatically when visiting a new domain, regardless of configured rules
  */
 export async function applyInstanceLogoAuto() {
@@ -121,14 +120,11 @@ export async function applyInstanceLogoAuto() {
     return;
   }
 
-  // Extract subdomain from current URL
-  const subdomainMatch = hostname.match(/^(.+?)\.domo\.com$/);
+  const subdomain = instanceKeyFromUrl(location.href);
 
-  if (!subdomainMatch) {
+  if (!subdomain) {
     return;
   }
-
-  const subdomain = subdomainMatch[1];
 
   // Get the favicon element
   const favicon = getFavicon();

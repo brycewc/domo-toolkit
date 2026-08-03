@@ -3,10 +3,9 @@ import { useEffect, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { clearCookies } from '@/utils/clearCookies';
+import { DOMO_MATCH_PATTERNS, EXCLUDED_HOSTNAMES } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
 import IconCookieOff from '@icons/cookie-off.svg?react';
-
-const EXCLUDED_HOSTNAMES = ['domo-support.domo.com', 'developer.domo.com', 'www.domo.com', 'domo.com'];
 
 export function ClearCookies({ currentContext, isDisabled }) {
   const [showButton, setShowButton] = useState(false);
@@ -95,7 +94,9 @@ export function ClearCookies({ currentContext, isDisabled }) {
 }
 
 async function getDomainsToPreserve() {
-  const allTabs = await chrome.tabs.query({ url: '*://*.domo.com/*' });
+  // Includes locally run instances: leaving them out meant a lone local tab fell
+  // through to the clear-everything branch and logged the developer out.
+  const allTabs = await chrome.tabs.query({ url: DOMO_MATCH_PATTERNS });
   const domoTabs = allTabs.filter((tab) => {
     try {
       const tabHostname = new URL(tab.url).hostname;
