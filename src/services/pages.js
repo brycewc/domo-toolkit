@@ -167,6 +167,7 @@ export async function deletePageAndAllCards({
       const cardNoun = `**${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's' : ''}**`;
       const cardPhrase = cardScope === 'onlyHere' ? `${cardNoun} that only lived here` : `all ${cardNoun}`;
       return {
+        cardIds,
         cardsDeleted: result.cardsDeleted,
         statusDescription: `Page **${pageId}** and ${cardPhrase} were deleted successfully`,
         statusTitle: 'Delete Successful',

@@ -19,7 +19,7 @@ import { getChildPages } from './pages';
  * @param {string|number|null} [params.currentPageId] - The page the user is on (fallback path only)
  * @param {string|null} [params.currentPageType] - 'DATA_APP_VIEW' or 'WORKSHEET_VIEW' (fallback path only)
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<{cardCount: number}>} Number of cards deleted
+ * @returns {Promise<{cardCount: number, cardIds: number[]}>} Number of cards deleted, and which ones
  */
 export async function deleteAppAndAllContent({
   appId,
@@ -82,7 +82,7 @@ export async function deleteAppAndAllContent({
     tabId
   );
 
-  return { cardCount: ids.length };
+  return { cardCount: ids.length, cardIds: ids };
 }
 
 /**

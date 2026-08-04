@@ -15,6 +15,7 @@ import { deleteDataset } from '@/services/datasets';
 import { deleteObject } from '@/services/deleteObject';
 import { getDependenciesForDelete } from '@/services/dependencies';
 import { deletePageAndAllCards } from '@/services/pages';
+import { redirectTabIfViewingObject } from '@/utils/currentObject';
 import { parseMarkdownBold } from '@/utils/markdown';
 import { collectShareableObjects } from '@/utils/rowActions';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -74,12 +75,18 @@ const deletersByType = {
             currentPageType: context.domoObject.typeId,
             tabId: context.tabId
           });
-          // The tab is still on the now-deleted app's page, so send it to the
-          // matching App Studio list: worksheets have their own tab, everything
-          // else lands on the main app-studio list.
-          const origin = `https://${context.instance}.domo.com`;
+          // If the tab is still on anything the cascade just deleted, send it to
+          // the matching App Studio list: worksheets have their own tab,
+          // everything else lands on the main app-studio list. The app ID covers
+          // every one of its pages, since they all carry it in their URL, and the
+          // deleted card IDs cover a card opened on its own.
+          const origin = context.origin;
           const listPath = context.domoObject.typeId === 'WORKSHEET_VIEW' ? '/app-studio/worksheets' : '/app-studio';
-          chrome.tabs.update(context.tabId, { url: `${origin}${listPath}` });
+          await redirectTabIfViewingObject({
+            ids: [appId, context.domoObject.id, ...(result.cardIds || [])],
+            tabId: context.tabId,
+            url: `${origin}${listPath}`
+          });
           return result;
         },
         successMessage: ({ appName }, result) =>
@@ -136,7 +143,7 @@ const deletersByType = {
           `Delete the datastore **${datastoreName} (ID: ${datastoreId})** and all **${collectionCount} collection${collectionCount !== 1 ? 's' : ''}** it contains permanently? This cannot be undone.`,
         label: () => 'Delete Datastore and All Collections',
         loadingMessage: ({ datastoreName }) => `Deleting **${datastoreName}** and all its collections…`,
-        run: async ({ context }) => {
+        run: async ({ context, deps }) => {
           const result = await deleteDatastoreAndAllCollections({
             datastoreId: context.domoObject.parentId,
             tabId: context.tabId
@@ -150,10 +157,17 @@ const deletersByType = {
             }
             throw new Error(`Collections deleted, but datastore deletion failed (HTTP ${result.statusCode}).`);
           }
-          // The tab is still on the now-deleted collection's page, so send it to
-          // the AppDB list.
-          const origin = `https://${context.instance}.domo.com`;
-          chrome.tabs.update(context.tabId, { url: `${origin}/appDb` });
+          // If the tab is still on any of the now-deleted collections (this one or
+          // a sibling in the same datastore), send it to the AppDB list.
+          const siblingIds = ((deps?.groups || []).find((g) => g.key === 'siblingCollections')?.items || []).map(
+            (item) => item.id
+          );
+          const origin = context.origin;
+          await redirectTabIfViewingObject({
+            ids: [context.domoObject.id, ...siblingIds],
+            tabId: context.tabId,
+            url: `${origin}/appDb`
+          });
           return result;
         },
         successMessage: ({ datastoreName }, result) =>
@@ -168,10 +182,14 @@ const deletersByType = {
       if (result.statusType !== 'success') {
         throw new Error(result.statusDescription || 'Delete failed');
       }
-      // The tab is still on the now-deleted collection's page, so send it to the
+      // If the tab is still on the now-deleted collection's page, send it to the
       // AppDB list.
-      const origin = `https://${context.instance}.domo.com`;
-      chrome.tabs.update(context.tabId, { url: `${origin}/appDb` });
+      const origin = context.origin;
+      await redirectTabIfViewingObject({
+        ids: [context.domoObject.id],
+        tabId: context.tabId,
+        url: `${origin}/appDb`
+      });
       return result;
     },
     typeName: 'Collection'
@@ -241,7 +259,11 @@ const deletersByType = {
         throw new Error(result.statusDescription || 'Delete failed');
       }
       const origin = context.origin;
-      chrome.tabs.update(context.tabId, { url: `${origin}/workflows` });
+      await redirectTabIfViewingObject({
+        ids: [context.domoObject.id],
+        tabId: context.tabId,
+        url: `${origin}/workflows`
+      });
       return result;
     },
     typeName: 'Workflow'
@@ -805,16 +827,25 @@ async function runPageDelete({ cardScope = 'all', context, parentAppId = null })
   if (!result.success) {
     throw new Error(result.statusDescription || 'Failed to delete page');
   }
-  // The tab is still on the now-deleted page, so send it somewhere valid. This
-  // path deletes only the page, not its app, so an app studio or worksheet page
-  // (the ones carrying a parentAppId) returns to its still-existing app, where
-  // /app-studio/<appId> opens the app's default page. A regular page has no
-  // parent app to fall back to, so it goes to Domo's default page (-100000),
-  // which every instance resolves to the user's Overview. The full-app cascade
-  // deletes handle their own redirect to the App Studio list.
-  const origin = `https://${context.instance}.domo.com`;
+  // If the tab is still on the now-deleted page, or on one of the cards that went
+  // with it, send it somewhere valid. This path deletes only the page, not its
+  // app, so an app studio or worksheet page (the ones carrying a parentAppId)
+  // returns to its still-existing app, where /app-studio/<appId> opens the app's
+  // default page. A regular page has no parent app to fall back to, so it goes to
+  // Domo's default page (-100000), which every instance resolves to the user's
+  // Overview. The full-app cascade deletes handle their own redirect to the App
+  // Studio list.
+  //
+  // The card IDs come from the delete itself rather than the dependency check, so
+  // the "only live here" scope contributes just the cards it actually removed and
+  // a card that left the page since the check is never counted as deleted.
+  const origin = context.origin;
   const redirectUrl = parentAppId ? `${origin}/app-studio/${parentAppId}` : `${origin}/page/-100000`;
-  chrome.tabs.update(context.tabId, { url: redirectUrl });
+  await redirectTabIfViewingObject({
+    ids: [context.domoObject.id, ...(result.cardIds || [])],
+    tabId: context.tabId,
+    url: redirectUrl
+  });
   return result;
 }
 

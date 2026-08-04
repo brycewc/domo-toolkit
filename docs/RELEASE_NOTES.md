@@ -160,6 +160,7 @@
 - When deleting a page in an App Studio app, each of the app's other pages now expands to list the cards on it.
 - The delete confirmation now disables its delete buttons while the dependency check is still running, and keeps them disabled if that check fails.
 - Deleting an object now sends you somewhere useful instead of leaving you on its broken page: an entire app and its cards to App Studio, a page to your Overview, a single App Studio or worksheet page to its app, and an AppDB collection to the AppDB list.
+- Deleting an object no longer navigates your tab when you moved it off the object before confirming the delete.
 
 ### Migrate Content
 

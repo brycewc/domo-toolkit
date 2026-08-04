@@ -742,3 +742,51 @@ export function isDomoUrl(url) {
     return false;
   }
 }
+
+/**
+ * Send a tab somewhere else, but only if it is still showing one of the given
+ * objects. Used after a delete: the tab needs rescuing from a page that no
+ * longer exists, yet if the user has since navigated elsewhere (a different
+ * page, the Data Center, another site entirely) then yanking them away from
+ * whatever they moved on to is worse than doing nothing.
+ *
+ * "Still showing" is answered from the tab's live URL rather than the cached
+ * detected context, because the cache only refreshes on Domo URLs: navigating
+ * the tab off Domo leaves the old object cached and would read as still there.
+ * A tab counts as showing an object when its URL carries that object's ID as a
+ * whole path segment or parameter value, so a nested view of the same object
+ * (a card modal over a page, a collection's other tabs) still qualifies.
+ * @param {Object} options
+ * @param {Array<string|number>} options.ids - IDs of the deleted objects; any one of them appearing in the tab's URL means the tab is still on deleted content
+ * @param {number} options.tabId - Tab to redirect
+ * @param {string} options.url - Where to send the tab
+ * @returns {Promise<boolean>} True when the tab was redirected
+ */
+export async function redirectTabIfViewingObject({ ids, tabId, url }) {
+  let tabUrl;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    tabUrl = tab?.url;
+  } catch {
+    // Tab was closed, so there is nothing to rescue
+    return false;
+  }
+  if (!tabUrl) return false;
+
+  // A tab moved to another instance (or another site) is not on the deleted
+  // object, however familiar the IDs in its URL look.
+  try {
+    if (new URL(tabUrl).origin !== new URL(url).origin) return false;
+  } catch {
+    return false;
+  }
+
+  // Split on every URL delimiter so an ID matches only a whole segment or value,
+  // never a digit run inside a longer ID.
+  const tokens = new Set(tabUrl.toLowerCase().split(/[^a-z0-9-]+/));
+  const isViewing = (ids || []).some((id) => id != null && tokens.has(String(id).toLowerCase()));
+  if (!isViewing) return false;
+
+  await chrome.tabs.update(tabId, { url });
+  return true;
+}
