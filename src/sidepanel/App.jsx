@@ -47,6 +47,7 @@ export default function App() {
   const [instanceViews, setInstanceViews] = useState({});
   // Sticky: only a Domo page can change it, so non-Domo tabs keep the current view.
   const [activeInstance, setActiveInstance] = useState(null);
+  const [blockedLocalInstance, setBlockedLocalInstance] = useState(null);
   const [currentContext, setCurrentContext] = useState(null);
   const [currentTabId, setCurrentTabId] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
@@ -173,6 +174,7 @@ export default function App() {
           // Reconstruct DomoContext from plain object to get class instance with
           // methods; always pass the tab ID so we receive updates for this tab
           const context = response.context ? DomoContext.fromJSON(response.context) : null;
+          setBlockedLocalInstance(response.blockedLocalInstance || null);
           applyContext(context, response.tabId);
         } else {
           applyContext(null, null);
@@ -192,6 +194,7 @@ export default function App() {
       if (message.type === 'TAB_CONTEXT_UPDATED') {
         if (message.tabId === currentTabId) {
           const context = message.context ? DomoContext.fromJSON(message.context) : null;
+          setBlockedLocalInstance(message.blockedLocalInstance || null);
           applyContext(context);
         }
         sendResponse({ received: true });
@@ -561,7 +564,12 @@ export default function App() {
           onStatusUpdate={showStatus}
         />
 
-        <ContextFooter currentContext={currentContext} isLoading={isLoadingCurrentContext} onStatusUpdate={showStatus} />
+        <ContextFooter
+          blockedLocalInstance={blockedLocalInstance}
+          currentContext={currentContext}
+          isLoading={isLoadingCurrentContext}
+          onStatusUpdate={showStatus}
+        />
 
         {/* Every visited instance's view stays mounted, stacked, with inactive ones
             visibility-hidden. display:none would zero the scroll element, collapsing

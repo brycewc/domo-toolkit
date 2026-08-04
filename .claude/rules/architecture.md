@@ -59,6 +59,30 @@ script for those hosts is registered at runtime instead of declared in the manif
 only _looks_ like Domo, so `confirmDomoTab()` in `background.js` probes the page for `window.bootstrap` and
 caches positive verdicts per origin in `chrome.storage.session`.
 
+**Never assume the browser will keep the extension off a local host.** `activeTab` grants host access,
+`chrome.scripting` included, to whatever tab the user invokes the extension on, and invoking a keyboard command
+counts as invoking it. The permission must therefore be checked in code. Three places do it, and new code
+touching a page needs to respect one of them:
+
+- `canActOnHost()` (`utils/localInstance.js`) gates `executeInPage()` / `executeInAllFrames()`, which covers
+  every service and action. Anything reaching a page through `executeInPage` is already safe.
+- `confirmDomoTab()` checks it before the probe **and** before the verified-origin cache, so revoking takes
+  effect at once and a cached verdict can never grant access.
+- `isActionableDomoUrl()` in `background.js` gates the synchronous tab handling (title management,
+  content-script injection, the tab-iteration loops) on `localAccessGranted`, a cached mirror of the
+  permission. That flag is only a fast pre-filter; the two checks above re-read the real permission, so a stale
+  `true` cannot grant access.
+
+Code that calls `chrome.scripting` **directly** rather than through `executeInPage` (the title helpers,
+`utils/copyToClipboard.js`) has to gate itself; that is what made the first version of this leak.
+
+A blocked local tab is not reported as "not a Domo instance". `blockedLocalInstance()` rides along on
+`GET_TAB_CONTEXT` and `TAB_CONTEXT_UPDATED`, and `ContextFooter` turns it into a prompt with an inline
+"Enable Local Instances" button, so the opt-in is reachable without visiting the options page. Requesting an
+optional permission needs a live user gesture, so it runs straight off the click; Chrome's dialog can dismiss
+the popup before the promise settles, which is harmless because the background's `permissions.onAdded` listener
+does the registration and re-detects local tabs either way.
+
 ## Core Models
 
 - **DomoContext** (`src/models/DomoContext.js`) — Tab's full context (tabId, URL, instance, origin, detected object). Serializable via `toJSON()`/`fromJSON()`.

@@ -236,6 +236,22 @@ let removeDomoTitleSuffix = false;
 let localAccessGranted = false;
 
 /**
+ * The instance key for a tab we are deliberately not acting on because it looks
+ * like a locally run Domo instance the user has not opted in to. Lets the popup
+ * offer the opt-in instead of claiming the tab is not Domo at all.
+ * @param {string} url - A full URL string
+ * @returns {string|null} The local instance key, or null if this is not that case
+ */
+function blockedLocalInstance(url) {
+  try {
+    const { host, hostname } = new URL(url);
+    return isLocalDomoHostname(hostname) && !localAccessGranted ? host : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Confirm a tab really is a Domo page.
  *
  * Hosted instances are settled by their hostname alone. A `*.localhost` host has
@@ -872,6 +888,14 @@ chrome.permissions.onAdded.addListener(async (permissions) => {
   if (permissions.origins?.includes(LOCAL_MATCH_PATTERN)) {
     localAccessGranted = true;
     await registerLocalContentScript();
+    // Detect the local tabs that were being skipped, so the popup fills in as soon
+    // as the user opts in rather than waiting for the next navigation.
+    const tabs = await chrome.tabs.query({ url: DOMO_MATCH_PATTERNS });
+    for (const tab of tabs) {
+      if (tab.url && isActionableDomoUrl(tab.url) && isLocalInstanceKey(instanceKeyFromUrl(tab.url) || '')) {
+        await detectAndStoreContext(tab.id);
+      }
+    }
   }
 });
 
@@ -1249,10 +1273,14 @@ async function detectAndStoreContext(tabId) {
       tabAccessTimes.delete(tabId);
       persistToSession();
 
-      // Broadcast null context to extension pages so they update their UI
-      if (hadContext) {
+      // Broadcast null context to extension pages so they update their UI. A
+      // blocked local instance rides along so the UI can offer the opt-in rather
+      // than reporting the tab as not being Domo at all.
+      const blocked = tab?.url ? blockedLocalInstance(tab.url) : null;
+      if (hadContext || blocked) {
         chrome.runtime
           .sendMessage({
+            blockedLocalInstance: blocked,
             context: null,
             tabId: tabId,
             type: 'TAB_CONTEXT_UPDATED'
@@ -1715,9 +1743,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (!context) {
               // Trigger detection if not cached
               const detected = await detectAndStoreContext(tabId);
-              sendResponse({ context: detected?.toJSON(), success: true });
+              let blocked = null;
+              if (!detected) {
+                const tab = await chrome.tabs.get(tabId).catch(() => null);
+                blocked = tab?.url ? blockedLocalInstance(tab.url) : null;
+              }
+              sendResponse({ blockedLocalInstance: blocked, context: detected?.toJSON(), success: true });
             } else {
-              sendResponse({ context: context?.toJSON(), success: true });
+              sendResponse({ blockedLocalInstance: null, context: context?.toJSON(), success: true });
             }
             return;
           }
@@ -1742,6 +1775,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
 
           sendResponse({
+            blockedLocalInstance: context ? null : blockedLocalInstance(tabs[0].url),
             context: context?.toJSON(),
             success: true,
             tabId: activeTabId

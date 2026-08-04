@@ -98,7 +98,7 @@ export function DeleteUnusedBeastModesView({
         objectId: domoObject.id,
         objectName: domoObject.metadata?.name || `${objectType} ${domoObject.id}`,
         objectType,
-        origin: `https://${context.instance}.domo.com`,
+        origin: context.origin,
         tabId
       });
     } catch (err) {

@@ -1,4 +1,4 @@
-import { Chip, Disclosure, Link, ScrollShadow, Skeleton, Spinner, Tabs, Tooltip } from '@heroui/react';
+import { Button, Chip, Disclosure, Link, ScrollShadow, Skeleton, Spinner, Tabs, Tooltip } from '@heroui/react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import JsonView from 'react18-json-view';
 
@@ -18,6 +18,7 @@ import { copyJsonNode } from '@/utils/copyToClipboard';
 import { executeInPage } from '@/utils/executeInPage';
 import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import { instanceLabel } from '@/utils/instance';
+import { requestLocalAccess } from '@/utils/localInstance';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
 // Maps relatedData[].fetcher key → (params) => Promise<Array>. Lives here
@@ -80,9 +81,16 @@ import { UserIdAnnotation } from './UserIdAnnotation';
 const RELATED_CACHE_TTL_MS = 300 * 1000; // 300 seconds
 const relatedDataCache = new Map(); // chromeTabId -> { objectId, entries: Map<tabKey, { data, timestamp }> }
 
-export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onStatusUpdate, viewportHeightCap }) {
+export function ContextFooter({
+  blockedLocalInstance = null,
+  currentContext,
+  isLoading,
+  onStatusUpdate: _onStatusUpdate,
+  viewportHeightCap
+}) {
   const [developerMode, setDeveloperMode] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isEnablingLocal, setIsEnablingLocal] = useState(false);
   const [scrollMaxHeight, setScrollMaxHeight] = useState(undefined);
   const scrollWrapperRef = useRef(null);
   // The scroll viewport for the JSON area. Handed to JsonView's scrollRef so the
@@ -519,6 +527,22 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
     return <p className='py-2 text-center text-sm text-muted'>Select this tab to load details</p>;
   };
 
+  // Requesting an optional permission needs a live user gesture, so this runs
+  // straight off the click. In the popup Chrome's confirmation dialog can dismiss
+  // the popup before the promise settles; that is fine, because the background's
+  // permissions.onAdded listener does the registration and re-detection either way,
+  // so reopening the popup shows the instance.
+  const handleEnableLocalAccess = async () => {
+    setIsEnablingLocal(true);
+    try {
+      await requestLocalAccess();
+    } catch (error) {
+      console.error('[ContextFooter] Could not request local instance access:', error);
+    } finally {
+      setIsEnablingLocal(false);
+    }
+  };
+
   const alertContent = (
     <Alert className='min-h-25 w-full p-2' status={currentContext?.isDomoPage || isLoading ? 'accent' : 'warning'}>
       <Alert.Content className='flex h-auto min-w-0 flex-col items-start gap-1 self-stretch'>
@@ -578,6 +602,18 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                     </Tooltip.Content>
                   </Tooltip>
                 </div>
+              ) : blockedLocalInstance ? (
+                <div className='flex min-w-0 flex-1 items-center gap-x-1'>
+                  <span className='shrink-0'>Local Instance</span>
+                  <Tooltip>
+                    <Tooltip.Trigger className='flex min-w-0 items-center'>
+                      <Chip className='min-w-0 shrink lowercase' color='warning' size='sm' variant='soft'>
+                        <Chip.Label className='min-w-0 truncate'>{blockedLocalInstance}</Chip.Label>
+                      </Chip>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content className='max-w-60'>Instance: {blockedLocalInstance}</Tooltip.Content>
+                  </Tooltip>
+                </div>
               ) : (
                 'Not a Domo Instance'
               )}
@@ -608,6 +644,14 @@ export function ContextFooter({ currentContext, isLoading, onStatusUpdate: _onSt
                     </span>
                   </>
                 )
+              ) : blockedLocalInstance ? (
+                <div className='flex w-full min-w-0 flex-col items-start gap-1'>
+                  <span className='w-full text-left font-medium'>The toolkit needs your permission to run here</span>
+                  <Button isDisabled={isEnablingLocal} size='sm' variant='primary' onPress={handleEnableLocalAccess}>
+                    {isEnablingLocal ? <Spinner size='sm' /> : null}
+                    Enable Local Instances
+                  </Button>
+                </div>
               ) : (
                 <span className='w-full truncate text-left font-medium'>
                   Navigate to an instance to enable most features
