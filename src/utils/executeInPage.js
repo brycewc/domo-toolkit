@@ -1,4 +1,5 @@
 import { isDomoUrl } from './currentObject';
+import { canActOnHost } from './localInstance';
 
 /**
  * Execute a function in ALL frames in the page context (MAIN world)
@@ -37,6 +38,11 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
     const tab = await chrome.tabs.get(targetTabId);
     if (!tab.url || !isDomoUrl(tab.url)) {
       throw new Error('Not on a Domo page');
+    }
+    // A local instance additionally requires the opt-in permission. activeTab
+    // would otherwise let this run on a local page the user never enabled.
+    if (!(await canActOnHost(tab.url))) {
+      throw new Error('Local Domo instances are off. Turn them on in the extension options to use the toolkit here.');
     }
 
     const allFramesTarget = { allFrames: true, tabId: targetTabId };
@@ -134,6 +140,11 @@ export async function executeInPage(func, args = [], tabId = null) {
     const tab = await chrome.tabs.get(targetTabId);
     if (!tab.url || !isDomoUrl(tab.url)) {
       throw new Error('Not on a Domo page');
+    }
+    // A local instance additionally requires the opt-in permission. activeTab
+    // would otherwise let this run on a local page the user never enabled.
+    if (!(await canActOnHost(tab.url))) {
+      throw new Error('Local Domo instances are off. Turn them on in the extension options to use the toolkit here.');
     }
 
     const target = { tabId: targetTabId };

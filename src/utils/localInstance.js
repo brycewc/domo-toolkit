@@ -1,4 +1,5 @@
 import { EXCLUDED_HOSTNAMES, LOCAL_MATCH_PATTERN } from './constants';
+import { isLocalDomoHostname } from './instance';
 
 /**
  * Opt-in access to locally run Domo instances.
@@ -16,6 +17,27 @@ import { EXCLUDED_HOSTNAMES, LOCAL_MATCH_PATTERN } from './constants';
  */
 
 const CONTENT_SCRIPT_ID = 'local-domo-instances';
+
+/**
+ * Whether the extension is allowed to act on a URL's host at all.
+ *
+ * Hosted Domo hosts always are. A local host requires the opt-in permission, and
+ * that has to be checked rather than left to the browser: `activeTab` grants host
+ * access to whatever tab the user opened the popup on, so scripting a local page
+ * succeeds even when the optional permission was never granted.
+ * @param {string} url - A full URL string
+ * @returns {Promise<boolean>}
+ */
+export async function canActOnHost(url) {
+  try {
+    if (!isLocalDomoHostname(new URL(url).hostname)) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return hasLocalAccess();
+}
 
 /**
  * Whether the user has granted access to local Domo instances.

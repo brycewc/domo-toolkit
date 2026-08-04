@@ -13,7 +13,7 @@ import { copyToClipboard } from '@/utils/copyToClipboard';
 import { detectCurrentObject, isDomoUrl } from '@/utils/currentObject';
 import { executeInPage } from '@/utils/executeInPage';
 import { pathnameOf } from '@/utils/general';
-import { instanceKeyFromUrl, isLocalDomoHostname } from '@/utils/instance';
+import { instanceKeyFromUrl, isLocalDomoHostname, isLocalInstanceKey } from '@/utils/instance';
 import { hasLocalAccess, registerLocalContentScript, unregisterLocalContentScript } from '@/utils/localInstance';
 import { sidepanelStorageKeyPrefix } from '@/utils/sidepanel';
 
@@ -228,14 +228,30 @@ const verifiedLocalOrigins = new Set();
 // Cached setting: omit the " - Domo" suffix when renaming Domo tabs (synced from storage)
 let removeDomoTitleSuffix = false;
 
+// Mirror of the optional localhost permission, so the synchronous tab-handling
+// paths (title management, content-script injection) can gate on it without an
+// await. Only a fast pre-filter: confirmDomoTab and canActOnHost re-check the
+// real permission, so a stale `true` here cannot grant access. A stale `false`
+// merely skips work until the next tab event.
+let localAccessGranted = false;
+
 /**
  * Confirm a tab really is a Domo page.
  *
- * Hosted instances are settled by their hostname alone. A `*.localhost` host is
- * only a candidate, since any local dev server can sit on one, so it is probed in
- * the page for Domo's `window.bootstrap` global. Positive verdicts are cached per
- * origin; negative ones are not, so a page that had not assigned `bootstrap` yet
- * (or an unauthenticated login page, which never does) can still pass later.
+ * Hosted instances are settled by their hostname alone. A `*.localhost` host has
+ * to clear two separate bars:
+ *
+ *   1. The user has opted in to local instances. This must be checked, not just
+ *      left to the browser: `activeTab` grants host access to whatever tab the
+ *      user opened the popup on, so scripting a local page succeeds even with the
+ *      optional permission never granted. Without this check, local support turns
+ *      itself on the moment the popup is opened on a local tab.
+ *   2. The page is actually running Domo, since any local dev server can sit on a
+ *      `*.localhost` host. Probed in the page for Domo's `window.bootstrap`.
+ *
+ * Positive verdicts are cached per origin; negative ones are not, so a page that
+ * had not assigned `bootstrap` yet (or an unauthenticated login page, which never
+ * does) can still pass later.
  * @param {chrome.tabs.Tab} tab - The tab to confirm
  * @returns {Promise<boolean>}
  */
@@ -248,6 +264,10 @@ async function confirmDomoTab(tab) {
     }
     origin = url.origin;
   } catch {
+    return false;
+  }
+
+  if (!(await hasLocalAccess())) {
     return false;
   }
 
@@ -342,6 +362,23 @@ function invalidateInstanceUser(instance) {
   instanceUserCache.delete(instance);
   persistInstanceUsers();
   console.log(`[Background] Invalidated user cache for instance: ${instance}`);
+}
+
+/**
+ * Whether the extension should act on a tab at all: a Domo URL that is either
+ * hosted, or local with the opt-in permission granted.
+ * @param {string} url - A full URL string
+ * @returns {boolean}
+ */
+function isActionableDomoUrl(url) {
+  if (!isDomoUrl(url)) {
+    return false;
+  }
+  try {
+    return !isLocalDomoHostname(new URL(url).hostname) || localAccessGranted;
+  } catch {
+    return false;
+  }
 }
 
 // Per-tab API error storage
@@ -833,23 +870,45 @@ chrome.runtime.onInstalled.addListener((details) => {
 // own extension settings rather than from our options page.
 chrome.permissions.onAdded.addListener(async (permissions) => {
   if (permissions.origins?.includes(LOCAL_MATCH_PATTERN)) {
+    localAccessGranted = true;
     await registerLocalContentScript();
   }
 });
 
 chrome.permissions.onRemoved.addListener(async (permissions) => {
   if (permissions.origins?.includes(LOCAL_MATCH_PATTERN)) {
+    localAccessGranted = false;
     await unregisterLocalContentScript();
+    // Drop confirmed origins too. confirmDomoTab checks the permission before the
+    // cache, so a stale entry cannot grant access, but clearing means re-granting
+    // after repointing a dev server re-probes instead of trusting an old verdict.
+    verifiedLocalOrigins.clear();
+    await chrome.storage.session.remove(VERIFIED_LOCAL_ORIGINS_KEY);
+    // Any context already detected for a local tab has to go, or the popup keeps
+    // rendering it as a live instance after the user opted out.
+    for (const [tabId, context] of tabContexts) {
+      if (context?.instance && isLocalInstanceKey(context.instance)) {
+        tabContexts.delete(tabId);
+        tabAccessTimes.delete(tabId);
+        chrome.runtime.sendMessage({ context: null, tabId, type: 'TAB_CONTEXT_UPDATED' }).catch(() => {
+          /* no listeners */
+        });
+      }
+    }
+    persistToSession();
   }
 });
 
 // Restore contexts on service worker startup
 restoreFromSession();
 applyIconFromStorage();
-// Registration does not survive an extension reload in dev, and a granted
-// permission with no registered script means local instances silently stop
-// working, so re-assert it on every worker start.
-hasLocalAccess().then((granted) => granted && registerLocalContentScript());
+// Hydrate the cached permission flag, and re-assert the content-script
+// registration: it does not survive an extension reload in dev, and a granted
+// permission with no registered script means local instances silently stop working.
+hasLocalAccess().then((granted) => {
+  localAccessGranted = granted;
+  if (granted) registerLocalContentScript();
+});
 
 chrome.runtime.onStartup.addListener(applyIconFromStorage);
 
@@ -1003,7 +1062,7 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
 
   try {
     const tab = await chrome.tabs.get(tabId);
-    if (tab.url && isDomoUrl(tab.url)) {
+    if (tab.url && isActionableDomoUrl(tab.url)) {
       await ensureContentScript(tabId);
 
       if (!tabContexts.has(tabId)) {
@@ -1028,7 +1087,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 
   // React to URL changes on Domo domains
-  if (changeInfo.url && isDomoUrl(changeInfo.url)) {
+  if (changeInfo.url && isActionableDomoUrl(changeInfo.url)) {
     console.log(`[Background] URL changed for tab ${tabId}, triggering detection`);
 
     await detectAndStoreContext(tabId);
@@ -1045,7 +1104,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // once, so an unguarded retry would read that transient null, start a
   // competing detection, and cancel the in-flight run (e.g. the one Share with
   // Self kicks off after reloading), leaving the details blank.
-  if (changeInfo.status === 'complete' && isDomoUrl(tab.url) && !tabDetectionInFlight.has(tabId)) {
+  if (changeInfo.status === 'complete' && isActionableDomoUrl(tab.url) && !tabDetectionInFlight.has(tabId)) {
     const context = getTabContext(tabId);
     if (context && !context.domoObject?.metadata?.name) {
       console.log(`[Background] Tab ${tabId} reloaded without resolved object metadata, retrying detection`);
@@ -1055,7 +1114,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
   // Update the title when Domo resets it to "Domo", leaves a stale parent-only
   // title, or (with the suffix setting on) tacks " - Domo" onto any other page.
-  if (changeInfo.title && isDomoUrl(tab.url)) {
+  if (changeInfo.title && isActionableDomoUrl(tab.url)) {
     const context = getTabContext(tabId);
     const objectName = context?.domoObject?.metadata?.name;
     const allowedTitles = objectName ? buildAllowedTitles(context.domoObject) : [];
@@ -1088,7 +1147,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 // Detect context when history state changes (SPA navigation)
 chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
-  if (details.url && isDomoUrl(details.url)) {
+  if (details.url && isActionableDomoUrl(details.url)) {
     console.log(`[Background] History state updated for tab ${details.tabId}, triggering detection`);
     await detectAndStoreContext(details.tabId);
   }
@@ -1119,7 +1178,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     for (const tab of tabs) {
       // The query matches every *.domo.com host, including excluded ones
       // (support, developer, etc.); skip those so no title management runs there.
-      if (!isDomoUrl(tab.url)) continue;
+      if (!isActionableDomoUrl(tab.url)) continue;
       const context = getTabContext(tab.id);
       if (context?.domoObject?.metadata?.name) {
         const allowedTitles = buildAllowedTitles(context.domoObject);
@@ -1146,7 +1205,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     });
 
     for (const tab of tabs) {
-      if (!isDomoUrl(tab.url)) continue;
+      if (!isActionableDomoUrl(tab.url)) continue;
       sendMessageWithRetry(tab.id, { type: 'APPLY_FAVICON' }, 3)
         .then(() => {
           console.log(`[Background] Updated favicon for tab ${tab.id}`);
@@ -1182,7 +1241,7 @@ async function detectAndStoreContext(tabId) {
     const tab = await chrome.tabs.get(tabId);
     // isDomoUrl is structural, so a *.localhost host passes it on shape alone.
     // confirmDomoTab settles those by probing the page for Domo's bootstrap.
-    if (!tab || !isDomoUrl(tab.url) || !(await confirmDomoTab(tab))) {
+    if (!tab || !isActionableDomoUrl(tab.url) || !(await confirmDomoTab(tab))) {
       // Not a Domo domain - clear any existing context and broadcast the update
       console.log(`[Background] Tab ${tabId} is not on a Domo domain, clearing context`);
       const hadContext = tabContexts.has(tabId);
@@ -1677,7 +1736,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const activeTabId = tabs[0].id;
           let context = getTabContext(activeTabId);
 
-          if (!context && tabs[0].url && isDomoUrl(tabs[0].url)) {
+          if (!context && tabs[0].url && isActionableDomoUrl(tabs[0].url)) {
             // Trigger detection if not cached
             context = await detectAndStoreContext(activeTabId);
           }

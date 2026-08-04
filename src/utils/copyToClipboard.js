@@ -1,4 +1,5 @@
 import { isDomoUrl } from './currentObject';
+import { canActOnHost } from './localInstance';
 
 /**
  * customizeCopy handler for react18-json-view. Routes the JSON viewer's own
@@ -97,12 +98,14 @@ export async function copyToClipboard(text, tabId = null) {
  */
 async function resolveDomoTabId(tabId) {
   try {
+    // canActOnHost, not just isDomoUrl: invoking a keyboard command grants
+    // activeTab, so a local tab is scriptable even without the opt-in permission.
     if (tabId != null) {
       const tab = await chrome.tabs.get(tabId);
-      return tab?.url && isDomoUrl(tab.url) ? tabId : null;
+      return tab?.url && isDomoUrl(tab.url) && (await canActOnHost(tab.url)) ? tabId : null;
     }
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    return tab?.id != null && tab.url && isDomoUrl(tab.url) ? tab.id : null;
+    return tab?.id != null && tab.url && isDomoUrl(tab.url) && (await canActOnHost(tab.url)) ? tab.id : null;
   } catch {
     return null;
   }
