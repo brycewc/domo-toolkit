@@ -143,6 +143,7 @@
 - Opening the settings page without a specific tab now lands on General Settings instead of a blank page with no tab selected.
 - Viewing Objects Owned by someone who owns nothing now shows a brief message instead of a list of empty categories.
 - Actions that fail on the server, such as deleting, sharing, changing ownership, or updating details, now report the error instead of showing a success message as if they worked.
+- An approval request that was never given its own title now shows its template's name instead of an ID.
 
 ### Update Action Versions
 

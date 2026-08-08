@@ -50,7 +50,7 @@ export async function getOwnedApprovals(userId, tabId = null) {
         body: JSON.stringify({
           operationName: 'getFilteredRequests',
           query:
-            'query getFilteredRequests($query: QueryRequest!, $after: ID, $reverseSort: Boolean) {\n  workflowSearch(query: $query, type: "AC", after: $after, reverseSort: $reverseSort) {\n    edges {\n      cursor\n      node {\n        approval {\n          id\n          title\n          status\n          version\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n',
+            'query getFilteredRequests($query: QueryRequest!, $after: ID, $reverseSort: Boolean) {\n  workflowSearch(query: $query, type: "AC", after: $after, reverseSort: $reverseSort) {\n    edges {\n      cursor\n      node {\n        approval {\n          id\n          title\n          templateTitle\n          status\n          version\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n',
           variables: {
             after: null,
             query: {
@@ -74,8 +74,13 @@ export async function getOwnedApprovals(userId, tabId = null) {
       return edges
         .filter((e) => e.node?.approval?.status === 'PENDING')
         .map((e) => ({
+          // A request's own `title` is optional: templates whose title field is
+          // blank (or that never prompt for one) leave it as an empty string,
+          // and Domo's own Approval Center falls back to the template's title
+          // in that case. Match that, so a blank-titled request shows its
+          // template name instead of a bare UUID.
           id: e.node.approval.id,
-          name: e.node.approval.title || e.node.approval.id,
+          name: e.node.approval.title?.trim() || e.node.approval.templateTitle?.trim() || e.node.approval.id,
           version: e.node.approval.version
         }));
     },

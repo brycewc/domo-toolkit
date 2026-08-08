@@ -415,7 +415,9 @@ export const ObjectTypeRegistry = {
       paths: {
         created: 'data.request.submittedTime',
         details: 'data.request',
-        name: 'data.request.title',
+        // A request's own title is optional and comes back as an empty string when unset; Domo's
+        // Approval Center shows the template's title in that case, so fall back the same way.
+        name: ['data.request.title', 'data.request.templateTitle'],
         parentId: 'data.request.templateID'
       }
     },
@@ -1610,14 +1612,20 @@ export async function fetchObjectDetailsInPage(params) {
     }
 
     const resolvePath = (path) => (path.match(/[^.[\]]+/g) || []).reduce((current, prop) => current?.[prop], data);
-    const details = paths.details ? resolvePath(paths.details) : data;
+    // A declared path may be an array of candidates, in which case the first one that resolves to
+    // something non-empty wins. Needed where a field is optional in the API and the platform itself
+    // falls back to another field (e.g. an approval request whose own `title` is blank shows its
+    // template's title). An empty string counts as a miss, not a value.
+    const resolveField = (path) =>
+      Array.isArray(path) ? path.map(resolvePath).find((value) => value != null && value !== '') : resolvePath(path);
+    const details = paths.details ? resolveField(paths.details) : data;
     // Resolve every declared path (other than `details`, handled above) generically against the
     // raw response. New metadata fields are added by declaring a path in the type's `api.paths`,
     // with no change needed here.
     const resolved = {};
     for (const field of Object.keys(paths)) {
       if (field === 'details') continue;
-      resolved[field] = resolvePath(paths[field]);
+      resolved[field] = resolveField(paths[field]);
     }
     // Inline epoch->locale formatter, kept self-contained because this function is serialized and
     // run in the page via executeInPage (no imports/closures). Mirrors formatEpochTimestamp in

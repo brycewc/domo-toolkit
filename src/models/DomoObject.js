@@ -212,10 +212,15 @@ export class DomoObject {
             console.log('[getParent:fetchParentDetails] Response data keys:', Object.keys(data));
 
             const resolvePath = (path) => (path.match(/[^.[\]]+/g) || []).reduce((current, prop) => current?.[prop], data);
-            const details = paths.details ? resolvePath(paths.details) : data;
+            // Mirrors fetchObjectDetailsInPage: a declared path may be an array of candidates, and
+            // the first non-empty one wins, so a type whose name field is optional resolves the same
+            // way whether it is the current object or somebody's parent.
+            const resolveField = (path) =>
+              Array.isArray(path) ? path.map(resolvePath).find((value) => value != null && value !== '') : resolvePath(path);
+            const details = paths.details ? resolveField(paths.details) : data;
             const name = nameTemplate
               ? nameTemplate.replace(/{([^}]+)}/g, (_, path) => (path === 'id' ? parentId : (resolvePath(path) ?? '')))
-              : resolvePath(paths.name);
+              : resolveField(paths.name);
 
             console.log(`[getParent:fetchParentDetails] Extracted name=${name}, hasDetails=${!!details}`);
 
