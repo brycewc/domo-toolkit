@@ -144,6 +144,7 @@
 - Viewing Objects Owned by someone who owns nothing now shows a brief message instead of a list of empty categories.
 - Actions that fail on the server, such as deleting, sharing, changing ownership, or updating details, now report the error instead of showing a success message as if they worked.
 - An approval request that was never given its own title now shows its template's name instead of an ID.
+- Task Center tasks in Objects Owned and Transfer Ownership now show their names instead of their IDs.
 
 ### Update Action Versions
 
@@ -173,6 +174,7 @@
 - Viewing a Code Engine action inside a workflow again shows its parent Workflow and Workflow Version as tabs in Current Context.
 - The Definition tab now shows a notebook/text card's content instead of failing to load.
 - Opening a Task Center task with a reference-style ID (such as "15AUG25_TS551E") is now recognized instead of leaving Current Context empty.
+- A Task Center task now shows its name in Current Context, which was previously blank for tasks in many queues.
 - Expanding Current Context in the popup no longer stretches the popup taller or wider to fit the details, which now scroll within it instead.
 - The Current Context detail tabs now scroll smoothly through a very large related list, such as a dataset's hundreds of columns.
 

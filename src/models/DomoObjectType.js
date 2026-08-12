@@ -1036,8 +1036,11 @@ export const ObjectTypeRegistry = {
   }),
   HOPPER_TASK: new DomoObjectType('HOPPER_TASK', 'Task Center Task', {
     api: {
-      endpoint: '/queues/v1/{parent}/tasks/{id}',
-      paths: { created: 'createdOn', name: 'attributes[0]' }
+      // `render=true` is what returns `displayEntity` at all; without it the
+      // response has no name anywhere for tasks whose queue defines no name
+      // attribute.
+      endpoint: '/queues/v1/{parent}/tasks/{id}?render=true',
+      paths: { created: 'createdOn', name: 'displayEntity.name' }
     },
     extractConfig: {
       keyword: 'id',

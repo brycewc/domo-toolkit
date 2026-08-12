@@ -73,7 +73,10 @@ export async function getOwnedTaskCenterTasks(userId, tabId = null) {
       let offset = 0;
 
       while (moreData) {
-        const response = await fetch(`/api/queues/v1/tasks/list?limit=${limit}&offset=${offset}`, {
+        // `render=true` is what returns `displayEntity`, which holds the only
+        // name a task has; the response omits it entirely otherwise.
+        const url = `/api/queues/v1/tasks/list?limit=${limit}&offset=${offset}&render=true`;
+        const response = await fetch(url, {
           body: JSON.stringify({
             assignedTo: [userId],
             status: ['OPEN']
@@ -88,7 +91,10 @@ export async function getOwnedTaskCenterTasks(userId, tabId = null) {
           allTasks.push(
             ...data.map((t) => ({
               id: t.id,
-              name: t.name || t.id,
+              // A task carries no `name` field of its own, so the display name
+              // comes off its rendered display entity, the same field the
+              // single-task view reads.
+              name: t.displayEntity?.name || t.id,
               queueId: t.queueId
             }))
           );
