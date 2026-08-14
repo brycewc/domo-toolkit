@@ -2,10 +2,24 @@ import { useCallback, useRef, useState } from 'react';
 
 import { useResolveTabId } from '@/hooks/useResolveTabId';
 
-import { convertToGraph, enrichMetadata, getLineage, toMapKey } from '../services/lineage';
+import {
+  convertToGraph,
+  enrichMetadata,
+  findTruncatedNodes,
+  getLineage,
+  mergeLineageInto,
+  toLineageType,
+  toMapKey
+} from '../services/lineage';
 
-const INITIAL_DEPTH = 4;
+const CONCURRENCY = 5;
 const EXPAND_DEPTH = 4;
+// The lineage API applies no server-side ceiling and saturates at the real
+// graph, so the export asks for the whole pipeline outright instead of crawling
+// outward from a shallow load.
+const FULL_DEPTH = 100;
+const INITIAL_DEPTH = 4;
+const PROGRESS_INTERVAL_MS = 250;
 
 export function useLineageCache() {
   const rawCacheRef = useRef({});
@@ -58,6 +72,14 @@ export function useLineageCache() {
     const entity = rawCacheRef.current[key];
     if (!entity) return false;
 
+    // A response only fills in the side it traversed, and the entities one hop
+    // past the requested depth come back with that side empty. An empty list
+    // therefore means "not known yet", not "leaf", until a request rooted here
+    // says otherwise. Reading it as a leaf is what walled the graph off at the
+    // initial depth with no way to expand further.
+    const complete = direction === 'upstream' ? entity.parentsComplete : entity.childrenComplete;
+    if (complete !== true) return false;
+
     const neighbors = direction === 'upstream' ? entity.parents || [] : entity.children || [];
 
     if (neighbors.length === 0) return true;
@@ -83,7 +105,10 @@ export function useLineageCache() {
         const response = await getLineage(entityType, entityId, EXPAND_DEPTH, resolvedTabId);
         if (!response) return;
 
-        Object.assign(rawCacheRef.current, response);
+        // Merge rather than assign: an entity already in the cache carries
+        // neighbor lists and enriched metadata that this narrower response would
+        // otherwise overwrite with less.
+        mergeLineageInto(rawCacheRef.current, response);
         await enrichMetadata(rawCacheRef.current, resolvedTabId, existingKeys);
         rebuildGraph();
       })();
@@ -98,61 +123,77 @@ export function useLineageCache() {
     [rebuildGraph, resolveTabId]
   );
 
-  // Crawl the entire lineage in both directions, expanding the frontier
-  // (neighbors referenced but not yet fetched) round by round until the graph
-  // stops growing. Used by the export feature, which needs the full pipeline
-  // rather than the depth-limited initial load. Reports the running node count
-  // via onProgress so the UI can show progress on large, multi-minute crawls.
+  // Trace the entire lineage in both directions for the export, which needs the
+  // full pipeline rather than the depth-limited initial load. One unbounded-depth
+  // request pair normally settles it outright; the loop exists because the API
+  // could still truncate a traversal, and any entity it truncated has to be
+  // re-rooted to see past. Reports each stage through onProgress, since tracing a
+  // wide pipeline runs for minutes and the UI has nothing else to go on. Returns
+  // the graph plus how many branches were left untraced, so a capped run can say
+  // so instead of passing a partial export off as the whole pipeline.
   const fetchEntireLineage = useCallback(
     async (onProgress) => {
-      if (!rootRef.current) return null;
+      if (!rootRef.current) return { graph: null, untraced: 0 };
+      const { entityId, entityType } = rootRef.current;
       const resolvedTabId = await resolveTabId();
 
-      const CONCURRENCY = 5;
       const MAX_NODES = 10000;
-      const MAX_ROUNDS = 100;
+      const MAX_ROUNDS = 20;
 
-      for (let round = 0; round < MAX_ROUNDS; round++) {
+      const report = throttleProgress(onProgress);
+      const requested = new Set();
+      let seeds = [{ id: entityId, type: toLineageType(entityType) }];
+      let untraced = 0;
+
+      for (let round = 0; round < MAX_ROUNDS && seeds.length > 0; round++) {
         const present = new Set(Object.keys(rawCacheRef.current));
 
-        // Frontier: any referenced neighbor not yet present as a cache entry.
-        const frontier = new Map();
-        for (const entity of Object.values(rawCacheRef.current)) {
-          if (!entity) continue;
-          for (const neighbor of [...(entity.parents || []), ...(entity.children || [])]) {
-            if (!neighbor) continue;
-            const key = toMapKey(neighbor.type, neighbor.id);
-            if (!present.has(key)) frontier.set(key, { id: neighbor.id, type: neighbor.type });
-          }
-        }
+        const queue = [...seeds];
+        for (const seed of seeds) requested.add(toMapKey(seed.type, seed.id));
 
-        if (frontier.size === 0) break;
-        if (present.size >= MAX_NODES) {
-          console.warn(`[Lineage] Reached ${MAX_NODES}-node cap; exporting partial lineage`);
+        // A traversal request returns nothing until it returns everything, so
+        // this stage can only name what it is doing, not count it.
+        report({ phase: 'tracing' }, true);
+
+        const workers = Array.from({ length: CONCURRENCY }, async () => {
+          while (queue.length > 0) {
+            const seed = queue.shift();
+            if (!seed) return;
+            const response = await getLineage(seed.type, seed.id, FULL_DEPTH, resolvedTabId).catch(() => null);
+            if (response) mergeLineageInto(rawCacheRef.current, response);
+          }
+        });
+        await Promise.allSettled(workers);
+
+        let latest = null;
+        await enrichMetadata(rawCacheRef.current, resolvedTabId, present, (done, total) => {
+          latest = { done, phase: 'details', total };
+          report(latest);
+        });
+        // Flush: the throttle will usually have swallowed the final batch.
+        if (latest) report({ ...latest, done: latest.total }, true);
+
+        // Anything still truncated is a branch the API stopped short of. Skip
+        // whatever has already been re-rooted so a failed fetch cannot loop.
+        // Work this out before applying either cap, so a run that already has the
+        // whole pipeline is not reported as partial.
+        seeds = findTruncatedNodes(rawCacheRef.current, entityType, entityId).filter(
+          (node) => !requested.has(toMapKey(node.type, node.id))
+        );
+        if (seeds.length === 0) break;
+
+        const reachedNodeCap = Object.keys(rawCacheRef.current).length >= MAX_NODES;
+        const reachedRoundCap = round === MAX_ROUNDS - 1;
+        if (reachedNodeCap || reachedRoundCap) {
+          untraced = seeds.length;
+          console.warn(
+            `[Lineage] ${untraced} branches untraced (${reachedNodeCap ? `${MAX_NODES}-node cap` : `${MAX_ROUNDS}-round cap`}); exporting partial lineage`
+          );
           break;
         }
-
-        const targets = [...frontier.values()];
-        for (let i = 0; i < targets.length; i += CONCURRENCY) {
-          const chunk = targets.slice(i, i + CONCURRENCY);
-          const responses = await Promise.all(
-            chunk.map(({ id, type }) => getLineage(type, id, EXPAND_DEPTH, resolvedTabId).catch(() => null))
-          );
-          // Add only new entities: existing ones already carry complete
-          // neighbor lists and enriched metadata that a raw refetch would wipe.
-          for (const response of responses) {
-            if (!response) continue;
-            for (const [key, entity] of Object.entries(response)) {
-              if (entity && !rawCacheRef.current[key]) rawCacheRef.current[key] = entity;
-            }
-          }
-        }
-
-        await enrichMetadata(rawCacheRef.current, resolvedTabId, present);
-        onProgress?.(Object.keys(rawCacheRef.current).length);
       }
 
-      return rebuildGraph();
+      return { graph: rebuildGraph(), untraced };
     },
     [rebuildGraph, resolveTabId]
   );
@@ -198,5 +239,24 @@ export function useLineageCache() {
     isNeighborCached,
     loading,
     prefetch
+  };
+}
+
+/**
+ * Rate-limit progress reports. Metadata batches land several times a second on a
+ * large export, and every report re-renders the graph, so drop the ones that land
+ * inside the interval. Pass `force` for stage changes and the final value, which
+ * must always get through.
+ * @param {Function|null} onProgress - Caller's progress callback
+ * @returns {(progress: Object, force?: boolean) => void} Throttled reporter
+ */
+function throttleProgress(onProgress) {
+  if (!onProgress) return () => {};
+  let lastReportedAt = 0;
+  return (progress, force = false) => {
+    const now = Date.now();
+    if (!force && now - lastReportedAt < PROGRESS_INTERVAL_MS) return;
+    lastReportedAt = now;
+    onProgress(progress);
   };
 }

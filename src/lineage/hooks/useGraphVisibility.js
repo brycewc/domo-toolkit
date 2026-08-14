@@ -160,15 +160,7 @@ export function useGraphVisibility({ expandFetch, graph, isNeighborCached, rootN
 
         // Skip levels where expanding would not reveal any new nodes
         if (!allExpanded) {
-          const canRevealMore = nodesAtDepth.some((n) => {
-            const adj = sign > 0 ? adjacency.downstream : adjacency.upstream;
-            const neighbors = adj.get(n.id) || [];
-            // Has cached neighbors not yet visible
-            if (neighbors.some((id) => !visibleIds.has(id))) return true;
-            // Has uncached neighbors (would trigger a fetch)
-            const totalCount = sign > 0 ? n.downstreamCount : n.upstreamCount;
-            return totalCount > neighbors.length;
-          });
+          const canRevealMore = nodesAtDepth.some((n) => canRevealNeighbors(n, sign, adjacency, visibleIds));
           if (!canRevealMore) continue;
         }
 
@@ -196,7 +188,6 @@ export function useGraphVisibility({ expandFetch, graph, isNeighborCached, rootN
     const countForDirection = (levels, sign) => {
       if (levels.length === 0) return 0;
       const deepest = levels[levels.length - 1];
-      if (deepest.allExpanded) return 0;
 
       // Synthetic level from collapsed root — nodes are not in visibleTrace
       const dirKey = sign > 0 ? 'down' : 'up';
@@ -207,13 +198,7 @@ export function useGraphVisibility({ expandFetch, graph, isNeighborCached, rootN
       }
 
       const nodesAtDepth = visibleTrace.nodes.filter((n) => n.depth === deepest.depth);
-      return nodesAtDepth.filter((n) => {
-        const adj = sign > 0 ? adjacency.downstream : adjacency.upstream;
-        const neighbors = adj.get(n.id) || [];
-        if (neighbors.some((id) => !visibleIds.has(id))) return true;
-        const totalCount = sign > 0 ? n.downstreamCount : n.upstreamCount;
-        return totalCount > neighbors.length;
-      }).length;
+      return nodesAtDepth.filter((n) => canRevealNeighbors(n, sign, adjacency, visibleIds)).length;
     };
 
     return {
@@ -400,6 +385,25 @@ export function useGraphVisibility({ expandFetch, graph, isNeighborCached, rootN
     preserveExpansion,
     visibleTrace
   };
+}
+
+/**
+ * Whether expanding a node in one direction could still reveal something. True
+ * when it has cached neighbors that are not on screen yet, when its neighbor
+ * count outruns the edges we hold, or when the API truncated that side of it, in
+ * which case what lies beyond is unknown rather than absent.
+ * @param {Object} node - Graph node
+ * @param {number} sign - 1 for downstream, -1 for upstream
+ * @param {{ downstream: Map, upstream: Map }} adjacency - Edge lookup by node id
+ * @param {Set<string>} visibleIds - Ids currently on screen
+ * @returns {boolean} True when there is more to reveal
+ */
+function canRevealNeighbors(node, sign, adjacency, visibleIds) {
+  const neighbors = (sign > 0 ? adjacency.downstream : adjacency.upstream).get(node.id) || [];
+  if (neighbors.some((id) => !visibleIds.has(id))) return true;
+  if (!(sign > 0 ? node.downstreamComplete : node.upstreamComplete)) return true;
+  const totalCount = sign > 0 ? node.downstreamCount : node.upstreamCount;
+  return totalCount > neighbors.length;
 }
 
 function computeInitialExpanded(graph, rootNodeId) {

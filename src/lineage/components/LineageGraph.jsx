@@ -182,6 +182,7 @@ export function LineageGraph({
         data: {
           depth: pNode.depth,
           direction: pNode.direction,
+          downstreamComplete: pNode.downstreamComplete,
           downstreamCount: pNode.downstreamCount,
           entityId: pNode.entityId,
           entityType: pNode.entityType,
@@ -192,6 +193,7 @@ export function LineageGraph({
           label: pNode.name,
           metadata: pNode.metadata,
           object: pNode.object,
+          upstreamComplete: pNode.upstreamComplete,
           upstreamCount: pNode.upstreamCount
         },
         id: pNode.id,

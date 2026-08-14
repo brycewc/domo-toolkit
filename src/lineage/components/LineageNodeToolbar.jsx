@@ -12,12 +12,15 @@ export const LineageNodeToolbar = memo(function LineageNodeToolbar({
   onCollapseNode,
   onExpandNode
 }) {
-  const { direction, downstreamCount, expanded, upstreamCount } = data;
+  const { direction, downstreamComplete, downstreamCount, expanded, upstreamComplete, upstreamCount } = data;
   const isLoading = expandLoading?.has(nodeId);
 
-  const showUpstream = upstreamCount > 0 && (direction === 'root' || direction === 'upstream');
+  // A node the API truncated reports no neighbors on that side, so offer the
+  // expansion whenever the count is unknown, not only when it is above zero.
+  const showUpstream = (upstreamCount > 0 || !upstreamComplete) && (direction === 'root' || direction === 'upstream');
 
-  const showDownstream = downstreamCount > 0 && (direction === 'root' || direction === 'downstream');
+  const showDownstream =
+    (downstreamCount > 0 || !downstreamComplete) && (direction === 'root' || direction === 'downstream');
 
   if (!showUpstream && !showDownstream) return null;
 
@@ -79,7 +82,7 @@ const ExpandButton = memo(function ExpandButton({ count, direction, isLoading, o
   return (
     <Button className='h-7 min-w-0 gap-1 px-2 text-xs' isDisabled={isLoading} size='sm' variant='flat' onPress={onClick}>
       {isLoading ? <Spinner className='size-3' size='sm' /> : <Icon className='size-3' />}
-      <span>{count}</span>
+      {count > 0 && <span>{count}</span>}
     </Button>
   );
 });

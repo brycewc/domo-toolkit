@@ -29,7 +29,7 @@ export function Lineage() {
   const [inspectedDataflow, setInspectedDataflow] = useState(null);
   const [previewDataset, setPreviewDataset] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [exportCount, setExportCount] = useState(0);
+  const [exportProgress, setExportProgress] = useState(null);
   const graphInstanceRef = useRef(null);
   const previewHeightRef = useRef(300);
   const previewCacheRef = useRef(new Map());
@@ -102,8 +102,14 @@ export function Lineage() {
     (clickedEntityType, clickedEntityId, nodeId) => {
       setSelectedNodeId(nodeId);
 
-      const needsUpstream = !isNeighborCached(nodeId, 'upstream');
-      const needsDownstream = !isNeighborCached(nodeId, 'downstream');
+      const node = visibleTrace?.nodes.find((n) => n.id === nodeId);
+      // Only prefetch the sides this node can actually be expanded on, matching
+      // the toolbar. A downstream node has no upstream affordance, so warming its
+      // parents would just spend a request nobody can use.
+      const canGoUp = node?.direction === 'root' || node?.direction === 'upstream';
+      const canGoDown = node?.direction === 'root' || node?.direction === 'downstream';
+      const needsUpstream = canGoUp && !isNeighborCached(nodeId, 'upstream');
+      const needsDownstream = canGoDown && !isNeighborCached(nodeId, 'downstream');
       if (needsUpstream || needsDownstream) {
         prefetch(clickedEntityType, clickedEntityId);
       }
@@ -112,7 +118,6 @@ export function Lineage() {
         setInspectedDataflow({ id: clickedEntityId, nodeId });
         setPreviewDataset(null);
       } else if (clickedEntityType === 'DATA_SOURCE') {
-        const node = visibleTrace?.nodes.find((n) => n.id === nodeId);
         setPreviewDataset({
           id: clickedEntityId,
           name: node?.name || `Dataset ${clickedEntityId}`
@@ -156,9 +161,12 @@ export function Lineage() {
     async (format) => {
       if (!graph || isExporting) return;
       setIsExporting(true);
-      setExportCount(0);
+      setExportProgress(null);
       try {
-        const fullGraph = await fetchEntireLineage(setExportCount);
+        // The export grows the graph, which would otherwise be read as a fresh
+        // load and collapse the view back to the root.
+        preserveExpansion();
+        const { graph: fullGraph, untraced } = await fetchEntireLineage(setExportProgress);
         const rows = buildLineageRows(fullGraph);
         if (rows.length === 0) {
           showStatus('Nothing to export', 'No lineage objects were found', 'warning');
@@ -173,16 +181,24 @@ export function Lineage() {
         } else if (format === 'json') {
           exportToJson(buildLineageJson(fullGraph, rootNodeId), filename);
         }
-        showStatus('Lineage exported', `Exported **${rows.length}** objects`, 'success');
+        if (untraced > 0) {
+          showStatus(
+            'Lineage partially exported',
+            `Exported **${rows.length}** objects. This pipeline is too large to trace in full, so **${untraced}** branches were left out.`,
+            'warning'
+          );
+        } else {
+          showStatus('Lineage exported', `Exported **${rows.length}** objects`, 'success');
+        }
       } catch (err) {
         console.error('[Lineage] Export failed:', err);
         showStatus('Export failed', err.message || 'Could not export lineage', 'danger');
       } finally {
         setIsExporting(false);
-        setExportCount(0);
+        setExportProgress(null);
       }
     },
-    [graph, isExporting, fetchEntireLineage, params, rootNodeId, showStatus]
+    [graph, isExporting, fetchEntireLineage, params, preserveExpansion, rootNodeId, showStatus]
   );
 
   const handleRootClick = useCallback(() => {
@@ -202,6 +218,15 @@ export function Lineage() {
     },
     [rootNodeId, expandNode]
   );
+
+  // Tracing runs as one long request with nothing to count, so it names the
+  // stage; loading details is the countable stretch and carries the tally.
+  const exportLabel = useMemo(() => {
+    if (exportProgress?.phase === 'details' && exportProgress.total > 0) {
+      return `Loading details... ${exportProgress.done.toLocaleString()} of ${exportProgress.total.toLocaleString()}`;
+    }
+    return 'Tracing lineage...';
+  }, [exportProgress]);
 
   const mappedEntityType = params ? toLineageType(params.entityType) : null;
 
@@ -237,7 +262,7 @@ export function Lineage() {
           </div>
         </div>
         <div className='flex items-center gap-2'>
-          {isExporting && <span className='text-xs text-muted'>Crawling lineage... {exportCount} objects</span>}
+          {isExporting && <span className='text-xs text-muted'>{exportLabel}</span>}
           <Dropdown>
             <Tooltip>
               <Button

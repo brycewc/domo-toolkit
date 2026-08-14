@@ -145,6 +145,8 @@
 - Actions that fail on the server, such as deleting, sharing, changing ownership, or updating details, now report the error instead of showing a success message as if they worked.
 - An approval request that was never given its own title now shows its template's name instead of an ID.
 - Task Center tasks in Objects Owned and Transfer Ownership now show their names instead of their IDs.
+- Lineage can now be expanded past the fourth level in either direction, instead of dead-ending with no expand option on the outermost objects. ([#97](https://github.com/brycewc/domo-toolkit/issues/97))
+- Exporting a lineage now writes the whole pipeline instead of only the levels the graph loaded up front. ([#97](https://github.com/brycewc/domo-toolkit/issues/97))
 
 ### Update Action Versions
 

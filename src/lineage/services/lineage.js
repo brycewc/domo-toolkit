@@ -1,6 +1,11 @@
 import { DomoObject } from '@/models/DomoObject';
 import { executeInPage } from '@/utils/executeInPage';
 
+// Which neighbor list a traversal direction is authoritative for, and the flag
+// that records it. The lineage API only fills in the side it traversed: a
+// downstream response lists every child of each entity it expanded, but trims
+// those entities' parents down to the edges on the traversal path.
+const COMPLETENESS_FLAGS = { children: 'childrenComplete', parents: 'parentsComplete' };
 const LINEAGE_TYPE_MAP = { DATAFLOW_TYPE: 'DATAFLOW' };
 
 export function convertToGraph(lineageResponse, startEntityType, startEntityId, baseUrl = '') {
@@ -92,6 +97,9 @@ export function convertToGraph(lineageResponse, startEntityType, startEntityId, 
     nodes.push({
       depth,
       direction: depth === 0 ? 'root' : depth < 0 ? 'upstream' : 'downstream',
+      // Counts describe what we hold; the flags say whether that is the whole
+      // story. A truncated node reports 0 neighbors and must not read as a leaf.
+      downstreamComplete: entity.childrenComplete === true,
       downstreamCount: children.length,
       entityId: entity.id,
       entityType: entity.type,
@@ -99,6 +107,7 @@ export function convertToGraph(lineageResponse, startEntityType, startEntityId, 
       metadata: entity.metadata,
       name,
       object: buildNodeObject(entity.type, entity.id, baseUrl, entity.metadata),
+      upstreamComplete: entity.parentsComplete === true,
       upstreamCount: parents.length
     });
 
@@ -124,7 +133,7 @@ export function convertToGraph(lineageResponse, startEntityType, startEntityId, 
   return { edges, nodes };
 }
 
-export async function enrichMetadata(lineageResponse, tabId = null, existingKeys = null) {
+export async function enrichMetadata(lineageResponse, tabId = null, existingKeys = null, onProgress = null) {
   if (!lineageResponse || typeof lineageResponse !== 'object') {
     return {};
   }
@@ -219,32 +228,88 @@ export async function enrichMetadata(lineageResponse, tabId = null, existingKeys
     }
   };
 
-  const datasetChunks = [];
+  // A large export enriches thousands of entities in 50-at-a-time batches, which
+  // is the long tail of the work, so report after each batch. onProgress is the
+  // only signal the caller has that anything is happening.
+  const total = datasetIds.length + dataflowIds.length;
+  let done = 0;
+  const runBatch = async (chunk, fetchBatch, entityMap) => {
+    applyResults(await fetchBatch(chunk), entityMap);
+    done += chunk.length;
+    onProgress?.(done, total);
+  };
+
+  const jobs = [];
   for (let i = 0; i < datasetIds.length; i += chunkSize) {
-    datasetChunks.push(datasetIds.slice(i, i + chunkSize));
+    const chunk = datasetIds.slice(i, i + chunkSize);
+    jobs.push(() => runBatch(chunk, fetchDatasetBatch, datasetEntities));
   }
-
-  const dataflowChunks = [];
   for (let i = 0; i < dataflowIds.length; i += chunkSize) {
-    dataflowChunks.push(dataflowIds.slice(i, i + chunkSize));
+    const chunk = dataflowIds.slice(i, i + chunkSize);
+    jobs.push(() => runBatch(chunk, fetchDataflowBatch, dataflowEntities));
   }
 
-  await Promise.all([
-    ...datasetChunks.map(async (chunk) => {
-      const results = await fetchDatasetBatch(chunk);
-      applyResults(results, datasetEntities);
-    }),
-    ...dataflowChunks.map(async (chunk) => {
-      const results = await fetchDataflowBatch(chunk);
-      applyResults(results, dataflowEntities);
-    })
-  ]);
+  // Bounded concurrency: every batch goes through executeInPage, and a full
+  // export can queue hundreds of them, which stalls the chrome.scripting bridge
+  // if they all fire at once.
+  const CONCURRENCY = 5;
+  const workers = Array.from({ length: CONCURRENCY }, async () => {
+    while (jobs.length > 0) {
+      const job = jobs.shift();
+      if (!job) return;
+      await job();
+    }
+  });
+  await Promise.allSettled(workers);
 
   return lineageResponse;
 }
 
+/**
+ * Find the entities where the API cut a traversal short, so a caller can re-root
+ * a request at each one and see past the boundary. Walks out from the root along
+ * each side and stops at the first entity whose neighbor list on that side is
+ * not known-complete, since nothing beyond such an entity is known yet.
+ * @param {Object} cache - Merged lineage entities keyed by `${type}${id}`
+ * @param {string} rootType - Entity type the cache is rooted at
+ * @param {string} rootId - Entity id the cache is rooted at
+ * @returns {Array<{ id: string, type: string }>} Entities still to be traversed
+ */
+export function findTruncatedNodes(cache, rootType, rootId) {
+  const rootKey = toMapKey(toLineageType(rootType), rootId);
+  const truncated = new Map();
+
+  for (const [side, flag] of Object.entries(COMPLETENESS_FLAGS)) {
+    const visited = new Set([rootKey]);
+    const queue = [rootKey];
+
+    while (queue.length > 0) {
+      const key = queue.shift();
+      const entity = cache?.[key];
+      if (!entity) continue;
+
+      if (entity[flag] !== true) {
+        truncated.set(key, { id: entity.id, type: entity.type });
+        continue;
+      }
+
+      for (const neighbor of entity[side] || []) {
+        if (!neighbor) continue;
+        const neighborKey = toMapKey(neighbor.type, neighbor.id);
+        if (!visited.has(neighborKey)) {
+          visited.add(neighborKey);
+          queue.push(neighborKey);
+        }
+      }
+    }
+  }
+
+  return [...truncated.values()];
+}
+
 export async function getLineage(entityType, entityId, maxDepth = 4, tabId = null) {
   const apiType = LINEAGE_TYPE_MAP[entityType] ?? entityType;
+  const rootKey = toMapKey(apiType, entityId);
 
   const fetchDirection = (traverseParam) =>
     executeInPage(
@@ -268,7 +333,51 @@ export async function getLineage(entityType, entityId, maxDepth = 4, tabId = nul
     fetchDirection('traverseUp=false')
   ]);
 
-  return mergeLineageResponses(upResponse, downResponse);
+  annotateCompleteness(upResponse, rootKey, maxDepth, 'parents');
+  annotateCompleteness(downResponse, rootKey, maxDepth, 'children');
+
+  return mergeLineageInto(mergeLineageInto({}, upResponse), downResponse);
+}
+
+/**
+ * Merge a lineage response into an accumulating cache, in place. Neighbor lists
+ * union rather than replace, and the completeness flags only ever improve: one
+ * authoritative fetch settles a side, and a later response that truncated that
+ * side must not undo it. Existing entities are mutated rather than swapped out,
+ * so metadata already enriched onto them survives.
+ * @param {Object} target - Cache to merge into, keyed by `${type}${id}`
+ * @param {Object} source - Lineage response to merge in
+ * @returns {Object} The same `target`, for chaining
+ */
+export function mergeLineageInto(target, source) {
+  for (const [key, entity] of Object.entries(source || {})) {
+    if (!entity) continue;
+
+    const existing = target[key];
+    if (!existing) {
+      target[key] = entity;
+      continue;
+    }
+
+    for (const [side, flag] of Object.entries(COMPLETENESS_FLAGS)) {
+      if (entity[side]?.length) {
+        const seen = new Set((existing[side] || []).map((n) => toMapKey(n.type, n.id)));
+        for (const neighbor of entity[side]) {
+          if (!seen.has(toMapKey(neighbor.type, neighbor.id))) {
+            (existing[side] ??= []).push(neighbor);
+          }
+        }
+      }
+      if (entity[flag]) existing[flag] = true;
+    }
+
+    if (!existing.name && entity.name) existing.name = entity.name;
+    if (entity.metadata) {
+      existing.metadata = { ...existing.metadata, ...entity.metadata };
+    }
+  }
+
+  return target;
 }
 
 export function toLineageType(type) {
@@ -283,6 +392,50 @@ export function toNodeId(type, id) {
   return `${type}:${id}`;
 }
 
+/**
+ * Record, per entity, whether its neighbor list on the traversed side is the
+ * complete one. The API expands `maxDepth` hops from the requested root and then
+ * includes the entities one hop past that as entries whose traversed-side list
+ * is empty. Those stubs are indistinguishable from genuine leaves unless we
+ * measure how far out each entity sat, which is what this does.
+ * @param {Object} response - Single-direction lineage response
+ * @param {string} rootKey - Map key of the requested root
+ * @param {number} maxDepth - Depth the request asked for
+ * @param {'children'|'parents'} side - The side the request traversed
+ * @returns {Object} The same `response`, annotated in place
+ */
+function annotateCompleteness(response, rootKey, maxDepth, side) {
+  if (!response || typeof response !== 'object') return response;
+
+  const flag = COMPLETENESS_FLAGS[side];
+  const distances = new Map([[rootKey, 0]]);
+  const queue = [rootKey];
+
+  while (queue.length > 0) {
+    const key = queue.shift();
+    const entity = response[key];
+    if (!entity) continue;
+    const distance = distances.get(key);
+
+    for (const neighbor of entity[side] || []) {
+      if (!neighbor) continue;
+      const neighborKey = toMapKey(neighbor.type, neighbor.id);
+      if (!distances.has(neighborKey)) {
+        distances.set(neighborKey, distance + 1);
+        queue.push(neighborKey);
+      }
+    }
+  }
+
+  for (const [key, entity] of Object.entries(response)) {
+    if (!entity) continue;
+    const distance = distances.get(key);
+    entity[flag] = distance !== undefined && distance <= maxDepth;
+  }
+
+  return response;
+}
+
 function buildNodeObject(type, id, baseUrl, metadata) {
   try {
     const object = new DomoObject(type, id, baseUrl, metadata ?? {});
@@ -295,44 +448,4 @@ function buildNodeObject(type, id, baseUrl, metadata) {
     // type and skip the URL.
     return null;
   }
-}
-
-function mergeLineageResponses(upResponse, downResponse) {
-  const merged = { ...upResponse };
-
-  for (const [key, entity] of Object.entries(downResponse || {})) {
-    if (!entity) continue;
-
-    if (!merged[key]) {
-      merged[key] = entity;
-      continue;
-    }
-
-    const existing = merged[key];
-
-    if (entity.parents?.length) {
-      const seen = new Set((existing.parents || []).map((p) => `${p.type}${p.id}`));
-      for (const parent of entity.parents) {
-        if (!seen.has(`${parent.type}${parent.id}`)) {
-          (existing.parents ??= []).push(parent);
-        }
-      }
-    }
-
-    if (entity.children?.length) {
-      const seen = new Set((existing.children || []).map((c) => `${c.type}${c.id}`));
-      for (const child of entity.children) {
-        if (!seen.has(`${child.type}${child.id}`)) {
-          (existing.children ??= []).push(child);
-        }
-      }
-    }
-
-    if (!existing.name && entity.name) existing.name = entity.name;
-    if (entity.metadata) {
-      existing.metadata = { ...existing.metadata, ...entity.metadata };
-    }
-  }
-
-  return merged;
 }
