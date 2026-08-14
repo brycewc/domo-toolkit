@@ -8,7 +8,7 @@ import { getAppInstance } from './customApps';
 import { getDataflowPermission } from './dataflows';
 import { getDatasetsForAccount } from './datasets';
 import { getChildPages, getPagesForCards, getSubpageIds } from './pages';
-import { getUserReportsTo } from './users';
+import { getFullUserDetails, getUserReportsTo } from './users';
 import { getVersionDefinition, getWorkflowPermission } from './workflows';
 
 /**
@@ -233,6 +233,19 @@ const ENRICHMENTS = [
     fetch: ({ objectId, tabId }) => getUserReportsTo(objectId, tabId),
     id: 'user-reports-to',
     storePath: 'context.reportsTo',
+    types: ['USER']
+  },
+
+  // Username (the login/SSO identity) for a USER. The primary detail fetch uses
+  // content/v3, which carries the email but no username at all, so the identity
+  // service is the only source. Distinct from the email: the two can differ.
+  {
+    fetch: async ({ objectId, tabId }) => {
+      const user = await getFullUserDetails(objectId, tabId);
+      return user?.userName ?? undefined;
+    },
+    id: 'user-name',
+    storePath: 'context.userName',
     types: ['USER']
   },
 

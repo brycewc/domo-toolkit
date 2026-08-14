@@ -88,8 +88,8 @@ const updatersByType = {
     },
     fields: [{ key: 'userName', kind: 'email', label: 'Username', required: true, syncFromKey: 'email' }],
     getOriginal: (ctx) => ({
-      email: ctx.domoObject?.metadata?.details?.emailAddress || '',
-      userName: ctx.domoObject?.metadata?.details?.userName || ''
+      email: ctx.domoObject?.metadata?.details?.detail?.email || '',
+      userName: ctx.domoObject?.metadata?.context?.userName || ''
     }),
     run: async (id, updates) => {
       const attributes = [];
