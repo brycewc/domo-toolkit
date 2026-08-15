@@ -1,4 +1,5 @@
 import { getAccountIdsForDomoObject } from '@/services/accounts';
+import { isViewType } from '@/services/datasets';
 import { pathnameOf } from '@/utils/general';
 import { isSupportUser } from '@/utils/supportMode';
 
@@ -78,7 +79,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     if (details?.streamId && metadata?.parent?.details?.currentExecutionState === 'ACTIVE') {
       actions.add('cancelStreamExecution');
     }
-    if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL') {
+    if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL' && !isViewType(details)) {
       actions.add('setStreamToManual');
     }
     if (userRights.includes('account.admin') && getAccountIdsForDomoObject(currentContext.domoObject).length > 0) {
