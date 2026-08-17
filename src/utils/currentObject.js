@@ -409,7 +409,9 @@ export async function detectCurrentObject() {
       objectType = 'AI_PROJECT';
       break;
 
-    case url.includes('ai-services/models/'):
+    // A model opens as a selection on the models list page (?model=<id>), so the
+    // bare list URL carries no object.
+    case url.includes('ai-services/models') && parts.includes('model'):
       objectType = 'AI_MODEL';
       break;
 

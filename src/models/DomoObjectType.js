@@ -353,7 +353,7 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'model' },
     icon: { component: 'AiModel' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    urlPath: '/ai-services/models/{id}'
+    urlPath: '/ai-services/models?model={id}'
   }),
   AI_PROJECT: new DomoObjectType('AI_PROJECT', 'AI Project', {
     api: { endpoint: '/datascience/ml/v1/projects/{id}', paths: { name: 'name' } },
