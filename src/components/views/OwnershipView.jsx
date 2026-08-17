@@ -703,9 +703,10 @@ export function OwnershipView({
         enabledItemIds.set(t.key, idSet);
       }
       // Snapshot owned data per type, passed to transferAllOwnership so it
-      // doesn't refetch the types we already have. Types with
-      // getOwnedForTransfer still re-fetch via that variant inside the
-      // orchestrator.
+      // doesn't refetch the types we already have. No type declares a
+      // getOwnedForTransfer variant any more, so every type transfers exactly
+      // the list this view displayed. A type that ever adds one would re-fetch
+      // through it inside the orchestrator instead.
       const seededOwnedObjects = {};
       for (const key of enabledTypes) {
         const r = results[key];

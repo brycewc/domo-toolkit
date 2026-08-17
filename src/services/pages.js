@@ -400,7 +400,16 @@ export async function getOnlyHereCardIds({ cardIds, pageId, tabId = null }) {
 }
 
 /**
- * Get all pages owned by a user or group.
+ * Get all pages owned directly by a user or group.
+ *
+ * The admin-summary endpoint's `ownerIds` filter resolves group membership, so
+ * asking for a user also returns pages that a group they belong to owns. Each
+ * summary carries the full `owners` list, so we drop those rows client-side and
+ * keep only the ones where the requested owner is itself an owner (same
+ * correction `getOwnedGroups` makes on the group list endpoint). Staying on this
+ * endpoint matters: the search index's `page` entity only holds pages the
+ * calling admin can see, so it silently omits most of another person's
+ * dashboards.
  * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
  * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
@@ -430,15 +439,20 @@ export async function getOwnedPages(ownerId, tabId = null, ownerType = 'USER') {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
-        if (data.pageAdminSummaries && data.pageAdminSummaries.length > 0) {
+        const summaries = data.pageAdminSummaries;
+        if (summaries && summaries.length > 0) {
           allPages.push(
-            ...data.pageAdminSummaries.map((p) => ({
-              id: p.pageId,
-              name: p.pageTitle || p.pageId.toString()
-            }))
+            ...summaries
+              // `owners[].id` arrives as a number here, so compare as strings.
+              .filter((p) => (p.owners || []).some((o) => o.type === ownerType && String(o.id) === String(ownerId)))
+              .map((p) => ({
+                id: p.pageId,
+                name: p.pageTitle || p.pageId.toString()
+              }))
           );
           skip += limit;
-          if (data.pageAdminSummaries.length < limit) moreData = false;
+          // Paginate off the unfiltered batch size, not the kept count.
+          if (summaries.length < limit) moreData = false;
         } else {
           moreData = false;
         }

@@ -148,6 +148,7 @@
 - Lineage can now be expanded past the fourth level in either direction, instead of dead-ending with no expand option on the outermost objects. ([#97](https://github.com/brycewc/domo-toolkit/issues/97))
 - Exporting a lineage now writes the whole pipeline instead of only the levels the graph loaded up front. ([#97](https://github.com/brycewc/domo-toolkit/issues/97))
 - Set to Manual no longer shows up on dataset views.
+- Objects Owned and Transfer Ownership for a person no longer list dashboards and App Studio apps the person only owns through one of their groups.
 
 ### Update Action Versions
 

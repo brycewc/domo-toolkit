@@ -81,35 +81,40 @@ export async function getFormsForPage({ formWidgetIds, tabId = null }) {
 }
 
 /**
- * Get all App Studio apps owned by a user or group.
- * For a group, uses the search endpoint (direct ownership only); the
- * admin-summary endpoint has no group-owner filter and its user results
- * include group-inherited ownership, neither of which applies to a group
- * source.
+ * Get all App Studio apps owned directly by a user or group.
+ *
+ * Uses the search endpoint rather than `/dataapps/adminsummary`: that endpoint's
+ * `ownerIds` filter resolves group membership, so asking for a user also returns
+ * apps a group they belong to owns, and it has no group-owner filter at all.
+ *
+ * Note: the search index's `data_app` entity is a superset that includes
+ * worksheets, so we fetch the worksheet entity in parallel and subtract to
+ * produce an apps-only list.
  * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
  * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
  * @returns {Promise<Array<{id: string, name: string}>>}
  */
 export async function getOwnedAppStudioApps(ownerId, tabId = null, ownerType = 'USER') {
-  if (ownerType === 'GROUP') {
-    return getUserOwnedAppStudioApps(ownerId, tabId, 'GROUP');
-  }
-  return fetchOwnedDataApps(ownerId, 'app', tabId);
+  const [allDataApps, worksheets] = await Promise.all([
+    searchOwnedDataApps(ownerId, 'data_app', tabId, ownerType),
+    searchOwnedDataApps(ownerId, 'worksheet', tabId, ownerType)
+  ]);
+  const worksheetIds = new Set(worksheets.map((w) => w.id));
+  return allDataApps.filter((a) => !worksheetIds.has(a.id));
 }
 
 /**
- * Get all Worksheets owned by a user or group.
+ * Get all Worksheets owned directly by a user or group. Counterpart to
+ * getOwnedAppStudioApps for the worksheet subtype, and on the search endpoint
+ * for the same reason.
  * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
  * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
  * @returns {Promise<Array<{id: string, name: string}>>}
  */
 export async function getOwnedWorksheets(ownerId, tabId = null, ownerType = 'USER') {
-  if (ownerType === 'GROUP') {
-    return getUserOwnedWorksheets(ownerId, tabId, 'GROUP');
-  }
-  return fetchOwnedDataApps(ownerId, 'worksheet', tabId);
+  return searchOwnedDataApps(ownerId, 'worksheet', tabId, ownerType);
 }
 
 /**
@@ -155,41 +160,6 @@ export async function getQueuesForPage({ queueWidgetIds, tabId = null }) {
     [queueWidgetIds],
     tabId
   );
-}
-
-/**
- * Get App Studio apps owned by a user as an individual (not via group).
- * Uses the search endpoint which only returns direct ownership, unlike
- * getOwnedAppStudioApps which includes group-inherited ownership.
- * Used by the transfer flow — only individual ownership can be transferred.
- *
- * Note: the search index's `data_app` entity is a superset that includes
- * worksheets, so we fetch the worksheet entity in parallel and subtract
- * to produce an apps-only list.
- * @param {number} ownerId - The Domo user or group ID
- * @param {number|null} tabId - Optional Chrome tab ID
- * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
- * @returns {Promise<Array<{id: string, name: string}>>}
- */
-export async function getUserOwnedAppStudioApps(ownerId, tabId = null, ownerType = 'USER') {
-  const [allDataApps, worksheets] = await Promise.all([
-    searchUserOwnedDataApps(ownerId, 'data_app', tabId, ownerType),
-    searchUserOwnedDataApps(ownerId, 'worksheet', tabId, ownerType)
-  ]);
-  const worksheetIds = new Set(worksheets.map((w) => w.id));
-  return allDataApps.filter((a) => !worksheetIds.has(a.id));
-}
-
-/**
- * Get Worksheets owned by a user (or group) as a direct owner (not inherited).
- * Counterpart to getUserOwnedAppStudioApps for the worksheet subtype.
- * @param {number} ownerId - The Domo user or group ID
- * @param {number|null} tabId - Optional Chrome tab ID
- * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
- * @returns {Promise<Array<{id: string, name: string}>>}
- */
-export async function getUserOwnedWorksheets(ownerId, tabId = null, ownerType = 'USER') {
-  return searchUserOwnedDataApps(ownerId, 'worksheet', tabId, ownerType);
 }
 
 /**
@@ -254,73 +224,19 @@ export async function transferWorksheets(worksheetIds, fromOwnerId, toOwnerId, t
 }
 
 /**
- * Shared pagination loop for the admin-summary dataapps endpoint. Both
- * apps and worksheets are stored as DATA_APP on the backend; the `type`
- * body field ('app' vs 'worksheet') is the server-side filter.
- * @param {number} userId - The Domo user ID
- * @param {'app'|'worksheet'} type - Subtype filter
- * @param {number|null} tabId - Optional Chrome tab ID
- * @returns {Promise<Array<{id: string, name: string}>>}
- */
-function fetchOwnedDataApps(userId, type, tabId) {
-  return executeInPage(
-    async (userId, type) => {
-      const allApps = [];
-      const limit = 30;
-      let skip = 0;
-      let moreData = true;
-
-      while (moreData) {
-        const response = await fetch(`/api/content/v1/dataapps/adminsummary?limit=${limit}&skip=${skip}`, {
-          body: JSON.stringify({
-            ascending: true,
-            includeOwnerClause: true,
-            includeTitleClause: true,
-            orderBy: 'title',
-            ownerIds: [userId],
-            titleSearchText: '',
-            type
-          }),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST'
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-
-        const summaries = data.dataAppAdminSummaries;
-        if (summaries && summaries.length > 0) {
-          for (const app of summaries) {
-            allApps.push({
-              id: app.dataAppId.toString(),
-              name: app.title || app.dataAppId.toString()
-            });
-          }
-          skip += limit;
-          if (summaries.length < limit) moreData = false;
-        } else {
-          moreData = false;
-        }
-      }
-
-      return allApps;
-    },
-    [userId, type],
-    tabId
-  );
-}
-
-/**
  * Shared pagination loop for the search-endpoint dataapps query. The Domo
  * search index treats 'data_app' (app studio apps) and 'worksheet' as
  * distinct entity types despite both being DATA_APP on the backend, so the
- * entityList value is what routes the query.
+ * entityList value is what routes the query. Matches direct ownership only:
+ * the `owned_by_id` facet stores each owner as its own `id:TYPE` pair, so a
+ * user filter never expands to the groups that user belongs to.
  * @param {number} ownerId - The Domo user or group ID
  * @param {'data_app'|'worksheet'} entity - Search entity type
  * @param {number|null} tabId - Optional Chrome tab ID
  * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
  * @returns {Promise<Array<{id: string, name: string}>>}
  */
-function searchUserOwnedDataApps(ownerId, entity, tabId, ownerType = 'USER') {
+function searchOwnedDataApps(ownerId, entity, tabId, ownerType = 'USER') {
   return executeInPage(
     async (ownerId, entity, ownerType) => {
       const allApps = [];

@@ -4,14 +4,7 @@ import { getOwnedAiProjects, transferAiProjects } from './aiProjects';
 import { getOwnedAlerts, transferAlerts } from './alerts';
 import { getOwnedAppDbCollections, transferAppDbCollections } from './appDb';
 import { getOwnedApprovals, getOwnedApprovalTemplates, transferApprovals, transferApprovalTemplates } from './approvals';
-import {
-  getOwnedAppStudioApps,
-  getOwnedWorksheets,
-  getUserOwnedAppStudioApps,
-  getUserOwnedWorksheets,
-  transferAppStudioApps,
-  transferWorksheets
-} from './appStudio';
+import { getOwnedAppStudioApps, getOwnedWorksheets, transferAppStudioApps, transferWorksheets } from './appStudio';
 import { getOwnedCards, transferCards } from './cards';
 import { getOwnedCodeEnginePackages, transferCodeEnginePackages } from './codeEngine';
 import { getOwnedDataflows, transferDataflows } from './dataflows';
@@ -72,7 +65,6 @@ export const TRANSFER_TYPES = [
   },
   {
     getOwned: getOwnedAppStudioApps,
-    getOwnedForTransfer: getUserOwnedAppStudioApps,
     groupOwnable: true,
     key: 'appStudioApps',
     label: 'App Studio Apps',
@@ -233,7 +225,6 @@ export const TRANSFER_TYPES = [
   },
   {
     getOwned: getOwnedWorksheets,
-    getOwnedForTransfer: getUserOwnedWorksheets,
     groupOwnable: true,
     key: 'worksheets',
     label: 'Worksheets',
