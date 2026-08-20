@@ -10,6 +10,11 @@
 - Text cards can now be exported as Markdown or HTML from the Export button.
 - Added a setting that lets Domo developers use the toolkit on a Domo instance running on their own machine.
 
+### Supported Types
+
+- Pro-code custom apps are now recognized as their own type instead of being treated as bricks.
+- Custom app instances are now recognized as their own type, "Custom App".
+
 ### Update Action Versions
 
 - Update Code Engine Versions is now called Update Action Versions, and it can bump the versions of a workflow's subflow actions as well as its Code Engine actions.
@@ -55,11 +60,6 @@
 - A person's profile page now has a View in Admin button, so you can move between the two views in one click.
 - Get Owned Objects now works on a group, listing everything the group owns.
 - Transfer Ownership now works on a group, moving the group's objects to another group.
-
-### Supported Types
-
-- Pro-code custom apps are now recognized as their own type instead of being treated as bricks.
-- Custom app instances are now recognized as their own type, "Custom App".
 
 ## UI Improvements
 
