@@ -1,0 +1,24 @@
+{
+  "name": "react18-json-view",
+  "version": "0.3.0",
+  "description": "Vendored ES build of the brycewc/react18-json-view fork. Not published; see README.md in this directory before changing anything here.",
+  "license": "MIT",
+  "author": "Suni",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brycewc/react18-json-view.git"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./dist/es/index.mjs"
+  },
+  "module": "./dist/es/index.mjs",
+  "browser": "./dist/es/index.mjs",
+  "files": [
+    "dist"
+  ],
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  }
+}

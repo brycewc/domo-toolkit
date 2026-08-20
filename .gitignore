@@ -11,6 +11,13 @@ node_modules
 dist
 release
 dist-ssr
+
+# The bare `dist` rule above also swallows the vendored react18-json-view build,
+# which is a committed artifact rather than local output. Re-include the
+# directory itself: git will not descend into an excluded directory, so negating
+# only the files inside it would never match.
+!vendor/react18-json-view/dist/
+!vendor/react18-json-view/dist/**
 .playwriter-shots
 *.local
 *.env.*

@@ -1435,7 +1435,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tanstack/react-virtual@npm:3.14.6, @tanstack/react-virtual@npm:^3.14.6":
+"@tanstack/react-virtual@npm:^3.14.6":
   version: 3.14.6
   resolution: "@tanstack/react-virtual@npm:3.14.6"
   dependencies:
@@ -2124,15 +2124,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"copy-to-clipboard@npm:^3.3.3":
-  version: 3.3.3
-  resolution: "copy-to-clipboard@npm:3.3.3"
-  dependencies:
-    toggle-selection: "npm:^1.0.6"
-  checksum: 10c0/3ebf5e8ee00601f8c440b83ec08d838e8eabb068c1fae94a9cda6b42f288f7e1b552f3463635f419af44bf7675afc8d0390d30876cf5c2d5d35f86d9c56a3e5f
-  languageName: node
-  linkType: hard
-
 "core-util-is@npm:~1.0.0":
   version: 1.0.3
   resolution: "core-util-is@npm:1.0.3"
@@ -2390,14 +2381,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"domo-codeengine-manifest@portal:../domo-codeengine-manifest::locator=domo-toolkit%40workspace%3A.":
-  version: 0.0.0-use.local
-  resolution: "domo-codeengine-manifest@portal:../domo-codeengine-manifest::locator=domo-toolkit%40workspace%3A."
+"domo-codeengine-manifest@brycewc/domo-codeengine-manifest#tag=v0.1.0":
+  version: 0.1.0
+  resolution: "domo-codeengine-manifest@https://github.com/brycewc/domo-codeengine-manifest.git#commit=ae41ec24aad798c73a4569fce1c567f030b94093"
   dependencies:
     acorn: "npm:^8.16.0"
     comment-parser: "npm:^1.4.7"
+  checksum: 10c0/1ddf6b6b69f07a91740015414798c4717ced26dc99dfdb14f20cdcae7b608757935339bd215e2b676100a18dd96ec10ddfa43c46638273826ecc665a08040ae2
   languageName: node
-  linkType: soft
+  linkType: hard
 
 "domo-toolkit@workspace:.":
   version: 0.0.0-use.local
@@ -2415,7 +2407,7 @@ __metadata:
     "@vitejs/plugin-react": "npm:^6.0.2"
     "@xyflow/react": "npm:^12.11.0"
     archiver: "npm:^8.0.0"
-    domo-codeengine-manifest: "portal:../domo-codeengine-manifest"
+    domo-codeengine-manifest: "brycewc/domo-codeengine-manifest#tag=v0.1.0"
     eslint: "npm:^10.4.1"
     eslint-plugin-perfectionist: "npm:^5.9.0"
     globals: "npm:^17.6.0"
@@ -2426,7 +2418,7 @@ __metadata:
     prismjs: "npm:^1.30.0"
     react: "npm:^19.2.7"
     react-dom: "npm:^19.2.7"
-    react18-json-view: "portal:../react18-json-view"
+    react18-json-view: "portal:./vendor/react18-json-view"
     rollup-plugin-visualizer: "npm:^7.0.1"
     tailwindcss: "npm:^4.3.0"
     vite: "npm:^8.0.16"
@@ -4093,12 +4085,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react18-json-view@portal:../react18-json-view::locator=domo-toolkit%40workspace%3A.":
+"react18-json-view@portal:./vendor/react18-json-view::locator=domo-toolkit%40workspace%3A.":
   version: 0.0.0-use.local
-  resolution: "react18-json-view@portal:../react18-json-view::locator=domo-toolkit%40workspace%3A."
-  dependencies:
-    "@tanstack/react-virtual": "npm:3.14.6"
-    copy-to-clipboard: "npm:^3.3.3"
+  resolution: "react18-json-view@portal:./vendor/react18-json-view::locator=domo-toolkit%40workspace%3A."
   peerDependencies:
     react: ">=16.8.0"
     react-dom: ">=16.8.0"
@@ -4530,13 +4519,6 @@ __metadata:
     fdir: "npm:^6.5.0"
     picomatch: "npm:^4.0.4"
   checksum: 10c0/7f7bb0f197c88bc4b20c231e0deca4240ca3bf313a88f5a7fee93a872b84966a4d50220947c0455ad07a60b3b360961c5b7fd979222aeb716a9f99b412002e4c
-  languageName: node
-  linkType: hard
-
-"toggle-selection@npm:^1.0.6":
-  version: 1.0.6
-  resolution: "toggle-selection@npm:1.0.6"
-  checksum: 10c0/f2cf1f2c70f374fd87b0cdc8007453ba9e981c4305a8bf4eac10a30e62ecdfd28bca7d18f8f15b15a506bf8a7bfb20dbe3539f0fcf2a2c8396c1a78d53e1f179
   languageName: node
   linkType: hard
 

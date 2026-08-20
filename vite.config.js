@@ -77,13 +77,20 @@ export default defineConfig(({ mode }) => {
     // as "does not provide an export named 'Position'". Pre-bundling avoids the
     // mid-session re-optimize entirely.
     //
-    // The two local siblings are here for the same reason, by a different route.
-    // They are linked with portal:, and Vite skips pre-bundling linked packages
-    // by default on the assumption you are editing them. Their own imports
-    // (@tanstack/react-virtual, copy-to-clipboard, acorn, comment-parser) then
-    // get discovered mid-session and trigger the same stranding re-optimize,
-    // which is why a popup opens once and fails on reopen. Naming them here
-    // forces the pre-bundle that the old file: copies used to get for free.
+    // react18-json-view is here for the same reason, by a different route. It
+    // is linked with portal: into vendor/, and Vite skips pre-bundling linked
+    // packages by default on the assumption you are editing them. This one is a
+    // committed build artifact nobody edits in place, and at ~110KB in a single
+    // module it is exactly the kind of dep that strands a surface when it gets
+    // discovered mid-session, which is why a popup opens once and fails on
+    // reopen. Naming it here forces the pre-bundle that a plain node_modules
+    // package would get for free.
+    //
+    // domo-codeengine-manifest is an ordinary node_modules package again now
+    // that it resolves from a git tag instead of a portal: link, so Vite would
+    // pre-bundle it unprompted. It stays listed so its own acorn and
+    // comment-parser imports land in the startup pre-bundle rather than being
+    // discovered the first time the side panel opens the JSDoc view.
     //
     // @internationalized/date is a third route to the same stranding. It is a
     // transitive dep (HeroUI's date components pull it in) that our own code
@@ -186,30 +193,17 @@ export default defineConfig(({ mode }) => {
         { find: '@', replacement: path.resolve(__dirname, 'src') },
         { find: '@icons', replacement: path.resolve(__dirname, 'src/assets/icons') }
       ],
-      // The local sibling packages are linked with portal:, so Vite resolves
-      // through the symlink to their real directory. react18-json-view keeps its
-      // own React 18 in a pnpm store, and a bare 'react' import from inside it
-      // would resolve there instead of to our React 19, giving two React copies
-      // and "invalid hook call" at runtime. Pinning both to a single copy is what
-      // makes the symlink safe.
+      // react18-json-view is linked with portal:, so Vite resolves it through a
+      // symlink into vendor/react18-json-view. That vendored ES build leaves
+      // react, react/jsx-runtime, and react-dom external, so those bare imports
+      // resolve from here rather than from the fork. Pinning both to a single
+      // copy keeps a second React from slipping in and turning into an
+      // "invalid hook call" at runtime.
       dedupe: ['react', 'react-dom']
     },
     server: {
       cors: {
         origin: [/chrome-extension:\/\//]
-      },
-      fs: {
-        // The sibling packages are linked with portal:, so Vite resolves them
-        // through the symlink to their real directory, which sits outside this
-        // project root. fs.strict defaults to on and the default allow list is
-        // just the root, so serving them would be refused and the surface fails
-        // to load. Listing the root explicitly is required: setting allow
-        // replaces the default rather than extending it.
-        allow: [
-          __dirname,
-          path.resolve(__dirname, '../react18-json-view'),
-          path.resolve(__dirname, '../domo-codeengine-manifest')
-        ]
       },
       hmr: {
         host: 'localhost',

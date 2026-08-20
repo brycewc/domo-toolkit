@@ -9,6 +9,9 @@ paths:
   - 'src/services/**'
   - 'src/models/**'
   - 'src/utils/executeInPage.js'
+  - 'package.json'
+  - 'vite.config.js'
+  - 'vendor/**'
 ---
 
 # Extension Architecture
@@ -189,3 +192,61 @@ When adding support for a new `DomoObjectType` to any button component, immediat
 - **manifest.config.js** — Chrome extension manifest v3 with permissions, content scripts, side panel
 - **.prettierrc** — Code formatting rules (single quotes, no trailing commas)
 - **src/assets/global.css** — Tailwind and global styles, theme colors in OKLch
+
+## External Dependency Wiring
+
+Two dependencies come from outside npm, wired differently for different reasons.
+Neither requires an npm publish, and neither needs a sibling checkout.
+
+### `domo-codeengine-manifest` (git tag)
+
+```json
+"domo-codeengine-manifest": "brycewc/domo-codeengine-manifest#tag=v0.1.0"
+```
+
+The JSDoc-to-manifest pipeline behind `GeneratePackageDefinitionFromJSDocView`
+and `src/utils/ceContractDiff.js`. It lives in its own public repo because the
+`brycewc/domo-codeengine-sync` GitHub Action consumes the same code, and the
+extension and the Action have to agree on the manifest format. Resolving it from
+a git tag preserves that single source without publishing to npm. `yarn.lock`
+pins the resolved commit, so installs stay reproducible even if the tag moves.
+
+**Iterating on it means re-tagging, not editing in place.** It installs into
+`node_modules` as a real directory, so edits to a local clone are invisible here.
+To work on both at once, temporarily switch the dep to
+`portal:../domo-codeengine-manifest`, then tag the package repo and point back at
+the new tag before committing. Never leave a `portal:../` path in a commit: it
+resolves outside the repo, so it breaks every fresh clone, including forks.
+
+### `react18-json-view` (vendored build)
+
+```json
+"react18-json-view": "portal:./vendor/react18-json-view"
+```
+
+A fork adding virtualization and a `scrollRef` prop, imported by five components
+(`ContextFooter`, `DataflowInspector`, `ErrorAlert`, `ApiErrorsView`,
+`ObjectDetailsView`). The fork cannot be a git dependency: Yarn infers a repo's
+package manager from its lockfile, the fork carries only a `pnpm-lock.yaml`, and
+Yarn 4 rejects that with `Assertion failed: Unsupported workflow`. Its built ES
+output is therefore committed under `vendor/react18-json-view/`, which keeps the
+path repo-relative and needs no build step and no sibling checkout.
+
+Refresh steps and the exact source commit live in
+`vendor/react18-json-view/README.md`. Two quirks worth knowing:
+
+- The bare `dist` rule in `.gitignore` would otherwise swallow the vendored
+  build, so `.gitignore` re-includes it explicitly. Git will not descend into an
+  excluded directory, which is why the negation names the directory itself and
+  not only its contents.
+- The build carries two deliberate NUL bytes, a `'\0chunk\0'` delimiter in the
+  fork's `chunkKey()`, which is why `file` reports it as `data`. They sit past
+  git's 8000-byte binary heuristic, so git still diffs the file as text.
+
+### Both are bundled, never resolved at runtime
+
+Vite inlines both into the extension bundle, and `scripts/release.js` zips only
+`dist/`. The packaged extension carries no `node_modules` and does no dependency
+resolution, so neither dep reaches a user's browser as a dependency. Both stay
+listed in `optimizeDeps.include` in `vite.config.js`; the comment there explains
+which mid-session re-optimize each one prevents.
