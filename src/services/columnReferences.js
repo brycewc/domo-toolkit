@@ -28,6 +28,7 @@ import {
   COLUMN_LIST_FIELDS,
   COLUMN_VALUE_FIELDS,
   EXPRESSION_FIELDS,
+  isCalculatedColumnEntry,
   isColumnListParent,
   stripBackticks
 } from './columnFields';
@@ -740,8 +741,12 @@ function walkForColumnRefs(node, onColumnRef, parentKey = null) {
         if (typeof item === 'string') {
           onColumnRef(stripBackticks(item));
         } else if (item && typeof item === 'object') {
-          // Pick the first present known column-bearing field.
+          // Pick the first present known column-bearing field. A card-level
+          // Beast Mode entry is skipped at `name`/`id`: those hold its display
+          // name and calc id, not a column (see `isCalculatedColumnEntry`).
+          const isCalc = isCalculatedColumnEntry(item);
           for (const fieldName of ['column', 'columnName', 'inStreamName', 'name', 'field', 'id']) {
+            if (isCalc && (fieldName === 'name' || fieldName === 'id')) continue;
             if (typeof item[fieldName] === 'string') {
               onColumnRef(stripBackticks(item[fieldName]));
               break;
@@ -758,8 +763,9 @@ function walkForColumnRefs(node, onColumnRef, parentKey = null) {
     // 3. Plain column-value fields — value is a string column name.
     if (COLUMN_VALUE_FIELDS.has(key) && typeof value === 'string') {
       // `name` and `id` are over-broad on their own — only treat as column
-      // refs when nested under a parent that's a column-list context.
-      if ((key === 'name' || key === 'id') && !isColumnListParent(parentKey)) {
+      // refs when nested under a parent that's a column-list context, and never
+      // on a card-level Beast Mode entry.
+      if ((key === 'name' || key === 'id') && (!isColumnListParent(parentKey) || isCalculatedColumnEntry(node))) {
         // skip
       } else {
         onColumnRef(stripBackticks(value));

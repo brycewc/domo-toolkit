@@ -174,6 +174,15 @@ export async function enrichMetadata(lineageResponse, tabId = null, existingKeys
               cryoStatus: ds.cryoStatus,
               id: ds.id,
               name: ds.name,
+              // The bulk payload already names the owner, so a dataset needs no
+              // follow-up lookup the way a dataflow (id only) does.
+              owner: ds.owner
+                ? {
+                    id: ds.owner.id,
+                    name: ds.owner.name,
+                    type: ds.owner.type === 'GROUP' || ds.owner.group ? 'GROUP' : 'USER'
+                  }
+                : null,
               rowCount: ds.rowCount,
               status: ds.status
             }));
@@ -198,13 +207,46 @@ export async function enrichMetadata(lineageResponse, tabId = null, existingKeys
           });
           if (response.ok) {
             const data = await response.json();
-            return (data.onboardFlows || []).map((df) => ({
+            const flows = data.onboardFlows || [];
+
+            // A dataflow names only its owner's id, so the batch's owners are
+            // named in one more call here rather than by the caller: the export
+            // reads these names straight off the metadata, and it never puts a
+            // node on screen for a hook to fill in afterward. Best-effort, since
+            // a nameless owner is not worth losing the rest of the batch over.
+            const ownerIds = [...new Set(flows.map((df) => df.responsibleUserId).filter((id) => id != null))];
+            const ownerNames = {};
+            if (ownerIds.length > 0) {
+              try {
+                const usersResponse = await fetch(`/api/content/v3/users?id=${ownerIds.join(',')}`, {
+                  credentials: 'include',
+                  method: 'GET'
+                });
+                if (usersResponse.ok) {
+                  for (const user of await usersResponse.json()) {
+                    if (user?.id != null && user.displayName) ownerNames[user.id] = user.displayName;
+                  }
+                }
+              } catch {
+                // Owner names are non-critical
+              }
+            }
+
+            return flows.map((df) => ({
               databaseType: df.databaseType,
               id: df.id,
               inputCount: df.inputs?.length,
               lastExecution: df.lastExecution,
               name: df.name,
               outputCount: df.outputs?.length,
+              owner:
+                df.responsibleUserId != null
+                  ? {
+                      id: df.responsibleUserId,
+                      name: ownerNames[df.responsibleUserId] ?? null,
+                      type: 'USER'
+                    }
+                  : null,
               runState: df.runState
             }));
           }

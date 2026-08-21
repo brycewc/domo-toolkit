@@ -32,6 +32,7 @@ import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { getObjectType } from '@/models/DomoObjectType';
 import { scanContentForColumns } from '@/services/columnReferences';
+import { isDroppableCardChartType } from '@/services/columnRewriter';
 import { getDatasetColumns, isViewType } from '@/services/datasets';
 import { getDatasetFunctions } from '@/services/functions';
 import { getDownstreamCards, getDownstreamCardsRaw, getDownstreamLineage } from '@/services/migrateDownstreamContent';
@@ -349,19 +350,27 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     }
     for (const name of orphanCandidates) {
       const usages = scanResult?.byColumn?.get(name) || [];
+      // Drop is only offered when EVERY use is a flat-table card, where removing
+      // the column just takes it out of the table. Any other chart type, or a
+      // dataflow / view / app use, is content the drop would corrupt, so those
+      // columns stay remap-only. Re-derived here on every render, so a stale
+      // choice can't survive a change in what uses the column.
+      const dropSafe =
+        usages.length > 0 &&
+        usages.every((u) => u.type === 'cards' && isDroppableCardChartType(cardsById.get(String(u.id))?.chartType));
       out.push({
         candidates: schemaColumns,
         key: `downstream:${name}`,
         kind: 'downstream',
         name,
-        offerDrop: false,
+        offerDrop: dropSafe,
         usageCount: usages.length,
         usages
       });
     }
     out.sort((a, b) => a.name.localeCompare(b.name));
     return out;
-  }, [brokenViewColumns, orphanCandidates, schemaColumns, schemaColumnNames, scanResult]);
+  }, [brokenViewColumns, cardsById, orphanCandidates, schemaColumns, schemaColumnNames, scanResult]);
 
   // The broken columns grouped by the dataset they belong to, so the source name
   // is stated once as a section header instead of on every row. A view-input
@@ -432,6 +441,18 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     return map;
   }, [brokenColumns, columnChoices]);
 
+  // The downstream columns the user chose to drop rather than remap: removed
+  // from every selected card that lists them. Filtered by `offerDrop` so a choice
+  // made before the usage set changed can't reach content the drop would break.
+  const downstreamDrops = useMemo(() => {
+    const names = [];
+    for (const row of brokenColumns) {
+      if (row.kind !== 'downstream' || !row.offerDrop) continue;
+      if (columnChoices[row.key] === DROP) names.push(row.name);
+    }
+    return names;
+  }, [brokenColumns, columnChoices]);
+
   // The view self-repair the user has resolved: remaps grouped later per source,
   // drops by output column name, plus each touched source's column types (for the
   // rewriter's type propagation). `count` drives the confirm-dialog copy.
@@ -461,9 +482,10 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
 
   const hasViewWork = viewActions.count > 0;
 
-  // Downstream items that reference one of the mapped old columns, by type, with
-  // the full loaded record (carrying the card urn for drills). Deduped by id
-  // across columns. This is exactly what a remap will rewrite.
+  // Downstream items that reference one of the resolved old columns (remapped or
+  // dropped), by type, with the full loaded record (carrying the card urn for
+  // drills). Deduped by id across columns. This is exactly what a remap will
+  // rewrite.
   const affectedByType = useMemo(() => {
     const acc = { apps: [], beastModes: [], cards: [], dataflows: [], datasets: [] };
     if (!scanResult?.byColumn) return acc;
@@ -472,7 +494,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       itemsById[t.key] = new Map(allItemsByType[t.key].map((i) => [String(i.id), i]));
     }
     const seen = { apps: new Set(), beastModes: new Set(), cards: new Set(), dataflows: new Set(), datasets: new Set() };
-    for (const oldName of Object.keys(columnMap)) {
+    for (const oldName of [...Object.keys(columnMap), ...downstreamDrops]) {
       for (const usage of scanResult.byColumn.get(oldName) || []) {
         const { id, type } = usage;
         if (!acc[type] || seen[type].has(String(id))) continue;
@@ -481,7 +503,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       }
     }
     return acc;
-  }, [allItemsByType, columnMap, scanResult]);
+  }, [allItemsByType, columnMap, downstreamDrops, scanResult]);
 
   const affectedLeafIds = useMemo(() => {
     const ids = new Set();
@@ -703,6 +725,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
             datasetId,
             datasetName,
             definitionsByItemKey: scanResult?.byItem || new Map(),
+            droppedColumns: downstreamDrops,
             onProgress: ({ count, result, status, typeKey }) => {
               if (!mountedRef.current) return;
               setTransferStatus((prevStatus) => {
@@ -790,6 +813,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     columnMap,
     datasetId,
     datasetName,
+    downstreamDrops,
     isViewFusion,
     onBackToDefault,
     scanResult,
@@ -813,15 +837,30 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   }
 
   const mappedCount = Object.keys(columnMap).length;
+  // Renames plus drops: either resolves a broken column, so either is enough to
+  // move on to picking the content to rewrite.
+  const resolvedCount = mappedCount + downstreamDrops.length;
   const totalAffected = affectedLeafIds.size;
-  const canAdvance = mappedCount > 0 && totalAffected > 0 && !isScanning && !isTransferring;
+  const canAdvance = resolvedCount > 0 && totalAffected > 0 && !isScanning && !isTransferring;
   // Page 2 can apply when downstream content is selected, or when only a view
   // repair remains (e.g. the user deselected every downstream item).
-  const canApply = ((mappedCount > 0 && totalSelected > 0) || hasViewWork) && !isTransferring && !isScanning;
+  const canApply = ((resolvedCount > 0 && totalSelected > 0) || hasViewWork) && !isTransferring && !isScanning;
   // A view with self-repairs but no downstream mapping applies straight from the
   // map page (there's no downstream content to select on page 2).
   const canApplyView = hasViewWork && !isScanning && !isDetectingView && !isTransferring;
   const isBusy = isScanning || isDetectingView;
+  // Whether any row offers Drop at all, so the helper copy only mentions dropping
+  // when it's actually on the table (an unused view column, or a column nothing
+  // but table cards uses).
+  const canDropAny = brokenColumns.some((row) => row.offerDrop);
+  // What the downstream rewrite does to the selected content, phrased to match
+  // the choices actually made: renames, drops, or both.
+  const downstreamEffect =
+    mappedCount > 0 && downstreamDrops.length > 0
+      ? ' to use the new column names and remove the dropped ones'
+      : downstreamDrops.length > 0
+        ? ` to remove the dropped column${downstreamDrops.length === 1 ? '' : 's'}`
+        : ` to use the new column name${mappedCount === 1 ? '' : 's'}`;
 
   // Shared confirm dialog, rendered on both pages. Its copy adapts: the map page
   // opens it only for a view-repair-only run (no downstream selection), while the
@@ -851,8 +890,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
                 {totalSelected > 0 && (
                   <>
                     This rewrites <strong>{totalSelected}</strong> downstream item{totalSelected === 1 ? '' : 's'}
-                    {hasViewWork ? ' and repairs this view' : ` to use the new column name${mappedCount === 1 ? '' : 's'}`}
-                    .{' '}
+                    {hasViewWork ? ' and repairs this view' : downstreamEffect}.{' '}
                   </>
                 )}
                 {totalSelected === 0 && hasViewWork && (
@@ -1013,7 +1051,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
                   <p className='text-xs text-muted'>
                     <strong>{brokenColumns.length}</strong> column{brokenColumns.length === 1 ? '' : 's'}{' '}
                     {brokenColumns.length === 1 ? 'is' : 'are'} referenced but no longer available. Point each at a valid
-                    column{isView ? ', or drop the unused ones from the view' : ''}.
+                    column{canDropAny ? ', or drop the ones you no longer need' : ''}.
                   </p>
                   {sections.map((section) => {
                     const sectionUrl = buildObjectUrl('datasets', { id: section.id, name: section.name }, origin);

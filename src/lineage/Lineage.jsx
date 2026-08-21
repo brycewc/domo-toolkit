@@ -19,6 +19,7 @@ import { LevelToolbar } from './components/LevelToolbar';
 import { LineageGraph } from './components/LineageGraph';
 import { useGraphVisibility } from './hooks/useGraphVisibility';
 import { useLineageCache } from './hooks/useLineageCache';
+import { useNodeOwners } from './hooks/useNodeOwners';
 import { toLineageType, toNodeId } from './services/lineage';
 import { buildLineageJson, buildLineageRows, LINEAGE_EXPORT_COLUMNS } from './services/lineageExport';
 
@@ -60,6 +61,8 @@ export function Lineage() {
     isNeighborCached,
     rootNodeId
   });
+
+  const { customAvatarIds, inactiveUserIds, ownerNames } = useNodeOwners(visibleTrace, resolveTabId);
 
   useEffect(() => {
     chrome.storage.session
@@ -354,11 +357,15 @@ export function Lineage() {
             </div>
           ) : (
             <LineageGraph
+              customAvatarIds={customAvatarIds}
+              domoOrigin={params?.origin}
               error={null}
               expandLoading={expandLoading}
               highlightedDepth={highlightedDepth}
+              inactiveUserIds={inactiveUserIds}
               instanceRef={graphInstanceRef}
               loading={false}
+              ownerNames={ownerNames}
               rootNodeId={rootNodeId}
               selectedNodeId={selectedNodeId}
               trace={visibleTrace}

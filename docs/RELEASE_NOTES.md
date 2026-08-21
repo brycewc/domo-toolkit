@@ -24,6 +24,8 @@
 ### Column Mapping
 
 - Remap Columns can now repair a dataset view that its source dataset broke by renaming or removing a column the view reads, either by pointing the view at a valid column or dropping that column from the view.
+- Remap Columns can now drop a broken column outright instead of remapping it, when nothing but table cards uses it.
+- Dropping a column now also removes the card's filters and slicers on that column, not just the column itself.
 - Remap Columns now has an Auto Map button that fills in each broken column's closest-matching replacement in one click.
 - Migrate Content's Auto Map now also matches columns that share the same words, not only names that are identical apart from case and separators.
 
@@ -128,6 +130,13 @@
 - The readable timestamps and user/group names shown next to values in the Current Context JSON view now match the size of the item count shown next to objects and arrays.
 - The Current Context detail tabs now show left and right scroll arrows when they overflow the panel width.
 
+### Lineage
+
+- Each node in a lineage now shows who owns its dataset or dataflow, with their avatar, and links to that person or group.
+- Nodes in a lineage no longer show the object's ID.
+- The data preview for a dataset in a lineage now shows the dataset's ID in its header.
+- An exported lineage now has Owner, Owner ID, and Owner Type columns.
+
 ## Bug Fixes
 
 - Update Trigger Versions now shows a message when a workflow has no alert triggers instead of opening a blank panel.
@@ -171,6 +180,8 @@
 
 ### Migrate Content
 
+- The Drop Column choice now appears for table cards, where it previously never offered itself on any card.
+- Remapping or dropping a column no longer renames or deletes a card's Beast Mode that happens to share the column's name.
 - Mapping a column onto one of the target dataset's Beast Modes now saves the affected cards successfully instead of erroring out.
 - The cross-input collision warning now reads as a single flowing paragraph instead of breaking its text into misaligned, staggered columns.
 

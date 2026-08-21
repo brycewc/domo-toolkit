@@ -20,10 +20,24 @@ import {
   COLUMN_LIST_FIELDS,
   COLUMN_VALUE_FIELDS,
   EXPRESSION_FIELDS,
+  isCalculatedColumnEntry,
   isColumnListParent,
+  REMOVABLE_ENTRY_LIST_FIELDS,
   stripBackticks
 } from './columnFields';
 import { isFusionView } from './columnReferences';
+
+/**
+ * Card chart types where "drop this column" is a faithful edit: flat tables,
+ * whose every column is just an entry in a column list, so deleting the entry
+ * removes the column from the table and leaves the rest of the card intact.
+ *
+ * Deliberately excludes the other two table types. `badge_pivot_table` and
+ * `badge_heatmap_table` assign their columns to structural roles (rows, columns,
+ * values), so deleting one doesn't shrink the card, it strips a role the chart
+ * needs. Every non-table chart type is excluded for the same reason.
+ */
+export const DROPPABLE_CARD_CHART_TYPES = new Set(['badge_basic_table', 'badge_flex_table', 'badge_table']);
 
 /**
  * Remove one or more OUTPUT columns from a template/SQL dataset view definition.
@@ -150,17 +164,31 @@ export function hasEffectiveMapping(columnMap) {
 }
 
 /**
+ * Whether a card's chart type tolerates dropping a column (see
+ * `DROPPABLE_CARD_CHART_TYPES`). A card with no chart type recorded is treated as
+ * not droppable, so an unknown card is never edited on a guess.
+ *
+ * @param {string|null|undefined} chartType
+ * @returns {boolean}
+ */
+export function isDroppableCardChartType(chartType) {
+  return typeof chartType === 'string' && DROPPABLE_CARD_CHART_TYPES.has(chartType);
+}
+
+/**
  * Remove every reference to the given columns from a card definition. Backs the
- * "drop column" migration choice, which is offered only when a column is
- * referenced solely by `badge_table` cards/drills — so deleting it from the
- * column-list fields (e.g. `subscriptions.main.columns`, sorts) and any
- * column-keyed maps (formats) cleanly drops it from the table.
+ * "drop column" choice, which is offered only when a column is referenced solely
+ * by flat-table cards/drills (see `DROPPABLE_CARD_CHART_TYPES`) — so deleting it
+ * from the column-list fields (e.g. `subscriptions.main.columns`, sorts), the
+ * per-column entry lists (`filters`, slicer `controls`), and any column-keyed
+ * maps (formats) cleanly drops it from the table.
  *
  * Mirrors the rename walker's field registry, but DELETES matches instead of
  * renaming: list entries whose column-bearing field names a dropped column are
  * filtered out, and dropped keys are deleted from column-keyed maps.
- * Expression/scalar fields are left alone (a badge_table card holds its columns
- * in list fields, not formulas).
+ * Expression/scalar fields are left alone, so a card-level Beast Mode whose
+ * formula references a dropped column keeps that reference and has to be fixed by
+ * hand; deleting the whole formula would be a bigger edit than "drop a column".
  *
  * @param {Object} cardDefinition
  * @param {string[]|Set<string>} droppedColumns - Origin column names to remove.
@@ -711,12 +739,18 @@ function walkAndRemoveColumns(node, drop) {
       continue;
     }
 
-    // 2. Column-list fields — drop entries that reference a dropped column.
-    if (COLUMN_LIST_FIELDS.has(key) && Array.isArray(value)) {
+    // 2. Column-list fields, plus the per-column entry lists (`filters`, slicer
+    //    `controls`) — drop entries that reference a dropped column.
+    if ((COLUMN_LIST_FIELDS.has(key) || REMOVABLE_ENTRY_LIST_FIELDS.has(key)) && Array.isArray(value)) {
       node[key] = value.filter((item) => {
         if (typeof item === 'string') return !drop.has(stripBackticks(item));
         if (item && typeof item === 'object') {
+          // A card-level Beast Mode entry is skipped at `name`/`id`, so a drop
+          // can never delete the Beast Mode itself (see
+          // `isCalculatedColumnEntry`).
+          const isCalc = isCalculatedColumnEntry(item);
           for (const fieldName of ['column', 'columnName', 'inStreamName', 'name', 'field', 'id']) {
+            if (isCalc && (fieldName === 'name' || fieldName === 'id')) continue;
             if (typeof item[fieldName] === 'string') return !drop.has(stripBackticks(item[fieldName]));
           }
         }
@@ -781,8 +815,13 @@ function walkAndRewriteColumns(node, columnMap, parentKey = null, options = {}) 
         if (typeof item === 'string') {
           value[i] = rewriteColumnName(item, columnMap);
         } else if (item && typeof item === 'object') {
-          // Pick the first column-bearing field present on the item.
+          // Pick the first column-bearing field present on the item. A
+          // card-level Beast Mode entry is skipped at `name`/`id` so a rename
+          // can't retitle the Beast Mode (see `isCalculatedColumnEntry`); its
+          // `value` formula is still rewritten as an expression field.
+          const isCalc = isCalculatedColumnEntry(item);
           for (const fieldName of ['column', 'columnName', 'inStreamName', 'name', 'field', 'id']) {
+            if (isCalc && (fieldName === 'name' || fieldName === 'id')) continue;
             if (typeof item[fieldName] === 'string') {
               const rewritten = rewriteColumnName(item[fieldName], columnMap);
               if (!reshapeColumnRefToBeastMode(item, fieldName, item[fieldName], rewritten, options)) {
@@ -800,8 +839,9 @@ function walkAndRewriteColumns(node, columnMap, parentKey = null, options = {}) 
     // 3. Plain column-value fields.
     if (COLUMN_VALUE_FIELDS.has(key) && typeof value === 'string') {
       // `name` and `id` are over-broad on their own — only treat as column
-      // refs when nested under a known column-list parent.
-      if ((key === 'name' || key === 'id') && !isColumnListParent(parentKey)) {
+      // refs when nested under a known column-list parent, and never on a
+      // card-level Beast Mode entry.
+      if ((key === 'name' || key === 'id') && (!isColumnListParent(parentKey) || isCalculatedColumnEntry(node))) {
         continue;
       }
       // No Beast Mode reshape here: a card's `column` value field is a filter

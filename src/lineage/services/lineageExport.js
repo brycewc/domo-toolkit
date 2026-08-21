@@ -5,6 +5,9 @@ export const LINEAGE_EXPORT_COLUMNS = [
   { accessorKey: 'id', header: 'ID' },
   { accessorKey: 'name', header: 'Name' },
   { accessorKey: 'type', header: 'Type' },
+  { accessorKey: 'owner', header: 'Owner' },
+  { accessorKey: 'ownerId', header: 'Owner ID' },
+  { accessorKey: 'ownerType', header: 'Owner Type' },
   { accessorKey: 'direction', header: 'Direction' },
   { accessorKey: 'level', header: 'Level' },
   { accessorKey: 'rows', header: 'Rows' },
@@ -74,6 +77,11 @@ export function buildLineageRows(graph) {
         lastRun: isDataflow ? toIsoDate(meta?.lastExecution?.endTime) : '',
         level: node.depth,
         name: node.name,
+        // Both types report an owner the same way once enriched, so this needs no
+        // per-type branching. A group-owned dataset says so in Owner Type.
+        owner: meta?.owner?.name ?? '',
+        ownerId: meta?.owner?.id ?? '',
+        ownerType: meta?.owner?.type ?? '',
         rows: isDataset && meta?.rowCount != null ? meta.rowCount : '',
         state: isDataflow ? (meta?.runState ?? '') : (meta?.cryoStatus ?? ''),
         status: isDataflow ? (meta?.lastExecution?.state ?? '') : (meta?.status ?? ''),

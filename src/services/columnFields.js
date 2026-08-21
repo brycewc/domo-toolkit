@@ -110,6 +110,18 @@ export const EXPRESSION_FIELDS = new Set([
 ]);
 
 /**
+ * Lists whose ENTRIES must be deleted, not renamed, when a column is dropped.
+ * The scanner already reaches into these through the plain `column` value-field
+ * rule, so they need no entry here to be found or renamed; what they need is for
+ * a drop to remove the whole entry rather than leave it pointing at a column
+ * that is gone. A card's `filters` and slicer `controls` are exactly that shape:
+ * one entry per column, meaningless once its column is dropped. Kept separate
+ * from `COLUMN_LIST_FIELDS` because these are not lists OF column references,
+ * they are lists of objects that happen to name one.
+ */
+export const REMOVABLE_ENTRY_LIST_FIELDS = new Set(['controls', 'filters']);
+
+/**
  * Matches backticked column refs inside expression strings.
  *
  * The `g` flag makes `lastIndex` stateful — callers using `.exec()` in a
@@ -117,6 +129,29 @@ export const EXPRESSION_FIELDS = new Set([
  * `.replace()` with this regex is safe (it resets `lastIndex` internally).
  */
 export const BACKTICK_REF_RE = /`([^`]+)`/g;
+
+/**
+ * Whether a column-list entry describes a CALCULATION (a card-level Beast Mode)
+ * rather than a real dataset column. A card's `columns[]` carries both: real
+ * columns as `{id, name, isCalculation: false}`, and card-level Beast Modes as
+ * `{id: 'calculation_<uuid>', name: '<Beast Mode name>', value: '<formula>',
+ * isCalculation: true}`.
+ *
+ * The distinction matters because a Beast Mode's `name` is its display name, not
+ * a column reference. Treating it as one makes every card-level Beast Mode look
+ * like a broken column (its name is not in the dataset schema), and lets a rename
+ * retitle the Beast Mode or a drop delete it outright. Only the entry's `value`
+ * formula holds real column references, and that is scanned as an expression
+ * field either way.
+ *
+ * @param {any} node
+ * @returns {boolean}
+ */
+export function isCalculatedColumnEntry(node) {
+  if (!node || typeof node !== 'object') return false;
+  if (node.isCalculation === true) return true;
+  return typeof node.id === 'string' && node.id.startsWith('calculation_');
+}
 
 /**
  * Whether the parent key signals "this object is an entry in a column-list" —

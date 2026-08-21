@@ -124,9 +124,10 @@ export function DataPreviewPanel({ cacheRef, datasetId, datasetName, heightRef, 
       <div className='flex h-8 shrink-0 items-center gap-2 px-4 pt-0.5 pb-2'>
         <IconTable size={14} />
         <span className='truncate text-sm font-semibold'>{datasetName}</span>
+        <span className='ml-2 shrink-0 text-xs text-muted'>ID: {datasetId}</span>
         {preview && (
-          <span className='ml-2 text-xs text-muted'>
-            {headers.length} columns &middot; {rows.length} rows (preview)
+          <span className='shrink-0 text-xs text-muted'>
+            &middot; {headers.length} columns &middot; {rows.length} rows (preview)
           </span>
         )}
         <CloseButton className='ml-auto' size='sm' onPress={onClose} />

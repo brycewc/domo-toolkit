@@ -30,6 +30,7 @@ const REMAP_TYPES = ['cards', 'datasets', 'dataflows', 'apps'];
  * @param {string} params.datasetId - The dataset whose downstream content is being repaired.
  * @param {string} [params.datasetName] - Used only for the dataflow version-history comment.
  * @param {Map<string, {definition: Object|null, usedColumns: Set<string>, error?: string}>} params.definitionsByItemKey - Cached definitions from `scanContentForColumns` (its `byItem`).
+ * @param {string[]} [params.droppedColumns] - Column names to remove outright instead of remapping (the "drop column" choice). Only cards receive these; dropping is offered solely for columns whose every use is a table card.
  * @param {(update: {count: number, result?: Object, status: string, typeKey: string}) => void} [params.onProgress]
  * @param {{ beastModes?: Array, cards?: Array, datasets?: Array, dataflows?: Array }} params.selectedItems
  * @param {number|null} [params.tabId]
@@ -41,6 +42,7 @@ export async function remapDatasetColumns({
   datasetId,
   datasetName,
   definitionsByItemKey,
+  droppedColumns = [],
   onProgress,
   selectedItems,
   tabId = null,
@@ -84,6 +86,7 @@ export async function remapDatasetColumns({
           datasetId,
           datasetName,
           definitionsByItemKey,
+          droppedColumns,
           tabId,
           targetColumnTypes
         });
@@ -131,9 +134,14 @@ function buildBeastModeUpdateEntry(template) {
  * Route one downstream item to its swap executor with `targetId === originId` so
  * the executor rewrites column references but leaves the dataset id alone.
  * Mirrors the migrate `dispatchSwap`/`dispatchDatasetSwap` routing minus the
- * Beast Mode remaps and column-drop options the single-dataset case never needs.
+ * Beast Mode remaps the single-dataset case never needs. Column drops ride along
+ * to cards only, the one content type where dropping a column is offered.
  */
-async function dispatchRemap(typeKey, item, { columnMap, datasetId, datasetName, definitionsByItemKey, tabId, targetColumnTypes }) {
+async function dispatchRemap(
+  typeKey,
+  item,
+  { columnMap, datasetId, datasetName, definitionsByItemKey, droppedColumns, tabId, targetColumnTypes }
+) {
   const cached = definitionsByItemKey?.get?.(makeItemKey(typeKey, item.id))?.definition;
   if (typeKey === 'apps') {
     // In-place column repair: origin === target, so the swap rewrites
@@ -151,6 +159,7 @@ async function dispatchRemap(typeKey, item, { columnMap, datasetId, datasetName,
       cachedDefinition: cached,
       cardId: item.id,
       columnMap,
+      droppedColumns,
       originId: datasetId,
       tabId,
       targetId: datasetId,

@@ -41,7 +41,7 @@ import { DomoObject } from '@/models/DomoObject';
 import { getObjectType } from '@/models/DomoObjectType';
 import { extractAlertPdpPolicies, getDownstreamAlerts, getRowPdpPolicies } from '@/services/alerts';
 import { scanContentForColumns } from '@/services/columnReferences';
-import { hasEffectiveMapping } from '@/services/columnRewriter';
+import { hasEffectiveMapping, isDroppableCardChartType } from '@/services/columnRewriter';
 import { getDatasetColumns } from '@/services/datasets';
 import { getBeastModeReferenceGraph, getCardBeastModes, getDatasetFunctions } from '@/services/functions';
 import {
@@ -886,7 +886,7 @@ export function MigrateDownstreamContentView({
   }, [usedUnmappedColumns]);
 
   // Columns eligible for the "drop column" choice: those whose EVERY usage is safe
-  // to drop from. Dropping is safe for a badge_table card (remove the column from
+  // to drop from. Dropping is safe for a flat-table card (remove the column from
   // the table) and for an alert (remove it from the rule's column list); any other
   // chart type, or a dataflow / view / app usage, makes the column non-droppable.
   // Also re-applied at migrate time so a stale choice can't slip through to
@@ -897,7 +897,7 @@ export function MigrateDownstreamContentView({
       if (items.length === 0) continue;
       const everyUsageDroppable = items.every((it) => {
         if (it.type === 'alerts') return true;
-        if (it.type === 'cards') return cardsById.get(String(it.id))?.chartType === 'badge_table';
+        if (it.type === 'cards') return isDroppableCardChartType(cardsById.get(String(it.id))?.chartType);
         return false;
       });
       if (everyUsageDroppable) names.add(name);
