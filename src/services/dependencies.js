@@ -3,7 +3,12 @@ import { getAppInstanceCollections, getCollectionConnectedApps } from './appDb';
 import { getTemplateApprovalCount } from './approvals';
 import { getCardsForObject } from './cards';
 import { getAppContentSummary } from './customApps';
-import { getDatasetDependentCount, getDownstreamViewsForDatasets, searchDatasets } from './datasets';
+import {
+  getDatasetDependentCount,
+  getDownstreamViewsForDatasets,
+  getOtherDependentCountsForDatasets,
+  searchDatasets
+} from './datasets';
 import { getChildPages, getOnlyHereCardIds } from './pages';
 
 /**
@@ -31,6 +36,19 @@ import { getChildPages, getOnlyHereCardIds } from './pages';
  * - `flat`: render the group's item(s) as leaf rows directly, with no disclosure
  *   wrapper. Use for a 1:1 related object that needs no grouping header.
  */
+/**
+ * Turn one dataset's other-dependent counts into the `count` + `countLabel` pair
+ * that renders as an "(N other dependencies)" badge on its row. A dataset whose
+ * lookup failed gets no badge, so an unknown count never reads as a safe zero.
+ * @param {{cards: number, dataflows: number, unverified: boolean, views: number}} [dependents]
+ * @returns {{count?: number, countLabel?: string}}
+ */
+function dependentCountBadge(dependents) {
+  if (!dependents || dependents.unverified) return {};
+  const count = dependents.cards + dependents.dataflows + dependents.views;
+  return { count, countLabel: count === 1 ? 'other dependency' : 'other dependencies' };
+}
+
 /**
  * Shared fetcher for app pages, used by both `DATA_APP_VIEW` and
  * `WORKSHEET_VIEW`. Reports cards on this page (lost in the primary delete)
@@ -135,11 +153,25 @@ const FETCHERS = {
   DATAFLOW_TYPE: async ({ id, metadata, origin }, tabId) => {
     const outputs = metadata?.details?.outputs || [];
     const outputIds = outputs.map((o) => o.dataSourceId).filter(Boolean);
+    // Input datasets, deduped and with anything that is also an output dropped:
+    // a dataflow that appends to itself lists the same dataset on both sides, and
+    // the outputs group already covers it. Only the alternate delete removes
+    // these, so they are advisory for the primary one.
+    const seenInputIds = new Set(outputIds.map(String));
+    const inputs = (metadata?.details?.inputs || []).filter((i) => {
+      const inputId = i.dataSourceId ? String(i.dataSourceId) : null;
+      if (!inputId || seenInputIds.has(inputId)) return false;
+      seenInputIds.add(inputId);
+      return true;
+    });
     // Cards and alerts both hang off the output datasets and are both removed
     // when those datasets are deleted, so fetch them together. Downstream views
     // built on the outputs are fetched alongside: Domo blocks deleting a dataset
-    // a view sits on, so they must block this delete rather than cascade.
-    const [cards, alerts, downstream] = await Promise.all([
+    // a view sits on, so they must block this delete rather than cascade. Each
+    // input's other dependents ride along too, so the alternate delete can show
+    // which inputs feed something besides this dataflow. Best-effort: a failed
+    // lookup leaves those counts unknown rather than blocking the delete.
+    const [cards, alerts, downstream, inputDependents] = await Promise.all([
       getCardsForObject({
         metadata,
         objectId: id,
@@ -147,7 +179,12 @@ const FETCHERS = {
         tabId
       }),
       getDownstreamAlertsForDatasets(outputIds, tabId),
-      getDownstreamViewsForDatasets(outputIds, tabId)
+      getDownstreamViewsForDatasets(outputIds, tabId),
+      getOtherDependentCountsForDatasets({
+        datasetIds: inputs.map((i) => String(i.dataSourceId)),
+        excludeDataflowId: id,
+        tabId
+      }).catch(() => ({}))
     ]);
     const groups = [
       {
@@ -184,6 +221,25 @@ const FETCHERS = {
         label: 'Alerts'
       }
     ];
+
+    // Inputs: kept only by the primary delete, removed by the alternate one. Each
+    // row carries how much other content depends on it, so a shared input is
+    // obvious before it gets taken down with the dataflow.
+    if (inputs.length > 0) {
+      groups.push({
+        blocking: false,
+        deleted: false,
+        items: inputs.map((i) => ({
+          ...dependentCountBadge(inputDependents[String(i.dataSourceId)]),
+          id: i.dataSourceId,
+          label: i.dataSourceName || i.dataSourceId,
+          typeId: 'DATA_SOURCE',
+          url: `${origin}/datasources/${i.dataSourceId}/details/overview`
+        })),
+        key: 'dataflowInputs',
+        label: 'Input DataSets'
+      });
+    }
 
     // Downstream views built on the outputs block the delete: Domo rejects
     // deleting a dataset a view sits on, so the whole dataflow delete would fail

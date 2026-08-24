@@ -56,6 +56,103 @@ export async function deleteDataflowAndOutputs({ dataflowId, outputs, tabId = nu
 }
 
 /**
+ * Delete a DataFlow along with both its output and its input datasets. The
+ * outputs go first, then the dataflow, then the inputs: Domo rejects deleting a
+ * dataset a live dataflow still reads, so the inputs can only go once the
+ * dataflow itself is gone.
+ *
+ * An output failure stops everything before the dataflow is touched, the same as
+ * `deleteDataflowAndOutputs`, so a half-emptied dataflow is never left behind.
+ * Input failures are counted rather than aborted on: by then the dataflow and
+ * its outputs are already gone, so an input another object still holds onto
+ * simply stays. `success` therefore reports the dataflow and its outputs only;
+ * callers must check `inputsFailed` for leftover inputs.
+ *
+ * A dataset that is both an input and an output (a dataflow that appends to
+ * itself) is deleted once, in the output step, and skipped in the input step.
+ * @param {Object} params
+ * @param {string} params.dataflowId - The DataFlow ID
+ * @param {Array} params.inputs - Array of input objects with dataSourceId
+ * @param {Array} params.outputs - Array of output objects with dataSourceId
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{datasetsDeleted: number, datasetsFailed?: number, inputsDeleted: number,
+ *   inputsFailed: number, statusCode?: number, success: boolean}>}
+ */
+export async function deleteDataflowWithInputsAndOutputs({ dataflowId, inputs, outputs, tabId = null }) {
+  return executeInPage(
+    async (dataflowId, inputs, outputs) => {
+      const outputIds = [
+        ...new Set(
+          outputs
+            .map((o) => o.dataSourceId)
+            .filter(Boolean)
+            .map(String)
+        )
+      ];
+      const inputIds = [
+        ...new Set(
+          inputs
+            .map((i) => i.dataSourceId)
+            .filter(Boolean)
+            .map(String)
+        )
+      ].filter((id) => !outputIds.includes(id));
+
+      // Step 1: Delete all output datasets
+      if (outputIds.length > 0) {
+        const results = await Promise.allSettled(
+          outputIds.map((id) => fetch(`/api/data/v3/datasources/${id}`, { method: 'DELETE' }))
+        );
+
+        const failures = results.filter((r) => r.status === 'rejected' || !r.value?.ok);
+        if (failures.length > 0) {
+          return {
+            datasetsDeleted: outputIds.length - failures.length,
+            datasetsFailed: failures.length,
+            inputsDeleted: 0,
+            inputsFailed: 0,
+            success: false
+          };
+        }
+      }
+
+      // Step 2: Delete the dataflow
+      const response = await fetch(`/api/dataprocessing/v1/dataflows/${dataflowId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        return {
+          datasetsDeleted: outputIds.length,
+          inputsDeleted: 0,
+          inputsFailed: 0,
+          statusCode: response.status,
+          success: false
+        };
+      }
+
+      // Step 3: Delete the input datasets, now that this dataflow no longer reads them
+      let inputsFailed = 0;
+      if (inputIds.length > 0) {
+        const results = await Promise.allSettled(
+          inputIds.map((id) => fetch(`/api/data/v3/datasources/${id}`, { method: 'DELETE' }))
+        );
+        inputsFailed = results.filter((r) => r.status === 'rejected' || !r.value?.ok).length;
+      }
+
+      return {
+        datasetsDeleted: outputIds.length,
+        inputsDeleted: inputIds.length - inputsFailed,
+        inputsFailed,
+        success: true
+      };
+    },
+    [dataflowId, inputs, outputs],
+    tabId
+  );
+}
+
+/**
  * Get the full detail of a DataFlow (including actions/tiles)
  * @param {string} dataflowId - The DataFlow ID
  * @param {number} [tabId] - Optional Chrome tab ID

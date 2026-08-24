@@ -599,6 +599,81 @@ export async function getDownstreamViewsForDatasets(datasetIds, tabId = null) {
 }
 
 /**
+ * Count what else depends on each of the given datasets, ignoring one dataflow.
+ * Used before deleting a dataflow's input datasets: an input that only feeds the
+ * dataflow being deleted is safe to remove, while one that also feeds other
+ * dataflows, dataset views, or cards takes that content down with it (and a view
+ * built on it makes Domo reject the delete outright).
+ *
+ * Counts only the DIRECT downstream neighbors of each dataset, since anything
+ * further out is downstream of those, not of the input itself. Runs in one page
+ * round-trip for the whole list. A dataset whose lookup fails comes back with
+ * `unverified: true` rather than a misleading zero.
+ * @param {Object} params
+ * @param {string[]} params.datasetIds - The datasource IDs to check
+ * @param {string|null} [params.excludeDataflowId] - Dataflow to leave out of the counts
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object<string, {cards: number, dataflows: number, unverified: boolean, views: number}>>}
+ *   Keyed by dataset ID
+ */
+export async function getOtherDependentCountsForDatasets({ datasetIds, excludeDataflowId = null, tabId = null }) {
+  if (!datasetIds || datasetIds.length === 0) return {};
+
+  return executeInPage(
+    async (datasetIds, excludeDataflowId) => {
+      const counts = {};
+
+      const fetchJson = async (url) => {
+        const response = await fetch(url, { credentials: 'include' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      };
+
+      for (const datasetId of datasetIds) {
+        const entry = { cards: 0, dataflows: 0, unverified: false, views: 0 };
+        counts[String(datasetId)] = entry;
+
+        // One dataset's two lookups run together, but the list is walked one
+        // dataset at a time so a wide input list doesn't flood the API.
+        const [lineage, cards] = await Promise.allSettled([
+          fetchJson(
+            `/api/data/v1/lineage/DATA_SOURCE/${datasetId}?maxDepth=1&requestEntities=DATA_SOURCE,DATAFLOW&traverseUp=false`
+          ),
+          fetchJson(`/api/content/v1/datasources/${datasetId}/cards`)
+        ]);
+
+        if (lineage.status === 'fulfilled') {
+          const children = lineage.value?.[`DATA_SOURCE${datasetId}`]?.children || [];
+          for (const child of children) {
+            if (!child) continue;
+            if (child.type === 'DATAFLOW') {
+              // The dataflow being deleted doesn't count: the input is only
+              // shared if something else reads it too.
+              if (excludeDataflowId && String(child.id) === String(excludeDataflowId)) continue;
+              entry.dataflows += 1;
+            } else if (child.type === 'DATA_SOURCE' && String(child.id) !== String(datasetId)) {
+              entry.views += 1;
+            }
+          }
+        } else {
+          entry.unverified = true;
+        }
+
+        if (cards.status === 'fulfilled') {
+          entry.cards = Array.isArray(cards.value) ? cards.value.length : 0;
+        } else {
+          entry.unverified = true;
+        }
+      }
+
+      return counts;
+    },
+    [datasetIds, excludeDataflowId],
+    tabId
+  );
+}
+
+/**
  * Get all datasets owned by a user or group.
  * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID

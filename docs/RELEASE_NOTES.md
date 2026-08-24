@@ -33,6 +33,8 @@
 
 - Deleting a dataflow now also lists the alerts on its output datasets that will be deleted with it.
 - Deleting a dataflow whose output datasets feed downstream dataset views is now blocked up front, with the offending views listed, instead of failing partway through.
+- Deleting a dataflow now lists its input datasets, each with a count of the other content that depends on it.
+- Deleting a dataflow now offers a "Delete DataFlow, Outputs, and Inputs" action that also removes the input datasets it reads.
 - Deleting a page, App Studio page, or worksheet page now offers a "Delete Page and Cards that Only Live Here" action that removes the page along with only the cards that appear on no other page.
 - Deleting an AppDB collection now offers a "Delete Datastore and All Collections" action that removes the entire datastore and every collection in it.
 

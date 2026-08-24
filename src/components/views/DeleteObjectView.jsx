@@ -10,7 +10,7 @@ import { DomoObject } from '@/models/DomoObject';
 import { deleteDatastoreAndAllCollections } from '@/services/appDb';
 import { deleteApprovalTemplate } from '@/services/approvals';
 import { deleteAppAndAllContent } from '@/services/customApps';
-import { deleteDataflowAndOutputs } from '@/services/dataflows';
+import { deleteDataflowAndOutputs, deleteDataflowWithInputsAndOutputs } from '@/services/dataflows';
 import { deleteDataset } from '@/services/datasets';
 import { deleteObject } from '@/services/deleteObject';
 import { getDependenciesForDelete } from '@/services/dependencies';
@@ -100,6 +100,72 @@ const deletersByType = {
     typeName: 'Page'
   },
   DATAFLOW_TYPE: {
+    cascadeButtons: [
+      {
+        available: ({ deps }) => findDataflowInputs(deps).length > 0,
+        blockedReason: ({ blockingReason }) => blockingReason || 'Resolve the blocking dependencies before deleting.',
+        buildContext: ({ context, deps }) => {
+          const inputItems = findDataflowInputs(deps);
+          return {
+            blocked: (deps?.blockingCount ?? 0) > 0,
+            blockingReason: deps?.blockingReason || null,
+            dataflowId: context.domoObject.id,
+            dataflowName: context.domoObject.metadata?.name || context.domoObject.id,
+            inputCount: inputItems.length,
+            outputCount: context.domoObject.metadata?.details?.outputs?.length || 0,
+            sharedInputCount: inputItems.filter((item) => (item.count ?? 0) > 0).length
+          };
+        },
+        confirmText: ({ dataflowId, dataflowName, inputCount, outputCount, sharedInputCount }) => {
+          const outputPart =
+            outputCount > 0 ? `, its **${outputCount} output dataset${outputCount !== 1 ? 's' : ''}**,` : '';
+          const shared =
+            sharedInputCount > 0
+              ? ` ${sharedInputCount} of those input dataset${sharedInputCount !== 1 ? 's are' : ' is'} also used by other content, which will lose ${sharedInputCount !== 1 ? 'them' : 'it'}.`
+              : '';
+          return `Delete the dataflow **${dataflowName} (ID: ${dataflowId})**${outputPart} and its **${inputCount} input dataset${inputCount !== 1 ? 's' : ''}** permanently? This cannot be undone.${shared}`;
+        },
+        isBlocked: ({ blocked }) => blocked,
+        label: ({ outputCount }) =>
+          outputCount > 0 ? 'Delete DataFlow, Outputs, and Inputs' : 'Delete DataFlow and Inputs',
+        loadingMessage: ({ dataflowName, outputCount }) =>
+          outputCount > 0
+            ? `Deleting **${dataflowName}**, its outputs, and its inputs…`
+            : `Deleting **${dataflowName}** and its inputs…`,
+        run: async ({ context, deps }) => {
+          const result = await deleteDataflowWithInputsAndOutputs({
+            dataflowId: context.domoObject.id,
+            inputs: findDataflowInputs(deps).map((item) => ({ dataSourceId: item.id })),
+            outputs: context.domoObject.metadata?.details?.outputs || [],
+            tabId: context.tabId
+          });
+          if (!result.success) {
+            if (result.datasetsFailed > 0) {
+              const total = result.datasetsFailed + result.datasetsDeleted;
+              throw new Error(
+                `Failed to delete ${result.datasetsFailed} of ${total} output dataset${total !== 1 ? 's' : ''}. Dataflow and input datasets were not deleted.`
+              );
+            }
+            throw new Error(
+              `Output datasets deleted, but dataflow deletion failed (HTTP ${result.statusCode}). Input datasets were left in place.`
+            );
+          }
+          // The dataflow and its outputs are gone by here, so leftover inputs are
+          // reported as a failure without undoing any of that: an input another
+          // object still uses (or that a view is built on) simply stays.
+          if (result.inputsFailed > 0) {
+            const total = result.inputsFailed + result.inputsDeleted;
+            throw new Error(
+              `Dataflow and its output datasets deleted, but ${result.inputsFailed} of ${total} input dataset${total !== 1 ? 's' : ''} could not be deleted. They may still be in use by other content.`
+            );
+          }
+          return result;
+        },
+        successMessage: ({ dataflowName }, result) =>
+          `**${dataflowName}**, ${result.datasetsDeleted} output dataset${result.datasetsDeleted !== 1 ? 's' : ''}, and ${result.inputsDeleted} input dataset${result.inputsDeleted !== 1 ? 's' : ''} deleted`,
+        tooltip: () => 'Also deletes the input datasets this dataflow reads, not just its outputs'
+      }
+    ],
     confirmSuffix: ({ outputCount }) =>
       outputCount > 0 ? ` and ${outputCount} output dataset${outputCount !== 1 ? 's' : ''}` : '',
     primaryLabel: ({ outputCount }) => (outputCount > 0 ? 'Delete DataFlow and All Outputs' : 'Delete DataFlow'),
@@ -721,6 +787,13 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
       typeId: groupTypeId
     });
   });
+}
+
+// The dataflow's input datasets, as listed by the dependency check: already
+// deduped, and with any dataset that is also an output dropped (the outputs are
+// deleted in their own step).
+function findDataflowInputs(deps) {
+  return (deps?.groups || []).find((g) => g.key === 'dataflowInputs')?.items || [];
 }
 
 function findRelatedDataset(deps) {
