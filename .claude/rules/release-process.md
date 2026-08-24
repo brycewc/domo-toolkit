@@ -140,17 +140,44 @@ Run `yarn release` (runs `vite build` then `scripts/release.js`):
 - Creates `release/chrome-domo-toolkit-{version}.zip`
 - Creates `release/edge-domo-toolkit-{version}.zip` (strips `key` from manifest)
 
-## 6. GitHub Actions (automated)
+**Stop `yarn dev` first.** Both commands write to `dist/`, so building over a live dev server corrupts the CRXJS dev loader. `rm -rf dist release` before the build, and expect to restart `yarn dev` afterward. Details in `local-testing.md`.
 
-On `package.json` changes pushed to `main`:
+## 6. Publish (all manual)
 
-- **`.github/workflows/release.yml`**: Creates GitHub Release tagged `vX.Y.Z` with `docs/RELEASE_NOTES.md` as body
-- **`.github/workflows/publish.yml`**: Publishes to Chrome Web Store and Edge Add-ons
+**There is no release automation.** The `release.yml` and `publish.yml` workflows described here previously were deleted in `a47ea53` (2026-05-14), before v1.4.0. Pushing to `main` tags nothing, creates no release, and uploads nothing to either store. Every release from v1.4.0 onward has been cut by hand with the steps below.
 
-Both support `workflow_dispatch`. Publish workflow allows `target` (chrome/edge/both) and `upload-only` options.
+### 6a. Push and cut the GitHub Release
+
+```bash
+git push origin main
+cp release/chrome-domo-toolkit-X.Y.Z.zip release/domo-toolkit-X.Y.Z.zip
+gh release create vX.Y.Z \
+  release/domo-toolkit-X.Y.Z.zip \
+  --title vX.Y.Z \
+  --notes-file docs/RELEASE_NOTES.md \
+  --target main
+```
+
+Conventions to match the existing releases:
+
+- Release title is the bare tag (`v1.6.0`), not a descriptive name.
+- Body is the whole of `docs/RELEASE_NOTES.md`.
+- **One asset only, the Chrome build with the `chrome-` prefix dropped**, so `domo-toolkit-X.Y.Z.zip`. The Edge zip is not attached; it only exists for the Edge store upload.
+- Push before creating the release, since the tag is cut from the pushed `main`.
+- `--target` takes a branch name or a full 40-character SHA. An abbreviated SHA fails with `HTTP 422: Release.target_commitish is invalid`.
+
+### 6b. Upload to the stores
+
+Upload by hand, using the prefixed zips left in `release/`:
+
+- Chrome Web Store: `release/chrome-domo-toolkit-X.Y.Z.zip`
+- Edge Add-ons: `release/edge-domo-toolkit-X.Y.Z.zip` (the one with `key` stripped)
 
 ## Validation checklist
 
 - [ ] `version` in `package.json` matches `releases.js` entry
 - [ ] `githubUrl` format: `https://github.com/brycewc/domo-toolkit/releases/tag/vX.Y.Z`
-- [ ] `yarn release` builds and packages successfully
+- [ ] `yarn dev` stopped, then `yarn release` builds and packages successfully
+- [ ] Both zips report the right version, and only the Edge one has `key` stripped
+- [ ] `main` pushed, then the release cut with the tag and a single `domo-toolkit-X.Y.Z.zip` asset
+- [ ] Both store uploads done by hand
