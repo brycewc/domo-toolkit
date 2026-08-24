@@ -14,6 +14,24 @@
   text-align: left;
 }
 
+/* Wrap long values instead of letting them run off the right edge. Domo's JSON is
+   dense with contiguous tokens (UUIDs, column and function names, URLs) that offer
+   no space to break at, so in a narrow panel the tail of such a value used to be
+   unreachable without widening the panel. Wrapped lines hang one level in so a
+   continuation reads as one, rather than as a new key. */
+.json-view .jv-row {
+  overflow-wrap: anywhere;
+  text-indent: 1.25em hanging;
+}
+
+/* A URL value renders as a link, which is inline-flex by default. That makes it
+   an atomic box, so it drops to its own line below the key rather than starting
+   beside it. Inline instead, so a URL sits on its key's line and wraps from
+   there like any other value. */
+.json-view a {
+  display: inline;
+}
+
 .json-view .json-view--property {
   color: var(--json-property);
 }

@@ -5,6 +5,7 @@ import { getCardsForObject } from './cards';
 import { getAppContentSummary } from './customApps';
 import {
   getDatasetDependentCount,
+  getDatasetImpactCounts,
   getDownstreamViewsForDatasets,
   getOtherDependentCountsForDatasets,
   searchDatasets
@@ -37,16 +38,17 @@ import { getChildPages, getOnlyHereCardIds } from './pages';
  *   wrapper. Use for a 1:1 related object that needs no grouping header.
  */
 /**
- * Turn one dataset's other-dependent counts into the `count` + `countLabel` pair
- * that renders as an "(N other dependencies)" badge on its row. A dataset whose
- * lookup failed gets no badge, so an unknown count never reads as a safe zero.
- * @param {{cards: number, dataflows: number, unverified: boolean, views: number}} [dependents]
+ * Build the `count` + `countLabel` pair that renders an "(N label)" badge on a
+ * dependency row. A null or undefined count (a lookup that failed) yields no
+ * badge at all, so an unknown number never reads as a safe zero.
+ * @param {number|null|undefined} count - The number to show
+ * @param {string} singular - Label for a count of exactly 1
+ * @param {string} plural - Label for every other count
  * @returns {{count?: number, countLabel?: string}}
  */
-function dependentCountBadge(dependents) {
-  if (!dependents || dependents.unverified) return {};
-  const count = dependents.cards + dependents.dataflows + dependents.views;
-  return { count, countLabel: count === 1 ? 'other dependency' : 'other dependencies' };
+function countBadge(count, singular, plural) {
+  if (count == null) return {};
+  return { count, countLabel: count === 1 ? singular : plural };
 }
 
 /**
@@ -148,6 +150,16 @@ async function fetchAppPageDependencies({ id, origin, parentId, typeId }, tabId)
   return { appSummary, groups, onlyHereCardIds };
 }
 
+/**
+ * Sum one dataset's other-dependent counts, or null when the lookup failed.
+ * @param {{cards: number, dataflows: number, unverified: boolean, views: number}} [dependents]
+ * @returns {number|null}
+ */
+function otherDependentTotal(dependents) {
+  if (!dependents || dependents.unverified) return null;
+  return dependents.cards + dependents.dataflows + dependents.views;
+}
+
 const FETCHERS = {
   DATA_APP_VIEW: fetchAppPageDependencies,
   DATAFLOW_TYPE: async ({ id, metadata, origin }, tabId) => {
@@ -167,11 +179,13 @@ const FETCHERS = {
     // Cards and alerts both hang off the output datasets and are both removed
     // when those datasets are deleted, so fetch them together. Downstream views
     // built on the outputs are fetched alongside: Domo blocks deleting a dataset
-    // a view sits on, so they must block this delete rather than cascade. Each
-    // input's other dependents ride along too, so the alternate delete can show
-    // which inputs feed something besides this dataflow. Best-effort: a failed
+    // a view sits on, so they must block this delete rather than cascade. Two
+    // dataset-count lookups ride along, each answering the question that matters
+    // for its side: every output's full downstream impact, since all of it goes
+    // when the output does, and every input's dependents other than this dataflow,
+    // since only a shared input costs anything to remove. Best-effort: a failed
     // lookup leaves those counts unknown rather than blocking the delete.
-    const [cards, alerts, downstream, inputDependents] = await Promise.all([
+    const [cards, alerts, downstream, outputImpacts, inputDependents] = await Promise.all([
       getCardsForObject({
         metadata,
         objectId: id,
@@ -180,6 +194,7 @@ const FETCHERS = {
       }),
       getDownstreamAlertsForDatasets(outputIds, tabId),
       getDownstreamViewsForDatasets(outputIds, tabId),
+      getDatasetImpactCounts({ datasetIds: outputIds.map(String), tabId }).catch(() => ({})),
       getOtherDependentCountsForDatasets({
         datasetIds: inputs.map((i) => String(i.dataSourceId)),
         excludeDataflowId: id,
@@ -190,7 +205,10 @@ const FETCHERS = {
       {
         blocking: false,
         deleted: true,
+        // Each output carries its total downstream impact, so how far the delete
+        // reaches is visible without opening anything.
         items: outputs.map((o) => ({
+          ...countBadge(outputImpacts[String(o.dataSourceId)], 'dependency', 'dependencies'),
           id: o.dataSourceId,
           label: o.dataSourceName || o.dataSourceId,
           typeId: 'DATA_SOURCE',
@@ -230,7 +248,11 @@ const FETCHERS = {
         blocking: false,
         deleted: false,
         items: inputs.map((i) => ({
-          ...dependentCountBadge(inputDependents[String(i.dataSourceId)]),
+          ...countBadge(
+            otherDependentTotal(inputDependents[String(i.dataSourceId)]),
+            'other dependency',
+            'other dependencies'
+          ),
           id: i.dataSourceId,
           label: i.dataSourceName || i.dataSourceId,
           typeId: 'DATA_SOURCE',

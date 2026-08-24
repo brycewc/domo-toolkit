@@ -177,23 +177,13 @@ export async function getDatasetColumns({ datasetId, tabId }) {
  * @param {string} params.datasetId - The datasource ID
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<number>} Total downstream impact (dataflows + datasets + cards + alerts)
+ * @throws {Error} If the impact can't be read
  */
 export async function getDatasetDependentCount({ datasetId, tabId = null }) {
-  return executeInPage(
-    async (datasetId) => {
-      const response = await fetch(`/api/data/v1/impacts/DATA_SOURCE/${datasetId}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const impact = await response.json();
-      return (
-        (impact.impactCardCount || 0) +
-        (impact.impactDataFlowCount || 0) +
-        (impact.impactDataSourceCount || 0) +
-        (impact.impactAlertCount || 0)
-      );
-    },
-    [datasetId],
-    tabId
-  );
+  const totals = await getDatasetImpactCounts({ datasetIds: [String(datasetId)], tabId });
+  const total = totals[String(datasetId)];
+  if (total == null) throw new Error(`Failed to read impact for dataset ${datasetId}`);
+  return total;
 }
 
 /**
@@ -227,6 +217,48 @@ export async function getDatasetDetailsForList({ datasets, tabId }) {
       }
       const data = await response.json();
       return data.dataSources || [];
+    },
+    [datasetIds],
+    tabId
+  );
+}
+
+/**
+ * Total downstream impact for each of several datasets, in one page round-trip.
+ * The list variant of `getDatasetDependentCount`: same precomputed impact
+ * endpoint, same rolled-up total (every dataflow, dataset, card, and alert that
+ * ultimately depends on the dataset), read for a whole list at once.
+ *
+ * A dataset whose lookup fails comes back as `null` rather than 0, so an
+ * unreadable impact never renders as a safe-looking zero.
+ * @param {Object} params
+ * @param {string[]} params.datasetIds - The datasource IDs to read
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object<string, number|null>>} Total impact keyed by dataset ID
+ */
+export async function getDatasetImpactCounts({ datasetIds, tabId = null }) {
+  if (!datasetIds || datasetIds.length === 0) return {};
+
+  return executeInPage(
+    async (datasetIds) => {
+      const totals = {};
+
+      for (const datasetId of datasetIds) {
+        try {
+          const response = await fetch(`/api/data/v1/impacts/DATA_SOURCE/${datasetId}`, { credentials: 'include' });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const impact = await response.json();
+          totals[String(datasetId)] =
+            (impact.impactCardCount || 0) +
+            (impact.impactDataFlowCount || 0) +
+            (impact.impactDataSourceCount || 0) +
+            (impact.impactAlertCount || 0);
+        } catch {
+          totals[String(datasetId)] = null;
+        }
+      }
+
+      return totals;
     },
     [datasetIds],
     tabId

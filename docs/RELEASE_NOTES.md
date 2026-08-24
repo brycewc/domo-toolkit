@@ -33,6 +33,7 @@
 
 - Deleting a dataflow now also lists the alerts on its output datasets that will be deleted with it.
 - Deleting a dataflow whose output datasets feed downstream dataset views is now blocked up front, with the offending views listed, instead of failing partway through.
+- Deleting a dataflow now shows how many objects depend on each of its output datasets.
 - Deleting a dataflow now lists its input datasets, each with a count of the other content that depends on it.
 - Deleting a dataflow now offers a "Delete DataFlow, Outputs, and Inputs" action that also removes the input datasets it reads.
 - Deleting a page, App Studio page, or worksheet page now offers a "Delete Page and Cards that Only Live Here" action that removes the page along with only the cards that appear on no other page.
@@ -161,6 +162,7 @@
 - Set to Manual no longer shows up on dataset views.
 - Objects Owned and Transfer Ownership for a person no longer list dashboards and App Studio apps the person only owns through one of their groups.
 - AI models are recognized again on Domo's new model URL, so opening one is detected and links to it work.
+- Long values in a JSON viewer now wrap instead of running off the right edge.
 
 ### Update Action Versions
 
