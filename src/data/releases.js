@@ -1,5 +1,23 @@
 export const releases = [
   {
+    date: '2026-08-24',
+    githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.6.0',
+    highlights: [
+      'Delete Unused Beast Modes: find every Beast Mode and Variable on a dataset or person with no active usage, review the results, and delete them in one pass',
+      "Manage Card Owners: see every owner across all of an object's cards and add or remove users and groups on many cards at once",
+      'Update Action Versions (formerly Update Code Engine Versions) now bumps subflow action versions too, handles workflow version locks, and offers a No Change override per action',
+      'Remap Columns can now repair dataset views broken by a renamed or removed column, drop a broken column outright, and fill in every replacement with one Auto Map click',
+      'Delete adds combined actions for a dataflow with its inputs and outputs, a page with only the cards that live there, and a datastore with all of its collections',
+      'Get Owned Objects and Transfer Ownership now work on a group, and Get Card Pages now works on a person',
+      'Lineage nodes now show who owns each dataset or dataflow, and lineage exports include owner columns',
+      'Pro-code custom apps and custom app instances are recognized as their own types, with links between a card, its app instance, and the app design behind it'
+    ],
+    notify: 'fullPage',
+    summary:
+      'Feature release adding Delete Unused Beast Modes and Manage Card Owners, expanded Update Action Versions and Remap Columns, new combined delete actions, group-level ownership tools, and recognition for pro-code custom apps.',
+    version: '1.6.0'
+  },
+  {
     date: '2026-07-04',
     githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.5.1',
     highlights: [

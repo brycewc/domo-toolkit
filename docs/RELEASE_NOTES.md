@@ -163,6 +163,13 @@
 - Objects Owned and Transfer Ownership for a person no longer list dashboards and App Studio apps the person only owns through one of their groups.
 - AI models are recognized again on Domo's new model URL, so opening one is detected and links to it work.
 - Long values in a JSON viewer now wrap instead of running off the right edge.
+- Update Details on a person now opens with their username and email already filled in instead of blank.
+- Copy Color Rules no longer offers the dataset you are copying from as a destination.
+- A category in a grouped list now counts the objects inside it instead of the subcategories beneath it.
+- A count of a single card or page now reads "1 card" or "1 page" instead of "1 cards" or "1 pages".
+- Swapping a dataset's account now shows each account owner's full name instead of only their last name.
+- The column picker when mapping columns now opens and filters instantly on datasets with hundreds of columns, instead of stalling.
+- The Jupyter Workspaces, Approvals, Beast Modes, and AppDB Admin pages now get a browser tab title instead of showing only "Domo".
 
 ### Update Action Versions
 

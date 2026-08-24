@@ -48,7 +48,7 @@ OBJECT-SPECIFIC ACTIONS
 - Migrate DataSet Content: Repoint every beast mode, card, drill path, dataflow, and dataset view that uses a dataset to a different one in a single pass. Deselect a whole type or cherry-pick items, run a schema check that flags missing or mismatched columns, and remap them (including in formulas and SQL) before applying.
 - Sync Datastore: Trigger a sync on an AppDB collection.
 - Generate Schema: Infer a column schema for an AppDB collection from its recent documents, edit it, and apply it (optionally turning on sync to produce a dataset).
-- Update Code Engine Versions: Bulk update workflow code engine actions to the latest version without unmapping inputs and outputs.
+- Update Action Versions: Bulk update a workflow's code engine and subflow actions to the latest version without unmapping inputs and outputs.
 - Copy Color Rules: Copy a dataset's color rules to another.
 - Cancel Stuck Stream Update: Cancel a dataset stream execution stuck in a storing state with no UI cancel option.
 - Generate Definition from JSDoc: Derive a Code Engine package manifest (function names, parameters, types, descriptions) from JSDoc in a package's source and update the definition to match, with a structural diff before you confirm.
