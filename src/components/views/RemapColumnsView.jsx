@@ -32,13 +32,13 @@ import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { getObjectType } from '@/models/DomoObjectType';
 import { scanContentForColumns } from '@/services/columnReferences';
-import { isDroppableCardChartType } from '@/services/columnRewriter';
 import { getDatasetColumns, isViewType } from '@/services/datasets';
 import { getDatasetFunctions } from '@/services/functions';
 import { getDownstreamCards, getDownstreamCardsRaw, getDownstreamLineage } from '@/services/migrateDownstreamContent';
 import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
 import { remapDatasetColumns } from '@/services/remapDatasetColumns';
 import { detectBrokenViewColumns, repairViewColumns } from '@/services/repairViewColumns';
+import { describeViewOutputDrop, isColumnDroppable } from '@/utils/columnDrops';
 import { suggestReplacement } from '@/utils/columnMatching';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -338,9 +338,12 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
         key: `view:${broken.sourceId}:${broken.column}`,
         kind: 'view',
         name: broken.column,
-        // Drop is only offered when it's a real, unused output (dropping a used
-        // output would break downstream; a non-output ref can't be dropped).
-        offerDrop: broken.outputColumns.length > 0 && dropSafe,
+        // Two conditions, and only the first is shared with Migrate Content: the
+        // view has to use the column purely as a selected one (`dropOutputs`, the
+        // same gate the executor re-applies), AND the output it feeds has to be
+        // unused, which only this view can check because the outputs in question
+        // are the open dataset's own columns and its downstream was just scanned.
+        offerDrop: broken.dropOutputs.length > 0 && dropSafe,
         outputColumns: broken.outputColumns,
         sourceId: broken.sourceId,
         sourceName: broken.sourceName,
@@ -350,20 +353,15 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     }
     for (const name of orphanCandidates) {
       const usages = scanResult?.byColumn?.get(name) || [];
-      // Drop is only offered when EVERY use is a flat-table card, where removing
-      // the column just takes it out of the table. Any other chart type, or a
-      // dataflow / view / app use, is content the drop would corrupt, so those
-      // columns stay remap-only. Re-derived here on every render, so a stale
-      // choice can't survive a change in what uses the column.
-      const dropSafe =
-        usages.length > 0 &&
-        usages.every((u) => u.type === 'cards' && isDroppableCardChartType(cardsById.get(String(u.id))?.chartType));
       out.push({
         candidates: schemaColumns,
         key: `downstream:${name}`,
         kind: 'downstream',
         name,
-        offerDrop: dropSafe,
+        // The shared rule Migrate Content applies to its column rows
+        // (`isColumnDroppable`). Re-derived on every render, so a stale choice
+        // can't survive a change in what uses the column.
+        offerDrop: isColumnDroppable(usages, cardsById),
         usageCount: usages.length,
         usages
       });
@@ -441,9 +439,10 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     return map;
   }, [brokenColumns, columnChoices]);
 
-  // The downstream columns the user chose to drop rather than remap: removed
-  // from every selected card that lists them. Filtered by `offerDrop` so a choice
-  // made before the usage set changed can't reach content the drop would break.
+  // The downstream columns the user chose to drop rather than remap: removed from
+  // every selected card that lists them, and from the output of every selected
+  // view that only selects them. Filtered by `offerDrop` so a choice made before
+  // the usage set changed can't reach content the drop would break.
   const downstreamDrops = useMemo(() => {
     const names = [];
     for (const row of brokenColumns) {
@@ -453,9 +452,10 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     return names;
   }, [brokenColumns, columnChoices]);
 
-  // The view self-repair the user has resolved: remaps grouped later per source,
-  // drops by output column name, plus each touched source's column types (for the
-  // rewriter's type propagation). `count` drives the confirm-dialog copy.
+  // The view self-repair the user has resolved: drops and remaps both named by
+  // the SOURCE column they act on (the repair groups them per source), plus each
+  // touched source's column types for the rewriter's type propagation. `count`
+  // drives the confirm-dialog copy.
   const viewActions = useMemo(() => {
     const remaps = [];
     const drops = [];
@@ -467,7 +467,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       if (!choice || choice === UNMAPPED) continue;
       if (choice === DROP) {
         if (!row.offerDrop) continue;
-        for (const output of row.outputColumns) drops.push(output);
+        drops.push({ column: row.name, sourceId: row.sourceId });
         count++;
       } else if (choice !== row.name) {
         remaps.push({ column: row.name, replacement: choice, sourceId: row.sourceId });
@@ -477,7 +477,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
         count++;
       }
     }
-    return { count, drops: [...new Set(drops)], remaps, sourceTypes };
+    return { count, drops, remaps, sourceTypes };
   }, [brokenColumns, columnChoices]);
 
   const hasViewWork = viewActions.count > 0;
@@ -850,8 +850,8 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   const canApplyView = hasViewWork && !isScanning && !isDetectingView && !isTransferring;
   const isBusy = isScanning || isDetectingView;
   // Whether any row offers Drop at all, so the helper copy only mentions dropping
-  // when it's actually on the table (an unused view column, or a column nothing
-  // but table cards uses).
+  // when it's actually on the table (an unused view column, or a column used only
+  // by content the drop leaves intact).
   const canDropAny = brokenColumns.some((row) => row.offerDrop);
   // What the downstream rewrite does to the selected content, phrased to match
   // the choices actually made: renames, drops, or both.
@@ -1229,6 +1229,15 @@ function BrokenColumnRow({ cardsById, onChange, origin, row, totalAvailable, val
   // children auto-filtered by the Autocomplete.
   const [query, setQuery] = useState('');
 
+  // What dropping this column takes out of a dataset view, in the same words
+  // Migrate Content uses. Downstream rows only: on a view row the usages are
+  // consumers of the OPEN view's outputs, not views the drop edits, and drop is
+  // already withheld there whenever any consumer exists.
+  const viewDropWarning = useMemo(
+    () => (value === DROP && row.kind === 'downstream' ? describeViewOutputDrop(row.usages) : null),
+    [row.kind, row.usages, value]
+  );
+
   // Options for the virtualized picker, filtered by the search box: Leave
   // unmapped, Drop column (when offered), then the valid target columns sorted
   // alphabetically (the schema fetch returns them in physical-column order,
@@ -1277,91 +1286,94 @@ function BrokenColumnRow({ cardsById, onChange, origin, row, totalAvailable, val
   };
 
   return (
-    <div className='flex items-center gap-2 py-1.5'>
-      <div className='flex min-w-0 flex-1 flex-col'>
-        <span className='truncate font-mono text-xs' title={row.name}>
-          {row.name}
-        </span>
-        <span className='flex items-center gap-1 text-[10px] text-muted'>
-          {row.usageCount > 0 ? (
-            <>
-              <span>
-                {row.usageCount} use{row.usageCount === 1 ? '' : 's'}
-              </span>
-              <ColumnUsagesModal
-                cardsById={cardsById}
-                columnName={row.name}
-                items={row.usages}
-                origin={origin}
-                total={totalAvailable}
-                totalLabel='downstream item'
-              />
-            </>
-          ) : (
-            <span>not used anywhere</span>
-          )}
-        </span>
-      </div>
-      <Autocomplete
-        allowsEmptyCollection
-        aria-label={`Map ${row.name} to`}
-        className='w-44'
-        selectionMode='single'
-        value={value}
-        variant='secondary'
-        onChange={(key) => onChange(row.key, key)}
-      >
-        <Autocomplete.Trigger className='w-full'>
-          <Autocomplete.Value className='flex min-w-0 flex-1 items-center gap-1'>
-            {() =>
-              value === UNMAPPED ? (
-                <span className='min-w-0 truncate text-muted italic'>Leave unmapped</span>
-              ) : value === DROP ? (
-                <span className='min-w-0 truncate text-danger italic'>Drop column</span>
-              ) : (
-                <span className='min-w-0 truncate font-mono text-xs'>{value}</span>
-              )
-            }
-          </Autocomplete.Value>
-          <Autocomplete.ClearButton />
-          <Autocomplete.Indicator />
-        </Autocomplete.Trigger>
-        <Autocomplete.Popover className='w-fit max-w-9/10 min-w-72' placement='bottom end'>
-          {/* The Autocomplete popover renders an internal dialog; give it a
-              screen-reader title so it has an accessible name (React Aria warns
-              when a dialog has neither a title slot nor an aria-label). Visually
-              hidden, so the popover layout is unchanged. */}
-          <Popover.Heading className='sr-only'>Map {row.name} to a column</Popover.Heading>
-          <Autocomplete.Filter inputValue={query} onInputChange={setQuery}>
-            <SearchField
-              autoFocus
-              aria-label={`Search columns for ${row.name}`}
-              className='sticky top-0 z-10'
-              name='column-search'
-              variant='secondary'
-            >
-              <SearchField.Group>
-                <SearchField.SearchIcon />
-                <SearchField.Input placeholder='Search columns...' />
-                <SearchField.ClearButton />
-              </SearchField.Group>
-            </SearchField>
-            {/* Virtualized so a source with hundreds of columns only renders the
-                visible rows. Heights are estimated (one-line actions vs two-line
-                columns vary) so React Aria measures and self-corrects. */}
-            <Virtualizer layout={ListLayout} layoutOptions={{ estimatedRowHeight: 44 }}>
-              <ListBox
-                aria-label={`Columns for ${row.name}`}
-                className='max-h-80 overflow-y-auto'
-                items={options}
-                renderEmptyState={() => <EmptyState>No columns found</EmptyState>}
+    <div className='flex flex-col gap-1 py-1.5'>
+      <div className='flex items-center gap-2'>
+        <div className='flex min-w-0 flex-1 flex-col'>
+          <span className='truncate font-mono text-xs' title={row.name}>
+            {row.name}
+          </span>
+          <span className='flex items-center gap-1 text-[10px] text-muted'>
+            {row.usageCount > 0 ? (
+              <>
+                <span>
+                  {row.usageCount} use{row.usageCount === 1 ? '' : 's'}
+                </span>
+                <ColumnUsagesModal
+                  cardsById={cardsById}
+                  columnName={row.name}
+                  items={row.usages}
+                  origin={origin}
+                  total={totalAvailable}
+                  totalLabel='downstream item'
+                />
+              </>
+            ) : (
+              <span>not used anywhere</span>
+            )}
+          </span>
+        </div>
+        <Autocomplete
+          allowsEmptyCollection
+          aria-label={`Map ${row.name} to`}
+          className='w-44'
+          selectionMode='single'
+          value={value}
+          variant='secondary'
+          onChange={(key) => onChange(row.key, key)}
+        >
+          <Autocomplete.Trigger className='w-full'>
+            <Autocomplete.Value className='flex min-w-0 flex-1 items-center gap-1'>
+              {() =>
+                value === UNMAPPED ? (
+                  <span className='min-w-0 truncate text-muted italic'>Leave unmapped</span>
+                ) : value === DROP ? (
+                  <span className='min-w-0 truncate text-danger italic'>Drop column</span>
+                ) : (
+                  <span className='min-w-0 truncate font-mono text-xs'>{value}</span>
+                )
+              }
+            </Autocomplete.Value>
+            <Autocomplete.ClearButton />
+            <Autocomplete.Indicator />
+          </Autocomplete.Trigger>
+          <Autocomplete.Popover className='w-fit max-w-9/10 min-w-72' placement='bottom end'>
+            {/* The Autocomplete popover renders an internal dialog; give it a
+                screen-reader title so it has an accessible name (React Aria warns
+                when a dialog has neither a title slot nor an aria-label). Visually
+                hidden, so the popover layout is unchanged. */}
+            <Popover.Heading className='sr-only'>Map {row.name} to a column</Popover.Heading>
+            <Autocomplete.Filter inputValue={query} onInputChange={setQuery}>
+              <SearchField
+                autoFocus
+                aria-label={`Search columns for ${row.name}`}
+                className='sticky top-0 z-10'
+                name='column-search'
+                variant='secondary'
               >
-                {(item) => renderOption(item)}
-              </ListBox>
-            </Virtualizer>
-          </Autocomplete.Filter>
-        </Autocomplete.Popover>
-      </Autocomplete>
+                <SearchField.Group>
+                  <SearchField.SearchIcon />
+                  <SearchField.Input placeholder='Search columns...' />
+                  <SearchField.ClearButton />
+                </SearchField.Group>
+              </SearchField>
+              {/* Virtualized so a source with hundreds of columns only renders the
+                  visible rows. Heights are estimated (one-line actions vs two-line
+                  columns vary) so React Aria measures and self-corrects. */}
+              <Virtualizer layout={ListLayout} layoutOptions={{ estimatedRowHeight: 44 }}>
+                <ListBox
+                  aria-label={`Columns for ${row.name}`}
+                  className='max-h-80 overflow-y-auto'
+                  items={options}
+                  renderEmptyState={() => <EmptyState>No columns found</EmptyState>}
+                >
+                  {(item) => renderOption(item)}
+                </ListBox>
+              </Virtualizer>
+            </Autocomplete.Filter>
+          </Autocomplete.Popover>
+        </Autocomplete>
+      </div>
+      {viewDropWarning && <p className='text-xs text-warning'>{viewDropWarning}</p>}
     </div>
   );
 }

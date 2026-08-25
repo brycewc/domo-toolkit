@@ -16,13 +16,15 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 import {
+  collectFusionDroppableColumns,
   collectViewColumnRefsForSource,
+  collectViewDroppableColumns,
   extractFusionViewColumnRefs,
   fetchDatasetSchemaColumns,
   fetchDatasetViewDefinition,
+  findOriginAliases,
   isFusionView
 } from './columnReferences';
-import { dropDatasetViewColumns, dropFusionColumns, findOriginAliases } from './columnRewriter';
 import { swapDatasetViewInput, swapFusionInput } from './migrateDownstreamContent';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -44,7 +46,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * @param {Object} [params.viewDefinition] - Pre-fetched `/schema/indexed` def (fetched if absent).
  * @param {number|null} [params.tabId]
  * @returns {Promise<{
- *   broken: Array<{candidates: Array<{name: string, type: string}>, column: string, outputColumns: string[], sourceId: string, sourceName: string}>,
+ *   broken: Array<{candidates: Array<{name: string, type: string}>, column: string, dropOutputs: string[], outputColumns: string[], sourceId: string, sourceName: string}>,
  *   isFusion: boolean,
  *   sources: Array<{id: string, name: string}>,
  *   viewDefinition: Object
@@ -74,14 +76,22 @@ export async function detectBrokenViewColumns({ tabId = null, viewDefinition = n
       const liveNames = new Set((liveColumns || []).map((c) => c.name));
       // Fusion refs come out already alias-scoped as a flat Set (no output-column
       // association); template views expose the output column each ref feeds.
+      const aliases = fusion ? null : findOriginAliases(def, sourceId);
       const refs = fusion
         ? new Map([...extractFusionViewColumnRefs(def, sourceId).refs].map((column) => [column, new Set()]))
-        : collectViewColumnRefsForSource(def, findOriginAliases(def, sourceId), sourceId);
+        : collectViewColumnRefsForSource(def, aliases, sourceId);
+      // The columns this view only SELECTS from the source, and the outputs each
+      // one feeds. The same gate Migrate Content drops a view column behind, so a
+      // ref the view also filters, joins, groups, or sorts on is never offered.
+      const droppable = fusion
+        ? collectFusionDroppableColumns(def, sourceId)
+        : collectViewDroppableColumns(def, aliases, sourceId);
       for (const [column, outputs] of refs) {
         if (liveNames.has(column)) continue;
         broken.push({
           candidates: liveColumns || [],
           column,
+          dropOutputs: droppable.get(column) || [],
           outputColumns: [...outputs],
           sourceId,
           sourceName: nameFor(sourceId)
@@ -94,20 +104,27 @@ export async function detectBrokenViewColumns({ tabId = null, viewDefinition = n
 }
 
 /**
- * Apply a view self-repair: drop the chosen columns, then remap the rest.
+ * Apply a view self-repair: for each source dataset, drop the columns the user
+ * chose to remove and remap the rest.
  *
- * Drops run first as a single write so the subsequent remaps re-read the already
- * dropped definition. Remaps are grouped by source (the rewrite is origin-scoped)
- * and run serially against the same view object, so each sees the prior write.
+ * Both actions go through the same swap executors Migrate Content uses, with
+ * origin === target === the source, so the dataset-id sweep is a no-op and only
+ * the column edits land. That also means a drop is gated by the same select-only
+ * rule in both flows: the executor resolves a dropped SOURCE column to the view
+ * outputs it feeds, and resolves it to nothing when the view also filters, joins,
+ * groups, or sorts on it.
+ *
+ * One write per source, applying that source's drops and renames together. The
+ * writes run serially against the same view object so each sees the prior one.
  *
  * @param {Object} params
  * @param {string} params.viewId - The open view's datasource id.
  * @param {Object} params.viewDefinition - The `/schema/indexed` def already fetched by detection.
  * @param {boolean} params.isFusion
- * @param {string[]} [params.drops] - Output column names (aliases) to remove from the view.
+ * @param {Array<{column: string, sourceId: string}>} [params.drops] - Source columns to remove from the view.
  * @param {Array<{column: string, replacement: string, sourceId: string}>} [params.remaps]
  * @param {Record<string, Record<string, string>>} [params.sourceTypes] - Per-source map of column name -> type, for type propagation.
- * @param {(update: {phase: string, result?: Object, status: string}) => void} [params.onProgress]
+ * @param {(update: {sourceId: string, result?: Object, status: string}) => void} [params.onProgress]
  * @param {number|null} [params.tabId]
  * @returns {Promise<{dropped: number, errors: Array<{error: string, scope: string}>, failed: number, remapped: number}>}
  */
@@ -125,70 +142,59 @@ export async function repairViewColumns({
   let dropped = 0;
   let remapped = 0;
 
-  if (drops.length > 0) {
-    onProgress?.({ phase: 'drop', status: 'transferring' });
-    const result = isFusion
-      ? await dropFusionViewColumns({ columnsToDrop: drops, tabId, viewId })
-      : await dropTemplateViewColumns({ columnsToDrop: drops, tabId, viewDefinition, viewId });
-    if (result?.success) dropped = drops.length;
-    else errors.push({ error: result?.error || 'Failed to drop columns', scope: 'drop' });
-    onProgress?.({ phase: 'drop', result, status: 'done' });
-  }
-
+  // Group both actions by source: the rewrite is origin-scoped, so one write per
+  // source carries that source's drops and renames.
   const bySource = new Map();
+  const forSource = (sourceId) => {
+    if (!bySource.has(sourceId)) bySource.set(sourceId, { columnMap: {}, droppedColumns: [] });
+    return bySource.get(sourceId);
+  };
+  for (const drop of drops) {
+    if (!drop?.sourceId || !drop.column) continue;
+    forSource(drop.sourceId).droppedColumns.push(drop.column);
+  }
   for (const remap of remaps) {
     if (!remap?.sourceId || !remap.column || !remap.replacement) continue;
-    if (!bySource.has(remap.sourceId)) bySource.set(remap.sourceId, {});
-    bySource.get(remap.sourceId)[remap.column] = remap.replacement;
+    forSource(remap.sourceId).columnMap[remap.column] = remap.replacement;
   }
 
-  if (bySource.size > 0) {
-    onProgress?.({ phase: 'remap', status: 'transferring' });
-    // Only the first remap may reuse the definition detection already fetched,
-    // and only if no drop rewrote the view first; every later call (and any call
-    // after a drop) passes no cached definition so the swap re-reads the latest.
-    let canReuseCached = drops.length === 0;
-    for (const [sourceId, columnMap] of bySource) {
-      const targetColumnTypes = sourceTypes[sourceId] || {};
-      const result = isFusion
-        ? await swapFusionInput({ columnMap, fusionId: viewId, originId: sourceId, tabId, targetColumnTypes, targetId: sourceId })
-        : await swapDatasetViewInput({
-            cachedDefinition: canReuseCached ? viewDefinition : undefined,
-            columnMap,
-            originId: sourceId,
-            tabId,
-            targetColumnTypes,
-            targetId: sourceId,
-            viewId
-          });
-      canReuseCached = false;
-      if (result?.success) remapped += Object.keys(columnMap).length;
-      else errors.push({ error: result?.error || 'Failed to remap columns', scope: sourceId });
+  // Only the first write may reuse the definition detection already fetched;
+  // every later one passes none so the swap re-reads the latest.
+  let canReuseCached = true;
+  for (const [sourceId, { columnMap, droppedColumns }] of bySource) {
+    onProgress?.({ sourceId, status: 'transferring' });
+    const targetColumnTypes = sourceTypes[sourceId] || {};
+    const result = isFusion
+      ? await swapFusionInput({
+          columnMap,
+          droppedColumns,
+          fusionId: viewId,
+          originId: sourceId,
+          tabId,
+          targetColumnTypes,
+          targetId: sourceId
+        })
+      : await swapDatasetViewInput({
+          cachedDefinition: canReuseCached ? viewDefinition : undefined,
+          columnMap,
+          droppedColumns,
+          originId: sourceId,
+          tabId,
+          targetColumnTypes,
+          targetId: sourceId,
+          viewId
+        });
+    canReuseCached = false;
+    if (result?.success) {
+      dropped += droppedColumns.length;
+      remapped += Object.keys(columnMap).length;
+    } else {
+      errors.push({ error: result?.error || 'Failed to repair columns', scope: sourceId });
     }
-    onProgress?.({ phase: 'remap', status: 'done' });
+    onProgress?.({ result, sourceId, status: 'done' });
   }
 
   return { dropped, errors, failed: errors.length, remapped };
-}
-
-async function dropFusionViewColumns({ columnsToDrop, tabId, viewId }) {
-  try {
-    const native = await fetchFusionDefinition(viewId, tabId);
-    const dropped = dropFusionColumns(native, columnsToDrop);
-    return await putFusionSchemaInPage({ fusionDefinition: dropped, fusionId: viewId, tabId });
-  } catch (err) {
-    return { error: err?.message || String(err), success: false };
-  }
-}
-
-async function dropTemplateViewColumns({ columnsToDrop, tabId, viewDefinition, viewId }) {
-  try {
-    const def = viewDefinition || (await fetchDatasetViewDefinition(viewId, tabId));
-    const dropped = dropDatasetViewColumns(def, columnsToDrop);
-    return await putViewSchemaInPage({ tabId, viewDefinition: dropped, viewId });
-  } catch (err) {
-    return { error: err?.message || String(err), success: false };
-  }
 }
 
 /**
@@ -252,65 +258,4 @@ async function fetchDatasetNames(ids, tabId) {
     tabId
   );
   return new Map((rows || []).filter((r) => r?.id).map((r) => [r.id, r.name || `Dataset ${r.id}`]));
-}
-
-async function fetchFusionDefinition(fusionId, tabId) {
-  return executeInPage(
-    async (fusionId) => {
-      const response = await fetch(`/api/query/v1/fusions/${fusionId}`, { credentials: 'include' });
-      if (!response.ok) throw new Error(`GET fusion HTTP ${response.status}`);
-      return response.json();
-    },
-    [fusionId],
-    tabId
-  );
-}
-
-async function putFusionSchemaInPage({ fusionDefinition, fusionId, tabId }) {
-  return executeInPage(
-    async (fusionId, fusionDefinition) => {
-      const body = JSON.parse(JSON.stringify(fusionDefinition));
-      body.validate = false;
-      if (!body.dataSourceType) body.dataSourceType = 'datafusion';
-      const response = await fetch(`/api/query/v1/fusions/${fusionId}`, {
-        body: JSON.stringify(body),
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        method: 'PUT'
-      });
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        return { error: `PUT fusion HTTP ${response.status}: ${text}`.trim(), success: false };
-      }
-      return { success: true };
-    },
-    [fusionId, fusionDefinition],
-    tabId
-  );
-}
-
-async function putViewSchemaInPage({ tabId, viewDefinition, viewId }) {
-  return executeInPage(
-    async (viewId, viewDefinition) => {
-      const body = {
-        dataProviderType: null,
-        dataSourceName: viewDefinition?.name,
-        schema: viewDefinition,
-        trigger: {}
-      };
-      const response = await fetch(`/api/query/v1/views/${viewId}`, {
-        body: JSON.stringify(body),
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        method: 'PUT'
-      });
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        return { error: `PUT view HTTP ${response.status}: ${text}`.trim(), success: false };
-      }
-      return { success: true };
-    },
-    [viewId, viewDefinition],
-    tabId
-  );
 }

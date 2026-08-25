@@ -25,7 +25,7 @@ import {
   REMOVABLE_ENTRY_LIST_FIELDS,
   stripBackticks
 } from './columnFields';
-import { isFusionView } from './columnReferences';
+import { findOriginAliases, isFusionView } from './columnReferences';
 
 /**
  * Card chart types where "drop this column" is a faithful edit: flat tables,
@@ -82,73 +82,38 @@ export function dropDatasetViewColumns(viewDefinition, columnsToDrop) {
 }
 
 /**
- * Remove one or more OUTPUT columns from a native data fusion definition (the
+ * Remove a source dataset's columns from a NATIVE data fusion definition (the
  * `/api/query/v1/fusions/{id}` shape, NOT the compiled `/schema/indexed` shape).
- * A fusion declares its output columns in `columnList[]`, each entry carrying a
- * `name` (the output column) and a `fuseMapping` back to a source column, so a
- * drop is just filtering out the entries whose `name` matches. Join predicates
- * (`columnFuse[].predicates`) reference source columns, not outputs, so they are
- * left untouched.
+ * Backs the "drop column" choice when migrating a fusion whose source column has
+ * no counterpart on the target: each of the fusion's output columns is a
+ * `columnList[]` entry whose `fuseMapping` names the input dataset and the column
+ * it reads, so dropping a source column is filtering out the entries that read
+ * it. Matching on the SOURCE column rather than the fusion's own output name is
+ * what lets one gate decide the drop across both remap flows.
+ *
+ * Join predicates (`columnFuse[].predicates`) reference source columns rather
+ * than outputs and are left alone; the remap UI only offers the drop when no
+ * join reads the column.
  *
  * @param {Object} fusionDefinition - The native fusion definition.
- * @param {string[]|Set<string>} columnsToDrop - Output column names to remove.
+ * @param {string[]|Set<string>} droppedColumns - Source column names to remove.
+ * @param {string} originId - The source dataset id (no backticks).
  * @returns {Object} new fusion definition (input is not mutated)
  */
-export function dropFusionColumns(fusionDefinition, columnsToDrop) {
-  const drop = columnsToDrop instanceof Set ? columnsToDrop : new Set(columnsToDrop || []);
+export function dropFusionSourceColumns(fusionDefinition, droppedColumns, originId) {
+  const drop = droppedColumns instanceof Set ? droppedColumns : new Set(droppedColumns || []);
   if (drop.size === 0) return fusionDefinition;
+  const origin = stripBackticks(originId);
   const next = deepClone(fusionDefinition);
   if (Array.isArray(next.columnList)) {
-    next.columnList = next.columnList.filter(
-      (col) => !(col && typeof col.name === 'string' && drop.has(stripBackticks(col.name)))
-    );
+    next.columnList = next.columnList.filter((col) => {
+      const mapping = col?.fuseMapping;
+      if (!mapping || typeof mapping !== 'object') return true;
+      if (stripBackticks(mapping.dataSource) !== origin) return true;
+      return !drop.has(stripBackticks(mapping.columnName));
+    });
   }
   return next;
-}
-
-/**
- * Find every alias that resolves to the origin dataset DIRECTLY within this
- * view. Includes the bare origin dataset id itself so direct
- * `\`<originId>\`.col` refs also count as origin-qualified.
- *
- * Only DIRECT aliases (where `fromItem.name === originId`) qualify. SUB_SELECT
- * aliases (e.g. `base` wrapping a UNION) do NOT. Refs through a SUB_SELECT
- * point at the subquery's OUTPUT column names, determined by the inner branches'
- * `alias.name` rather than by origin's column names. We don't rewrite inner
- * aliases, so we shouldn't rewrite the outer column refs that read from those
- * aliases either. (Type propagation through SUB_SELECTs is handled separately by
- * `propagateColumnInfoTypes`.)
- */
-export function findOriginAliases(viewDefinition, originId) {
-  const aliases = new Set();
-  if (originId) aliases.add(originId);
-
-  const visitFromItem = (fromItem) => {
-    if (!fromItem || typeof fromItem !== 'object') return;
-    const tableName = stripBackticks(fromItem.name);
-    if (tableName === originId) {
-      const aliasName = stripBackticks(fromItem?.alias?.name);
-      if (aliasName) aliases.add(aliasName);
-      aliases.add(tableName);
-    }
-  };
-
-  const walk = (node) => {
-    if (!node || typeof node !== 'object') return;
-    if (Array.isArray(node)) {
-      for (const item of node) walk(item);
-      return;
-    }
-    if (node.fromItem) visitFromItem(node.fromItem);
-    if (Array.isArray(node.joins)) {
-      for (const j of node.joins) {
-        if (j?.leftItem) visitFromItem(j.leftItem);
-      }
-    }
-    for (const v of Object.values(node)) walk(v);
-  };
-  walk(viewDefinition);
-  return aliases;
 }
 
 /**

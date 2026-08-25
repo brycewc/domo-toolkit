@@ -37,6 +37,53 @@ import { findScriptColumnConflicts } from './scriptColumns';
 import { extractDataflowSqlColumnRefs, getDataflowEngine } from './sqlColumns';
 
 /**
+ * Which of an origin dataset's columns a FUSION view uses only as plain
+ * passthrough output columns, mapped to the fusion output each one feeds. A
+ * column here can be dropped from the fusion (its output column is removed)
+ * instead of being remapped; a column that also appears inside a computed
+ * mapping expression or a join condition is absent, because removing its output
+ * would leave that expression or join reading a column the fusion no longer has.
+ *
+ * The fusion counterpart to `collectViewDroppableColumns`, reading the compiled
+ * `/schema/indexed` shape (`views[].mapping[out].expr`, `views[].columnFuses`)
+ * the scan already caches.
+ *
+ * @param {Object} viewDefinition - The `/schema/indexed` fusion definition.
+ * @param {string} originId - The origin dataset id (no backticks).
+ * @returns {Map<string, string[]>} origin column name -> output column names.
+ */
+export function collectFusionDroppableColumns(viewDefinition, originId) {
+  const outputs = new Map();
+  const blocked = new Set();
+  const origin = stripBackticks(originId);
+  const views = Array.isArray(viewDefinition?.views) ? viewDefinition.views : [];
+
+  for (const view of views) {
+    const mapping = view?.mapping && typeof view.mapping === 'object' ? view.mapping : {};
+    for (const [outputName, info] of Object.entries(mapping)) {
+      const expr = info?.expr;
+      if (!expr || typeof expr !== 'object') continue;
+      if (expr.exprType === 'COLUMN') {
+        if (stripBackticks(expr.table) !== origin || typeof expr.column !== 'string') continue;
+        const column = stripBackticks(expr.column);
+        if (!outputs.has(column)) outputs.set(column, new Set());
+        outputs.get(column).add(stripBackticks(outputName));
+      } else {
+        collectFusionOriginLeaves(expr, origin, (name) => blocked.add(name));
+      }
+    }
+    collectFusionOriginLeaves(view?.columnFuses, origin, (name) => blocked.add(name));
+  }
+
+  const droppable = new Map();
+  for (const [column, names] of outputs) {
+    if (blocked.has(column) || names.size === 0) continue;
+    droppable.set(column, [...names]);
+  }
+  return droppable;
+}
+
+/**
  * Collect the column names a template/SQL view references FROM a specific source
  * dataset, scoped by that source's table aliases (mirroring the conservative
  * rewriter in `columnRewriter.js`). Returns a map from each referenced source
@@ -105,6 +152,51 @@ export function collectViewColumnRefsForSource(viewDefinition, sourceAliases, so
   };
   walk(viewDefinition, null);
   return byColumn;
+}
+
+/**
+ * Which of a source dataset's columns a template/SQL view uses only as plain
+ * selected columns, mapped to the view output each one feeds. A column here can
+ * be dropped from the view (its output column is removed) instead of being
+ * remapped; a column the view also filters, joins, groups, or sorts on, or one
+ * that feeds a calculated column, is absent, because removing its output would
+ * leave that clause or expression reading a column the view no longer has.
+ *
+ * Two reference shapes count as a plain selection, and `dropDatasetViewColumns`
+ * removes both cleanly:
+ *   - a `selectItems[]` entry whose whole expression IS the source column
+ *     (`columnName` with a sibling source-aliased `table.name`), which projects
+ *     it under the entry's `alias.name`;
+ *   - an output-ledger entry (`tables[].columns[]`) naming the source column at
+ *     `referencedColumnName` with `referenceDataSourceId` set to the source.
+ * Every other source-attributed reference blocks the drop. `fromItemInfo` is
+ * skipped for the same reason `collectViewColumnRefsForSource` skips it: it is
+ * the available-input palette, not usage.
+ *
+ * @param {Object} viewDefinition - The `/schema/indexed` view definition.
+ * @param {Set<string>} sourceAliases - Aliases resolving to the source (from `findOriginAliases`).
+ * @param {string} sourceId - The source dataset id (no backticks).
+ * @returns {Map<string, string[]>} source column name -> output column names.
+ */
+export function collectViewDroppableColumns(viewDefinition, sourceAliases, sourceId) {
+  const outputs = new Map();
+  const blocked = new Set();
+  walkViewSourceRefs(viewDefinition, sourceAliases, stripBackticks(sourceId), (column, output) => {
+    if (!column) return;
+    if (!output) {
+      blocked.add(column);
+      return;
+    }
+    if (!outputs.has(column)) outputs.set(column, new Set());
+    outputs.get(column).add(output);
+  });
+
+  const droppable = new Map();
+  for (const [column, names] of outputs) {
+    if (blocked.has(column) || names.size === 0) continue;
+    droppable.set(column, [...names]);
+  }
+  return droppable;
 }
 
 /**
@@ -292,18 +384,7 @@ export function extractFusionViewColumnRefs(viewDefinition, originId) {
   const origin = stripBackticks(originId);
   const views = Array.isArray(viewDefinition?.views) ? viewDefinition.views : [];
 
-  const collectOriginLeaves = (node, onLeaf) => {
-    if (Array.isArray(node)) {
-      for (const item of node) collectOriginLeaves(item, onLeaf);
-      return;
-    }
-    if (!node || typeof node !== 'object') return;
-    if (node.exprType === 'COLUMN' && stripBackticks(node.table) === origin && typeof node.column === 'string') {
-      onLeaf(node.column);
-      return;
-    }
-    for (const v of Object.values(node)) collectOriginLeaves(v, onLeaf);
-  };
+  const collectOriginLeaves = (node, onLeaf) => collectFusionOriginLeaves(node, origin, onLeaf);
 
   for (const view of views) {
     const mapping = view?.mapping && typeof view.mapping === 'object' ? view.mapping : {};
@@ -373,6 +454,51 @@ export async function fetchDatasetViewDefinition(viewId, tabId) {
 }
 
 /**
+ * Find every alias that resolves to the origin dataset DIRECTLY within this
+ * view. Includes the bare origin dataset id itself so direct
+ * `\`<originId>\`.col` refs also count as origin-qualified.
+ *
+ * Only DIRECT aliases (where `fromItem.name === originId`) qualify. SUB_SELECT
+ * aliases (e.g. `base` wrapping a UNION) do NOT. Refs through a SUB_SELECT
+ * point at the subquery's OUTPUT column names, determined by the inner branches'
+ * `alias.name` rather than by origin's column names. We don't rewrite inner
+ * aliases, so we shouldn't rewrite the outer column refs that read from those
+ * aliases either. (Type propagation through SUB_SELECTs is handled separately by
+ * `propagateColumnInfoTypes`.)
+ */
+export function findOriginAliases(viewDefinition, originId) {
+  const aliases = new Set();
+  if (originId) aliases.add(originId);
+
+  const visitFromItem = (fromItem) => {
+    if (!fromItem || typeof fromItem !== 'object') return;
+    const tableName = stripBackticks(fromItem.name);
+    if (tableName === originId) {
+      const aliasName = stripBackticks(fromItem?.alias?.name);
+      if (aliasName) aliases.add(aliasName);
+      aliases.add(tableName);
+    }
+  };
+
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item);
+      return;
+    }
+    if (node.fromItem) visitFromItem(node.fromItem);
+    if (Array.isArray(node.joins)) {
+      for (const j of node.joins) {
+        if (j?.leftItem) visitFromItem(j.leftItem);
+      }
+    }
+    for (const v of Object.values(node)) walk(v);
+  };
+  walk(viewDefinition);
+  return aliases;
+}
+
+/**
  * True when a view definition is a fusion (`views[].mapping`) rather than the
  * template form (`viewTemplate.select.selectBody`). The two store column refs in
  * incompatible shapes, so scanning and rewriting branch on this.
@@ -403,7 +529,7 @@ export function makeItemKey(typeKey, itemId) {
  * @param {string} [params.originId] - The migration's origin dataset ID. Used to identify "other inputs" on dataflows for cross-input collision detection.
  * @param {number|null} [params.tabId]
  * @returns {Promise<{
- *   byColumn: Map<string, Array<{type: string, id: any, name: string}>>,
+ *   byColumn: Map<string, Array<{type: string, id: any, name: string, dropOutputs?: string[]}>>,
  *   byItem: Map<string, {definition: Object|null, usedColumns: Set<string>, error?: string}>,
  *   errors: Array<{type: string, id: any, error: string}>,
  *   dataflowCollisions: Map<string, Array<{dataflowId: any, dataflowName: string, otherInputId: string, otherInputName: string}>>,
@@ -420,16 +546,21 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
   const viewFusionWarnings = [];
   const errors = [];
 
-  const addRef = (typeKey, item, columnName) => {
+  const addRef = (typeKey, item, columnName, extra = null) => {
     if (!columnName || typeof columnName !== 'string') return;
     if (!byColumn.has(columnName)) byColumn.set(columnName, []);
-    byColumn.get(columnName).push({ id: item.id, name: item.name || String(item.id), type: typeKey });
+    byColumn.get(columnName).push({ ...(extra || {}), id: item.id, name: item.name || String(item.id), type: typeKey });
   };
 
   const fetchAndScan = async (typeKey, item) => {
     try {
       let definition;
       let used;
+      // Views only: origin column -> the view output columns removing it would
+      // take with it. A column absent from this map can't be dropped from the
+      // view (see `collectViewDroppableColumns`), so the map doubles as the
+      // per-view drop eligibility the remap UI gates the Drop choice on.
+      let dropOutputsByColumn = null;
       if (typeKey === 'alerts') {
         // An alert's rule references columns by name; on a cross-schema move any
         // name missing from the target dataset makes Domo's create endpoint reject
@@ -465,8 +596,10 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
           if (fusionScan.unsafe) {
             viewFusionWarnings.push({ id: item.id, name: item.name || String(item.id) });
           }
+          dropOutputsByColumn = collectFusionDroppableColumns(definition, originId);
         } else {
           used = extractDatasetViewColumnRefs(definition);
+          dropOutputsByColumn = collectViewDroppableColumns(definition, findOriginAliases(definition, originId), originId);
         }
       } else if (typeKey === 'dataflows') {
         definition = await fetchDataflowDefinition(item.id, tabId);
@@ -499,7 +632,10 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
       }
       const itemKey = makeItemKey(typeKey, item.id);
       byItem.set(itemKey, { definition, usedColumns: used });
-      for (const colName of used) addRef(typeKey, item, colName);
+      for (const colName of used) {
+        const dropOutputs = dropOutputsByColumn?.get(colName) || null;
+        addRef(typeKey, item, colName, dropOutputs ? { dropOutputs } : null);
+      }
     } catch (error) {
       const itemKey = makeItemKey(typeKey, item.id);
       byItem.set(itemKey, {
@@ -615,6 +751,42 @@ async function collectDataflowCollisions({ byItem, originId, selectedDataflows, 
 }
 
 /**
+ * Visit every origin-sourced `{exprType: 'COLUMN', column, table}` leaf under a
+ * fusion expression tree (a mapping expr, a `columnFuses` join condition), the
+ * one shape a fusion stores column refs in.
+ */
+function collectFusionOriginLeaves(node, origin, onLeaf) {
+  if (Array.isArray(node)) {
+    for (const item of node) collectFusionOriginLeaves(item, origin, onLeaf);
+    return;
+  }
+  if (!node || typeof node !== 'object') return;
+  if (node.exprType === 'COLUMN' && stripBackticks(node.table) === origin && typeof node.column === 'string') {
+    onLeaf(stripBackticks(node.column));
+    return;
+  }
+  for (const v of Object.values(node)) collectFusionOriginLeaves(v, origin, onLeaf);
+}
+
+/**
+ * Report the column of every backticked ref in an expression string that COULD
+ * belong to the source: a qualified `\`alias\`.\`col\`` ref whose alias resolves
+ * to the source, plus any bare `\`col\`` ref, which names no table and so can't
+ * be ruled out. Only used to decide whether a column is safe to drop, where an
+ * unattributable ref has to count against the drop. `collectScopedBacktickRefs`
+ * stays strict for the opposite reason: misattributing a ref there would invent a
+ * broken column the user then has to resolve.
+ */
+function collectPossibleSourceBacktickRefs(expr, sourceAliases, onRef) {
+  const re = /`([^`]+)`(\.`([^`]+)`)?/g;
+  let match;
+  while ((match = re.exec(expr)) !== null) {
+    if (match[3] == null) onRef(match[1]);
+    else if (sourceAliases.has(match[1])) onRef(match[3]);
+  }
+}
+
+/**
  * Pull source-attributed column refs out of a backticked expression string.
  * Only qualified `\`alias\`.\`col\`` refs where `alias` is a source alias can be
  * attributed to a source; bare `\`col\`` refs are ambiguous across inputs, so
@@ -655,12 +827,25 @@ async function fetchDataflowDefinition(dataflowId, tabId) {
   );
 }
 
+/**
+ * The source column a select item projects verbatim, or null when its expression
+ * is anything else (a function, a cast, an arithmetic expression, another
+ * input's column). A verbatim projection is a bare column node: `columnName`
+ * qualified by a sibling `table.name` that resolves to the source.
+ */
+function plainSourceColumn(expression, sourceAliases) {
+  if (!expression || typeof expression !== 'object' || typeof expression.columnName !== 'string') return null;
+  const table = stripBackticks(expression.table?.name);
+  if (!table || !sourceAliases.has(table)) return null;
+  return stripBackticks(expression.columnName) || null;
+}
+
 // ---------------------------------------------------------------------------
 // Orchestrator: scan every selected item for column refs, in parallel.
 //
 // Returns:
 //   {
-//     byColumn: Map<colName, Array<{type, id, name}>>,  // who uses each column
+//     byColumn: Map<colName, Array<{type, id, name, dropOutputs?}>>,  // who uses each column
 //     byItem: Map<itemKey, { definition, usedColumns: Set<string>, error?: string }>,
 //     errors: Array<{type, id, error}>
 //   }
@@ -784,5 +969,72 @@ function walkForColumnRefs(node, onColumnRef, parentKey = null) {
 
     // Recurse into anything else.
     walkForColumnRefs(value, onColumnRef, key);
+  }
+}
+
+/**
+ * Walk a template/SQL view definition and report every reference it makes to a
+ * source dataset's columns, saying for each whether a drop could reach it.
+ * `onRef` is called as `(column, outputName)`: an output name means the whole
+ * reference is one select item or output-ledger entry projecting that column, so
+ * removing that output removes the reference; `null` means the reference sits
+ * where a drop can't reach it (a filter, join, group by, sort, or inside a
+ * calculated expression), leaving remap as the only option.
+ *
+ * `fromItemInfo` is skipped for the same reason `collectViewColumnRefsForSource`
+ * skips it: it is the available-input palette, not usage.
+ */
+function walkViewSourceRefs(node, sourceAliases, sourceId, onRef) {
+  if (node == null || typeof node !== 'object') return;
+  if (Array.isArray(node)) {
+    for (const item of node) walkViewSourceRefs(item, sourceAliases, sourceId, onRef);
+    return;
+  }
+
+  // An output-ledger entry (`tables[].columns[]`) names one output column and the
+  // source column feeding it, so it reads as a projection.
+  const isLedgerEntry =
+    typeof node.referencedColumnName === 'string' &&
+    typeof node.name === 'string' &&
+    stripBackticks(node.referenceDataSourceId) === sourceId;
+  if (isLedgerEntry) onRef(stripBackticks(node.referencedColumnName), stripBackticks(node.name));
+
+  const siblingTable = stripBackticks(node?.table?.name);
+  const isSourceQualified = typeof siblingTable === 'string' && sourceAliases.has(siblingTable);
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === 'fromItemInfo') continue;
+    if (key === 'selectItems' && Array.isArray(value)) {
+      for (const item of value) {
+        const projected = plainSourceColumn(item?.expression, sourceAliases);
+        const output = stripBackticks(item?.alias?.name);
+        // An unaliased projection has no output name for the drop to match on,
+        // so it counts as a reference the drop can't reach.
+        if (projected && output) {
+          onRef(projected, output);
+          for (const [itemKey, itemValue] of Object.entries(item)) {
+            if (itemKey !== 'expression') walkViewSourceRefs(itemValue, sourceAliases, sourceId, onRef);
+          }
+        } else {
+          walkViewSourceRefs(item, sourceAliases, sourceId, onRef);
+        }
+      }
+      continue;
+    }
+    if (typeof value === 'string') {
+      if (key === 'columnName') {
+        // An unqualified ref names no table, so it can't be ruled out as the
+        // source's. Counting it blocks a drop the ref would have outlived.
+        if (isSourceQualified || !siblingTable) onRef(stripBackticks(value), null);
+      } else if (key === 'referencedColumnName') {
+        if (!isLedgerEntry && stripBackticks(node.referenceDataSourceId) === sourceId) {
+          onRef(stripBackticks(value), null);
+        }
+      } else if (value.indexOf('`') !== -1) {
+        collectPossibleSourceBacktickRefs(value, sourceAliases, (col) => onRef(col, null));
+      }
+      continue;
+    }
+    walkViewSourceRefs(value, sourceAliases, sourceId, onRef);
   }
 }

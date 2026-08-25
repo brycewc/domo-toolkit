@@ -30,7 +30,7 @@ const REMAP_TYPES = ['cards', 'datasets', 'dataflows', 'apps'];
  * @param {string} params.datasetId - The dataset whose downstream content is being repaired.
  * @param {string} [params.datasetName] - Used only for the dataflow version-history comment.
  * @param {Map<string, {definition: Object|null, usedColumns: Set<string>, error?: string}>} params.definitionsByItemKey - Cached definitions from `scanContentForColumns` (its `byItem`).
- * @param {string[]} [params.droppedColumns] - Column names to remove outright instead of remapping (the "drop column" choice). Only cards receive these; dropping is offered solely for columns whose every use is a table card.
+ * @param {string[]} [params.droppedColumns] - Column names to remove outright instead of remapping (the "drop column" choice). Cards lose every reference to them; a view loses the output columns they feed, and only when it merely selects them.
  * @param {(update: {count: number, result?: Object, status: string, typeKey: string}) => void} [params.onProgress]
  * @param {{ beastModes?: Array, cards?: Array, datasets?: Array, dataflows?: Array }} params.selectedItems
  * @param {number|null} [params.tabId]
@@ -135,7 +135,8 @@ function buildBeastModeUpdateEntry(template) {
  * the executor rewrites column references but leaves the dataset id alone.
  * Mirrors the migrate `dispatchSwap`/`dispatchDatasetSwap` routing minus the
  * Beast Mode remaps the single-dataset case never needs. Column drops ride along
- * to cards only, the one content type where dropping a column is offered.
+ * to cards and views, the content types where dropping a column is offered; each
+ * executor re-checks that the drop is safe for the object it is writing.
  */
 async function dispatchRemap(
   typeKey,
@@ -188,6 +189,7 @@ async function dispatchRemap(
     if (cached && isFusionView(cached)) {
       return swapFusionInput({
         columnMap,
+        droppedColumns,
         fusionId: item.id,
         originId: datasetId,
         tabId,
@@ -198,6 +200,7 @@ async function dispatchRemap(
     return swapDatasetViewInput({
       cachedDefinition: cached,
       columnMap,
+      droppedColumns,
       originId: datasetId,
       tabId,
       targetColumnTypes,

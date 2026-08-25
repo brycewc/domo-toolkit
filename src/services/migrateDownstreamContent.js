@@ -10,8 +10,16 @@ import { executeInPage } from '@/utils/executeInPage';
 
 import { moveAlertToTarget } from './alerts';
 import { getCardDefinition } from './cards';
-import { extractDataflowColumnRefs, isFusionView, makeItemKey } from './columnReferences';
 import {
+  collectViewDroppableColumns,
+  extractDataflowColumnRefs,
+  findOriginAliases,
+  isFusionView,
+  makeItemKey
+} from './columnReferences';
+import {
+  dropDatasetViewColumns,
+  dropFusionSourceColumns,
   hasEffectiveMapping,
   removeCardColumns,
   rewriteBeastModeColumns,
@@ -548,7 +556,15 @@ export async function swapDataflowInput({
 }
 
 /**
- * Swap a dataset view's input dataset, optionally rewriting column references.
+ * Swap a dataset view's input dataset, optionally rewriting column references
+ * and removing the ones the user chose to drop.
+ *
+ * Drops run before the rename so the rewrite (and the PUT's palette and
+ * projection rebuilds) only ever see the columns the view is keeping. Each
+ * dropped origin column is resolved back to the view output columns it feeds,
+ * and only when every one of its references is a plain projection: a column the
+ * view also filters, joins, groups, or sorts on resolves to nothing and is left
+ * in place, so a stale choice can't corrupt the view.
  *
  * Column rewrites run in the extension context first; then the page does the
  * dataset-id rewrite (recursive selectBody, column referenceDataSourceId,
@@ -559,6 +575,7 @@ export async function swapDataflowInput({
  * @param {string} params.originId
  * @param {string} params.targetId
  * @param {Record<string, string|null>} [params.columnMap]
+ * @param {string[]} [params.droppedColumns] - Origin column names to remove from the view entirely.
  * @param {Object} [params.cachedDefinition]
  * @param {number|null} [params.tabId]
  * @returns {Promise<{success: boolean, error?: string}>}
@@ -566,6 +583,7 @@ export async function swapDataflowInput({
 export async function swapDatasetViewInput({
   cachedDefinition,
   columnMap,
+  droppedColumns,
   originId,
   tabId = null,
   targetColumnTypes,
@@ -576,6 +594,10 @@ export async function swapDatasetViewInput({
     let definition = cachedDefinition;
     if (!definition) {
       definition = await fetchDatasetViewDefinitionInPage(viewId, tabId);
+    }
+    const outputsToDrop = resolveViewDropOutputs(definition, droppedColumns, originId);
+    if (outputsToDrop.length > 0) {
+      definition = dropDatasetViewColumns(definition, outputsToDrop);
     }
     if (hasEffectiveMapping(columnMap)) {
       definition = rewriteDatasetViewColumns(definition, columnMap, originId, targetColumnTypes);
@@ -596,18 +618,34 @@ export async function swapDatasetViewInput({
  * and `columnList[].fuseMapping`), and PUTs the native shape back. Output column
  * names and the other input's columns are preserved.
  *
+ * Dropped origin columns are removed first: each one takes with it the output
+ * columns whose `fuseMapping` reads it, so the fusion stops exposing a column the
+ * target doesn't have.
+ *
  * @param {Object} params
  * @param {string} params.fusionId
  * @param {string} params.originId
  * @param {string} params.targetId
  * @param {Record<string, string|null>} [params.columnMap]
+ * @param {string[]} [params.droppedColumns] - Origin column names to remove from the fusion entirely.
  * @param {Record<string, string>} [params.targetColumnTypes] - Map of NEW column name → target type.
  * @param {number|null} [params.tabId]
  * @returns {Promise<{success: boolean, error?: string}>}
  */
-export async function swapFusionInput({ columnMap, fusionId, originId, tabId = null, targetColumnTypes, targetId }) {
+export async function swapFusionInput({
+  columnMap,
+  droppedColumns,
+  fusionId,
+  originId,
+  tabId = null,
+  targetColumnTypes,
+  targetId
+}) {
   try {
-    const definition = await fetchFusionDefinitionInPage(fusionId, tabId);
+    let definition = await fetchFusionDefinitionInPage(fusionId, tabId);
+    if (Array.isArray(droppedColumns) && droppedColumns.length > 0) {
+      definition = dropFusionSourceColumns(definition, droppedColumns, originId);
+    }
     return await putFusionInPage(fusionId, definition, originId, targetId, columnMap, targetColumnTypes, tabId);
   } catch (err) {
     return { error: err?.message || String(err), success: false };
@@ -1178,7 +1216,7 @@ export const MIGRATE_TYPES = [
  * @param {Record<string, {disposition: 'create'|'rename'|'keep'|'overwrite', newName?: string}>} [params.beastModeChoices] - Per origin Beast Mode id, the conflict resolution chosen on the target.
  * @param {Array<{id: any, name: string, legacyId?: string}>} [params.targetBeastModes] - The target dataset's existing Beast Modes (for keep/overwrite).
  * @param {Record<string, string|null>} [params.columnMap] - Origin → target column-name map. Null targets and no-op entries are skipped.
- * @param {string[]} [params.droppedColumns] - Origin column names to remove entirely (the "drop column" choice): pruned from card definitions, and from an alert's primary-key / metadata / filter column references.
+ * @param {string[]} [params.droppedColumns] - Origin column names to remove entirely (the "drop column" choice): pruned from card definitions, from an alert's primary-key / metadata / filter column references, and from the output of any dataset view that only selects them.
  * @param {Map<string, { definition: Object }>} [params.definitionsByItemKey] - Cached content definitions from the column-reference scan, keyed by `${typeKey}:${itemId}`. Reused so we don't re-fetch.
  * @param {Function} [params.onProgress]
  * @param {number|null} [params.tabId]
@@ -1456,6 +1494,7 @@ async function dispatchDatasetSwap(item, options) {
   if (isFusionView(indexed)) {
     return swapFusionInput({
       columnMap: options.columnMap,
+      droppedColumns: options.droppedColumns,
       fusionId: item.id,
       originId: options.originId,
       tabId: options.tabId,
@@ -1466,6 +1505,7 @@ async function dispatchDatasetSwap(item, options) {
   return swapDatasetViewInput({
     cachedDefinition: indexed,
     columnMap: options.columnMap,
+    droppedColumns: options.droppedColumns,
     originId: options.originId,
     tabId: options.tabId,
     targetColumnTypes: options.targetColumnTypes,
@@ -1852,6 +1892,24 @@ function remapNestedBeastModeIds(template, numericRemap) {
     }
   }
   return template;
+}
+
+/**
+ * The view output columns a set of dropped ORIGIN columns takes with it. Only
+ * columns the view uses purely as plain selected columns resolve to an output;
+ * one it also filters, joins, groups, or sorts on, or one feeding a calculated
+ * column, resolves to nothing and is left in place. Re-derived from the
+ * definition about to be written, so the same rule that gated the Drop choice in
+ * the UI decides what actually gets removed.
+ */
+function resolveViewDropOutputs(viewDefinition, droppedColumns, originId) {
+  if (!Array.isArray(droppedColumns) || droppedColumns.length === 0) return [];
+  const droppable = collectViewDroppableColumns(viewDefinition, findOriginAliases(viewDefinition, originId), originId);
+  const outputs = new Set();
+  for (const column of droppedColumns) {
+    for (const output of droppable.get(column) || []) outputs.add(output);
+  }
+  return [...outputs];
 }
 
 /** Set the auditable version-history comment on the dataflow's new version. */

@@ -41,7 +41,7 @@ import { DomoObject } from '@/models/DomoObject';
 import { getObjectType } from '@/models/DomoObjectType';
 import { extractAlertPdpPolicies, getDownstreamAlerts, getRowPdpPolicies } from '@/services/alerts';
 import { scanContentForColumns } from '@/services/columnReferences';
-import { hasEffectiveMapping, isDroppableCardChartType } from '@/services/columnRewriter';
+import { hasEffectiveMapping } from '@/services/columnRewriter';
 import { getDatasetColumns } from '@/services/datasets';
 import { getBeastModeReferenceGraph, getCardBeastModes, getDatasetFunctions } from '@/services/functions';
 import {
@@ -53,6 +53,7 @@ import {
   migrateAllDownstreamContent
 } from '@/services/migrateDownstreamContent';
 import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
+import { describeViewOutputDrop, isColumnDroppable } from '@/utils/columnDrops';
 import { suggestReplacement } from '@/utils/columnMatching';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
@@ -78,8 +79,9 @@ const TYPE_KEY_TO_DOMO_TYPE = {
 
 const UNMAPPED = '__unmapped__';
 // Sentinel for the "drop column" remap choice: remove the column's references
-// from the content that uses it (badge_table cards/drills, and alert rules)
-// instead of mapping it to a target column.
+// from the content that uses it (badge_table cards/drills, alert rules, and the
+// output of a dataset view that only selects it) instead of mapping it to a
+// target column.
 const DROP = '__drop__';
 // Sentinel for the PDP-policy mapping select's explicit "remove this policy so
 // the alert watches all rows" choice. The unresolved state is a null value (no
@@ -885,22 +887,14 @@ export function MigrateDownstreamContentView({
     return names;
   }, [usedUnmappedColumns]);
 
-  // Columns eligible for the "drop column" choice: those whose EVERY usage is safe
-  // to drop from. Dropping is safe for a flat-table card (remove the column from
-  // the table) and for an alert (remove it from the rule's column list); any other
-  // chart type, or a dataflow / view / app usage, makes the column non-droppable.
-  // Also re-applied at migrate time so a stale choice can't slip through to
-  // content the drop would corrupt.
+  // Columns eligible for the "drop column" choice, per the shared rule Remap
+  // Columns applies too (`isColumnDroppable`). Re-derived on every render, and
+  // re-applied at migrate time, so a stale choice can't slip through to content
+  // the drop would corrupt.
   const droppableColumnNames = useMemo(() => {
     const names = new Set();
     for (const { items, name } of usedUnmappedColumns) {
-      if (items.length === 0) continue;
-      const everyUsageDroppable = items.every((it) => {
-        if (it.type === 'alerts') return true;
-        if (it.type === 'cards') return isDroppableCardChartType(cardsById.get(String(it.id))?.chartType);
-        return false;
-      });
-      if (everyUsageDroppable) names.add(name);
+      if (isColumnDroppable(items, cardsById)) names.add(name);
     }
     return names;
   }, [cardsById, usedUnmappedColumns]);
@@ -2376,6 +2370,13 @@ function ColumnMapRow({
     ? buildObjectUrl('dataflows', { id: singleCollision.dataflowId, name: singleCollision.dataflowName }, origin)
     : null;
 
+  // What dropping this column takes out of a dataset view, in the same words
+  // Remap Columns uses.
+  const viewDropWarning = useMemo(
+    () => (mappedTo === DROP ? describeViewOutputDrop(items) : null),
+    [items, mappedTo]
+  );
+
   // After a target is picked, flag when its data type differs from the origin
   // column's. A silent type change can break a dataflow (e.g. an integer column
   // dropped into a UNION of text values), so surface it on the row.
@@ -2564,6 +2565,7 @@ function ColumnMapRow({
           </Autocomplete.Popover>
         </Autocomplete>
       </div>
+      {viewDropWarning && <p className='text-xs text-warning'>{viewDropWarning}</p>}
     </div>
   );
 }
