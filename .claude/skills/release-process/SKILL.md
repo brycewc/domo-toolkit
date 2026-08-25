@@ -1,9 +1,6 @@
 ---
-description: Release checklist for version bumps and publishing
-paths:
-  - 'package.json'
-  - 'src/data/releases.js'
-  - 'docs/RELEASE_NOTES.md'
+name: release-process
+description: "Domo Toolkit's release lifecycle, start to finish: starting a new development cycle (wiping release notes to a WIP list and bumping package.json), maintaining that WIP list while features land, and then cutting the release by hand (finalizing the notes, adding the releases.js entry, building the zips, tagging the GitHub Release, and uploading to the Chrome and Edge stores). Use whenever a release comes up: cutting, shipping, or publishing a version, bumping or choosing a version number, starting the next version's branch, finalizing or wiping release notes, adding a releases.js entry, running yarn release, tagging vX.Y.Z, or uploading to the web stores. Keywords: release, ship, publish, version bump, semver, release notes, WIP notes, releases.js, GitHub Release, Chrome Web Store, Edge Add-ons."
 ---
 
 # Release Process
@@ -13,15 +10,27 @@ paths:
 - **Between releases**: maintained as a running WIP list while features land. See "Maintaining WIP release notes" below.
 - **At release time**: polished, finalized, and used as the GitHub Release body. See the numbered checklist starting at step 1.
 
+## The version bump happens at cycle start, not at release time
+
+**`package.json` is bumped to the next version when the previous release ships**, in the same change that wipes the release notes to a fresh WIP list. It is not bumped as part of cutting the release. Every cycle in the project's history works this way, so by the time you reach the checklist below, `package.json` already holds the version you are releasing, and step 1 is a confirmation rather than an edit.
+
+The version chosen at cycle start is **provisional**. Scope routinely grows past the initial guess, and revising it mid-cycle is normal, not a mistake. Worked example: the cycle after v1.4.0 opened as 1.4.1 in both `package.json` and the WIP title, grew well past a patch, and was re-bumped to 1.5.0 mid-cycle (`5729454`) before shipping as v1.5.0.
+
 ## Maintaining WIP release notes
 
 Because this project ships slowly with many changes per release, the user keeps `docs/RELEASE_NOTES.md` as a running WIP list during development so nothing is forgotten when it's time to compile the final notes.
 
 **Update the WIP list automatically after every change worth noting; do not wait for the user to ask.** Trigger after any user-facing change: new feature, bug fix to a previously shipped behavior, UI/UX adjustment, newly supported object type, performance improvement, etc. Skip pure internal refactors entirely (they never go in the notes at all; git history is their record on this solo project), dev-only tooling, and iteration on this version's not-yet-shipped features (see "Commits are save/sync points, not atomic features" below). Mention the WIP update briefly in the end-of-turn summary so the user sees it happened.
 
-### After a release ships
+### Starting the next cycle, after a release ships
 
-Wipe `docs/RELEASE_NOTES.md` and start a fresh WIP list for the next version. Title it `# Domo Toolkit vX.Y.Z Release Notes (WIP)` with the next expected version. Include a blockquote note if the version bump is being reconsidered (e.g., patch → minor due to scope creep).
+Three things happen together, on a new branch named for the next version (bare `X.Y.Z`, no `v` prefix, matching the `1.6.0` and `1.7.0` branches):
+
+1. Wipe `docs/RELEASE_NOTES.md` and start a fresh WIP list, titled `# Domo Toolkit vX.Y.Z Release Notes (WIP)` with the next expected version. Keep the section skeleton the cycle will fill in (`## New Features and Improvements`, `## UI Improvements`, `## Bug Fixes`).
+2. Bump `version` in `package.json` to that same version. This field is the single source of truth; `manifest.config.js` reads `pkg.version`.
+3. Include a blockquote note in the notes if the version is already being reconsidered (e.g., patch → minor due to expected scope).
+
+Do **not** add a `releases.js` entry now. That belongs to the release itself, at step 2 of the checklist.
 
 ### Adding items to the WIP list
 
@@ -75,21 +84,19 @@ Worked example: on the unreleased 1.3.1 branch, HeroUI v3 began deriving every c
 
 ### Version bump signaling
 
-If the WIP list is accumulating substantial new features, flag when a minor bump may be warranted over a patch. Semver guidance:
+The version set at cycle start is a guess. As the WIP list accumulates, watch whether it still fits and flag the user when it doesn't, rather than waiting for release day. Semver guidance, used both to pick the version at cycle start and to re-check it here:
 
-- Multiple new features + UX changes → minor
-- Isolated bug fixes → patch
-- Breaking changes → major
+- **Patch** (1.0.0 → 1.0.1): isolated bug fixes, minor tweaks, no new features
+- **Minor** (1.0.0 → 1.1.0): new features, UX changes, non-breaking enhancements
+- **Major** (1.0.0 → 2.0.0): breaking changes, major redesigns
+
+When it needs to change, update `package.json` and the WIP title together, as `5729454` did for 1.4.1 → 1.5.0.
 
 ---
 
-## 1. Bump the version in `package.json`
+## 1. Confirm the version in `package.json`
 
-The `version` field is the single source of truth; `manifest.config.js` reads `pkg.version`. Use semver:
-
-- **Patch** (1.0.0 → 1.0.1): Bug fixes, minor tweaks, no new features
-- **Minor** (1.0.0 → 1.1.0): New features, non-breaking enhancements
-- **Major** (1.0.0 → 2.0.0): Breaking changes, major redesigns
+**Do not bump here.** `package.json` was set to this version at cycle start (see above). Confirm it still matches what you are shipping, using the semver guidance under "Version bump signaling," and correct it now only if the cycle's scope outgrew the provisional number and it was never revised mid-cycle.
 
 ## 2. Add a release entry to `src/data/releases.js`
 
@@ -175,9 +182,13 @@ Upload by hand, using the prefixed zips left in `release/`:
 
 ## Validation checklist
 
-- [ ] `version` in `package.json` matches `releases.js` entry
+- [ ] `version` in `package.json` (set at cycle start) matches the `releases.js` entry and the version being tagged
 - [ ] `githubUrl` format: `https://github.com/brycewc/domo-toolkit/releases/tag/vX.Y.Z`
 - [ ] `yarn dev` stopped, then `yarn release` builds and packages successfully
 - [ ] Both zips report the right version, and only the Edge one has `key` stripped
 - [ ] `main` pushed, then the release cut with the tag and a single `domo-toolkit-X.Y.Z.zip` asset
 - [ ] Both store uploads done by hand
+
+## After shipping
+
+Open the next cycle: new branch, wipe the notes, bump `package.json`. See "Starting the next cycle, after a release ships" above.

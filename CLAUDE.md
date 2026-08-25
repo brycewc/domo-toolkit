@@ -58,7 +58,6 @@ Claude Code auto-loads every `.md` in `.claude/rules/`. Rules with a `paths:` fr
 | ------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `code-style.md`           | `.js`/`.jsx` files     | ESLint + Prettier sorting/formatting spec. **Always run `npx eslint --no-warn-ignored <file>` after edits.** |
 | `architecture.md`         | Core source files      | Extension contexts, message flow, core models, `executeInPage()`, services pattern, detection flow           |
-| `release-process.md`      | Release files          | Full release checklist: version bump, releases.js, release notes, build, CI/CD                               |
 | `wip-release-notes.md`    | Always                 | Auto-update `docs/RELEASE_NOTES.md` WIP list after every notable change without being asked                  |
 | `local-testing.md`        | Always                 | Localhost dev routes + the CRXJS dev extension (HMR on all surfaces) for testing UI before claiming success  |
 | `domo-apis.md`            | Always                 | Use Postman MCP to look up Domo API endpoints before writing API calls                                       |
@@ -67,9 +66,13 @@ Claude Code auto-loads every `.md` in `.claude/rules/`. Rules with a `paths:` fr
 | `domo-debug-utilities.md` | Always                 | Browser console scripts for reverse-engineering Domo pages                                                   |
 | `store-listing.md`        | `STORE_LISTING.txt`    | Keep the store description under the Edge store's 10,000-character cap after every edit                      |
 
-| Skill          | What it covers                             |
-| -------------- | ------------------------------------------ |
-| `heroui-react` | HeroUI v3 component library docs and usage |
+Skills are not auto-loaded; they are invoked by name when the work matches their description.
+
+| Skill             | Trigger                         | What it covers                                                                                       |
+| ----------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `release-process` | Any mention of a release        | Full release lifecycle: cycle start (notes wipe + version bump), WIP notes, finalize, build, publish |
+| `heroui-react`    | Building UI with HeroUI         | HeroUI v3 component library docs and usage                                                           |
+| `playwriter`      | Driving the browser for a check | Controls the user's own Chrome via Playwright snippets, for visual verification                      |
 
 | Command            | What it does                            |
 | ------------------ | --------------------------------------- |

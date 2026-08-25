@@ -14,7 +14,7 @@ Release notes describe what a user notices when they update from the **last rele
 
 If the "before" state your change moves away from never shipped, the answer is no, so skip it, however user-facing the change looks in isolation. A change and a later counter-change within the same unreleased version net to zero for users. This gate sits above every trigger below (it is why "bug fixes" are qualified as **previously shipped**) and applies equally to UI/UX tweaks and performance work.
 
-**Easy-to-miss trap: a dependency or library upgrade on this branch.** Upgrading HeroUI, React, Tailwind, etc. can change default styling or behavior. Re-establishing the prior look, or adapting to the new version, is invisible to users who never saw the intermediate state, so it is not loggable; only a net difference from the last release counts. Real example: HeroUI v3 made avatars and switches radius-derived instead of fully rounded (which looked boxy under our low `--radius`); restoring them to fully rounded on the same unreleased branch is NOT a note item, because users only ever saw the rounded version. Full reasoning: `release-process.md` → "Changes whose baseline never shipped."
+**Easy-to-miss trap: a dependency or library upgrade on this branch.** Upgrading HeroUI, React, Tailwind, etc. can change default styling or behavior. Re-establishing the prior look, or adapting to the new version, is invisible to users who never saw the intermediate state, so it is not loggable; only a net difference from the last release counts. Real example: HeroUI v3 made avatars and switches radius-derived instead of fully rounded (which looked boxy under our low `--radius`); restoring them to fully rounded on the same unreleased branch is NOT a note item, because users only ever saw the rounded version. Full reasoning: the `release-process` skill → "Changes whose baseline never shipped."
 
 ## Voice: write for the user, not the extension's developer
 
@@ -89,7 +89,7 @@ When one feature has several genuinely distinct user-facing changes, give each i
 - Dev-only tooling, DevMenu, debug scripts
 - Iteration on **this version's** not-yet-shipped features. Even when the commit says "fixed," that is part of the feature's initial delivery, not a bug fix.
 - **Anything whose "before" state never shipped** (the gate above, restated as a skip rule): same-branch regressions fixed before release, and changes that only counter an unshipped dependency or library upgrade, such as restoring a look the upgrade changed.
-- Underlying principle: `release-process.md` → "Commits are save/sync points, not atomic features" and "Changes whose baseline never shipped."
+- Underlying principle: the `release-process` skill → "Commits are save/sync points, not atomic features" and "Changes whose baseline never shipped."
 
 ## How
 
@@ -98,4 +98,4 @@ When one feature has several genuinely distinct user-facing changes, give each i
 - Preserve uncertainty inline with `_(...)_` or `TODO:` rather than silently asserting or dropping.
 - **When the change came from a GitHub issue, append a link to it**, so the reporter can see their report land in the release. Format is a trailing parenthesized markdown link, after the sentence's period: `... instead of finding none. ([#89](https://github.com/brycewc/domo-toolkit/issues/89))`. Put it on every bullet the issue produced, even when one issue yields several. This is the one trailing parenthetical the "Length" rules above do not ask you to cut, because it is provenance rather than a reason or a benefit. Add it only for a real issue number you have actually seen; never guess one, and leave it off for changes the user asked for directly.
 - Mention the WIP update briefly in the end-of-turn summary so the user sees it happened.
-- Full guidance and section taxonomy live in `release-process.md` under "Maintaining WIP release notes."
+- Full guidance and section taxonomy live in the `release-process` skill under "Maintaining WIP release notes."
