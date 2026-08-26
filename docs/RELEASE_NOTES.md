@@ -21,3 +21,4 @@
 - A card whose conditional formatting still names a dataset it no longer reads now migrates instead of failing.
 - A card that still references a Beast Mode saved on a dataset it no longer reads now migrates instead of failing.
 - Migrate Content now explains that Domo allows only one level of Beast Mode nesting when that is why a Beast Mode couldn't be created, instead of showing Domo's raw error.
+- Auto Map now fills in a replacement column whose name differs only in capitalization or separators, instead of leaving it unmapped.

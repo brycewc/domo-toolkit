@@ -33,10 +33,9 @@ export function suggestReplacement(brokenName, candidates) {
       bestScore = score;
       ambiguous = false;
     } else if (score === bestScore && best && name !== best) {
-      // A perfect score means the candidate has exactly the broken column's words,
-      // so two of them differ only in spelling or case and either will do; prefer
-      // the shorter. Below that, a tie is a coin flip between two genuinely
-      // different columns, so suggest nothing and let the user pick.
+      // A perfect score means the names differ only in spelling, case, or
+      // delimiters, so either will do; prefer the shorter. Below that, a tie is a
+      // coin flip between two different columns, so suggest nothing.
       if (score === 1) {
         if (name.length < best.length) best = name;
       } else {
@@ -49,8 +48,9 @@ export function suggestReplacement(brokenName, candidates) {
 
 // Split a column name into its distinct lowercased word tokens and describe the
 // pieces matchScore compares: the tokens themselves, their total length, the head
-// (last) word, and whether that head is the name's longest word (a head no longer
-// than its qualifiers, like the `id` in `account id`, is too generic to match on).
+// (last) word, whether that head is the name's longest word (a head no longer than
+// its qualifiers, like the `id` in `account id`, is too generic), and the name with
+// its word breaks squashed back out.
 function describeColumnName(name) {
   const all = tokenizeColumnName(name);
   const tokens = [...new Set(all)];
@@ -60,20 +60,23 @@ function describeColumnName(name) {
     chars: tokens.reduce((sum, token) => sum + token.length, 0),
     head,
     headIsLongest: head.length === longest,
+    normalized: all.join(''),
     tokens,
     tokenSet: new Set(tokens)
   };
 }
 
 // Score one candidate against the broken column, 0 when it does not qualify at
-// all. Two shapes qualify:
+// all. Three shapes qualify:
 //
-// 1. Words were only added or removed, so one name's words are a subset of the
+// 1. The two names match once case and delimiters are stripped. Checked first
+//    because case drives word breaks: `StageDate3` splits but `stagedate3` does not.
+// 2. Words were only added or removed, so one name's words are a subset of the
 //    other's, and what they share is at least half of the longer name. This is
 //    the common rename: a delimiter or case reformat (`Account_ID` ->
 //    `account id`), or a qualifier tacked on (`Account Territory` ->
 //    `Account Territory Name`).
-// 2. Each name has words the other lacks, but they end on the same head word (the
+// 3. Each name has words the other lacks, but they end on the same head word (the
 //    last one, which is what the column actually is), that head is the longest
 //    word on both sides, and it still covers most of the shorter name. This keeps
 //    `ca_parentid` -> `l_utm_campid_parentid`.
@@ -85,6 +88,7 @@ function describeColumnName(name) {
 // Qualifying candidates are ranked by how much of the two names' combined words
 // they share, so the closest name wins.
 function matchScore(broken, cand) {
+  if (broken.normalized === cand.normalized) return 1;
   let shared = 0;
   for (const token of broken.tokens) if (cand.tokenSet.has(token)) shared += token.length;
   if (shared === 0) return 0;
