@@ -3,7 +3,6 @@ import {
   Autocomplete,
   Button,
   Card,
-  Chip,
   Collection,
   Description,
   EmptyState,
@@ -32,6 +31,7 @@ import { DatasetComboBox } from '@/components/DatasetComboBox';
 import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { ColumnUsagesModal } from '@/components/views/ColumnUsagesModal';
 import { DataList } from '@/components/views/DataList';
+import { ViewHeader } from '@/components/views/ViewHeader';
 import { useParallelFetches } from '@/hooks/useParallelFetches';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { useViewReady } from '@/hooks/useViewReady';
@@ -61,6 +61,7 @@ import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeAp
 import { describeViewOutputDrop, isColumnDroppable } from '@/utils/columnDrops';
 import { suggestReplacement } from '@/utils/columnMatching';
 import { isBrokenColumnReference } from '@/utils/columnOrphans';
+import { buildRefreshAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconCheck from '@icons/check.svg?react';
@@ -168,6 +169,9 @@ export function MigrateDownstreamContentView({
   const [targetPdpPolicies, setTargetPdpPolicies] = useState([]);
   const [pdpChoices, setPdpChoices] = useState({});
   const [pdpLoaded, setPdpLoaded] = useState(false);
+
+  const [targetRefreshKey, setTargetRefreshKey] = useState(0);
+  const [targetFetchCount, setTargetFetchCount] = useState(0);
 
   const mountedRef = useRef(true);
   const bailedRef = useRef(false);
@@ -516,8 +520,16 @@ export function MigrateDownstreamContentView({
     [allBeastModesLocked, beastModeCardLinks, lockedBeastModeIds, selectedCardIdSet]
   );
 
-  // Run the schema check whenever a target dataset is picked. Clears any prior
-  // comparison/scan/remap so stale results never leak across target changes.
+  // Drop the scan and the remap choices whenever the target changes so stale
+  // results never leak across targets. Kept out of the schema check below so a
+  // refresh re-runs that check without discarding mappings the user has set.
+  useEffect(() => {
+    setScanResult(null);
+    setScanError(null);
+    setColumnMap({});
+  }, [datasetId, selectedDatasetId]);
+
+  // Run the schema check whenever a target dataset is picked, and again on refresh.
   useEffect(() => {
     if (!selectedDatasetId || !datasetId) {
       setComparison(null);
@@ -528,9 +540,6 @@ export function MigrateDownstreamContentView({
     setIsComparing(true);
     setComparison(null);
     setComparisonError(null);
-    setScanResult(null);
-    setScanError(null);
-    setColumnMap({});
     compareDatasetSchemas(datasetId, selectedDatasetId, tabId)
       .then((result) => {
         if (cancelled) return;
@@ -546,7 +555,7 @@ export function MigrateDownstreamContentView({
     return () => {
       cancelled = true;
     };
-  }, [datasetId, selectedDatasetId, tabId]);
+  }, [datasetId, selectedDatasetId, tabId, targetRefreshKey]);
 
   // On schema mismatch, fetch the target's columns and scan the selected
   // content for column references in parallel. Both feed the remap UI.
@@ -592,17 +601,19 @@ export function MigrateDownstreamContentView({
       return;
     }
     let cancelled = false;
+    setTargetFetchCount((n) => n + 1);
     getDatasetFunctions(selectedDatasetId, tabId)
       .then((bms) => {
         if (!cancelled) setTargetBeastModes(bms || []);
       })
       .catch(() => {
         if (!cancelled) setTargetBeastModes([]);
-      });
+      })
+      .finally(() => setTargetFetchCount((n) => n - 1));
     return () => {
       cancelled = true;
     };
-  }, [page, selectedDatasetId, tabId]);
+  }, [page, selectedDatasetId, tabId, targetRefreshKey]);
 
   // Selected origin Beast Modes whose name already exists on the target. These
   // are the ones the user has to resolve (keep / overwrite / rename).
@@ -645,17 +656,19 @@ export function MigrateDownstreamContentView({
       return;
     }
     let cancelled = false;
+    setTargetFetchCount((n) => n + 1);
     getCardBeastModes(datasetId, tabId)
       .then((bms) => {
         if (!cancelled) setCardBeastModes(bms || []);
       })
       .catch(() => {
         if (!cancelled) setCardBeastModes([]);
-      });
+      })
+      .finally(() => setTargetFetchCount((n) => n - 1));
     return () => {
       cancelled = true;
     };
-  }, [datasetId, page, selectedDatasetId, tabId]);
+  }, [datasetId, page, selectedDatasetId, tabId, targetRefreshKey]);
 
   // Card-level Beast Modes on a SELECTED card whose name already exists as a
   // dataset Beast Mode on the target. Domo rejects saving the card with such a
@@ -734,13 +747,15 @@ export function MigrateDownstreamContentView({
       return;
     }
     let cancelled = false;
+    setTargetFetchCount((n) => n + 1);
     getNestingBeastModeIds(targets, tabId)
       .then((ids) => {
         if (!cancelled) setNestingTargetBeastModeIds(ids);
       })
       .catch(() => {
         if (!cancelled) setNestingTargetBeastModeIds(new Set());
-      });
+      })
+      .finally(() => setTargetFetchCount((n) => n - 1));
     return () => {
       cancelled = true;
     };
@@ -851,7 +866,7 @@ export function MigrateDownstreamContentView({
     return () => {
       cancelled = true;
     };
-  }, [page, selectedAlertsRefPdp, selectedDatasetId, tabId]);
+  }, [page, selectedAlertsRefPdp, selectedDatasetId, tabId, targetRefreshKey]);
 
   // Distinct named PDP policies referenced by the selected alerts (the open "All
   // Rows" group auto-resolves and is excluded). These are the candidates for
@@ -1340,6 +1355,10 @@ export function MigrateDownstreamContentView({
     setSelectedDatasetName(suggestedTarget.name);
   }, [suggestedTarget]);
 
+  // Only the target-side fetches: refetching page 1's downstream lists would
+  // empty the selection mid-flight and reset every conflict choice keyed off it.
+  const handleRefreshTarget = useCallback(() => setTargetRefreshKey((n) => n + 1), []);
+
   const handleColumnChoice = useCallback((originName, choice) => {
     setColumnMap((prev) => {
       const next = { ...prev };
@@ -1571,14 +1590,6 @@ export function MigrateDownstreamContentView({
     );
   }
 
-  // Shown in the subheader of both pages. This migration flow is new and may
-  // not handle every case yet, so it's flagged Beta to set expectations.
-  const betaChip = (
-    <Chip className='shrink-0' color='accent' size='sm' variant='soft'>
-      Beta
-    </Chip>
-  );
-
   // Select all / clear for the whole downstream tree. Select all reuses the same
   // "everything" set as the initial pre-select; clearing to empty is safe because
   // no Beast Mode stays locked once nothing that requires it is selected.
@@ -1645,28 +1656,31 @@ export function MigrateDownstreamContentView({
   ).length;
   const migratedTotal = Object.values(transferStatus).length;
 
+  const isRefreshingTarget = isComparing || isScanning || !pdpLoaded || targetFetchCount > 0;
+  const refreshDisabledReason = !selectedDatasetId
+    ? 'Choose a To DataSet to refresh'
+    : isTransferring
+      ? 'Migration in progress'
+      : null;
+  const headerActions = [
+    {
+      ...buildRefreshAction({ isRefreshing: isRefreshingTarget, onRefresh: handleRefreshTarget }),
+      disabledReason: refreshDisabledReason
+    }
+  ];
+
   return (
     <>
       <Card className='flex min-h-0 w-full flex-1 flex-col gap-0 p-2'>
-        <Card.Header className='gap-1'>
-          <Card.Title className='line-clamp-2 min-w-0 pr-8'>
-            Migrate Content of <strong>{datasetName}</strong>
-          </Card.Title>
-          <div className='flex'>{betaChip}</div>
-          <Tooltip>
-            <Button
-              isIconOnly
-              aria-label='Close'
-              className='absolute top-1 right-2'
-              size='sm'
-              variant='ghost'
-              onPress={onBackToDefault}
-            >
-              <IconX />
-            </Button>
-            <Tooltip.Content className='max-w-60 text-wrap'>Close</Tooltip.Content>
-          </Tooltip>
-        </Card.Header>
+        <ViewHeader
+          beta
+          actions={headerActions}
+          feature='Migrate Content of'
+          featureIcon={<IconSwapHorizontal />}
+          subject={datasetName}
+          subjectTypeId='DATA_SOURCE'
+          onClose={onBackToDefault}
+        />
         <Separator className='mt-1.5' />
         <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
           <Card.Content className='flex flex-col gap-2 py-2'>
