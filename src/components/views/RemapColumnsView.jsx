@@ -40,6 +40,8 @@ import { remapDatasetColumns } from '@/services/remapDatasetColumns';
 import { detectBrokenViewColumns, repairViewColumns } from '@/services/repairViewColumns';
 import { describeViewOutputDrop, isColumnDroppable } from '@/utils/columnDrops';
 import { suggestReplacement } from '@/utils/columnMatching';
+import { isBrokenColumnReference } from '@/utils/columnOrphans';
+import { pathnameOf } from '@/utils/general';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheck from '@icons/check.svg?react';
@@ -297,15 +299,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     for (const [name, usages] of scanResult.byColumn.entries()) {
       // Still on the dataset, so not a broken reference.
       if (schemaColumnNames.has(name)) continue;
-      // Skip references that were never user columns (Beast Mode ids, object
-      // ids, system columns) so they don't masquerade as renamed columns.
-      if (!isLikelyRenamedColumn(name)) continue;
-      // Only trust cards, dataset Beast Modes, and pro-code apps for discovery:
-      // each is bound to this dataset alone, so every column they reference is
-      // one of its columns. Dataflows and dataset views join other datasets, so
-      // a name missing here may simply be another input's column, not a renamed
-      // one.
-      if (!usages.some((u) => u.type === 'apps' || u.type === 'beastModes' || u.type === 'cards')) continue;
+      if (!isBrokenColumnReference(name, usages)) continue;
       out.push(name);
     }
     return out;
@@ -765,6 +759,8 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       const repairFailed = repairResult?.failed || 0;
       const repairSucceeded = repairResult ? (repairResult.dropped || 0) + (repairResult.remapped || 0) : 0;
       totalFailed += repairFailed;
+
+      if (totalSucceeded > 0 || repairSucceeded > 0) await reloadDatasetCardsTab(tabId, datasetId);
 
       const reviewNote =
         totalManualReview > 0
@@ -1402,20 +1398,6 @@ function formatErrors(result) {
   return `${n} item${n === 1 ? '' : 's'} failed`;
 }
 
-// Whether a referenced name plausibly was a real, user-facing column (and so a
-// candidate for a rename), as opposed to a Beast Mode reference, an object id,
-// or a Domo system column that downstream content references but that never
-// appears in a dataset's schema.
-function isLikelyRenamedColumn(name) {
-  if (typeof name !== 'string' || !name.trim()) return false;
-  if (name.startsWith('calculation_')) return false; // Beast Mode reference id
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(name)) return false; // dataset/object id
-  if (/^\d+$/.test(name)) return false; // numeric id
-  if (/^__.+__$/.test(name)) return false; // Domo system column (__createdAt__, __domoId__)
-  if (/^_BATCH_/.test(name)) return false; // Domo batch system column (_BATCH_ID_, _BATCH_LAST_RUN_)
-  return true;
-}
-
 function isParentKey(id) {
   return REMAP_TYPES.some((t) => t.key === id);
 }
@@ -1430,6 +1412,20 @@ function parseLeafTypeKey(id) {
   if (idx === -1) return null;
   const candidate = id.slice(0, idx);
   return REMAP_TYPES.some((t) => t.key === candidate) ? candidate : null;
+}
+
+// The dataset's Cards tab keeps rendering the card list it loaded on navigation, so
+// cards a remap just rewrote look unchanged until the tab reloads.
+async function reloadDatasetCardsTab(tabId, datasetId) {
+  if (!tabId || !datasetId) return;
+  try {
+    const { url } = await chrome.tabs.get(tabId);
+    const path = (pathnameOf(url) || '').toLowerCase().replace(/\/+$/, '');
+    if (!path.endsWith('/cards') || !path.includes(`/datasources/${String(datasetId).toLowerCase()}/`)) return;
+    await chrome.tabs.reload(tabId);
+  } catch {
+    // Tab closed or navigated off Domo while the remap ran.
+  }
 }
 
 function typeGroupLabel(typeKey) {

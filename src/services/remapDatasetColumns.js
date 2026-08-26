@@ -1,6 +1,6 @@
 import { isFusionView, makeItemKey } from './columnReferences';
 import { hasEffectiveMapping, rewriteBeastModeColumns } from './columnRewriter';
-import { updateDatasetFunctions } from './functions';
+import { getFunctionTemplate, updateDatasetFunctions } from './functions';
 import { swapCardInput, swapDataflowInput, swapDatasetViewInput, swapFusionInput } from './migrateDownstreamContent';
 import { swapAppColumns } from './proCodeApps';
 
@@ -235,17 +235,25 @@ async function remapBeastModes({ columnMap, definitionsByItemKey, onProgress, re
 
   const errors = [];
   const entries = [];
-  for (const bm of selectedBeastModes) {
-    const template = definitionsByItemKey?.get?.(makeItemKey('beastModes', bm.id))?.definition;
-    if (!template) {
-      errors.push({ error: 'Beast Mode definition was not available', id: bm.id });
-      continue;
+  // Checked once, not per Beast Mode: with no old -> new mapping there is nothing
+  // to rewrite, so re-saving them would be a pointless write (and a pointless
+  // definition read for any the scan didn't cache).
+  if (hasEffectiveMapping(columnMap)) {
+    for (const bm of selectedBeastModes) {
+      try {
+        const cached = definitionsByItemKey?.get?.(makeItemKey('beastModes', bm.id))?.definition;
+        const template = cached || (await getFunctionTemplate(bm.id, tabId));
+        // A definition that didn't come back is this Beast Mode's failure alone,
+        // reported and skipped rather than failing the others with it.
+        if (!template) {
+          errors.push({ error: `Could not read the definition of "${bm.name || bm.id}"`, id: bm.id });
+          continue;
+        }
+        entries.push(buildBeastModeUpdateEntry(rewriteBeastModeColumns(template, columnMap)));
+      } catch (err) {
+        errors.push({ error: err?.message || String(err), id: bm.id });
+      }
     }
-    // Skip Beast Modes whose formula doesn't actually reference a remapped column
-    // — re-saving them would be a pointless write.
-    if (!hasEffectiveMapping(columnMap)) continue;
-    const rewritten = rewriteBeastModeColumns(template, columnMap);
-    entries.push(buildBeastModeUpdateEntry(rewritten));
   }
 
   let succeeded = 0;

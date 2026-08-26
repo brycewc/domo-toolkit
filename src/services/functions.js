@@ -44,7 +44,8 @@ export async function bulkDeleteFunctions({ ids, tabId = null }) {
  * @param {Object} params
  * @param {Array<Object>} params.functions - Create entries (see endpoint shape).
  * @param {number|null} [params.tabId]
- * @returns {Promise<Object>} The raw `POST /functions/bulk/template` response.
+ * @returns {Promise<Object|null>} The raw `POST /functions/bulk/template`
+ *   response, or null when the create answered without a JSON body.
  */
 export async function createDatasetFunctions({ functions, tabId = null }) {
   // The bulk endpoint dedupes the create list by each entry's `id`, so every
@@ -55,7 +56,10 @@ export async function createDatasetFunctions({ functions, tabId = null }) {
   // collide with real (positive) function ids, and the server still assigns and
   // returns the real ids in the response (callers read them back positionally).
   const create = (functions || []).map((fn, i) => ({ ...fn, id: -(i + 1) }));
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // turn Domo's rejection of the batch into silence. See executeInPage.
+  const result = await executeInPage(
     async (create) => {
       const response = await fetch('/api/query/v1/functions/bulk/template', {
         body: JSON.stringify({
@@ -69,13 +73,17 @@ export async function createDatasetFunctions({ functions, tabId = null }) {
       });
       if (!response.ok) {
         const text = await response.text().catch(() => '');
-        throw new Error(`HTTP ${response.status}: ${text}`.trim());
+        return { error: `HTTP ${response.status}: ${text}`.trim(), ok: false };
       }
-      return response.json();
+      // A create that answers without a JSON body still created the Beast Modes;
+      // the caller falls back to reading them back by name.
+      return { data: await response.json().catch(() => null), ok: true };
     },
     [create],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'The Beast Modes could not be created');
+  return result.data;
 }
 
 /**
@@ -206,25 +214,7 @@ export async function getBeastModeReferenceGraph(beastModes, tabId = null) {
   const list = (beastModes || []).filter((bm) => bm?.id != null);
   if (list.length === 0) return graph;
   const localIds = new Set(list.map((bm) => String(bm.id)));
-
-  // Hydrate every Beast Mode's template, then read its dependencies. Bounded
-  // concurrency mirrors the column scan: executeInPage runs through
-  // chrome.scripting, so letting all N fetch at once stalls the bridge.
-  const templates = new Map();
-  const queue = [...list];
-  const CONCURRENCY = 5;
-  const workers = Array.from({ length: CONCURRENCY }, async () => {
-    while (queue.length > 0) {
-      const bm = queue.shift();
-      if (!bm) return;
-      try {
-        templates.set(String(bm.id), await getFunctionTemplate(bm.id, tabId));
-      } catch {
-        // Skip: this Beast Mode contributes no out-edges. Non-fatal.
-      }
-    }
-  });
-  await Promise.allSettled(workers);
+  const templates = await hydrateFunctionTemplates(list, tabId);
 
   for (const source of list) {
     const sourceId = String(source.id);
@@ -388,17 +378,54 @@ export async function getDatasetFunctions(datasetId, tabId = null) {
  * @returns {Promise<Object>}
  */
 export async function getFunctionTemplate(functionId, tabId = null) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), so a failed
+  // fetch would arrive as a null template and crash its caller. See executeInPage.
+  const result = await executeInPage(
     async (functionId) => {
       const response = await fetch(`/api/query/v1/functions/template/${functionId}?hidden=true`, {
         credentials: 'include'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.json();
+      if (!response.ok) return { error: `HTTP ${response.status}`, ok: false };
+      return { ok: true, template: await response.json() };
     },
     [functionId],
     tabId
   );
+  if (!result?.ok || !result.template) throw new Error(result?.error || 'The Beast Mode definition could not be read');
+  return result.template;
+}
+
+/**
+ * Which of the passed Beast Modes nest another Beast Mode.
+ *
+ * Domo allows a Beast Mode to nest another but NOT to nest one that itself nests
+ * a third: the create comes back `ILLEGAL_DEPTH`. So migrating a nested Beast
+ * Mode has to know whether the Beast Mode it will nest on the target is already
+ * a parent there, which happens as soon as a dependency reuses a same-named
+ * target Beast Mode that has its own nesting.
+ *
+ * Reads each template's `functionTemplateDependencies` (Domo's authoritative
+ * nesting list) rather than inferring from the search response's
+ * `FUNCTION_TEMPLATE` links: those name a template's PARENTS, so deriving
+ * parenthood from them misses a Beast Mode whose nested child isn't in the same
+ * list (a card-level one, or one on another dataset). A template that fails to
+ * load counts as not nesting; the migrate error path still reports the rejection.
+ *
+ * @param {Array<{id: any}>} beastModes
+ * @param {number|null} [tabId]
+ * @returns {Promise<Set<string>>} The ids, as strings, that nest at least one other Beast Mode.
+ */
+export async function getNestingBeastModeIds(beastModes, tabId = null) {
+  const nesting = new Set();
+  const list = (beastModes || []).filter((bm) => bm?.id != null);
+  if (list.length === 0) return nesting;
+  const templates = await hydrateFunctionTemplates(list, tabId);
+  for (const [id, template] of templates) {
+    const deps = (template?.functionTemplateDependencies || []).map(String).filter((dep) => dep !== id);
+    if (deps.length > 0) nesting.add(id);
+  }
+  return nesting;
 }
 
 /**
@@ -499,10 +526,13 @@ export async function transferFunctions(functions, fromUserId, toUserId, tabId =
  * @param {Object} params
  * @param {Array<Object>} params.functions - Update entries.
  * @param {number|null} [params.tabId]
- * @returns {Promise<Object>} The raw `POST /functions/bulk/template` response.
+ * @returns {Promise<void>} Resolves when the batch is written; throws otherwise.
  */
 export async function updateDatasetFunctions({ functions, tabId = null }) {
-  return executeInPage(
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), so a rejected
+  // batch would resolve here and be counted as written. See executeInPage.
+  const result = await executeInPage(
     async (functions) => {
       const response = await fetch('/api/query/v1/functions/bulk/template', {
         body: JSON.stringify({
@@ -516,11 +546,44 @@ export async function updateDatasetFunctions({ functions, tabId = null }) {
       });
       if (!response.ok) {
         const text = await response.text().catch(() => '');
-        throw new Error(`HTTP ${response.status}: ${text}`.trim());
+        return { error: `HTTP ${response.status}: ${text}`.trim(), ok: false };
       }
-      return response.json();
+      return { ok: true };
     },
     [functions],
     tabId
   );
+  if (!result?.ok) throw new Error(result?.error || 'The Beast Modes could not be updated');
+}
+
+/**
+ * Fetch each Beast Mode's full template, keyed by id as a string.
+ *
+ * Bounded concurrency mirrors the column scan: every fetch goes through
+ * `executeInPage` (and so through chrome.scripting), so letting all N run at once
+ * stalls the messaging bridge for everything else using it. One that fails to
+ * load is left out of the map rather than failing the batch, so callers treat a
+ * missing template as "nothing to contribute".
+ *
+ * @param {Array<{id: any}>} beastModes
+ * @param {number|null} tabId
+ * @returns {Promise<Map<string, Object>>}
+ */
+async function hydrateFunctionTemplates(beastModes, tabId) {
+  const templates = new Map();
+  const queue = [...beastModes];
+  const CONCURRENCY = 5;
+  const workers = Array.from({ length: CONCURRENCY }, async () => {
+    while (queue.length > 0) {
+      const bm = queue.shift();
+      if (!bm) return;
+      try {
+        templates.set(String(bm.id), await getFunctionTemplate(bm.id, tabId));
+      } catch {
+        // Skip: this Beast Mode contributes nothing. Non-fatal.
+      }
+    }
+  });
+  await Promise.allSettled(workers);
+  return templates;
 }

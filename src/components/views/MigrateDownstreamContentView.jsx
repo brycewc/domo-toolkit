@@ -43,7 +43,12 @@ import { extractAlertPdpPolicies, getDownstreamAlerts, getRowPdpPolicies } from 
 import { scanContentForColumns } from '@/services/columnReferences';
 import { hasEffectiveMapping } from '@/services/columnRewriter';
 import { getDatasetColumns } from '@/services/datasets';
-import { getBeastModeReferenceGraph, getCardBeastModes, getDatasetFunctions } from '@/services/functions';
+import {
+  getBeastModeReferenceGraph,
+  getCardBeastModes,
+  getDatasetFunctions,
+  getNestingBeastModeIds
+} from '@/services/functions';
 import {
   compareDatasetSchemas,
   getDownstreamCards,
@@ -55,6 +60,7 @@ import {
 import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
 import { describeViewOutputDrop, isColumnDroppable } from '@/utils/columnDrops';
 import { suggestReplacement } from '@/utils/columnMatching';
+import { isBrokenColumnReference } from '@/utils/columnOrphans';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconCheck from '@icons/check.svg?react';
@@ -137,6 +143,7 @@ export function MigrateDownstreamContentView({
   // per-collision resolution (keyed by origin Beast Mode id).
   const [targetBeastModes, setTargetBeastModes] = useState([]);
   const [beastModeChoices, setBeastModeChoices] = useState({});
+  const [nestingTargetBeastModeIds, setNestingTargetBeastModeIds] = useState(() => new Set());
 
   // Card-level Beast Modes on the origin (the ones that travel with a card, not
   // saved to the dataset). Used to flag names that collide with a target dataset
@@ -369,6 +376,15 @@ export function MigrateDownstreamContentView({
     return m;
   }, [results]);
 
+  const beastModeItems = useMemo(() => {
+    const r = results.beastModes;
+    return r?.status === 'loaded' ? r.items?.items || [] : [];
+  }, [
+    // Not `results`: any other type's fetch settling replaces that object, which
+    // would re-run the reference-graph hydration below, one read per item, again.
+    results.beastModes
+  ]);
+
   // Card ids each dataset Beast Mode is actively used by (from the search's
   // activeLinks), keyed by Beast Mode id. Drives the selection lock. Drill links
   // come back as `dr:<drillId>:<rootId>` URNs from the search but are normalized
@@ -376,11 +392,9 @@ export function MigrateDownstreamContentView({
   // set (which holds bare drill ids) exactly like parent card ids do.
   const beastModeCardLinks = useMemo(() => {
     const m = new Map();
-    const r = results.beastModes;
-    const items = r?.status === 'loaded' ? r.items?.items || [] : [];
-    for (const bm of items) m.set(String(bm.id), bm.activeCardIds || []);
+    for (const bm of beastModeItems) m.set(String(bm.id), bm.activeCardIds || []);
     return m;
-  }, [results]);
+  }, [beastModeItems]);
 
   const selectedCardIdSet = useMemo(
     () => new Set(selectedItemsByType.cards.map((c) => String(c.id))),
@@ -392,14 +406,12 @@ export function MigrateDownstreamContentView({
   // per dataset load and reused as the user toggles content. Keyed by numeric
   // Beast Mode id (the id a nested formula references via DOMO_BEAST_MODE(id)).
   useEffect(() => {
-    const r = results.beastModes;
-    const items = r?.status === 'loaded' ? r.items?.items || [] : [];
-    if (items.length === 0) {
+    if (beastModeItems.length === 0) {
       setBmRefGraph(new Map());
       return;
     }
     let cancelled = false;
-    getBeastModeReferenceGraph(items, tabId)
+    getBeastModeReferenceGraph(beastModeItems, tabId)
       .then((graph) => {
         if (!cancelled) setBmRefGraph(graph);
       })
@@ -409,7 +421,7 @@ export function MigrateDownstreamContentView({
     return () => {
       cancelled = true;
     };
-  }, [results, tabId]);
+  }, [beastModeItems, tabId]);
 
   // Every Beast Mode being migrated, expanded over its nested references: the
   // seed is each Beast Mode used by a selected card OR selected directly, then
@@ -417,9 +429,7 @@ export function MigrateDownstreamContentView({
   // closure. Cycle-safe via the visited set. In numeric-id space.
   const requiredBeastModeIds = useMemo(() => {
     const seeds = new Set();
-    const r = results.beastModes;
-    const items = r?.status === 'loaded' ? r.items?.items || [] : [];
-    for (const bm of items) {
+    for (const bm of beastModeItems) {
       const fnId = bm?.id != null ? String(bm.id) : null;
       if (fnId && (beastModeCardLinks.get(fnId) || []).some((id) => selectedCardIdSet.has(String(id)))) {
         seeds.add(fnId);
@@ -439,7 +449,7 @@ export function MigrateDownstreamContentView({
       }
     }
     return visited;
-  }, [beastModeCardLinks, bmRefGraph, results, selectedCardIdSet, selectedItemsByType]);
+  }, [beastModeCardLinks, beastModeItems, bmRefGraph, selectedCardIdSet, selectedItemsByType]);
 
   // The Beast Modes that something else being migrated nests, so dropping one
   // would dangle that formula. These lock (can't be unchecked). A migrated
@@ -458,16 +468,14 @@ export function MigrateDownstreamContentView({
   // or because another migrated Beast Mode nests it. Drives locking the parent
   // "Beast Modes" group checkbox, since its toggle can't change anything.
   const allBeastModesLocked = useMemo(() => {
-    const r = results.beastModes;
-    const items = r?.status === 'loaded' ? r.items?.items || [] : [];
-    if (items.length === 0) return false;
-    return items.every((bm) => {
+    if (beastModeItems.length === 0) return false;
+    return beastModeItems.every((bm) => {
       const fnId = bm.id != null ? String(bm.id) : null;
       if (!fnId) return false;
       const cardLocked = (beastModeCardLinks.get(fnId) || []).some((cardId) => selectedCardIdSet.has(String(cardId)));
       return cardLocked || lockedBeastModeIds.has(fnId);
     });
-  }, [beastModeCardLinks, lockedBeastModeIds, results, selectedCardIdSet]);
+  }, [beastModeCardLinks, beastModeItems, lockedBeastModeIds, selectedCardIdSet]);
 
   // A Beast Mode leaf is locked (kept checked, can't be unchecked) while any
   // card that uses it is selected: dropping it would break those cards on the
@@ -704,6 +712,114 @@ export function MigrateDownstreamContentView({
     [cardBeastModeChoices, cardBeastModeConflicts, targetBeastModeByName]
   );
 
+  const nestedDependencyTargets = useMemo(() => {
+    const byId = new Map(beastModeItems.map((bm) => [String(bm.id), bm]));
+    const targets = new Map();
+    for (const deps of bmRefGraph.values()) {
+      for (const depId of deps) {
+        if (targets.has(depId)) continue;
+        const target = targetBeastModeByName.get(byId.get(depId)?.name);
+        if (target) targets.set(depId, target);
+      }
+    }
+    return targets;
+  }, [beastModeItems, bmRefGraph, targetBeastModeByName]);
+
+  // Which of those target Beast Modes are themselves nested, which is what makes
+  // reusing one push the Beast Mode nesting it past Domo's one-level limit.
+  useEffect(() => {
+    const targets = [...nestedDependencyTargets.values()];
+    if (targets.length === 0) {
+      setNestingTargetBeastModeIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    getNestingBeastModeIds(targets, tabId)
+      .then((ids) => {
+        if (!cancelled) setNestingTargetBeastModeIds(ids);
+      })
+      .catch(() => {
+        if (!cancelled) setNestingTargetBeastModeIds(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [nestedDependencyTargets, tabId]);
+
+  // One level is Domo's limit: a dependency arriving already nested puts whatever
+  // nests it a level too deep. A copy reproduces the origin's accepted depth.
+  const depthBlockedBeastModes = useMemo(() => {
+    if (nestingTargetBeastModeIds.size === 0) return [];
+    const byId = new Map(beastModeItems.map((bm) => [String(bm.id), bm]));
+    // What the migration will do with a Beast Mode: the user's choice, else the
+    // defaults it applies (keep when the target already has that name, create
+    // when it doesn't).
+    const dispositionFor = (bm) =>
+      beastModeChoices[bm.id]?.disposition || (targetBeastModeByName.has(bm.name) ? 'keep' : 'create');
+    const blocked = [];
+    for (const bm of selectedItemsByType.beastModes) {
+      // Only a create is checked: a kept Beast Mode is never written, so its
+      // nesting is never re-validated, and an overwrite lands after every create,
+      // which is Domo's to judge on that write.
+      const disposition = dispositionFor(bm);
+      if (disposition !== 'create' && disposition !== 'rename') continue;
+      const dependencies = [];
+      for (const depId of bmRefGraph.get(String(bm.id)) || []) {
+        const target = nestedDependencyTargets.get(depId);
+        if (!target || !nestingTargetBeastModeIds.has(String(target.id))) continue;
+        const dep = byId.get(depId);
+        // The dependency only arrives already nested when it reuses the target's
+        // Beast Mode: keep leaves that definition alone, and overwrite replaces it
+        // only after this create has already run.
+        const depDisposition = dep ? dispositionFor(dep) : 'keep';
+        if (depDisposition !== 'keep' && depDisposition !== 'overwrite') continue;
+        dependencies.push({ id: depId, name: dep?.name || depId });
+      }
+      if (dependencies.length > 0) {
+        blocked.push({ dependencies, id: String(bm.id), name: bm.name || String(bm.id) });
+      }
+    }
+    return blocked.sort((a, b) => a.name.localeCompare(b.name));
+  }, [
+    beastModeChoices,
+    beastModeItems,
+    bmRefGraph,
+    nestedDependencyTargets,
+    nestingTargetBeastModeIds,
+    selectedItemsByType,
+    targetBeastModeByName
+  ]);
+
+  // The depth warning as one sentence, assembled here rather than inline so the
+  // markup isn't a nest of pluralization ternaries.
+  const depthBlockedMessage = useMemo(() => {
+    if (depthBlockedBeastModes.length === 0) return null;
+    const blocked = depthBlockedBeastModes.map((bm) => `"${bm.name}"`).join(', ');
+    const dependencies = [
+      ...new Set(depthBlockedBeastModes.flatMap((bm) => bm.dependencies.map((dep) => `"${dep.name}"`)))
+    ].join(', ');
+    const one = depthBlockedBeastModes.length === 1;
+    return (
+      `Domo allows only one level of Beast Mode nesting. ${blocked} ` +
+      `${one ? 'nests a Beast Mode that is' : 'nest Beast Modes that are'} already nested on the target, so Domo will ` +
+      `reject ${one ? 'it' : 'them'} and any card using ${one ? 'it' : 'them'} will keep pointing at the original ` +
+      `dataset. Switch ${dependencies} below to Rename new so a copy comes along instead of reusing the target's.`
+    );
+  }, [depthBlockedBeastModes]);
+
+  // The same finding keyed by the dependency the user has to change, so each
+  // conflict row can say what keeping it costs.
+  const depthBlockedByDependency = useMemo(() => {
+    const byDependency = new Map();
+    for (const { dependencies, name } of depthBlockedBeastModes) {
+      for (const dep of dependencies) {
+        if (!byDependency.has(dep.id)) byDependency.set(dep.id, []);
+        byDependency.get(dep.id).push(name);
+      }
+    }
+    return byDependency;
+  }, [depthBlockedBeastModes]);
+
   // Fetch the target's row PDP policies once a target is chosen, but only when a
   // selected alert actually references a named policy (the common all-rows alert
   // needs no remap). Used to auto-match origin policies by name and to populate
@@ -863,16 +979,22 @@ export function MigrateDownstreamContentView({
     // expectedType is the origin column's own type, surfaced so the user knows
     // the existing type when choosing a target column to remap onto.
     const typeByName = new Map(missing.map((m) => [m.name, m.expectedType]));
+    const targetNames = new Set(targetColumns.map((c) => c.name));
     const referenced = scanResult.byColumn || new Map();
     const out = [];
     for (const [colName, items] of referenced.entries()) {
       if (mismatchedNames.has(colName)) {
         out.push({ items, name: colName, type: typeByName.get(colName) ?? null });
+        continue;
+      }
+      // Gated on the target columns having loaded, or an empty set flags them all.
+      if (targetNames.size > 0 && !targetNames.has(colName) && isBrokenColumnReference(colName, items)) {
+        out.push({ items, name: colName, type: null });
       }
     }
     out.sort((a, b) => a.name.localeCompare(b.name));
     return out;
-  }, [comparison, hasMismatches, scanResult]);
+  }, [comparison, hasMismatches, scanResult, targetColumns]);
 
   // Names of used-unmapped columns whose every usage is a card or drill (type
   // 'cards'). These are the columns whose references live only in card
@@ -1679,8 +1801,8 @@ export function MigrateDownstreamContentView({
                       {autoMapStatus === 'mapping' ? 'Mapping…' : autoMapStatus === 'done' ? 'Mapped' : 'Auto Map'}
                     </Button>
                     <Tooltip.Content className='max-w-80 text-wrap'>
-                      Fills each column with its closest match by name. Columns with no clear match are left unmapped.
-                      Review before migrating.
+                      Fills each column with its closest match by name. Columns with no clear match are left unmapped. Review
+                      before migrating.
                     </Tooltip.Content>
                   </Tooltip>
                 </div>
@@ -1801,6 +1923,15 @@ export function MigrateDownstreamContentView({
                 </Alert>
               )}
 
+            {depthBlockedMessage && (
+              <Alert className='w-full border border-border bg-transparent' status='warning'>
+                <AlertStatusIcon />
+                <Alert.Content>
+                  <Alert.Description>{depthBlockedMessage}</Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+
             {beastModeConflicts.length > 0 && (
               <div className='flex flex-col gap-1'>
                 <Label className='text-sm font-medium'>Beast Mode Conflicts</Label>
@@ -1812,6 +1943,7 @@ export function MigrateDownstreamContentView({
                   {beastModeConflicts.map((bm) => (
                     <BeastModeConflictRow
                       choice={beastModeChoices[bm.id]}
+                      depthBlocks={depthBlockedByDependency.get(String(bm.id)) || null}
                       key={bm.id}
                       originName={bm.name}
                       targetNames={targetBeastModeNames}
@@ -1979,8 +2111,8 @@ export function MigrateDownstreamContentView({
               </AlertDialog.Header>
               <AlertDialog.Body className='text-sm'>
                 <p>
-                  Auto Map replaces every column's mapping with its closest match and leaves columns it can't match
-                  unmapped. Mappings you've set manually will be overwritten.
+                  Auto Map replaces every column's mapping with its closest match and leaves columns it can't match unmapped.
+                  Mappings you've set manually will be overwritten.
                 </p>
               </AlertDialog.Body>
               <AlertDialog.Footer>
@@ -2010,7 +2142,7 @@ export function MigrateDownstreamContentView({
 // One row of the Beast Mode conflict resolver: the origin Beast Mode's name
 // plus a keep / overwrite / rename choice, with an inline name field (and
 // validation) when renaming.
-function BeastModeConflictRow({ choice, onChange, originName, targetNames }) {
+function BeastModeConflictRow({ choice, depthBlocks, onChange, originName, targetNames }) {
   const disposition = choice?.disposition || 'keep';
   const newName = choice?.newName ?? '';
   const trimmed = newName.trim();
@@ -2065,6 +2197,12 @@ function BeastModeConflictRow({ choice, onChange, originName, targetNames }) {
       )}
       {renameEmpty && <p className='text-xs text-warning'>Enter a name for the new Beast Mode.</p>}
       {renameCollides && <p className='text-xs text-warning'>That name also exists on the target.</p>}
+      {depthBlocks?.length > 0 && (
+        <p className='text-xs text-warning'>
+          The target's copy is itself nested, so reusing it puts {depthBlocks.map((name) => `"${name}"`).join(', ')} a level
+          deeper than Domo allows. Choose Rename new to bring a copy along instead.
+        </p>
+      )}
     </div>
   );
 }
@@ -2372,10 +2510,7 @@ function ColumnMapRow({
 
   // What dropping this column takes out of a dataset view, in the same words
   // Remap Columns uses.
-  const viewDropWarning = useMemo(
-    () => (mappedTo === DROP ? describeViewOutputDrop(items) : null),
-    [items, mappedTo]
-  );
+  const viewDropWarning = useMemo(() => (mappedTo === DROP ? describeViewOutputDrop(items) : null), [items, mappedTo]);
 
   // After a target is picked, flag when its data type differs from the origin
   // column's. A silent type change can break a dataflow (e.g. an integer column

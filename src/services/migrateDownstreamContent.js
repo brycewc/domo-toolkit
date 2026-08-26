@@ -69,8 +69,7 @@ export async function getDownstreamCards(datasetId, tabId = null, rawCards = nul
     // apps path; their card definition / card PUT endpoints 405, so keep them
     // out of the cards group entirely.
     if (card?.type === 'domoapp') continue;
-    const cardId =
-      card.id || card.kpiId || (typeof card.urn === 'string' ? parseInt(card.urn.split(':').pop(), 10) : null);
+    const cardId = card.id || card.kpiId || (typeof card.urn === 'string' ? parseInt(card.urn.split(':').pop(), 10) : null);
     // Parent migrates only when it uses this dataset directly; otherwise it's
     // here purely as the container for a drill that does.
     if (matchesDataset(card.datasourceId) && Number.isFinite(cardId)) {
@@ -429,6 +428,9 @@ export async function swapCardInput({
       }
     }
     rewritten = JSON.parse(JSON.stringify(rewritten).replaceAll(originId, targetId));
+    // The sweep above only catches rules that named the origin; one naming a
+    // third dataset still fails Domo's check that the id matches the card.
+    normalizeConditionalFormatDatasets(rewritten, targetId);
     // Repoint references to the origin dataset's Beast Modes onto the ones now
     // on the target. The card references Beast Modes by origin legacyId
     // (`calculation_<uuid>`), collision-safe for a string sweep (unlike short
@@ -444,9 +446,8 @@ export async function swapCardInput({
     // numeric id as `DOMO_BEAST_MODE(<id>)`. Repoint each onto its target id.
     // Targeted (not a blind sweep) since short numeric ids collide easily.
     if (beastModeNumericRemap && Object.keys(beastModeNumericRemap).length > 0) {
-      const json = JSON.stringify(rewritten).replace(
-        /DOMO_BEAST_MODE\(\s*(\d+)\s*\)/g,
-        (match, id) => (beastModeNumericRemap[id] ? `DOMO_BEAST_MODE(${beastModeNumericRemap[id]})` : match)
+      const json = JSON.stringify(rewritten).replace(/DOMO_BEAST_MODE\(\s*(\d+)\s*\)/g, (match, id) =>
+        beastModeNumericRemap[id] ? `DOMO_BEAST_MODE(${beastModeNumericRemap[id]})` : match
       );
       rewritten = JSON.parse(json);
     }
@@ -714,6 +715,10 @@ async function fetchFusionDefinitionInPage(fusionId, tabId) {
  */
 async function putCardForMigration(cardId, definition, tabId, { isDrill = false, urn = null } = {}) {
   const datasetId = definition?.columns?.[0]?.sourceId;
+  // Each entry in the card's own field catalog carries the dataset it comes from,
+  // which is the only place the payload says where a formula is persisted. Read
+  // before the catalog is stripped below.
+  const formulaSourceById = new Map((definition?.columns || []).filter((c) => c?.id).map((c) => [c.id, c.sourceId]));
 
   // Strip internal-only fields the v3 PUT endpoint doesn't accept.
   delete definition.id;
@@ -731,6 +736,9 @@ async function putCardForMigration(cardId, definition, tabId, { isDrill = false,
   definition.variables = true;
 
   const allFormulas = Array.isArray(definition?.definition?.formulas) ? definition.definition.formulas : [];
+  // Formulas the card references that its own dataset can't supply travel with
+  // the card rather than being left out as dataset-persisted ones are.
+  const orphanedFormulaIds = collectOrphanedFormulaIds(allFormulas, definition.definition, formulaSourceById, datasetId);
   // Only card-level Beast Modes ride with the card. Dataset-persisted ones
   // migrate as their own Beast Mode type, created on the target with their
   // column refs already rewritten; the card just references them by id, which
@@ -738,7 +746,9 @@ async function putCardForMigration(cardId, definition, tabId, { isDrill = false,
   // dsUpdated would re-write the same Beast Mode once per card that uses it and
   // risk Domo auto-migrating stale refs, so dsUpdated/dsDeleted stay empty.
   definition.definition.formulas = {
-    card: allFormulas.filter((f) => f && f.persistedOnDataSource === false),
+    card: allFormulas
+      .filter((f) => f && (f.persistedOnDataSource === false || orphanedFormulaIds.has(f.id)))
+      .map((f) => (f.persistedOnDataSource === false ? f : { ...f, persistedOnDataSource: false })),
     dsDeleted: [],
     dsUpdated: []
   };
@@ -974,7 +984,8 @@ async function putDatasetViewInPage(viewId, viewDefinition, originId, targetId, 
           const srcToOut = {};
           for (const it of topItems) {
             const e = it.expression;
-            if (e?.['@type'] === 'COLUMN') srcToOut[`${cleanId(e.table?.name)} ${cleanId(e.columnName)}`] = cleanId(it.alias?.name);
+            if (e?.['@type'] === 'COLUMN')
+              srcToOut[`${cleanId(e.table?.name)} ${cleanId(e.columnName)}`] = cleanId(it.alias?.name);
           }
           const rebuilt = {};
           for (const it of topItems) {
@@ -1001,7 +1012,11 @@ async function putDatasetViewInPage(viewId, viewDefinition, originId, targetId, 
             for (const it of topItems) {
               if (it.expression?.['@type'] !== 'COLUMN') {
                 const name = cleanId(it.alias?.name);
-                calc[name] = { aggregated: false, formattedExpression: `\`${stepName}\`.\`${name}\``, type: colType[name] || 'STRING' };
+                calc[name] = {
+                  aggregated: false,
+                  formattedExpression: `\`${stepName}\`.\`${name}\``,
+                  type: colType[name] || 'STRING'
+                };
               }
             }
             viewTemplate.fromItemInfo.calculated = { columnInfo: calc };
@@ -1455,6 +1470,41 @@ function buildDataflowVersionDescription(originName, targetName, count) {
 }
 
 /**
+ * The ids of formulas a card references that its dataset can't supply.
+ *
+ * A card's formula list is a catalog: most entries are the dataset's own Beast
+ * Modes, which migrate separately and are referenced by id, so
+ * `putCardForMigration` leaves them out of the payload. But a card that has been
+ * repointed before can still carry a formula persisted on a dataset it no longer
+ * reads (Domo marks that template's `DATA_SOURCE` link `INCOMPATIBLE_LINK`), and
+ * the card's field catalog gives such an entry no `sourceId` at all. Leaving one
+ * of those out as if the dataset provided it makes Domo reject the whole card
+ * ("The following formula(s) are missing from the definition or datasource"), so
+ * they ride along as card-level formulas instead.
+ *
+ * Restricted to formulas the card actually references: a catalog can carry
+ * hundreds it never uses, and converting those would bloat every card.
+ */
+function collectOrphanedFormulaIds(formulas, cardDefinition, formulaSourceById, datasetId) {
+  const orphaned = new Set();
+  // Without the card's own dataset id there is nothing to compare a formula's
+  // source against, so calling any of them orphaned would be a guess.
+  if (!datasetId) return orphaned;
+  const candidates = formulas.filter(
+    (f) => f?.id && f.persistedOnDataSource !== false && formulaSourceById.get(f.id) !== datasetId
+  );
+  if (candidates.length === 0) return orphaned;
+  // Every reference to a formula lives outside the formula list itself, so that
+  // key is skipped: it is nearly all of the definition's bulk, and an entry must
+  // not count as a reference to itself.
+  const references = JSON.stringify(cardDefinition, (key, value) => (key === 'formulas' ? undefined : value));
+  for (const candidate of candidates) {
+    if (references.includes(candidate.id)) orphaned.add(candidate.id);
+  }
+  return orphaned;
+}
+
+/**
  * Count the distinct origin columns this dataflow references that have an
  * effective remap. Read from the original definition (before any rewrite).
  * Unknown engines aren't column-rewritten, so they report 0.
@@ -1474,6 +1524,27 @@ function countRemappedColumns(definition, columnMap, originId, engine) {
     if (to != null && to !== name) count++;
   }
   return count;
+}
+
+/**
+ * Translate a Beast Mode bulk-create rejection into something actionable, or
+ * pass it through unchanged.
+ *
+ * The one translated case is Domo's `ILLEGAL_DEPTH`, whose raw body names only
+ * the placeholder id: Domo lets a Beast Mode nest another but not one that
+ * itself nests a third. A nested Beast Mode that was legal on the origin
+ * therefore fails on the target as soon as one it nests lands on a target Beast
+ * Mode that is itself nested, which is what reusing the target's same-named
+ * Beast Mode ("keep") introduces. Creating a copy of that dependency instead
+ * reproduces the origin's (legal) depth.
+ */
+function describeBeastModeCreateError(err) {
+  const message = err?.message || String(err);
+  if (!message.includes('ILLEGAL_DEPTH')) return message;
+  return (
+    'Domo allows only one level of Beast Mode nesting, and a Beast Mode this one nests is itself nested on the ' +
+    "target. Create a copy of that nested Beast Mode instead of reusing the target's to flatten it."
+  );
 }
 
 /**
@@ -1673,6 +1744,13 @@ async function migrateBeastModes({
     try {
       const cached = definitionsByItemKey?.get?.(makeItemKey('beastModes', bm.id))?.definition;
       const template = cached || (await getFunctionTemplate(bm.id, tabId));
+      // A definition that didn't come back is this Beast Mode's failure alone,
+      // reported and skipped so it can't abort the whole migration downstream
+      // (every create/overwrite record below assumes a usable template).
+      if (!template) {
+        errors.push({ error: `Could not read the definition of "${bm.name || bm.id}"`, id: bm.id });
+        continue;
+      }
       const rewritten = applyRemap ? rewriteBeastModeColumns(template, columnMap) : template;
       const choice = beastModeChoices?.[bm.id] || {};
       const disposition = choice.disposition || 'create';
@@ -1740,7 +1818,8 @@ async function migrateBeastModes({
       try {
         response = await createDatasetFunctions({ functions: buildable.map((b) => b.entry), tabId });
       } catch (err) {
-        for (const b of buildable) errors.push({ error: err?.message || String(err), id: b.record.origin.id });
+        const error = describeBeastModeCreateError(err);
+        for (const b of buildable) errors.push({ error, id: b.record.origin.id });
         continue;
       }
       // Prefer the order-preserving bulk response (collision-safe for duplicate
@@ -1795,6 +1874,27 @@ async function migrateBeastModes({
   }
 
   return { errors, idRemap, numericRemap, succeeded };
+}
+
+/**
+ * Point every conditional format on a card at the dataset the card now reads.
+ *
+ * Domo requires a conditional format's own `dataSourceId` to match the card's
+ * datasource and rejects the save otherwise ("conditional format data source id
+ * does not match card"). A card that has been repointed before can still carry
+ * rules naming a dataset it no longer reads at all, and the origin -> target
+ * sweep only rewrites the origin's id, so those survive and block the write.
+ * The id is normalized rather than the rule dropped: a rule whose column doesn't
+ * exist on the target simply never matches, which is recoverable, while deleting
+ * the user's formatting is not.
+ */
+function normalizeConditionalFormatDatasets(definition, targetId) {
+  const formats = definition?.definition?.conditionalFormats;
+  if (!Array.isArray(formats)) return;
+  for (const format of formats) {
+    if (format?.condition?.dataSourceId) format.condition.dataSourceId = targetId;
+    if (format?.dataSourceId) format.dataSourceId = targetId;
+  }
 }
 
 /**
