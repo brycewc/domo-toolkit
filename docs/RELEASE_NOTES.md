@@ -10,6 +10,8 @@
 
 ## UI Improvements
 
+- Delete Unused Beast Modes now shows its delete progress on the Delete button instead of above the list.
+
 ## Bug Fixes
 
 - Remap Columns no longer offers to drop a broken view column that the view also filters, groups, or sorts on.

@@ -272,12 +272,9 @@ export function DeleteUnusedBeastModesView({
   };
 
   const subtextNode = useMemo(() => {
-    if (isDeleting && deleteProgress) {
-      return `Deleting… **${deleteProgress.done}**/${deleteProgress.total}`;
-    }
     const total = allLeafIds.size;
     return `**${selectedLeafCount}** of **${total}** ${total === 1 ? 'item' : 'items'} selected`;
-  }, [allLeafIds, deleteProgress, isDeleting, selectedLeafCount]);
+  }, [allLeafIds, selectedLeafCount]);
 
   const selectAllControl = {
     ariaLabel: 'Select all unused items',
@@ -297,11 +294,20 @@ export function DeleteUnusedBeastModesView({
         variant='danger'
         onPress={() => setPendingDelete(true)}
       >
-        <IconTrash />
-        Delete {selectedLeafCount} Selected
+        {isDeleting ? (
+          <>
+            <Spinner color='currentColor' size='sm' />
+            Deleting… {deleteProgress?.done ?? 0}/{deleteProgress?.total ?? 0}
+          </>
+        ) : (
+          <>
+            <IconTrash />
+            Delete {selectedLeafCount} Selected
+          </>
+        )}
       </Button>
     ),
-    [isDeleting, selectedLeafCount]
+    [deleteProgress, isDeleting, selectedLeafCount]
   );
 
   if (isLoading || holdContent) {
