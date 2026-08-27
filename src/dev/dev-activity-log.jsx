@@ -19,7 +19,12 @@ function DevApp() {
   );
 }
 
-createRoot(document.getElementById('root')).render(
+// After any edit in this file's import chain, plugin-react's refresh footer
+// self-imports it under a `?t=` URL and evaluates it a second time. Reusing the
+// root stops that from leaving a duplicate tree mounted and running effects.
+const container = document.getElementById('root');
+container.__devRoot ??= createRoot(container);
+container.__devRoot.render(
   <StrictMode>
     <DevApp />
   </StrictMode>

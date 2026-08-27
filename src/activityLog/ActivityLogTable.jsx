@@ -9,9 +9,11 @@ import {
   DateRangePicker,
   Dropdown,
   Label,
+  Link,
   RangeCalendar,
   Skeleton,
-  Switch
+  Switch,
+  Tooltip
 } from '@heroui/react';
 import { getLocalTimeZone, parseDate, today } from '@internationalized/date';
 import { AnimatePresence } from 'motion/react';
@@ -25,9 +27,10 @@ import { UserFilterAutocomplete } from '@/components/UserFilterAutocomplete';
 import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
 import { useResolveTabId } from '@/hooks/useResolveTabId';
 import { DomoObject } from '@/models/DomoObject';
+import { getDatasetDetailsForList } from '@/services/datasets';
 import { fetchUserDisplayNames, getCustomAvatarUserIds, getInactiveUserIds } from '@/services/users';
 import { ACTION_COLOR_PATTERNS } from '@/utils/constants';
-import { getInitials } from '@/utils/general';
+import { formatRelativeTime, formatTimestamp, getInitials } from '@/utils/general';
 import { instanceOriginFromKey } from '@/utils/instance';
 import IconCalendar from '@icons/calendar.svg?react';
 import IconCheckCircle from '@icons/check-circle.svg?react';
@@ -83,6 +86,9 @@ export function ActivityLogTable() {
   // Dataset-source pagination — single global offset/total since the dataset query
   // is one call regardless of how many objects/actions/users are filtered
   const [datasetState, setDatasetState] = useState({ hasMore: false, offset: 0, total: 0 });
+  const [datasetLastUpdated, setDatasetLastUpdated] = useState(null);
+  const [datasetUrl, setDatasetUrl] = useState(null);
+  const [freshnessTick, setFreshnessTick] = useState(0);
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoveryError, setDiscoveryError] = useState(null);
   // Soft error specific to the dataset path — surfaced in the header banner
@@ -605,6 +611,50 @@ export function ActivityLogTable() {
     // active sort) so toggling User/Action sort doesn't trigger refetch.
   }, [objects, tabId, refreshKey, userFilterKey, dateRangeEpoch, source, domoInstance, datasetSortKey]);
 
+  // Resolve the DomoStats dataset's link and how fresh it is, for the source
+  // banner. Failures stay silent: the banner omits whichever piece is missing,
+  // and a real query failure is already reported through datasetFetchError.
+  useEffect(() => {
+    if (source !== 'dataset') {
+      setDatasetLastUpdated(null);
+      setDatasetUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadDatasetInfo = async () => {
+      try {
+        const resolvedTabId = await resolveTabId();
+        if (!resolvedTabId) return;
+        const datasetId = await resolveDatasetId(domoInstance);
+        // Resolved before the details fetch so a details failure still leaves a
+        // working link.
+        const url = await new DomoObject('DATA_SOURCE', datasetId, domoOrigin).buildUrl(domoOrigin, resolvedTabId);
+        if (!cancelled) setDatasetUrl(url || null);
+        const [details] = await getDatasetDetailsForList({
+          datasets: [{ dataSourceId: datasetId }],
+          tabId: resolvedTabId
+        });
+        if (!cancelled) setDatasetLastUpdated(details?.lastUpdated ?? null);
+      } catch (err) {
+        console.error('Error reading DomoStats dataset details:', err);
+        if (!cancelled) setDatasetLastUpdated(null);
+      }
+    };
+
+    loadDatasetInfo();
+    return () => {
+      cancelled = true;
+    };
+  }, [source, domoInstance, domoOrigin, refreshKey, resolveTabId, freshnessTick]);
+
+  useEffect(() => {
+    if (source !== 'dataset') return;
+    const intervalId = setInterval(() => setFreshnessTick((tick) => tick + 1), FRESHNESS_POLL_MS);
+    return () => clearInterval(intervalId);
+  }, [source]);
+
   const total = useMemo(() => {
     if (source === 'dataset') return datasetState.total;
     return Object.values(objectStates).reduce((sum, state) => sum + state.total, 0);
@@ -764,8 +814,9 @@ export function ActivityLogTable() {
   const handleUseDomoStats = useCallback(
     async ({ forceDiscovery = false } = {}) => {
       setDiscoveryError(null);
-      setDatasetFetchError(null);
-
+      // datasetFetchError is deliberately left alone: the fetch effect clears it
+      // on every run, so keeping it until then holds the failure banner (and its
+      // pending button) up while discovery runs, and keeps it up if this fails.
       if (!forceDiscovery) {
         // Hot path: cached ID already exists, just flip
         try {
@@ -1072,28 +1123,49 @@ export function ActivityLogTable() {
                 <Alert.Indicator>
                   <IconCheckCircle data-slot='alert-default-icon' />
                 </Alert.Indicator>
-                Using DomoStats Activity Log dataset
+                Using{' '}
+                {datasetUrl ? (
+                  <Link
+                    className='text-current hover:text-accent/80 hover:decoration-accent/80'
+                    href={datasetUrl}
+                    rel='noopener noreferrer'
+                    target='_blank'
+                  >
+                    DomoStats Activity Log dataset
+                    <Link.Icon />
+                  </Link>
+                ) : (
+                  'DomoStats Activity Log dataset'
+                )}
               </Alert.Title>
-              {/* <Alert.Description>
-                History reaches back to when this dataset was first connected in Domo — older than
-                the past year the Activity Log API exposes.
-              </Alert.Description> */}
+              {datasetLastUpdated && (
+                <Alert.Description>
+                  <Tooltip>
+                    <Tooltip.Trigger>
+                      <span>Last updated {formatRelativeTime(datasetLastUpdated)}</span>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content placement='bottom'>{formatTimestamp(datasetLastUpdated)}</Tooltip.Content>
+                  </Tooltip>
+                </Alert.Description>
+              )}
+            </Alert.Content>
+            <div className='flex shrink-0 flex-col items-end gap-2'>
+              <Button size='sm' variant='secondary' onPress={() => setSource('api')}>
+                Switch to API
+              </Button>
               <Switch
                 isSelected={!!perInstanceSettings[domoInstance]?.preferActivityLogDataset}
                 size='sm'
                 onChange={(v) => domoInstance && updatePerInstance(domoInstance, 'preferActivityLogDataset', v)}
               >
                 <Switch.Content>
+                  Always for this instance
                   <Switch.Control>
                     <Switch.Thumb />
                   </Switch.Control>
-                  <span className='text-xs'>Always for this instance</span>
                 </Switch.Content>
               </Switch>
-            </Alert.Content>
-            <Button size='sm' variant='secondary' onPress={() => setSource('api')}>
-              Switch to API
-            </Button>
+            </div>
           </Alert>
         )}
         {source === 'dataset' && datasetFetchError && (
@@ -1110,21 +1182,22 @@ export function ActivityLogTable() {
                 The cached dataset may have been deleted or you may have lost access. Re-run discovery to find a fresh one,
                 or switch back to the API source.
               </Alert.Description>
-              <div className='mt-2 flex flex-wrap gap-2'>
-                <Button
-                  isDisabled={isDiscovering}
-                  isPending={isDiscovering}
-                  size='sm'
-                  variant='secondary'
-                  onPress={() => handleUseDomoStats({ forceDiscovery: true })}
-                >
-                  {isDiscovering ? 'Re-running discovery…' : 'Re-run discovery'}
-                </Button>
-                <Button size='sm' variant='ghost' onPress={() => setSource('api')}>
-                  Switch to API
-                </Button>
-              </div>
+              {discoveryError && <Alert.Description className='mt-1 text-danger'>{discoveryError}</Alert.Description>}
             </Alert.Content>
+            <div className='flex shrink-0 flex-col items-end gap-2'>
+              <Button
+                isDisabled={isDiscovering}
+                isPending={isDiscovering}
+                size='sm'
+                variant='secondary'
+                onPress={() => handleUseDomoStats({ forceDiscovery: true })}
+              >
+                {isDiscovering ? 'Re-running discovery…' : 'Re-run discovery'}
+              </Button>
+              <Button size='sm' variant='ghost' onPress={() => setSource('api')}>
+                Switch to API
+              </Button>
+            </div>
           </Alert>
         )}
         <div className='flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'>
@@ -1181,10 +1254,15 @@ export function ActivityLogTable() {
     [
       activityLogType,
       datasetFetchError,
+      datasetLastUpdated,
+      datasetUrl,
       discoveryError,
       domoInstance,
       events.length,
       filteredEvents.length,
+      // Recomputes "Last updated N minutes ago" on each tick. Needed on its own
+      // because an unchanged datasetLastUpdated would otherwise freeze the phrase.
+      freshnessTick,
       handleUseDomoStats,
       isDiscovering,
       isFetchingMore,
@@ -1453,6 +1531,8 @@ function createSourceColumn({ idKey = 'sourceId', nameKey = 'sourceName', object
     width: '2fr'
   };
 }
+
+const FRESHNESS_POLL_MS = 5 * 60 * 1000;
 
 // Soft chip palette for unknown source types. These must be real HeroUI chip
 // COLORS, not variant names. HeroUI v3 splits chips into a color axis

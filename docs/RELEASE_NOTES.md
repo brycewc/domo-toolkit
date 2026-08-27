@@ -8,6 +8,7 @@
 - Remap Columns now reloads the dataset's Cards page if you are still on it when the remap finishes.
 - Migrate Content now warns before you migrate that a nested Beast Mode can't be created when the Beast Mode it nests is already nested on the target, and names the one to bring a copy of instead.
 - Migrate Content now has a Refresh button on the page where you pick the target DataSet.
+- The Activity Log now shows when the DomoStats Activity Log dataset last updated.
 
 ## UI Improvements
 

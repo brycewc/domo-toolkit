@@ -20,6 +20,12 @@ const origin = baseUrl ? new URL(baseUrl).origin : '';
 const entityId = import.meta.env.VITE_DOMO_ENTITY_ID;
 const entityType = import.meta.env.VITE_DOMO_ENTITY_TYPE;
 
+const activityLogDatasetId = import.meta.env.VITE_DOMO_ACTIVITY_LOG_DATASET_ID;
+const localData =
+  instance && activityLogDatasetId
+    ? { perInstance: { [instance]: { activityLogDatasetId, preferActivityLogDataset: true } } }
+    : {};
+
 const sessionData = {
   activityLogInstance: instance,
   activityLogObjects: entityId && entityType ? [{ id: entityId, type: entityType }] : [],
@@ -37,7 +43,7 @@ const sessionData = {
 globalThis.chrome = {
   storage: {
     local: (() => {
-      const store = {};
+      const store = { ...localData };
       const toKeys = (input) => (input == null ? Object.keys(store) : Array.isArray(input) ? input : [input]);
       return {
         get: async (input) => {

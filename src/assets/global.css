@@ -331,6 +331,10 @@
     @apply w-full p-2;
   }
 
+  .alert__description {
+    @apply pl-1.25;
+  }
+
   /* Custom `transparent` variant for Alert, mirroring Surface's
      `.surface--transparent` (bg-transparent + the base surface's text-foreground).
      HeroUI's base `.alert` paints `bg-surface` with `shadow-surface`; this strips

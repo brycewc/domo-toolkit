@@ -7,48 +7,56 @@ export function JsonStringifyOrder(obj, space) {
 const DATE_KEYWORDS_LOWER = ['date', 'created', 'modified', 'updated', 'time', 'timestamp', 'last'];
 const DATE_KEYWORDS_CASE_SENSITIVE = ['At'];
 
+const RELATIVE_TIME_UNITS = [
+  ['year', 31536000000],
+  ['month', 2592000000],
+  ['week', 604800000],
+  ['day', 86400000],
+  ['hour', 3600000],
+  ['minute', 60000],
+  ['second', 1000]
+];
+
 export function formatEpochTimestamp(value) {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-    return null;
-  }
+  const ms = parseEpochTimestamp(value);
+  return ms === null ? null : new Date(ms).toLocaleString();
+}
 
-  let ms;
-  if (value >= 1e12 && value < 1e14) {
-    ms = value;
-  } else if (value >= 1e9 && value < 1e11) {
-    ms = value * 1000;
-  } else {
-    return null;
-  }
+/**
+ * Format a timestamp as a relative phrase ("4 hours ago", "yesterday"). Accepts the
+ * same shapes as formatTimestamp.
+ * @param {number|string} value - The raw timestamp value
+ * @param {number} [now] - Reference point in epoch ms
+ * @returns {string|null} Localized relative phrase, or null when unparseable
+ */
+export function formatRelativeTime(value, now = Date.now()) {
+  const ms = parseTimestamp(value);
+  if (ms === null) return null;
 
-  const date = new Date(ms);
-  if (isNaN(date.getTime())) return null;
-  return date.toLocaleString();
+  const diff = ms - now;
+  const magnitude = Math.abs(diff);
+  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+
+  for (const [unit, unitMs] of RELATIVE_TIME_UNITS) {
+    if (magnitude >= unitMs || unit === 'second') {
+      return formatter.format(Math.round(diff / unitMs), unit);
+    }
+  }
+  return null;
 }
 
 /**
  * Format an arbitrary timestamp value (as carried on `metadata.created`) into a readable
  * local date + time string. Handles the shapes Domo APIs return across object types:
  * epoch milliseconds, epoch seconds, numeric strings of either, and ISO/RFC date strings.
- * Reuses formatEpochTimestamp for the numeric ranges and falls back to Date parsing for
- * strings. Unlike the JSON-viewer path, it does NOT gate on isDateFieldName: the value is
+ * Unlike the JSON-viewer path, it does NOT gate on isDateFieldName: the value is
  * config-declared as a date, so it formats whatever it is handed.
  * @param {number|string} value - The raw timestamp value
  * @returns {string|null} Localized date + time, or null when unparseable
  */
 export function formatTimestamp(value) {
-  if (value === null || value === undefined || value === '') return null;
-  if (typeof value === 'number') return formatEpochTimestamp(value);
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (trimmed !== '' && !Number.isNaN(Number(trimmed))) {
-      const epoch = formatEpochTimestamp(Number(trimmed));
-      if (epoch) return epoch;
-    }
-    const date = new Date(trimmed);
-    return Number.isNaN(date.getTime()) ? null : date.toLocaleString();
-  }
-  return null;
+  const ms = parseTimestamp(value);
+  return ms === null ? null : new Date(ms).toLocaleString();
 }
 
 export function isDateFieldName(fieldName) {
@@ -222,4 +230,36 @@ export function pathnameOf(url) {
 function isValidEntityId(value) {
   const num = Number(value);
   return Number.isInteger(num) && num >= 1 && num <= 9_999_999_999;
+}
+
+function parseEpochTimestamp(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  let ms;
+  if (value >= 1e12 && value < 1e14) {
+    ms = value;
+  } else if (value >= 1e9 && value < 1e11) {
+    ms = value * 1000;
+  } else {
+    return null;
+  }
+
+  return Number.isNaN(new Date(ms).getTime()) ? null : ms;
+}
+
+function parseTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') return parseEpochTimestamp(value);
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed !== '' && !Number.isNaN(Number(trimmed))) {
+      const epoch = parseEpochTimestamp(Number(trimmed));
+      if (epoch !== null) return epoch;
+    }
+    const date = new Date(trimmed);
+    return Number.isNaN(date.getTime()) ? null : date.getTime();
+  }
+  return null;
 }
