@@ -1,5 +1,94 @@
 import { executeInPage } from '@/utils/executeInPage';
 
+import { hydrateFunctionTemplates } from './functions';
+
+/**
+ * Read one Beast Mode's usage out of its own `links` array: the cards and drills
+ * that use it, and the Beast Modes that nest it. Used before deleting a Beast
+ * Mode, since Domo deletes one that is still in use without complaint, silently
+ * breaking every card that references it.
+ *
+ * `links` comes straight from the template (`GET .../functions/template/{id}`),
+ * which the detected object already carries, so no lookup is needed to find the
+ * usage itself. A link's `active` flag is the usage signal: the search endpoint's
+ * `activeLinks` map is just these links filtered to `active` and grouped by
+ * resource type, which holds for card, drill, and nesting links alike. `visible`
+ * is unrelated to usage; an active card link comes both ways.
+ *
+ * `DATA_SOURCE` links are excluded: they name the dataset the formula reads, not
+ * a consumer, and Domo reports them `active: false` regardless. Counting one as
+ * usage would block every Beast Mode's delete outright.
+ *
+ * `FUNCTION_TEMPLATE` links name the Beast Modes that nest THIS one (its parents,
+ * not its children), which is the direction a delete breaks. Any other active
+ * resource type is returned in `otherLinks` rather than dropped, so a kind of
+ * usage this code does not model still counts as use.
+ *
+ * @param {Object} params
+ * @param {Array<{active: boolean, resource: {id: any, type: string}, visible: boolean}>} params.links
+ * @param {number|null} [params.tabId]
+ * @returns {Promise<{
+ *   cards: Array<{id: string, name: string|null}>,
+ *   drills: Array<{id: string, name: string|null, parentId: string|null, parentName: string|null}>,
+ *   nestedBy: Array<{id: string, name: string|null}>,
+ *   otherLinks: Array<{count: number, type: string}>
+ * }>}
+ */
+export async function getBeastModeUsage({ links, tabId = null }) {
+  const active = {};
+  for (const link of links || []) {
+    const type = link?.resource?.type;
+    if (!link?.active || !type || type === 'DATA_SOURCE') continue;
+    (active[type] = active[type] || []).push(String(link.resource.id));
+  }
+
+  // A drill arrives as a `dr:<drillId>:<rootId>` URN under CARD, where the root
+  // is the card the drill hangs off; a plain card is a bare id. The root is kept
+  // so a drill can be shown under its card rather than as a loose row, and both
+  // ids resolve through the card lookup since a drill id is itself a card id.
+  const cardIds = [];
+  const drillRefs = [];
+  for (const value of active.CARD || []) {
+    if (!value.startsWith('dr:')) {
+      cardIds.push(value);
+      continue;
+    }
+    const [, drillId, rootId] = value.split(':');
+    drillRefs.push({ id: drillId || value, parentId: rootId || null });
+  }
+  const nestedByIds = active.FUNCTION_TEMPLATE || [];
+  const otherLinks = Object.entries(active)
+    .filter(([type]) => type !== 'CARD' && type !== 'FUNCTION_TEMPLATE')
+    .map(([type, ids]) => ({ count: ids.length, type }));
+
+  // A drill's parent card is looked up alongside the rest, since a card whose
+  // drill uses the Beast Mode is often not a consumer itself and so has no name
+  // of its own here. A parent Beast Mode's name needs its own template read, and
+  // a widely reused one can have many parents, so those go through the pooled
+  // hydrate; one that won't load keeps its id and still counts as usage.
+  const lookupIds = [...new Set([...cardIds, ...drillRefs.flatMap((d) => [d.id, d.parentId].filter(Boolean))])];
+  const [cardTitleById, parentTemplates] = await Promise.all([
+    fetchCardTitles(lookupIds, tabId),
+    hydrateFunctionTemplates(
+      nestedByIds.map((id) => ({ id })),
+      tabId
+    )
+  ]);
+  const toNamed = (id) => ({ id, name: cardTitleById.get(id) || null });
+
+  return {
+    cards: cardIds.map(toNamed),
+    drills: drillRefs.map((d) => ({
+      id: d.id,
+      name: cardTitleById.get(d.id) || null,
+      parentId: d.parentId,
+      parentName: d.parentId ? cardTitleById.get(d.parentId) || null : null
+    })),
+    nestedBy: nestedByIds.map((id) => ({ id, name: parentTemplates.get(id)?.name || null })),
+    otherLinks
+  };
+}
+
 /**
  * Get every Beast Mode tied to a dataset, with its usage split into the three
  * kinds of consumers Domo tracks: cards, drills, and other Beast Modes.

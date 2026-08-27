@@ -750,7 +750,9 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
       const nestedChildren = item.children?.map(
         (child) =>
           new DataListItem({
-            domoObject: baseUrl ? new DomoObject(child.typeId, child.id, baseUrl) : null,
+            // A drill only resolves to a URL through the card it drills from, so
+            // a child carrying a parentId passes it to its DomoObject.
+            domoObject: baseUrl ? new DomoObject(child.typeId, child.id, baseUrl, {}, null, child.parentId ?? null) : null,
             id: child.id,
             label: child.label,
             typeId: child.typeId,
@@ -758,12 +760,14 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
           })
       );
       const dli = new DataListItem({
+        annotation: item.annotation ?? null,
         children: nestedChildren,
         count: item.count,
         countLabel: item.countLabel,
         domoObject: baseUrl ? new DomoObject(item.typeId, item.id, baseUrl) : null,
         id: item.id,
         label: item.label,
+        muted: item.muted ?? false,
         typeId: item.typeId,
         url: item.url
       });
@@ -779,13 +783,18 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
     // and pass it as typeId too so the header shows that type's icon (e.g. a card
     // icon on "Cards on this page").
     const groupTypeId = group.items[0]?.typeId ?? null;
-    return DataListItem.createGroup({
+    const dliGroup = DataListItem.createGroup({
       children,
       childTypeId: groupTypeId,
+      // Defaults to one per row; a group that counts its own rows differently
+      // states it, so a list whose rows nest others can report both.
+      count: group.count,
       id: `${idPrefix}-${idx}`,
       label: group.label,
       typeId: groupTypeId
     });
+    if (group.countLabel) dliGroup.countLabel = group.countLabel;
+    return dliGroup;
   });
 }
 

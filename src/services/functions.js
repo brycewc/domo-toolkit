@@ -473,6 +473,38 @@ export async function getOwnedFunctions(userId, tabId = null) {
 }
 
 /**
+ * Fetch each Beast Mode's full template, keyed by id as a string.
+ *
+ * Bounded concurrency mirrors the column scan: every fetch goes through
+ * `executeInPage` (and so through chrome.scripting), so letting all N run at once
+ * stalls the messaging bridge for everything else using it. One that fails to
+ * load is left out of the map rather than failing the batch, so callers treat a
+ * missing template as "nothing to contribute".
+ *
+ * @param {Array<{id: any}>} beastModes
+ * @param {number|null} tabId
+ * @returns {Promise<Map<string, Object>>}
+ */
+export async function hydrateFunctionTemplates(beastModes, tabId) {
+  const templates = new Map();
+  const queue = [...beastModes];
+  const CONCURRENCY = 5;
+  const workers = Array.from({ length: CONCURRENCY }, async () => {
+    while (queue.length > 0) {
+      const bm = queue.shift();
+      if (!bm) return;
+      try {
+        templates.set(String(bm.id), await getFunctionTemplate(bm.id, tabId));
+      } catch {
+        // Skip: this Beast Mode contributes nothing. Non-fatal.
+      }
+    }
+  });
+  await Promise.allSettled(workers);
+  return templates;
+}
+
+/**
  * Transfer function (beast mode/variable) ownership to a new user.
  * The full function objects returned by getOwnedFunctions already carry
  * everything the bulk update needs, so each is sent back with only its owner
@@ -554,36 +586,4 @@ export async function updateDatasetFunctions({ functions, tabId = null }) {
     tabId
   );
   if (!result?.ok) throw new Error(result?.error || 'The Beast Modes could not be updated');
-}
-
-/**
- * Fetch each Beast Mode's full template, keyed by id as a string.
- *
- * Bounded concurrency mirrors the column scan: every fetch goes through
- * `executeInPage` (and so through chrome.scripting), so letting all N run at once
- * stalls the messaging bridge for everything else using it. One that fails to
- * load is left out of the map rather than failing the batch, so callers treat a
- * missing template as "nothing to contribute".
- *
- * @param {Array<{id: any}>} beastModes
- * @param {number|null} tabId
- * @returns {Promise<Map<string, Object>>}
- */
-async function hydrateFunctionTemplates(beastModes, tabId) {
-  const templates = new Map();
-  const queue = [...beastModes];
-  const CONCURRENCY = 5;
-  const workers = Array.from({ length: CONCURRENCY }, async () => {
-    while (queue.length > 0) {
-      const bm = queue.shift();
-      if (!bm) return;
-      try {
-        templates.set(String(bm.id), await getFunctionTemplate(bm.id, tabId));
-      } catch {
-        // Skip: this Beast Mode contributes nothing. Non-fatal.
-      }
-    }
-  });
-  await Promise.allSettled(workers);
-  return templates;
 }

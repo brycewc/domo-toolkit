@@ -1306,16 +1306,21 @@ function DataListItemImpl({
   }, [hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, shareEnabled, showActions]);
 
   // Optional leading info-icon marker rendered between the icon and the label
-  // text. A plain `<span title>` rather than a React Aria Tooltip so it never
-  // nests an interactive element inside the row's disclosure-toggle button, and
-  // because it sits at the START of the label it survives the label's
-  // `truncate`. The pointed-to explanation also appears as a legend near the
-  // list, so the hover is a convenience, not the only path to it.
+  // text. It carries no tooltip of its own: the marker sits inside the label's
+  // Tooltip trigger, so hovering it already opens the row's tooltip, which
+  // states the annotation (see labelTooltipContent). A trigger of its own would
+  // nest one focusable element inside another and fire both tooltips at once.
+  // Sitting at the START of the label, it survives the label's `truncate`.
+  // Virtual parents are the exception: they render their label as plain text
+  // with no tooltip, so there the marker keeps a native title.
   // Match the marker icon to the adjacent ObjectTypeIcon's 16px box so the two
   // icons share an identical bottom-line; a smaller icon bottom-aligned next to
   // a 16px one reads as vertically staggered (its optical center sits higher).
   const annotationMarker = item.annotation ? (
-    <span className='mr-1 inline-flex cursor-help align-text-bottom text-accent' title={item.annotation}>
+    <span
+      className='mr-1 inline-flex cursor-help align-text-bottom text-accent'
+      title={item.isVirtualParent ? item.annotation : undefined}
+    >
       <IconInfoCircle className='size-4 shrink-0' />
     </span>
   ) : null;
@@ -1379,6 +1384,25 @@ function DataListItemImpl({
   const isFlatLeaf = !hasChildren && !showsErrorBody;
   const leafCursorClass = isFlatLeaf ? ' cursor-default' : '';
 
+  // The label's hover content, shared by the link and non-link rows so the two
+  // can't drift: full name, the annotation when the row carries one, then the
+  // object's id. An annotation is a sentence rather than a name, so it gets a
+  // width to wrap in; rows without one keep their content-sized tooltip.
+  const labelTooltipContent = (
+    <Tooltip.Content
+      className={`flex flex-col flex-wrap items-start gap-1 text-left${item.annotation ? ' max-w-60' : ''}`}
+      offset={4}
+      placement='top left'
+    >
+      {labelTitle}
+      <span>
+        {typeLabel ? `${typeLabel} ID: ` : 'ID: '}
+        {item.originalId ?? item.id}
+      </span>
+      {item.annotation ? <span className='text-muted'>{item.annotation}</span> : null}
+    </Tooltip.Content>
+  );
+
   // Link items: native `title` shows the full URL on hover. Lighter than
   // React Aria Tooltip (no portal, no delay state machine, no extra DOM) and
   // avoids nested-interactive-element accessibility issues from wrapping a
@@ -1412,13 +1436,7 @@ function DataListItemImpl({
     >
       <Tooltip>
         <Tooltip.Trigger className='block min-w-0 truncate'>{labelInner}</Tooltip.Trigger>
-        <Tooltip.Content className='flex flex-col flex-wrap items-start gap-1 text-left' offset={4} placement='top left'>
-          {labelTitle}
-          <span>
-            {typeLabel ? `${typeLabel} ID: ` : 'ID: '}
-            {item.originalId ?? item.id}
-          </span>
-        </Tooltip.Content>
+        {labelTooltipContent}
       </Tooltip>
     </Link>
   ) : (
@@ -1426,13 +1444,7 @@ function DataListItemImpl({
       <Tooltip.Trigger className='block min-w-0 truncate'>
         <span className={`text-sm${labelMutedClass}${leafCursorClass}`}>{labelInner}</span>
       </Tooltip.Trigger>
-      <Tooltip.Content className='flex flex-col flex-wrap items-start gap-1 text-left' offset={4} placement='top left'>
-        {labelTitle}
-        <span>
-          {typeLabel ? `${typeLabel} ID: ` : 'ID: '}
-          {item.originalId ?? item.id}
-        </span>
-      </Tooltip.Content>
+      {labelTooltipContent}
     </Tooltip>
   );
 

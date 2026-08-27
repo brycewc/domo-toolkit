@@ -11,6 +11,7 @@
 - The Activity Log now shows when the DomoStats Activity Log dataset last updated.
 - The Current Context footer now shows the name of a dashboard, App Page, or Worksheet View you don't have access to.
 - Navigate to Copied Object now recognizes the ID of a dashboard you don't have access to.
+- Deleting a Beast Mode now lists the cards, drills, and Beast Modes that still use it, and blocks the delete until nothing does.
 
 ## UI Improvements
 

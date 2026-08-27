@@ -8,12 +8,11 @@ import { DomoObject } from './DomoObject';
 export class DataListItem {
   /**
    * @param {Object} config - Configuration object
-   * @param {{ tooltip: string }} [config.annotation] - Optional leading info
-   *   icon rendered before the label, with `tooltip` surfaced via the icon's
-   *   native `title` on hover. Because the icon sits at the start of the label,
-   *   it survives label truncation. Best suited to non-link rows; the
-   *   explanatory text it points to typically also appears as a legend near the
-   *   list (see ColumnUsagesModal).
+   * @param {string} [config.annotation] - Optional note explaining why the row
+   *   is listed. DataList marks the row with a leading info icon before the
+   *   label (so it survives label truncation) and states the note in the row's
+   *   own hover tooltip, which that icon sits inside. The text may also appear
+   *   as a legend near the list (see ColumnUsagesModal).
    * @param {string|number} config.id - Unique identifier for the item
    * @param {string} config.label - Display label for the item
    * @param {string} [config.url] - Optional URL for navigation
