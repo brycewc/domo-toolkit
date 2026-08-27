@@ -20,7 +20,7 @@ The version chosen at cycle start is **provisional**. Scope routinely grows past
 
 Because this project ships slowly with many changes per release, the user keeps `docs/RELEASE_NOTES.md` as a running WIP list during development so nothing is forgotten when it's time to compile the final notes.
 
-**Update the WIP list automatically after every change worth noting; do not wait for the user to ask.** Trigger after any user-facing change: new feature, bug fix to a previously shipped behavior, UI/UX adjustment, newly supported object type, performance improvement, etc. Skip pure internal refactors entirely (they never go in the notes at all; git history is their record on this solo project), dev-only tooling, and iteration on this version's not-yet-shipped features (see "Commits are save/sync points, not atomic features" below). Mention the WIP update briefly in the end-of-turn summary so the user sees it happened.
+**Update the WIP list automatically after every change worth noting; do not wait for the user to ask.** Trigger after any user-facing change: new feature, bug fix to a previously shipped behavior, UI/UX adjustment, newly supported object type, performance improvement, etc. Skip pure internal refactors entirely (they never go in the notes at all; git history is their record on this solo project), dev-only tooling, and iteration on this version's not-yet-shipped features (see "Commits are save points, not atomic features" below). Mention the WIP update briefly in the end-of-turn summary so the user sees it happened.
 
 ### Starting the next cycle, after a release ships
 
@@ -53,9 +53,9 @@ Before asserting that a fix is new to this version, verify with `git tag --conta
 
 When a ramble is ambiguous about direction or details (e.g., "A recognized as B or B as A, I can't remember which"), grep `git log` for keywords and let the commit message lock it down before writing the bullet. Commit subjects are more reliable than fuzzy recall.
 
-### Commits are save/sync points, not atomic features
+### Commits are save points, not atomic features
 
-The user is a solo developer who commits frequently as a way to save and sync changes between laptop and desktop, **not** as holistic feature commits. This has a critical implication for release notes:
+The user is a solo developer who commits frequently as a way to save work in progress, **not** as holistic feature commits. This has a critical implication for release notes:
 
 **Do not list "bug fixes" that were never shipped to users.** A commit titled "Fixed X" during this version's development cycle is only a user-facing bug fix if X was broken in a released version. Iteration on this version's new features, even when the commit says "fixed," is part of the feature's initial delivery and should NOT appear in the Bug Fixes section.
 
@@ -76,7 +76,7 @@ Examples:
 
 ### Changes whose baseline never shipped
 
-"Commits are save/sync points" above is one instance of a broader rule: **release notes describe only the net delta between the last released version and the next one.** The litmus is not limited to commits with "fix" in the title. For _any_ change, ask whether the state it moves away from was ever in users' hands.
+"Commits are save points" above is one instance of a broader rule: **release notes describe only the net delta between the last released version and the next one.** The litmus is not limited to commits with "fix" in the title. For _any_ change, ask whether the state it moves away from was ever in users' hands.
 
 The case most likely to fool you is a **dependency or library upgrade performed on the current branch.** Bumping HeroUI, React, Tailwind, etc. can change default styling or behavior with no intent on your part. Reacting to that, whether by restoring the prior look or by adapting to new APIs, is invisible to users who never ran the intermediate version, so none of that adaptation work is a release-note item. What _is_ loggable is any net, intentional difference the upgrade leaves between the last release and the next (for example, a genuinely new component capability you chose to expose).
 

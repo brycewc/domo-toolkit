@@ -4,7 +4,7 @@ description: Auto-update the WIP release notes after every notable change withou
 
 # WIP Release Notes (Auto-Update)
 
-After completing any user-facing change, append a short bullet to `docs/RELEASE_NOTES.md` (the running WIP list) **without waiting for the user to ask**. This project ships slowly with many changes per release, and the user is a solo dev who commits frequently as save/sync points across devices, so items get forgotten by release time if not captured as they land.
+After completing any user-facing change, append a short bullet to `docs/RELEASE_NOTES.md` (the running WIP list) **without waiting for the user to ask**. This project ships slowly with many changes per release, and the user is a solo dev who commits frequently as save points, so items get forgotten by release time if not captured as they land.
 
 ## The gate (apply before logging anything)
 
@@ -89,7 +89,7 @@ When one feature has several genuinely distinct user-facing changes, give each i
 - Dev-only tooling, DevMenu, debug scripts
 - Iteration on **this version's** not-yet-shipped features. Even when the commit says "fixed," that is part of the feature's initial delivery, not a bug fix.
 - **Anything whose "before" state never shipped** (the gate above, restated as a skip rule): same-branch regressions fixed before release, and changes that only counter an unshipped dependency or library upgrade, such as restoring a look the upgrade changed.
-- Underlying principle: the `release-process` skill → "Commits are save/sync points, not atomic features" and "Changes whose baseline never shipped."
+- Underlying principle: the `release-process` skill → "Commits are save points, not atomic features" and "Changes whose baseline never shipped."
 
 ## How
 

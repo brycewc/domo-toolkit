@@ -9,6 +9,8 @@
 - Migrate Content now warns before you migrate that a nested Beast Mode can't be created when the Beast Mode it nests is already nested on the target, and names the one to bring a copy of instead.
 - Migrate Content now has a Refresh button on the page where you pick the target DataSet.
 - The Activity Log now shows when the DomoStats Activity Log dataset last updated.
+- The Current Context footer now shows the name of a dashboard, App Page, or Worksheet View you don't have access to.
+- Navigate to Copied Object now recognizes the ID of a dashboard you don't have access to.
 
 ## UI Improvements
 

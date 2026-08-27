@@ -17,7 +17,7 @@ Concrete example: when designing UpdateDetails for datasets, `name` and `descrip
 
 ## Working with Claude
 
-This project is maintained by a solo developer who frequently switches between a laptop and desktop. **All durable AI guidance must live in git-tracked files**, primarily this `CLAUDE.md`, plus the `.claude/rules/*.md` rules listed in [Rules & Skills Directory](#rules--skills-directory). Machine-local stores (Claude Code's auto-memory at `~/.claude/projects/.../memory/`, IDE-local configs, untracked notes) will not follow the user to the other device, so they are not reliable for project guidance. If the user gives you guidance worth remembering across sessions, capture it here.
+This project is maintained by a solo developer. **All durable AI guidance must live in git-tracked files**, primarily this `CLAUDE.md`, plus the `.claude/rules/*.md` rules listed in [Rules & Skills Directory](#rules--skills-directory). If the user gives you guidance worth remembering across sessions, capture it here.
 
 ### Behavioral overrides
 

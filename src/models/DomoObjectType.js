@@ -664,6 +664,7 @@ export const ObjectTypeRegistry = {
     api: {
       displayName: '{parent.name} > {name}',
       endpoint: '/content/v3/stacks/{id}',
+      fallback: { endpoint: '/content/v1/pages/{id}/access', paths: { name: 'pageName' } },
       paths: { created: 'page.created', name: 'title' }
     },
     copyConfigs: [{ label: 'App ID', source: 'parentId' }],
@@ -1113,7 +1114,11 @@ export const ObjectTypeRegistry = {
   }),
   PAGE: new DomoObjectType('PAGE', 'Page', {
     aliases: ['PAGE_ANALYZER', 'STORY', 'DASHBOARD'],
-    api: { endpoint: '/content/v3/stacks/{id}', paths: { created: 'page.created', name: 'title' } },
+    api: {
+      endpoint: '/content/v3/stacks/{id}',
+      fallback: { endpoint: '/content/v1/pages/{id}/access', paths: { name: 'pageName' } },
+      paths: { created: 'page.created', name: 'title' }
+    },
     extractConfig: { keyword: 'page' },
     icon: { component: 'PagesBars' },
     idPattern: /^-?\d+$/,
@@ -1501,6 +1506,7 @@ export const ObjectTypeRegistry = {
     api: {
       displayName: '{parent.name} > {name}',
       endpoint: '/content/v3/stacks/{id}',
+      fallback: { endpoint: '/content/v1/pages/{id}/access', paths: { name: 'pageName' } },
       paths: { created: 'page.created', name: 'title' }
     },
     copyConfigs: [{ label: 'Worksheet ID', source: 'parentId' }],
@@ -1541,140 +1547,169 @@ export const ObjectTypeRegistry = {
  * @param {Object} params.apiConfig - The API configuration {method, endpoint, bodyTemplate, paths}.
  *   `paths` maps a metadata field to its dot-path in the response (e.g. {created, details, name, parentId}).
  *   Every entry except `details` is resolved generically, so new fields need only a `paths` entry here.
+ *   An optional `fallback` is a second config of the same shape, tried when the primary endpoint
+ *   answers non-ok. It declares its own `endpoint` and `paths` rather than merging over the primary,
+ *   because it reads a differently shaped response.
  * @param {boolean} params.requiresParent - Whether parent ID is required for API
  * @param {string} [params.parentId] - Optional parent ID if already known
+ * @param {'auto'|'off'|'only'} [params.fallbackMode='auto'] - Whether `apiConfig.fallback` may run:
+ *   'auto' tries it after the primary fails, 'off' never tries it, 'only' skips the primary. Pass
+ *   'off' where a fallback shared by sibling types must not answer before each type's own endpoint.
  * @param {boolean} [params.throwOnError=true] - Whether to throw errors
- * @returns {Promise<Object>} Metadata object {created, details, name, parentId}
+ * @returns {Promise<Object>} Metadata object {created, details, name, parentId}, carrying
+ *   `viaFallback: true` when the fallback config produced it
  */
 export async function fetchObjectDetailsInPage(params) {
-  const { apiConfig, objectId, parentId: providedParentId, requiresParent, throwOnError = true, typeId } = params;
-
-  const {
-    bodyTemplate = null,
-    endpoint,
-    filterByIdField = null,
-    method = 'GET',
-    nameFormat = null,
-    nameTemplate = null,
-    paths = {}
-  } = apiConfig;
-  let url;
-  let parentId = providedParentId;
+  const { apiConfig, fallbackMode = 'auto', objectId, parentId, requiresParent, throwOnError = true, typeId } = params;
 
   try {
-    // Build the endpoint URL
-    if (requiresParent) {
-      if (!parentId) {
-        const error = new Error(`Cannot fetch details for ${typeId} ${objectId} because parent ID is required`);
-        if (throwOnError) throw error;
-        console.warn(error.message);
-        return { details: null, name: null };
-      }
-      // Replace {parent} in endpoint
-      url = endpoint.replace('{parent}', parentId);
-      url = `/api${url.replace('{id}', objectId)}`;
-    } else {
-      url = `/api${endpoint}`.replace('{id}', objectId);
-    }
-
-    // Prepare fetch options
-    const options = {
-      method
-    };
-
-    // Add body for POST requests
-    if (method !== 'GET' && bodyTemplate) {
-      options.body = JSON.stringify(bodyTemplate).replace(/{id}/g, objectId);
-      if (parentId) {
-        options.body = options.body.replace(/{parent}/g, parentId);
-      }
-      options.headers = {
-        'Content-Type': 'application/json'
-      };
-    }
-
-    const response = await fetch(url, options);
-
-    if (!response.ok) {
-      const error = new Error(`Failed to fetch details for ${typeId} ${objectId}: HTTP ${response.status}`);
+    if (requiresParent && !parentId) {
+      const error = new Error(`Cannot fetch details for ${typeId} ${objectId} because parent ID is required`);
       if (throwOnError) throw error;
       console.warn(error.message);
       return { details: null, name: null };
     }
 
-    let data = await response.json();
+    // Declared inside the exported function because this whole function is serialized and injected
+    // into the page: it may close over these locals, but nothing at module scope exists there.
+    const attemptFetch = async (config) => {
+      const {
+        bodyTemplate = null,
+        endpoint,
+        filterByIdField = null,
+        method = 'GET',
+        nameFormat = null,
+        nameTemplate = null,
+        paths = {}
+      } = config;
 
-    // If the endpoint returns a list, find the matching item by ID field
-    if (filterByIdField && Array.isArray(data)) {
-      data = data.find((item) => String(item[filterByIdField]) === String(objectId)) || null;
-      if (!data) {
-        const error = new Error(`${typeId} ${objectId} not found in list response`);
-        if (throwOnError) throw error;
-        return { details: null, name: null };
-      }
-    }
-
-    const resolvePath = (path) => (path.match(/[^.[\]]+/g) || []).reduce((current, prop) => current?.[prop], data);
-    // A declared path may be an array of candidates, in which case the first one that resolves to
-    // something non-empty wins. Needed where a field is optional in the API and the platform itself
-    // falls back to another field (e.g. an approval request whose own `title` is blank shows its
-    // template's title). An empty string counts as a miss, not a value.
-    const resolveField = (path) =>
-      Array.isArray(path) ? path.map(resolvePath).find((value) => value != null && value !== '') : resolvePath(path);
-    const details = paths.details ? resolveField(paths.details) : data;
-    // Resolve every declared path (other than `details`, handled above) generically against the
-    // raw response. New metadata fields are added by declaring a path in the type's `api.paths`,
-    // with no change needed here.
-    const resolved = {};
-    for (const field of Object.keys(paths)) {
-      if (field === 'details') continue;
-      resolved[field] = resolveField(paths[field]);
-    }
-    // Inline epoch->locale formatter, kept self-contained because this function is serialized and
-    // run in the page via executeInPage (no imports/closures). Mirrors formatEpochTimestamp in
-    // utils/general.js; falls back to the object id when the value is not a usable timestamp.
-    const formatEpochName = (value) => {
-      const num = Number(value);
-      if (!Number.isFinite(num) || num <= 0) return String(objectId);
-      let ms;
-      if (num >= 1e12 && num < 1e14) {
-        ms = num;
-      } else if (num >= 1e9 && num < 1e11) {
-        ms = num * 1000;
+      // Build the endpoint URL
+      let url;
+      if (requiresParent) {
+        // Replace {parent} in endpoint
+        url = endpoint.replace('{parent}', parentId);
+        url = `/api${url.replace('{id}', objectId)}`;
       } else {
-        return String(objectId);
+        url = `/api${endpoint}`.replace('{id}', objectId);
       }
-      const date = new Date(ms);
-      return isNaN(date.getTime()) ? String(objectId) : date.toLocaleString();
-    };
-    const rawName = nameTemplate
-      ? nameTemplate.replace(/{([^}]+)}/g, (_, path) => (path === 'id' ? objectId : (resolvePath(path) ?? '')))
-      : resolved.name;
-    resolved.name = nameFormat === 'timestamp' ? formatEpochName(rawName) : rawName;
-    // Created date: prefer the declared path (resolved above); otherwise scan the resolved details
-    // for a common creation field so every type gets best-effort coverage. Top-level keys only, so
-    // a nested unrelated timestamp is never mistaken for the object's creation date.
-    const createdFallbackKeys = [
-      'created',
-      'createdAt',
-      'createdDate',
-      'createDate',
-      'creationDate',
-      'dateCreated',
-      'createdOn',
-      'createdTime',
-      'createTime'
-    ];
-    if (resolved.created == null && details && typeof details === 'object' && !Array.isArray(details)) {
-      for (const key of createdFallbackKeys) {
-        if (details[key] != null) {
-          resolved.created = details[key];
-          break;
+
+      // Prepare fetch options
+      const options = {
+        method
+      };
+
+      // Add body for POST requests
+      if (method !== 'GET' && bodyTemplate) {
+        options.body = JSON.stringify(bodyTemplate).replace(/{id}/g, objectId);
+        if (parentId) {
+          options.body = options.body.replace(/{parent}/g, parentId);
+        }
+        options.headers = {
+          'Content-Type': 'application/json'
+        };
+      }
+
+      const response = await fetch(url, options);
+
+      if (!response.ok) {
+        return {
+          ok: false,
+          reason: `Failed to fetch details for ${typeId} ${objectId}: HTTP ${response.status}`
+        };
+      }
+
+      let data = await response.json();
+
+      // If the endpoint returns a list, find the matching item by ID field
+      if (filterByIdField && Array.isArray(data)) {
+        data = data.find((item) => String(item[filterByIdField]) === String(objectId)) || null;
+        if (!data) {
+          return { ok: false, reason: `${typeId} ${objectId} not found in list response` };
         }
       }
+
+      const resolvePath = (path) => (path.match(/[^.[\]]+/g) || []).reduce((current, prop) => current?.[prop], data);
+      // A declared path may be an array of candidates, in which case the first one that resolves to
+      // something non-empty wins. Needed where a field is optional in the API and the platform itself
+      // falls back to another field (e.g. an approval request whose own `title` is blank shows its
+      // template's title). An empty string counts as a miss, not a value.
+      const resolveField = (path) =>
+        Array.isArray(path) ? path.map(resolvePath).find((value) => value != null && value !== '') : resolvePath(path);
+      const details = paths.details ? resolveField(paths.details) : data;
+      // Resolve every declared path (other than `details`, handled above) generically against the
+      // raw response. New metadata fields are added by declaring a path in the type's `api.paths`,
+      // with no change needed here.
+      const resolved = {};
+      for (const field of Object.keys(paths)) {
+        if (field === 'details') continue;
+        resolved[field] = resolveField(paths[field]);
+      }
+      // Inline epoch->locale formatter, kept self-contained because this function is serialized and
+      // run in the page via executeInPage (no imports/closures). Mirrors formatEpochTimestamp in
+      // utils/general.js; falls back to the object id when the value is not a usable timestamp.
+      const formatEpochName = (value) => {
+        const num = Number(value);
+        if (!Number.isFinite(num) || num <= 0) return String(objectId);
+        let ms;
+        if (num >= 1e12 && num < 1e14) {
+          ms = num;
+        } else if (num >= 1e9 && num < 1e11) {
+          ms = num * 1000;
+        } else {
+          return String(objectId);
+        }
+        const date = new Date(ms);
+        return isNaN(date.getTime()) ? String(objectId) : date.toLocaleString();
+      };
+      const rawName = nameTemplate
+        ? nameTemplate.replace(/{([^}]+)}/g, (_, path) => (path === 'id' ? objectId : (resolvePath(path) ?? '')))
+        : resolved.name;
+      resolved.name = nameFormat === 'timestamp' ? formatEpochName(rawName) : rawName;
+      // Created date: prefer the declared path (resolved above); otherwise scan the resolved details
+      // for a common creation field so every type gets best-effort coverage. Top-level keys only, so
+      // a nested unrelated timestamp is never mistaken for the object's creation date.
+      const createdFallbackKeys = [
+        'created',
+        'createdAt',
+        'createdDate',
+        'createDate',
+        'creationDate',
+        'dateCreated',
+        'createdOn',
+        'createdTime',
+        'createTime'
+      ];
+      if (resolved.created == null && details && typeof details === 'object' && !Array.isArray(details)) {
+        for (const key of createdFallbackKeys) {
+          if (details[key] != null) {
+            resolved.created = details[key];
+            break;
+          }
+        }
+      }
+
+      return { ok: true, value: { ...resolved, details } };
+    };
+
+    const configs = [];
+    if (fallbackMode !== 'only') configs.push(apiConfig);
+    if (apiConfig.fallback && fallbackMode !== 'off') configs.push(apiConfig.fallback);
+
+    let firstReason = null;
+    for (const config of configs) {
+      const attempt = await attemptFetch(config);
+      if (attempt.ok) {
+        return config === apiConfig ? attempt.value : { ...attempt.value, viaFallback: true };
+      }
+      // Report the first attempt's failure: it is the one the caller asked for, and a fallback's
+      // status says nothing useful about why the object's own endpoint refused.
+      if (firstReason == null) firstReason = attempt.reason;
     }
 
-    return { ...resolved, details };
+    const error = new Error(firstReason || `Cannot fetch details for ${typeId} ${objectId}: no endpoint configured`);
+    if (throwOnError) throw error;
+    console.warn(error.message);
+    return { details: null, name: null };
   } catch (error) {
     console.error(`Error fetching details for ${typeId}:`, error);
     if (throwOnError) throw error;

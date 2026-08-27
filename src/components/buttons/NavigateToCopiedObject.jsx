@@ -104,10 +104,11 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
   }, [currentContext?.isDomoPage, currentContext?.origin, defaultDomoInstance]);
 
   const fetchObjectMetadata = useCallback(
-    async (typeConfig, objectId, baseUrl) => {
+    async (typeConfig, objectId, baseUrl, fallbackMode) => {
       const params = {
         apiConfig: typeConfig.api,
         baseUrl,
+        fallbackMode,
         objectId,
         parentId: null,
         requiresParent: typeConfig.requiresParentForApi(),
@@ -174,33 +175,47 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         return 0;
       });
 
-    for (const typeConfig of typesToTry) {
+    // Fallbacks run only after every type's own endpoint: one fallback endpoint can answer for
+    // several types, so running it early lets it claim an ID a later type would have identified for
+    // certain. Parent-requiring types are excluded; their URL needs the access the fallback lacks.
+    const attempts = [
+      ...typesToTry.map((typeConfig) => ({ fallbackMode: 'off', typeConfig })),
+      ...typesToTry
+        .filter((typeConfig) => typeConfig.api.fallback && !typeConfig.requiresParentForUrl())
+        .map((typeConfig) => ({ fallbackMode: 'only', typeConfig }))
+    ];
+
+    for (const { fallbackMode, typeConfig } of attempts) {
       if (abortRef.current !== runId) return;
 
-      const metadata = await fetchObjectMetadata(typeConfig, text, baseUrl);
+      const metadata = await fetchObjectMetadata(typeConfig, text, baseUrl, fallbackMode);
 
       if (abortRef.current !== runId) return;
       if (!metadata?.details) continue;
 
-      if (typeConfig.id === 'DATAFLOW_TYPE' && metadata.details.deleted === true) {
-        continue;
-      }
-      if (typeConfig.id === 'DATA_APP_VIEW' && metadata.details.type !== 'dav') {
-        continue;
-      }
-      if (typeConfig.id === 'PAGE' && metadata.details.type !== 'page') {
-        continue;
-      }
-      if (typeConfig.id === 'REPORT_BUILDER_PAGE' && metadata.details.type !== 'rbv') {
-        continue;
-      }
-      // TEMPLATE and CERTIFICATION_PROCESS share the same API endpoint;
-      // discriminate by `details.type`: 'AC' → TEMPLATE, anything else → CERTIFICATION_PROCESS.
-      if (typeConfig.id === 'TEMPLATE' && metadata.details.type !== 'AC') {
-        continue;
-      }
-      if (typeConfig.id === 'CERTIFICATION_PROCESS' && (!metadata.details.type || metadata.details.type === 'AC')) {
-        continue;
+      // A fallback response is a different shape carrying no `type`, so the discriminators below
+      // would reject the very result it was reached for.
+      if (!metadata.viaFallback) {
+        if (typeConfig.id === 'DATAFLOW_TYPE' && metadata.details.deleted === true) {
+          continue;
+        }
+        if (typeConfig.id === 'DATA_APP_VIEW' && metadata.details.type !== 'dav') {
+          continue;
+        }
+        if (typeConfig.id === 'PAGE' && metadata.details.type !== 'page') {
+          continue;
+        }
+        if (typeConfig.id === 'REPORT_BUILDER_PAGE' && metadata.details.type !== 'rbv') {
+          continue;
+        }
+        // TEMPLATE and CERTIFICATION_PROCESS share the same API endpoint;
+        // discriminate by `details.type`: 'AC' → TEMPLATE, anything else → CERTIFICATION_PROCESS.
+        if (typeConfig.id === 'TEMPLATE' && metadata.details.type !== 'AC') {
+          continue;
+        }
+        if (typeConfig.id === 'CERTIFICATION_PROCESS' && (!metadata.details.type || metadata.details.type === 'AC')) {
+          continue;
+        }
       }
 
       const domoObject = buildResolvedDomoObject(typeConfig, metadata, baseUrl, text);
