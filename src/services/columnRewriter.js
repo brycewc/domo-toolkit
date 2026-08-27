@@ -22,7 +22,9 @@ import {
   EXPRESSION_FIELDS,
   isCalculatedColumnEntry,
   isColumnListParent,
+  QUALIFIED_REF_RE,
   REMOVABLE_ENTRY_LIST_FIELDS,
+  replaceExpressionRefs,
   stripBackticks
 } from './columnFields';
 import { findOriginAliases, isFusionView } from './columnReferences';
@@ -615,7 +617,7 @@ function rewriteColumnName(name, columnMap, options = {}) {
  */
 function rewriteExpressionString(expr, columnMap, beastModeNumericByLegacyId = null) {
   if (typeof expr !== 'string') return expr;
-  return expr.replace(BACKTICK_REF_RE, (match, colName) => {
+  return replaceExpressionRefs(expr, BACKTICK_REF_RE, (match, colName) => {
     const next = columnMap[colName];
     if (next == null || next === colName) return match;
     if (beastModeNumericByLegacyId && isBeastModeLegacyId(next)) {
@@ -639,7 +641,7 @@ function rewriteScopedExpressionString(expr, columnMap, originAliases) {
   if (typeof expr !== 'string') return expr;
   // Process qualified refs first to consume them; remaining bare backticked
   // tokens fall through to the unqualified handler.
-  return expr.replace(/`([^`]+)`(\.`([^`]+)`)?/g, (match, first, _dot, second) => {
+  return replaceExpressionRefs(expr, QUALIFIED_REF_RE, (match, first, _dot, second) => {
     if (second != null) {
       // Qualified: `first`.`second`
       if (!originAliases.has(first)) return match;

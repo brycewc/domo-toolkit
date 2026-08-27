@@ -27,9 +27,11 @@ import {
   COLUMN_KEYED_FIELDS,
   COLUMN_LIST_FIELDS,
   COLUMN_VALUE_FIELDS,
+  eachExpressionRef,
   EXPRESSION_FIELDS,
   isCalculatedColumnEntry,
   isColumnListParent,
+  QUALIFIED_REF_RE,
   stripBackticks
 } from './columnFields';
 import { getFunctionTemplate } from './functions';
@@ -778,12 +780,10 @@ function collectFusionOriginLeaves(node, origin, onLeaf) {
  * broken column the user then has to resolve.
  */
 function collectPossibleSourceBacktickRefs(expr, sourceAliases, onRef) {
-  const re = /`([^`]+)`(\.`([^`]+)`)?/g;
-  let match;
-  while ((match = re.exec(expr)) !== null) {
+  eachExpressionRef(expr, QUALIFIED_REF_RE, (match) => {
     if (match[3] == null) onRef(match[1]);
     else if (sourceAliases.has(match[1])) onRef(match[3]);
-  }
+  });
 }
 
 /**
@@ -793,11 +793,9 @@ function collectPossibleSourceBacktickRefs(expr, sourceAliases, onRef) {
  * they are left to the structured `columnName` path.
  */
 function collectScopedBacktickRefs(expr, sourceAliases, onRef) {
-  const re = /`([^`]+)`(\.`([^`]+)`)?/g;
-  let match;
-  while ((match = re.exec(expr)) !== null) {
+  eachExpressionRef(expr, QUALIFIED_REF_RE, (match) => {
     if (match[3] != null && sourceAliases.has(match[1])) onRef(match[3]);
-  }
+  });
 }
 
 async function fetchAlertDefinition(alertId, tabId) {
@@ -874,11 +872,7 @@ function walkDatasetViewForRefs(node, onColumnRef) {
       if (key === 'referencedColumnName' || key === 'columnName') {
         onColumnRef(stripBackticks(value));
       } else if (value.indexOf('`') !== -1) {
-        const re = /`([^`]+)`/g;
-        let match;
-        while ((match = re.exec(value)) !== null) {
-          onColumnRef(match[1]);
-        }
+        eachExpressionRef(value, BACKTICK_REF_RE, (match) => onColumnRef(match[1]));
       }
       continue;
     }
@@ -960,10 +954,7 @@ function walkForColumnRefs(node, onColumnRef, parentKey = null) {
 
     // 4. Expression fields — string value with backticked refs.
     if (EXPRESSION_FIELDS.has(key) && typeof value === 'string') {
-      let match;
-      while ((match = BACKTICK_REF_RE.exec(value)) !== null) {
-        onColumnRef(match[1]);
-      }
+      eachExpressionRef(value, BACKTICK_REF_RE, (match) => onColumnRef(match[1]));
       continue;
     }
 

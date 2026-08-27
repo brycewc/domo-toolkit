@@ -26,3 +26,5 @@
 - A card that still references a Beast Mode saved on a dataset it no longer reads now migrates instead of failing.
 - Migrate Content now explains that Domo allows only one level of Beast Mode nesting when that is why a Beast Mode couldn't be created, instead of showing Domo's raw error.
 - Auto Map now fills in a replacement column whose name differs only in capitalization or separators, instead of leaving it unmapped.
+- Migrate Content and Remap Columns no longer count a column as used when the formula line referencing it is commented out.
+- Migrate Content and Remap Columns no longer miss a column because an earlier commented-out line left a backtick unclosed.

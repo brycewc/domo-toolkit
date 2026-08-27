@@ -8,14 +8,16 @@
  * file rather than either of them.
  *
  * Four column-ref shapes are recognized:
- *   1. **Backticked refs in expression strings** — formulas,
+ *   1. **Backticked refs in expression strings**: formulas,
  *      formattedExpression, SQL clauses. Pattern: `` `Column Name` ``
- *      (see `BACKTICK_REF_RE`).
- *   2. **Plain string values at known column-bearing fields** — `column`,
+ *      (see `BACKTICK_REF_RE`). Read and write them through
+ *      `eachExpressionRef` / `replaceExpressionRefs`, never over the raw
+ *      string: a ref inside a comment or a string literal is not a reference.
+ *   2. **Plain string values at known column-bearing fields**: `column`,
  *      `columnName`, `field`, `leftColumn`, `rightColumn`, `groupBy`, etc.
- *   3. **Object keys at known column-name-keyed paths** — e.g.
+ *   3. **Object keys at known column-name-keyed paths**, e.g.
  *      `chartProperties.columnFormats[colName]`.
- *   4. **Magic ETL structured Field nodes** — `{ type: 'Field', name: '<col>',
+ *   4. **Magic ETL structured Field nodes**: `{ type: 'Field', name: '<col>',
  *      table }`. The column sits at `name` but nested under `expression` (e.g.
  *      an Order tile's `orderBy[].expression`), so the over-broad bare-`name`
  *      gate skips it; both walkers match `type === 'Field'` explicitly instead.
@@ -122,13 +124,42 @@ export const EXPRESSION_FIELDS = new Set([
 export const REMOVABLE_ENTRY_LIST_FIELDS = new Set(['controls', 'filters']);
 
 /**
- * Matches backticked column refs inside expression strings.
- *
- * The `g` flag makes `lastIndex` stateful — callers using `.exec()` in a
- * loop must run it to completion so it resets to 0, or use `.matchAll()`.
- * `.replace()` with this regex is safe (it resets `lastIndex` internally).
+ * Matches backticked column refs inside expression strings. Pass it to
+ * `eachExpressionRef` or `replaceExpressionRefs` rather than running it
+ * directly: they skip comments and string literals, and sidestep the stateful
+ * `lastIndex` the `g` flag brings.
  */
 export const BACKTICK_REF_RE = /`([^`]+)`/g;
+
+/**
+ * Matches a backticked column ref with its optional table qualifier:
+ * `` `alias`.`Column Name` `` or plain `` `Column Name` ``. Group 1 is the
+ * qualifier and group 3 the column; group 3 is undefined when unqualified.
+ */
+export const QUALIFIED_REF_RE = /`([^`]+)`(\.`([^`]+)`)?/g;
+
+/**
+ * Call `onMatch` with every `pattern` match in an expression string that sits in
+ * real code, skipping the ones inside a comment or a string literal.
+ *
+ * @param {string} expr
+ * @param {RegExp} pattern - Matched globally, whether or not it carries the flag.
+ * @param {(match: RegExpExecArray) => void} onMatch
+ */
+export function eachExpressionRef(expr, pattern, onMatch) {
+  if (typeof expr !== 'string') return;
+  // A private copy of the pattern: the shared module-level ones carry a stateful
+  // `lastIndex`, which a nested walk would otherwise resume from mid-string.
+  const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
+  const re = new RegExp(pattern.source, flags);
+  const masked = maskExpressionNonCode(expr);
+  let match;
+  while ((match = re.exec(masked)) !== null) {
+    onMatch(match);
+    // A zero-length match leaves `lastIndex` where it is, which would spin here.
+    if (match[0] === '') re.lastIndex++;
+  }
+}
 
 /**
  * Whether a column-list entry describes a CALCULATION (a card-level Beast Mode)
@@ -169,6 +200,27 @@ export function isColumnListParent(parentKey) {
 }
 
 /**
+ * Rewrite every `pattern` match in an expression string that sits in real code,
+ * leaving the ones inside a comment or a string literal verbatim. `replacer`
+ * receives the match and its capture groups, like a `String.replace` callback.
+ *
+ * @param {string} expr
+ * @param {RegExp} pattern
+ * @param {(match: string, ...groups: string[]) => string} replacer
+ * @returns {string}
+ */
+export function replaceExpressionRefs(expr, pattern, replacer) {
+  if (typeof expr !== 'string') return expr;
+  let out = '';
+  let end = 0;
+  eachExpressionRef(expr, pattern, (match) => {
+    out += expr.slice(end, match.index) + replacer(...match);
+    end = match.index + match[0].length;
+  });
+  return out + expr.slice(end);
+}
+
+/**
  * Strip wrapping backticks from a column-name string. Leaves bare names and
  * non-strings unchanged.
  */
@@ -176,4 +228,62 @@ export function stripBackticks(s) {
   if (typeof s !== 'string') return s;
   if (s.length >= 2 && s.startsWith('`') && s.endsWith('`')) return s.slice(1, -1);
   return s;
+}
+
+/**
+ * Blank out an expression's comments and string literals, one space per
+ * character, so the copy stays the same length and match offsets still line up.
+ *
+ * Backticked identifiers are stepped over whole, so a `#` or a `--` inside a
+ * column name stays part of the name. A quote or block comment that never
+ * closes is left unmasked: blanking the rest of the expression on a misread
+ * would lose real refs.
+ */
+function maskExpressionNonCode(expr) {
+  const out = expr.split('');
+  const blank = (start, stop) => {
+    for (let i = start; i < stop; i++) out[i] = ' ';
+  };
+  let i = 0;
+  while (i < expr.length) {
+    const char = expr[i];
+    if (char === '`') {
+      const close = expr.indexOf('`', i + 1);
+      i = close === -1 ? expr.length : close + 1;
+    } else if (char === "'" || char === '"') {
+      let j = i + 1;
+      let closed = false;
+      while (j < expr.length) {
+        if (expr[j] === '\\') {
+          j += 2;
+        } else if (expr[j] !== char) {
+          j++;
+        } else if (expr[j + 1] === char) {
+          j += 2;
+        } else {
+          closed = true;
+          j++;
+          break;
+        }
+      }
+      if (closed) blank(i, j);
+      i = closed ? j : i + 1;
+    } else if ((char === '-' && expr[i + 1] === '-') || char === '#') {
+      const newline = expr.indexOf('\n', i);
+      const stop = newline === -1 ? expr.length : newline;
+      blank(i, stop);
+      i = stop;
+    } else if (char === '/' && expr[i + 1] === '*') {
+      const close = expr.indexOf('*/', i + 2);
+      if (close === -1) {
+        i += 2;
+      } else {
+        blank(i, close + 2);
+        i = close + 2;
+      }
+    } else {
+      i++;
+    }
+  }
+  return out.join('');
 }
