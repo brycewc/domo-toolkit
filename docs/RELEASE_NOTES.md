@@ -18,13 +18,20 @@
 - Beast Modes now support Manage Card Owners and Manage Card Locks across the cards that use them.
 - The Current Context footer on a Beast Mode now shows its DataSet and the cards using it.
 - The Copy button on a Beast Mode now offers to copy its DataSet ID.
+- Code Engine Packages now support Get Usage, listing the workflows and custom apps that use them.
+- Get Usage marks each workflow version Active or Inactive.
+- Get Usage can show only the active workflow versions.
+- Get Usage can narrow the list to the package version you are viewing.
+- The Current Context footer on a Code Engine Package now has Workflows, App Designs, and Custom Apps tabs.
 
 ## UI Improvements
 
 - Delete Unused Beast Modes now shows its delete progress on the Delete button instead of above the list.
+- The "System" chip on a system page now sits at the right of the row next to its actions instead of beside the name.
 
 ## Bug Fixes
 
+- Lists now order names containing numbers by value, so Card 9 comes before Card 10 instead of after it.
 - Remap Columns no longer offers to drop a broken view column that the view also filters, groups, or sorts on.
 - A Beast Mode whose formula can't be read no longer fails every content type in Migrate Content; it is now reported on its own and the rest still migrate.
 - Migrate Content now reports why a Beast Mode's formula couldn't be read instead of showing a "Cannot read properties of null" message.
@@ -37,3 +44,4 @@
 - Auto Map now fills in a replacement column whose name differs only in capitalization or separators, instead of leaving it unmapped.
 - Migrate Content and Remap Columns no longer count a column as used when the formula line referencing it is commented out.
 - Migrate Content and Remap Columns no longer miss a column because an earlier commented-out line left a backtick unclosed.
+- Document Collections are recognized again now that Domo moved them to a new address, and links to them open the right page.

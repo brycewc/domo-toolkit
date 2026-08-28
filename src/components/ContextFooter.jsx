@@ -11,6 +11,7 @@ import { getAlertActions } from '@/services/alerts';
 import { getTemplateApprovals } from '@/services/approvals';
 import { getBeastModeCards } from '@/services/beastModes';
 import { getCardDefinition, getNotebookCardText } from '@/services/cards';
+import { getCodeEngineUsage } from '@/services/codeEngine';
 import { getDesignCards, getDesignInstances } from '@/services/customApps';
 import { getDatasetColumns, getDatasetDetailsForList, getDatasetsForPage } from '@/services/datasets';
 import { getJupyterWorkspaceAccounts, getJupyterWorkspaceDatasets } from '@/services/jupyterWorkspaces';
@@ -35,6 +36,15 @@ const LAZY_ARRAY_FETCHERS = {
     getBeastModeCards({ id: objectId, metadata: { details }, tabId }).then((cards) =>
       cards.map((card) => ({ id: card.id, title: card.title || `Card ${card.id}` }))
     ),
+  // Usage belongs to the package, so a package version asks on its parent's
+  // behalf. objectParentId is set only for the version, which is what a
+  // /codeengine page usually resolves to.
+  codeEngineDesignUsage: ({ objectId, objectParentId, tabId }) =>
+    getCodeEngineUsage({ kind: 'designs', packageId: objectParentId ?? objectId, tabId }).then((usage) => usage.items),
+  codeEngineInstanceUsage: ({ objectId, objectParentId, tabId }) =>
+    getCodeEngineUsage({ kind: 'instances', packageId: objectParentId ?? objectId, tabId }).then((usage) => usage.items),
+  codeEngineWorkflowUsage: ({ objectId, objectParentId, tabId }) =>
+    getCodeEngineUsage({ kind: 'workflows', packageId: objectParentId ?? objectId, tabId }).then((usage) => usage.items),
   dataflowInputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.inputs, tabId }),
   dataflowOutputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.outputs, tabId }),
   datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),
@@ -179,6 +189,7 @@ export function ContextFooter({
               isArray: true,
               isCurrentObject: false,
               itemIdField: related.itemIdField,
+              itemParentField: related.itemParentField,
               itemTypeField: related.itemTypeField,
               itemTypeId: related.itemTypeId,
               knownCount: related.field ? arrayData.length : undefined,
@@ -194,6 +205,7 @@ export function ContextFooter({
               isArray: true,
               isCurrentObject: false,
               itemIdField: related.itemIdField,
+              itemParentField: related.itemParentField,
               itemTypeField: related.itemTypeField,
               itemTypeId: related.itemTypeId,
               label: `${related.label} (${arrayData.length})`,
@@ -388,6 +400,9 @@ export function ContextFooter({
           context: currentContext?.domoObject?.metadata?.context,
           details: currentContext?.domoObject?.metadata?.details,
           objectId,
+          // The current object's own parent, so a fetcher for a child type can ask
+          // on its parent's behalf without the relatedData entry configuring it.
+          objectParentId: currentContext?.domoObject?.parentId ?? null,
           tabId: chromeTabId
         });
         const data = tab.isLazyObject ? (fetched ?? null) : (fetched ?? []);
@@ -474,6 +489,7 @@ export function ContextFooter({
         baseUrl,
         isArray: true,
         itemIdField: activeTab.itemIdField,
+        itemParentField: activeTab.itemParentField,
         itemTypeField: activeTab.itemTypeField,
         itemTypeId: activeTab.itemTypeId,
         parentId: activeTab.parentId
@@ -767,7 +783,10 @@ function getFreshRelatedEntry(chromeTabId, objectId, key) {
   return entry.data;
 }
 
-function injectUrls(src, { baseUrl, isArray, itemIdField, itemTypeField, itemTypeId, objectId, parentId, typeId }) {
+function injectUrls(
+  src,
+  { baseUrl, isArray, itemIdField, itemParentField, itemTypeField, itemTypeId, objectId, parentId, typeId }
+) {
   if (!src || !baseUrl) return src;
 
   if (isArray && Array.isArray(src)) {
@@ -776,7 +795,11 @@ function injectUrls(src, { baseUrl, isArray, itemIdField, itemTypeField, itemTyp
       const resolvedType = itemTypeId || item[itemTypeField];
       const itemId = itemIdField ? item[itemIdField] : item.id;
       if (!resolvedType || !itemId) return item;
-      const url = buildSimpleUrl(baseUrl, resolvedType, itemId, parentId);
+      // A row can name its own parent, for lists whose rows belong to different
+      // parents (e.g. workflow versions, each under its own model). The tab-level
+      // parentId is a single value and would be wrong for all but one of them.
+      const itemParent = (itemParentField ? item[itemParentField] : null) ?? parentId;
+      const url = buildSimpleUrl(baseUrl, resolvedType, itemId, itemParent);
       return url ? { url, ...item } : item;
     });
   }

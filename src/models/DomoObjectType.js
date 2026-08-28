@@ -46,9 +46,13 @@ export class DomoObjectType {
    *   like a card's full definition), set `fetcher: '<key>'` *without* `isArray`
    *   (matching a key in ContextFooter's `LAZY_OBJECT_FETCHERS` registry); the
    *   object is fetched on tab activation and rendered as plain JSON.
-   *   Entries don't have to point at navigable Domo objects — omit `itemTypeId`/
+   *   Entries don't have to point at navigable Domo objects: omit `itemTypeId`/
    *   `itemIdField` (or `typeId` for single entries) to render plain data
    *   (e.g., dataset columns) without URL injection.
+   *   When each row carries its own parent (so the tab-level `parentId` is the
+   *   wrong one for every row), set `itemParentField: '<key>'` to read `{parent}`
+   *   from that field on the row itself. A row missing the field falls back to the
+   *   tab's `parentId`.
    *   For a single (non-array) entry whose type isn't fixed, set `typeField: '<path>'`
    *   to resolve the related object's type from a sibling field (read from the same
    *   base as `field`, e.g. a CONTAINER_VIEW's `resourceType` deciding whether
@@ -603,6 +607,32 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'codeengine' },
     icon: { component: 'AiBook' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    relatedData: [
+      {
+        fetcher: 'codeEngineWorkflowUsage',
+        isArray: true,
+        // One row per referencing model version, so the version is the id and the
+        // row's own model is the parent.
+        itemIdField: 'version',
+        itemParentField: 'entityId',
+        itemTypeId: 'WORKFLOW_MODEL_VERSION',
+        label: 'Workflow Versions'
+      },
+      {
+        fetcher: 'codeEngineDesignUsage',
+        isArray: true,
+        itemIdField: 'entityId',
+        itemTypeId: 'RYUU_APP',
+        label: 'App Designs'
+      },
+      {
+        fetcher: 'codeEngineInstanceUsage',
+        isArray: true,
+        itemIdField: 'entityId',
+        itemTypeId: 'RYUU_INSTANCE',
+        label: 'Custom Apps'
+      }
+    ],
     urlPath: '/codeengine/{id}'
   }),
   CODEENGINE_PACKAGE_VERSION: new DomoObjectType('CODEENGINE_PACKAGE_VERSION', 'Code Engine Package Version', {
@@ -639,6 +669,30 @@ export const ObjectTypeRegistry = {
         fieldSource: 'context',
         label: 'Workflow',
         typeId: 'WORKFLOW_MODEL'
+      },
+      // Identical to the package's usage tabs: the fetchers resolve the package
+      // from this version's own parent.
+      {
+        fetcher: 'codeEngineWorkflowUsage',
+        isArray: true,
+        itemIdField: 'version',
+        itemParentField: 'entityId',
+        itemTypeId: 'WORKFLOW_MODEL_VERSION',
+        label: 'Workflow Versions'
+      },
+      {
+        fetcher: 'codeEngineDesignUsage',
+        isArray: true,
+        itemIdField: 'entityId',
+        itemTypeId: 'RYUU_APP',
+        label: 'App Designs'
+      },
+      {
+        fetcher: 'codeEngineInstanceUsage',
+        isArray: true,
+        itemIdField: 'entityId',
+        itemTypeId: 'RYUU_INSTANCE',
+        label: 'Custom Apps'
       }
     ]
   }),
@@ -984,10 +1038,10 @@ export const ObjectTypeRegistry = {
   }),
   FILESET: new DomoObjectType('FILESET', 'Document Collection', {
     api: { endpoint: '/files/v1/filesets/{id}', paths: { name: 'name' } },
-    extractConfig: { keyword: 'filesets' },
+    extractConfig: { keyword: 'documents' },
     icon: { component: 'Folder' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    urlPath: '/datacenter/filesets/{id}/overview'
+    urlPath: '/datacenter/documents/{id}/overview'
   }),
   FILESET_DIRECTORY: new DomoObjectType('FILESET_DIRECTORY', 'Document Collection Directory', {
     icon: { component: 'Folder' },

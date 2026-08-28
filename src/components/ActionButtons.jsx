@@ -22,6 +22,7 @@ import { GetCards } from '@/components/buttons/GetCards';
 import { GetChildPages } from '@/components/buttons/GetChildPages';
 import { GetDatasets } from '@/components/buttons/GetDatasets';
 import { GetOwnedObjects } from '@/components/buttons/GetOwnedObjects';
+import { GetUsage } from '@/components/buttons/GetUsage';
 import { GetViewInputs } from '@/components/buttons/GetViewInputs';
 import { GetWorkspaces } from '@/components/buttons/GetWorkspaces';
 import { InspectDataflow } from '@/components/buttons/InspectDataflow';
@@ -238,6 +239,9 @@ export function ActionButtons({
                 )}
                 {availableActions.has('getWorkspaces') && (
                   <GetWorkspaces currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('getUsage') && (
+                  <GetUsage currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('getViewInputs') && (
                   <GetViewInputs currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />

@@ -161,6 +161,10 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     actions.add('export');
   }
 
+  if (['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(typeId)) {
+    actions.add('getUsage');
+  }
+
   if (
     ['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(typeId) &&
     !metadata?.context?.workflowModelId &&

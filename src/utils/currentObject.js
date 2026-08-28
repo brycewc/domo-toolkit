@@ -385,8 +385,8 @@ export async function detectCurrentObject() {
       id = parts[parts.indexOf('pro-code-editor') + 1];
       break;
 
-    case url.includes('filesets/'): {
-      const filesetId = parts[parts.indexOf('filesets') + 1];
+    case url.includes('datacenter/documents/'): {
+      const filesetId = parts[parts.indexOf('documents') + 1];
       if (url.includes('/preview/')) {
         objectType = 'FILESET_FILE';
         // Extract file path: everything after /preview/

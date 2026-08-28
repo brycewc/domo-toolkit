@@ -252,6 +252,57 @@ export async function getCodeEnginePackageVersions(packageId, tabId = null) {
 }
 
 /**
+ * List the objects of one kind that reference a Code Engine package. `designs`
+ * means an app's source references it, `instances` a live deployed app, and
+ * either can be non-empty alone.
+ *
+ * `privateCount` counts referencing objects the caller can't read; those still
+ * appear in `items` with `entityId`, `name`, and `version` null, so usage is
+ * `totalCount`, never `items.length`. `workflows` returns one row per model
+ * version, drafts and deactivated deployments included: cross-reference
+ * `getWorkflowVersions` to tell which are live.
+ *
+ * @param {Object} params
+ * @param {'designs'|'instances'|'workflows'} params.kind - Which consumer kind to list
+ * @param {string} params.packageId - Code Engine package UUID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @param {string|null} [params.version] - Restrict to one package version (exact string match)
+ * @returns {Promise<{error: string|null, items: Array<Object>, privateCount: number, totalCount: number}>}
+ */
+export async function getCodeEngineUsage({ kind, packageId, tabId = null, version = null }) {
+  const path = USAGE_PATH_BY_KIND[kind];
+  if (!path) throw new Error(`Unknown Code Engine usage kind: ${kind}`);
+
+  return executeInPage(
+    async (path, packageId, version) => {
+      // Both literals fail silently if wrong: another EntityType enum member returns
+      // 200 with totalCount 0 (reads as "not used"), and without parts=items the
+      // items array always comes back empty.
+      const params = new URLSearchParams({
+        entityId: packageId,
+        entityType: 'CODEENGINE_FUNCTION',
+        parts: 'items'
+      });
+      if (version) params.set('version', version);
+
+      const response = await fetch(`${path}?${params}`);
+      if (!response.ok) {
+        return { error: `HTTP ${response.status}`, items: [], privateCount: 0, totalCount: 0 };
+      }
+      const data = await response.json();
+      return {
+        error: null,
+        items: Array.isArray(data?.items) ? data.items : [],
+        privateCount: data?.privateCount ?? 0,
+        totalCount: data?.totalCount ?? 0
+      };
+    },
+    [path, packageId, version],
+    tabId
+  );
+}
+
+/**
  * Get all Code Engine packages owned by a user.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID
@@ -433,3 +484,10 @@ export async function transferCodeEnginePackages(packageIds, fromUserId, toUserI
     tabId
   );
 }
+
+// Consumer kind -> the endpoint that lists objects of that kind referencing a package.
+const USAGE_PATH_BY_KIND = {
+  designs: '/api/apps/v1/designs/usage',
+  instances: '/api/apps/v1/instances/usage',
+  workflows: '/api/workflow/v2/models/usage'
+};

@@ -24,12 +24,20 @@ export class DataListItem {
    *   its own color.
    * @param {number} [config.count] - Optional count for children or related items
    * @param {string} [config.countLabel] - Optional label for count display (e.g., 'cards', 'pages')
+   * @param {{color?: string, label: string}} [config.chip] - Optional status chip
+   *   rendered after the row's label, for a state worth reading at a glance where
+   *   a hover-only `annotation` would be too quiet. `color` is any HeroUI Chip
+   *   color, defaulting to `accent`.
    * @param {DataListItem[]} [config.children] - Optional nested child items
    * @param {string} [config.childTypeId] - On a virtual-parent group whose rows
    *   are all one object type, the type of those rows (e.g. 'DATA_APP'). Lets
    *   DataList derive the group's "all" actions from that type's capabilities
    *   instead of walking the children. Leave null for heterogeneous groups.
    * @param {boolean} [config.isVirtualParent] - Whether this is a grouping/virtual parent node
+   * @param {boolean} [config.sortChildrenDescending] - Reverses the order of this
+   *   item's direct children, for rows whose newest entry is the interesting one
+   *   (e.g. a workflow's versions). Applies to one level only; grandchildren use
+   *   their own parent's flag.
    * @param {DomoObject} [config.domoObject] - Optional DomoObject instance for richer functionality
    * @param {'loading'|'loaded'|'transferring'|'transferred'|'error'|'failed'} [config.status]
    *   Async-state for virtual-parent groupings. When undefined, treated as 'loaded'.
@@ -56,6 +64,7 @@ export class DataListItem {
     annotation = null,
     children = undefined,
     childTypeId = null,
+    chip = null,
     count = undefined,
     countLabel = null,
     domoObject = null,
@@ -67,6 +76,7 @@ export class DataListItem {
     metadata = null,
     muted = false,
     originalId = undefined,
+    sortChildrenDescending = false,
     status = undefined,
     typeId = null,
     unshareable = false,
@@ -90,6 +100,8 @@ export class DataListItem {
     this.unshareable = unshareable;
     this.annotation = annotation;
     this.muted = muted;
+    this.chip = chip;
+    this.sortChildrenDescending = sortChildrenDescending;
   }
 
   /**
@@ -97,10 +109,13 @@ export class DataListItem {
    * @param {Object} config - Configuration object
    * @param {string} config.id - Unique identifier for the group
    * @param {string} config.label - Display label for the group
+   * @param {string} [config.annotation] - Optional note about the group, marked with a leading info icon.
+   * @param {string} [config.countLabel] - Optional unit shown after the count, e.g. `(6 versions)`.
    * @param {DataListItem[]} [config.children] - Child items in this group
    * @param {string} [config.childTypeId] - The object type of this group's rows
    *   when they are homogeneous (e.g. 'DATA_APP'), so DataList can derive the
    *   group's "all" actions from that type. Omit for mixed-type groups.
+   * @param {{color?: string, label: string}} [config.chip] - Optional status chip after the group's label.
    * @param {number} [config.count] - Override the displayed count. When omitted,
    *   the count is the number of underlying objects the group contains, not the
    *   number of direct rows: a nested subgroup contributes its own (already
@@ -120,12 +135,28 @@ export class DataListItem {
    *   actions; set both to the same value when a group is homogeneous.
    * @returns {DataListItem}
    */
-  static createGroup({ children, childTypeId = null, count, error, id, label, metadata, status, typeId = null }) {
+  static createGroup({
+    annotation = null,
+    children,
+    childTypeId = null,
+    chip = null,
+    count,
+    countLabel = null,
+    error,
+    id,
+    label,
+    metadata,
+    status,
+    typeId = null
+  }) {
     const childCount = Array.isArray(children) ? children.length : 0;
     return new DataListItem({
+      annotation,
       children,
       childTypeId,
+      chip,
       count: count !== undefined ? count : aggregateObjectCount(children),
+      countLabel,
       domoObject: null,
       error,
       id,
@@ -177,6 +208,7 @@ export class DataListItem {
       annotation: data.annotation || null,
       children: data.children?.map((child) => DataListItem.fromJSON(child)),
       childTypeId: data.childTypeId ?? null,
+      chip: data.chip ?? null,
       count: data.count,
       countLabel: data.countLabel || null,
       domoObject: data.domoObject ? DomoObject.fromJSON(data.domoObject) : null,
@@ -188,6 +220,7 @@ export class DataListItem {
       metadata: data.metadata,
       muted: data.muted || false,
       originalId: data.originalId,
+      sortChildrenDescending: data.sortChildrenDescending || false,
       status: data.status,
       typeId: data.typeId,
       unshareable: data.unshareable || false,
@@ -220,6 +253,7 @@ export class DataListItem {
       annotation: this.annotation,
       children: this.children?.map((child) => (child instanceof DataListItem ? child.toJSON() : child)),
       childTypeId: this.childTypeId,
+      chip: this.chip,
       count: this.count,
       countLabel: this.countLabel,
       domoObject: this.domoObject?.toJSON() || null,
@@ -231,6 +265,7 @@ export class DataListItem {
       metadata: this.metadata,
       muted: this.muted,
       originalId: this.originalId,
+      sortChildrenDescending: this.sortChildrenDescending,
       status: this.status,
       typeId: this.typeId,
       unshareable: this.unshareable,

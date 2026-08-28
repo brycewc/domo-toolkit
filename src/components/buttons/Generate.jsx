@@ -7,7 +7,7 @@ export function Generate({ currentContext, isDisabled, onStatusUpdate }) {
   const typeId = currentContext?.domoObject?.typeId;
   const isAppDbCollection = typeId === 'MAGNUM_COLLECTION';
 
-  const label = isAppDbCollection ? 'Generate Schema' : 'Generate Definition from JSDoc';
+  const label = isAppDbCollection ? 'Generate Schema' : 'Generate Definition';
   const tooltipText = isAppDbCollection
     ? 'Infer a column schema from the most recent 100 documents, edit it, and apply (Sync produces DataSet columns from the saved schema)'
     : 'Generate/sync the code engine package definition from JSDoc in the code';

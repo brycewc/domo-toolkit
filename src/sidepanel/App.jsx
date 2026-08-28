@@ -15,6 +15,7 @@ import { GetBeastModesView } from '@/components/views/GetBeastModesView';
 import { GetCardsView } from '@/components/views/GetCardsView';
 import { GetDatasetsView } from '@/components/views/GetDatasetsView';
 import { GetPagesView } from '@/components/views/GetPagesView';
+import { GetUsageView } from '@/components/views/GetUsageView';
 import { GetViewInputsView } from '@/components/views/GetViewInputsView';
 import { GetWorkspacesView } from '@/components/views/GetWorkspacesView';
 import { InspectDataflowView } from '@/components/views/InspectDataflowView';
@@ -334,6 +335,17 @@ export default function App() {
 
         {slot.type === 'getWorkspaces' && (
           <GetWorkspacesView
+            currentContext={currentContext}
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'getUsage' && (
+          <GetUsageView
             currentContext={currentContext}
             instance={instance}
             isActive={isActive}

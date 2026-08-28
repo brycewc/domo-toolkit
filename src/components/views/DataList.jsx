@@ -1326,25 +1326,41 @@ function DataListItemImpl({
   ) : null;
 
   // Pages with a negative ID are Domo's system pseudo-pages (Overview,
-  // Favorites, Shared) rather than real, user-created pages, so the label gets
-  // a trailing "System Page" chip that marks them at a glance. Uses originalId
-  // first (consumers may namespace `id`), matching the negative-id checks in
-  // collectActivityLogObjects and sharePages. The chip is `inline-flex`
-  // (HeroUI's default), so it flows inline after the name and honors the
-  // label's `nowrap`; system-page names are short, so it stays visible.
+  // Favorites, Shared) rather than real, user-created pages, so they get a
+  // "System" chip that marks them at a glance. Uses originalId first (consumers
+  // may namespace `id`), matching the negative-id checks in
+  // collectActivityLogObjects and sharePages.
   const isSystemPage = item.typeId === 'PAGE' && Number(item.originalId ?? item.id) < 0;
   const systemPageChip = isSystemPage ? (
-    <Chip className='ml-1.5' color='accent' size='sm' variant='soft'>
+    <Chip color='accent' size='sm' variant='soft'>
       <Chip.Label>System</Chip.Label>
     </Chip>
   ) : null;
+
+  // Consumer-supplied equivalent of the system-page chip, for a row state worth
+  // marking at a glance (e.g. an inactive workflow version referencing a package).
+  const itemChip = item.chip?.label ? (
+    <Chip color={item.chip.color || 'accent'} size='sm' variant='soft'>
+      <Chip.Label>{item.chip.label}</Chip.Label>
+    </Chip>
+  ) : null;
+
+  // Chips live outside the label and pin to the row's right edge beside the
+  // action buttons, so they align down the list instead of drifting with each
+  // name's width, and a truncating label can never clip them.
+  const chipCluster =
+    systemPageChip || itemChip ? (
+      <div className='flex shrink-0 flex-row items-center gap-1'>
+        {systemPageChip}
+        {itemChip}
+      </div>
+    ) : null;
 
   const labelInner = (
     <>
       <ObjectTypeIcon className='mr-1 inline-block shrink-0 align-text-bottom' size={16} typeId={item.typeId} />
       {annotationMarker}
       {item.label}
-      {systemPageChip}
     </>
   );
 
@@ -1551,6 +1567,7 @@ function DataListItemImpl({
             {itemLabel}
             {flatCount}
           </div>
+          {chipCluster}
           {badgeNode}
           {statusIndicator ?? (selectionMode ? null : actions)}
         </div>
@@ -1831,6 +1848,7 @@ function DataListItemImpl({
             </Disclosure.Trigger>
           </>
         )}
+        {chipCluster}
         {selectionMode ? null : actions}
       </Disclosure.Heading>
       <Disclosure.Content>
@@ -2109,21 +2127,29 @@ function solePopulatedChildId(item) {
 
 /**
  * Recursively sort items alphabetically by label using locale-aware,
- * case-insensitive comparison. Returns a new array — does not mutate input.
+ * case-insensitive comparison. Returns a new array, and does not mutate input.
  * Items with `children` get a new shallow copy so their children can be sorted
  * without touching the caller's data.
+ *
+ * `numeric` compares runs of digits by value, so labels that embed numbers land
+ * in the order a reader expects: version 1.0.9 before 1.0.45, Card 9 before
+ * Card 10. A plain lexical sort puts 1.0.49 ahead of 1.0.5.
+ *
+ * A row can flip its own children with `sortChildrenDescending` (one level, not
+ * the whole subtree), for lists whose newest entry is the interesting one.
  */
-function sortItemsByLabel(items) {
+function sortItemsByLabel(items, descending = false) {
   if (!Array.isArray(items)) return items;
   return [...items]
     .sort((a, b) => {
       const labelA = (a?.label ?? '').toString();
       const labelB = (b?.label ?? '').toString();
-      return labelA.localeCompare(labelB, undefined, { sensitivity: 'base' });
+      const order = labelA.localeCompare(labelB, undefined, { numeric: true, sensitivity: 'base' });
+      return descending ? -order : order;
     })
     .map((item) =>
       Array.isArray(item?.children) && item.children.length > 0
-        ? { ...item, children: sortItemsByLabel(item.children) }
+        ? { ...item, children: sortItemsByLabel(item.children, item.sortChildrenDescending === true) }
         : item
     );
 }
