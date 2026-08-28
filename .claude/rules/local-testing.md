@@ -40,13 +40,13 @@ Vite proxies `/api/*` to `VITE_DOMO_BASE_URL` and injects `X-Domo-Developer-Toke
 
 2. **Route smoke check**: `curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5173/dev-activity-log` should return `200`. Confirms the middleware and entry file resolved without a 500.
 
-3. **Visual verification via Playwriter**: Use the `playwriter` skill to drive the user's actual Chrome to `http://localhost:5173/dev-activity-log` (or `/dev-lineage`) and screenshot. This is the real visual test for layout, colors, responsive breakpoints, and interactions. Run before claiming a visual change "looks right." Before starting `yarn dev`, check `ss -tln | grep 5173`; the user often has it already running, and a duplicate just lands on 5174.
+3. **Visual verification via Playwriter**: Use the `playwriter` skill to drive the user's actual Chrome to `http://localhost:5173/dev-activity-log` (or `/dev-lineage`) and screenshot. This is the real visual test for layout, colors, responsive breakpoints, and interactions. Run before claiming a visual change "looks right." Before starting `yarn dev`, check `lsof -nP -iTCP:5173 -sTCP:LISTEN` (macOS; `ss -tln | grep 5173` on Linux/WSL); the user often has it already running, and a duplicate just lands on 5174.
 
    **Playwriter's default (extension relay) mode cannot open `chrome-extension://` pages, but direct CDP mode can.** In the default mode the Playwriter extension attaches via `chrome.debugger`, which Chrome forbids from attaching to another extension's pages, so navigating to a `chrome-extension://` URL fails with `Protocol error (Page.navigate): Detached while handling command`. That is the limitation, not the `chrome-extension://` scheme itself. Direct CDP mode (`playwriter session new --direct`) connects to the browser's own DevTools endpoint instead, bypassing `chrome.debugger`, and reaches every extension surface. So the popup, side panel, and options page ARE visually verifiable through Playwriter after all. See "[Driving extension pages via direct CDP](#driving-extension-pages-via-direct-cdp)" below for the recipe and the `scripts/ext-shot.js` helper. The `/dev-*` routes are still handy for fast component iteration, but they are no longer the only Playwriter path to the extension surfaces.
 
 ## Driving extension pages via direct CDP
 
-The popup, side panel, and options page render as real `chrome-extension://` pages, and Playwriter reaches them in **direct CDP mode**. This is verified working from WSL against the maintainer's Windows Edge.
+The popup, side panel, and options page render as real `chrome-extension://` pages, and Playwriter reaches them in **direct CDP mode**. Verified on macOS against Edge Dev, and from WSL against the maintainer's Windows Edge.
 
 **Why the fixed URL works:** `manifest.config.js` pins a `key`, so the unpacked extension ID is deterministic in every mode and on every machine (`gagcendhhghphglhcgjakkkocbliekaj`). Each surface has a stable address:
 
@@ -63,7 +63,17 @@ Direct CDP needs the browser's DevTools endpoint open, which can only be set at 
 - **Chromium 136+ ignores `--remote-debugging-port` on the default `user-data-dir`.** This is a security hardening (it stops malware from attaching to your everyday logged-in profile and reading its cookies). The flag is accepted, no port opens, no error. Edge 151 does this. So you MUST launch with a **non-default `--user-data-dir`**. Switching only `--profile-directory` does not help; the hardening and the singleton lock both key on the user-data-dir.
 - **The singleton lock is per user-data-dir.** Launching the flag against an already-running profile just forwards the args to the existing process and drops the flag. A separate `--user-data-dir` sidesteps this too, so you can leave your normal browser open and run the debug instance alongside it.
 
-Launch a dedicated, persistent debug profile (leave your main browser running):
+**On macOS (the maintainer's setup), the debug browser is Microsoft Edge Dev, launched from its own app icon.** `Edge Dev Debug.app` in `/Applications` is a small wrapper bundle whose executable `exec`s `scripts/edge-debug.sh`, which in turn `exec`s Edge Dev's real binary with the debug flags. Opening that icon from the Dock or Spotlight is the whole ritual: dedicated profile, port 9222, and `dist/` loaded as an unpacked extension. Because the wrapper `exec`s into Edge Dev's own binary, the running app is Edge Dev, icon and menu bar included. Edge stable stays the everyday browser and is never touched.
+
+`scripts/edge-debug.sh` holds the flag list, so that is the file to edit; it honors `EDGE_APP`, `EDGE_DEBUG_PROFILE`, and `EDGE_DEBUG_PORT` overrides, and works from a terminal too. Two macOS specifics baked into it:
+
+- **Flags cannot ride along on a normal app launch.** `open -a "Microsoft Edge Dev" --args ...` forwards to a running instance and drops the flags, and macOS has no Chromium flags file, so the wrapper bundle is the mechanism. Editing Edge Dev.app's own executable is not an option: that breaks its code signature and the hardened runtime refuses to launch it.
+- **Invoke the binary inside the bundle** (`Contents/MacOS/Microsoft Edge Dev`), not `open`. That starts a second process, which the separate `--user-data-dir` keeps out of the singleton lock.
+- **A script-based `.app` gets launched under Rosetta unless told otherwise.** LaunchServices reads the supported architectures out of a Mach-O header, and a shell script has none, so it starts the wrapper as x86_64; translation is inherited, so the exec then picks the x86_64 slice of the universal Edge binary and macOS warns that the app is Intel-only. `LSArchitecturePriority` (arm64 first) in the wrapper's `Info.plist` fixes it, and `edge-debug.sh` also pins `arch -arm64` on Apple Silicon so a hand-rebuilt wrapper cannot regress. Check with `lsappinfo info -only arch <pid>`.
+
+A fresh profile takes a few seconds on first launch before the port answers; poll `curl -s http://localhost:9222/json/version` rather than assuming a failure on the first try.
+
+On Windows/WSL, the equivalent single command is:
 
 ```
 "/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" \
@@ -71,9 +81,32 @@ Launch a dedicated, persistent debug profile (leave your main browser running):
   --remote-debugging-port=9222 &
 ```
 
-The dir persists, so future runs are just this one command. Because it starts empty, do a one-time setup in that window: sign into Domo (SSO), and if the Toolkit is not already there, `edge://extensions` -> Developer mode -> Load unpacked -> your `dist/`. For `--live` you also need a Domo object page open (and the side panel open next to it for the side-panel capture).
+From WSL the port is reachable on `localhost:9222` when WSL2 mirrored networking is on (verified).
 
-From WSL the port is reachable on `localhost:9222` when WSL2 mirrored networking is on (verified). Confirm with `curl -s http://localhost:9222/json/version`.
+**Loading the extension.** `--load-extension=<repo>/dist` still works on Edge (verified on stable 152 and Dev 154), so the macOS launcher loads the Toolkit itself and no manual step is needed. Chrome removed that switch in 137, so a Chrome-based debug profile needs `chrome://extensions` -> Developer mode -> Load unpacked -> `dist/` instead. Pointing at `dist/` while `yarn dev` runs loads the CRXJS dev build, HMR included.
+
+The profile dir persists. On the maintainer's Mac it was seeded once from the everyday Edge profile (see below), so it is already signed into Domo; a profile created from scratch needs a one-time SSO sign-in in that window instead. For `--live` you also need a Domo object page open (and the side panel open next to it for the side-panel capture); `--restore-last-session` in the launcher brings those tabs back on later launches.
+
+### Seeding the debug profile from the everyday browser
+
+A one-time copy, allowed to drift afterward, saves reconfiguring settings and signing in. With the debug browser quit (the everyday one can stay open, the copy only reads it):
+
+```bash
+SRC="$HOME/Library/Application Support/Microsoft Edge"
+DST="$HOME/Library/Application Support/Microsoft Edge Dev Debug"
+rsync -a \
+  --exclude 'Cache/' --exclude 'Code Cache/' --exclude 'GPUCache/' --exclude 'DawnCache/' \
+  --exclude 'DawnGraphiteCache/' --exclude 'DawnWebGPUCache/' --exclude 'GrShaderCache/' --exclude 'ShaderCache/' \
+  --exclude 'Service Worker/' --exclude 'blob_storage/' --exclude 'Sessions/' --exclude 'Session Storage/' \
+  "$SRC/Default/" "$DST/Default/"
+cp "$SRC/Local State" "$DST/Local State"
+```
+
+The exclusions drop caches and the saved tab set, taking 2.2G down to about 550M. Three consequences worth knowing:
+
+- **Logins survive the channel change.** Edge Dev reuses stable's `Microsoft Edge Safe Storage` keychain item rather than creating its own, so copied cookies and passwords decrypt and the Domo session comes with them. A copy into a Chrome-based profile would not decrypt, since the keychain item differs.
+- **`--disable-sync` is in the launcher for this reason.** The copy carries the signed-in profile, and without that flag the debug profile's drift would sync back into the everyday browser through the account.
+- **Everyday extensions come along, and page-restyling ones corrupt screenshots.** Dark Reader in particular inverts Domo pages while leaving `chrome-extension://` surfaces alone, so a capture can look fine while the Domo page behind it does not. Disable that sort of extension in the debug profile.
 
 ### The helper: `scripts/ext-shot.js`
 

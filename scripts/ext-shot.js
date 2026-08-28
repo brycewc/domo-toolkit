@@ -13,10 +13,9 @@ import { fileURLToPath } from 'node:url';
  * pages). Direct CDP bypasses that, so this script drives a browser that was
  * launched with --remote-debugging-port and connects with `session new --direct`.
  *
- * Prereq: launch your browser with the debugging port, e.g. on Windows:
- *   msedge.exe --remote-debugging-port=9222
- * (Your normal profile and loaded dev extension carry over. From WSL this is
- * reachable on localhost:9222 with mirrored networking.)
+ * Prereq: a browser on the debugging port, launched with a non-default
+ * user-data-dir (Chromium 136+ requires that). On macOS, open the `Edge Dev
+ * Debug` app, or run `scripts/edge-debug.sh`, which it wraps.
  *
  * Usage:
  *   node scripts/ext-shot.js <surface> [options]
@@ -174,9 +173,8 @@ function requireCdp(port) {
   } catch {
     console.error(
       `No CDP endpoint on localhost:${port}.\n` +
-        `Launch your browser with the debugging port first, e.g.:\n` +
-        `  msedge.exe --remote-debugging-port=${port}\n` +
-        `Then rerun this command.`
+        `Launch the debug browser first (macOS: open the "Edge Dev Debug" app, or run\n` +
+        `scripts/edge-debug.sh), give it a few seconds on a cold profile, then rerun.`
     );
     process.exit(1);
   }
