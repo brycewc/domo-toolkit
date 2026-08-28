@@ -1345,9 +1345,11 @@ function DataListItemImpl({
     </Chip>
   ) : null;
 
-  // Chips live outside the label and pin to the row's right edge beside the
-  // action buttons, so they align down the list instead of drifting with each
-  // name's width, and a truncating label can never clip them.
+  // Chips sit outside the label so they align down the list instead of drifting
+  // with each name's width, and a truncating label can never clip them. On an
+  // expandable row they go inside the Disclosure.Trigger, just before the
+  // chevron, so clicking a chip toggles the row like the rest of the trigger;
+  // a flat row has no trigger, so there they sit beside the action buttons.
   const chipCluster =
     systemPageChip || itemChip ? (
       <div className='flex shrink-0 flex-row items-center gap-1'>
@@ -1727,6 +1729,8 @@ function DataListItemImpl({
                           {item.countLabel ? ` ${item.countLabel}` : ''})
                         </p>
                       )}
+                  <span aria-hidden='true' className='flex-1' />
+                  {chipCluster}
                   {!isLoadingState && (
                     <Disclosure.Indicator>
                       <IconChevronDown />
@@ -1756,6 +1760,7 @@ function DataListItemImpl({
                       </p>
                     )}
                 <span aria-hidden='true' className='flex-1' />
+                {chipCluster}
                 {!isLoadingState && (
                   <Disclosure.Indicator>
                     <IconChevronDown />
@@ -1790,6 +1795,7 @@ function DataListItemImpl({
                     </p>
                   )}
               <span aria-hidden='true' className='flex-1' />
+              {chipCluster}
               {!isLoadingState && (
                 <Disclosure.Indicator>
                   <IconChevronDown />
@@ -1816,6 +1822,8 @@ function DataListItemImpl({
                     {item.countLabel ? ` ${item.countLabel}` : ''})
                   </p>
                 )}
+                <span aria-hidden='true' className='flex-1' />
+                {chipCluster}
                 <Disclosure.Indicator>
                   <IconChevronDown />
                 </Disclosure.Indicator>
@@ -1842,13 +1850,13 @@ function DataListItemImpl({
                 </p>
               )}
               <span aria-hidden='true' className='flex-1' />
+              {chipCluster}
               <Disclosure.Indicator>
                 <IconChevronDown />
               </Disclosure.Indicator>
             </Disclosure.Trigger>
           </>
         )}
-        {chipCluster}
         {selectionMode ? null : actions}
       </Disclosure.Heading>
       <Disclosure.Content>
