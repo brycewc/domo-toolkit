@@ -436,10 +436,42 @@ export const ObjectTypeRegistry = {
       endpoint: '/query/v1/functions/template/{id}?hidden=true',
       paths: { name: 'name' }
     },
+    // Each source is written during enrichment (see background.js) only for the
+    // case it applies to, so the two Card ID entries are mutually exclusive: a
+    // drill-saved Beast Mode copies the card that drill hangs off.
+    copyConfigs: [
+      { label: 'DataSet ID', source: 'parentId' },
+      { label: 'Card ID', source: 'metadata.context.savedOnCardId' },
+      { label: 'Card ID', source: 'metadata.context.savedOnDrillCardId' },
+      { label: 'Drill ID', source: 'metadata.context.savedOnDrillId' }
+    ],
     extractConfig: { keyword: 'id' },
     icon: { component: 'Function' },
     idPattern: /^\d+$/,
     parents: ['DATA_SOURCE', 'CARD'],
+    // Each entry is gated on an id `background.js` writes only for the case it
+    // applies to, so where the Beast Mode is saved decides which tabs appear.
+    relatedData: [
+      { label: 'DataSet', source: 'parentId', typeId: 'DATA_SOURCE' },
+      { field: 'savedOnCardId', fieldSource: 'context', label: 'Card', typeId: 'CARD' },
+      {
+        field: 'savedOnDrillId',
+        fieldSource: 'context',
+        label: 'Drill Path',
+        parentFieldSource: 'context',
+        parentSource: 'savedOnDrillCardId',
+        typeId: 'DRILL_VIEW'
+      },
+      {
+        fetcher: 'beastModeCards',
+        field: 'usageCardIds',
+        fieldSource: 'context',
+        isArray: true,
+        itemIdField: 'id',
+        itemTypeId: 'CARD',
+        label: 'Cards'
+      }
+    ],
     urlPath: '/datacenter/beastmode?id={id}'
   }),
   CARD: new DomoObjectType('CARD', 'Card', {

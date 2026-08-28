@@ -8,7 +8,9 @@ import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { extractPageContentIds, getFormsForPage, getQueuesForPage } from '@/services/appStudio';
+import { getBeastModeUsageForObject } from '@/services/beastModes';
 import { getCardsForObject, getCardsForParent } from '@/services/cards';
+import { DRILL_ONLY_NOTE, groupBeastModeUsageByCard } from '@/utils/beastModeLinks';
 import { waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { soleExpandedGroupIds, withCanonicalGroups } from '@/utils/dataListGroups';
@@ -81,6 +83,11 @@ export function GetCardsView({
       const objectName = domoObject.metadata?.name || `${objectType} ${objectId}`;
       const instance = context.instance;
       const origin = context.origin;
+
+      if (objectType === 'BEAST_MODE_FORMULA') {
+        await loadBeastModeScopeData({ domoObject, forceRefresh, instance, objectId, objectName, origin });
+        return;
+      }
 
       const parentId = domoObject.parentId || null;
 
@@ -189,6 +196,38 @@ export function GetCardsView({
     }
   };
 
+  // Cards a Beast Mode is used on, with each drill under the card it drills
+  // from. A refresh drops the cached metadata so the template is re-read.
+  const loadBeastModeScopeData = async ({ domoObject, forceRefresh, instance, objectId, objectName, origin }) => {
+    const tabId = await getValidTabForInstance(instance);
+    const usage = await getBeastModeUsageForObject({
+      id: objectId,
+      metadata: forceRefresh ? null : domoObject.metadata,
+      tabId
+    });
+    const { cards, orphanDrills } = groupBeastModeUsageByCard(usage);
+
+    setViewData({
+      drillCount: usage.drills.length,
+      instance,
+      objectId,
+      objectName,
+      objectType: 'BEAST_MODE_FORMULA',
+      origin,
+      parentId: null
+    });
+    setItemCounts({ cards: cards.length, forms: 0, queues: 0 });
+
+    if (cards.length === 0 && orphanDrills.length === 0) {
+      onStatusUpdate?.('No Cards Found', 'No cards or drills use this Beast Mode.', 'warning', 3000);
+      onBackToDefault?.();
+      return;
+    }
+
+    setError(null);
+    setItems(transformBeastModeItems({ cards, orphanDrills }, origin));
+  };
+
   const loadParentScopeData = async (data) => {
     const context = DomoContext.fromJSON(data.currentContext);
     const childTypeId = context.domoObject.typeId;
@@ -265,7 +304,8 @@ export function GetCardsView({
   const titlePrefix = hasMultipleTypes ? 'Items for' : 'Cards for';
 
   const renderSubtext = () => {
-    if (totalItems === 0) return null;
+    const drillCount = viewData?.drillCount || 0;
+    if (totalItems === 0 && drillCount === 0) return null;
     const base = hasMultipleTypes
       ? `${totalItems} item${totalItems === 1 ? '' : 's'}`
       : `${itemCounts.cards} card${itemCounts.cards === 1 ? '' : 's'}`;
@@ -273,6 +313,7 @@ export function GetCardsView({
       const viewLabel = viewData.viewCount === 1 ? 'page' : 'pages';
       return `${base} across ${viewData.viewCount} ${viewLabel}`;
     }
+    if (drillCount > 0) return `${base} · ${drillCount} drill${drillCount === 1 ? '' : 's'}`;
     return base;
   };
 
@@ -374,6 +415,41 @@ const APP_PAGE_CONTENT_GROUPS = [
   { childTypeId: 'ENIGMA_FORM', id: 'forms_group', label: 'Forms' },
   { childTypeId: 'HOPPER_QUEUE', id: 'queues_group', label: 'Queues' }
 ];
+
+/**
+ * Transform a Beast Mode's grouped usage into DataListItems. A card that uses
+ * the Beast Mode itself links and reads normally; one that is only listed
+ * because a drill under it uses it is muted, carries the drill-only note, and is
+ * not a link.
+ * @param {{cards: Array<Object>, orphanDrills: Array<Object>}} grouped
+ * @param {string} origin - The base URL origin
+ * @returns {DataListItem[]}
+ */
+function transformBeastModeItems({ cards, orphanDrills }, origin) {
+  const drillItem = (drill, parentId) =>
+    DataListItem.fromDomoObject(
+      new DomoObject('DRILL_VIEW', drill.id, origin, { name: drill.name || `Drill ${drill.id}` }, null, parentId)
+    );
+
+  const cardItems = cards.map((card) => {
+    const label = card.name || `Card ${card.id}`;
+    return new DataListItem({
+      annotation: card.usesDirectly ? null : DRILL_ONLY_NOTE,
+      children: card.drills.length > 0 ? card.drills.map((drill) => drillItem(drill, card.id)) : undefined,
+      count: card.drills.length > 0 ? card.drills.length : undefined,
+      countLabel: card.drills.length === 1 ? 'drill' : 'drills',
+      domoObject: new DomoObject('CARD', card.id, origin, { name: label }),
+      id: card.id,
+      label,
+      metadata: `ID: ${card.id}`,
+      muted: !card.usesDirectly,
+      typeId: 'CARD',
+      url: card.usesDirectly ? `${origin}/kpis/details/${card.id}` : null
+    });
+  });
+
+  return [...cardItems, ...orphanDrills.map((drill) => drillItem(drill, drill.parentId))];
+}
 
 /**
  * Transform cards into DataListItem format

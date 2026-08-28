@@ -7,6 +7,12 @@ import { runEnrichments } from '@/services/enrichments';
 import { getFeatureSwitches } from '@/services/features';
 import { checkPageType } from '@/services/pages';
 import { getCurrentUser, getUserGroups } from '@/services/users';
+import {
+  beastModeSaveTarget,
+  datasetIdFromBeastModeLinks,
+  parseBeastModeLinks,
+  rootCardIdsFor
+} from '@/utils/beastModeLinks';
 import { clearCookies } from '@/utils/clearCookies';
 import { DOMO_MATCH_PATTERNS, EXCLUDED_HOSTNAMES, LOCAL_MATCH_PATTERN, SECTION_TITLES } from '@/utils/constants';
 import { copyToClipboard } from '@/utils/copyToClipboard';
@@ -1494,6 +1500,29 @@ async function detectAndStoreContext(tabId) {
       detected.typeId = 'VARIABLE';
       typeModel = getObjectType('VARIABLE');
       domoObject.objectType = typeModel;
+    }
+
+    // A Beast Mode's relationships live in its template's `links`, at no fixed
+    // index, so `api.paths` can't reach them. Each id written here gates one
+    // Current Context tab.
+    if (detected.typeId === 'BEAST_MODE_FORMULA') {
+      const links = enrichedMetadata.details?.links;
+      if (!parentId) {
+        const datasetId = datasetIdFromBeastModeLinks(links);
+        if (datasetId) {
+          parentId = datasetId;
+          domoObject.parentId = datasetId;
+        }
+      }
+      const savedOn = beastModeSaveTarget(links);
+      if (savedOn?.typeId === 'CARD') {
+        domoObject.metadata.context.savedOnCardId = savedOn.id;
+      } else if (savedOn?.typeId === 'DRILL_VIEW') {
+        domoObject.metadata.context.savedOnDrillId = savedOn.id;
+        domoObject.metadata.context.savedOnDrillCardId = savedOn.parentId;
+      } else {
+        domoObject.metadata.context.usageCardIds = rootCardIdsFor(parseBeastModeLinks(links));
+      }
     }
 
     // Bricks and pro-code apps share the same URL (/assetlibrary/{id}/overview)

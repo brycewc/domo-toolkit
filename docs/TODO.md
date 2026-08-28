@@ -10,4 +10,3 @@ published: false
 - [ ] Unshare datasets when you unshare cards/pages
 - [ ] Add support mode, via automatic recognition of the support user
 - [ ] View all feature switches (maybe only for support)
-- [ ] Get card pages support from beast mode

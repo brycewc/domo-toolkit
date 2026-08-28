@@ -7,17 +7,25 @@ import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
-import { getDatasetBeastModesWithUsage } from '@/services/beastModes';
+import { getBeastModeRelatives, getDatasetBeastModesWithUsage } from '@/services/beastModes';
 import { getCardDatasets, getCardsForObject, getCardsForParent } from '@/services/cards';
 import { getDatasetsForPage } from '@/services/datasets';
 import { getValidTabForInstance } from '@/utils/currentObject';
-import { withCanonicalGroups } from '@/utils/dataListGroups';
+import { soleExpandedGroupIds, withCanonicalGroups } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconBeastMode from '@icons/beast-mode.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
 import { AlertStatusIcon } from '../AlertStatusIcon';
 import { DataList } from './DataList';
+
+// Both directions of nesting, in display order. Each id doubles as the key on
+// `getBeastModeRelatives`'s result. An empty side still renders as a muted `(0)`
+// row, so "nothing nests this" reads as an answer, not an unchecked direction.
+const NESTING_GROUPS = [
+  { childTypeId: 'BEAST_MODE_FORMULA', id: 'nests', label: 'Nested Beast Modes' },
+  { childTypeId: 'BEAST_MODE_FORMULA', id: 'nestedBy', label: 'Nested in Other Beast Modes' }
+];
 
 // Page-type object types share one orchestration: dataset -> Beast Mode -> the
 // cards on that page using it.
@@ -88,6 +96,8 @@ export function GetBeastModesView({
         transformedItems = beastModes.map((bm) => buildUsageBeastModeItem(bm, origin));
       } else if (objectType === 'DATAFLOW_TYPE') {
         transformedItems = await buildDataflowScope({ details: domoObject.metadata?.details, origin, tabId });
+      } else if (objectType === 'BEAST_MODE_FORMULA') {
+        transformedItems = await buildNestingScope({ id: objectId, metadata: domoObject.metadata, origin, tabId });
       } else if (objectType === 'CARD') {
         transformedItems = await buildCardScope({ cardId: objectId, details: domoObject.metadata?.details, origin, tabId });
       } else if (PAGE_TYPES.includes(objectType)) {
@@ -138,8 +148,12 @@ export function GetBeastModesView({
   const renderSubtext = () => {
     const total = viewData?.total || 0;
     if (total === 0) return null;
+    const plural = `Beast Mode${total === 1 ? '' : 's'}`;
+    // The nesting scope lists Beast Modes rather than their consumers, so it has
+    // no usage rows to count.
+    if (viewData?.displayType === 'BEAST_MODE_FORMULA') return `${total} related ${plural}`;
     const uses = countDistinctUsage(items);
-    return `${total} Beast Mode${total === 1 ? '' : 's'} · ${uses} distinct dependenc${uses === 1 ? 'y' : 'ies'}`;
+    return `${total} ${plural} · ${uses} distinct dependenc${uses === 1 ? 'y' : 'ies'}`;
   };
 
   if (isLoading || holdContent) {
@@ -173,7 +187,10 @@ export function GetBeastModesView({
     );
   }
 
-  const expandedIds = collectUsedGroupIds(items);
+  // The nesting scope renders both directions, one of them often empty, so it
+  // opens the populated one the way every canonical-group view does.
+  const expandedIds =
+    viewData?.displayType === 'BEAST_MODE_FORMULA' ? soleExpandedGroupIds(items) : collectUsedGroupIds(items);
 
   return (
     <DataList
@@ -295,6 +312,31 @@ async function buildDataflowScope({ details, origin, tabId }) {
         countLabel: 'Beast Modes'
       });
     });
+}
+
+/**
+ * BEAST_MODE_FORMULA scope: the Beast Modes on either side of this one's
+ * nesting. Domo allows only one level, so in practice one group or the other
+ * has rows, never both.
+ */
+async function buildNestingScope({ id, metadata, origin, tabId }) {
+  const relatives = await getBeastModeRelatives({ id, metadata, tabId });
+
+  const groups = NESTING_GROUPS.map((group) => {
+    const entries = relatives[group.id];
+    if (entries.length === 0) return null;
+    const children = entries
+      .slice()
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .map((entry) =>
+        DataListItem.fromDomoObject(
+          new DomoObject(entry.typeId, entry.id, origin, { name: entry.name || `Beast Mode ${entry.id}` })
+        )
+      );
+    return DataListItem.createGroup({ children, childTypeId: group.childTypeId, id: group.id, label: group.label });
+  }).filter(Boolean);
+
+  return withCanonicalGroups(groups, NESTING_GROUPS);
 }
 
 /**
@@ -442,7 +484,9 @@ function collectUsedGroupIds(items) {
 function countBeastModes(items) {
   let total = 0;
   for (const item of items || []) {
-    if (item.typeId === 'BEAST_MODE_FORMULA') total += 1;
+    // A Variable counts too: the nesting scope types a nested one as itself, and
+    // it is still a row the view found.
+    if (item.typeId === 'BEAST_MODE_FORMULA' || item.typeId === 'VARIABLE') total += 1;
     else if (item.children?.length) total += countBeastModes(item.children);
   }
   return total;
@@ -485,6 +529,9 @@ function emptyMessage(objectType, scope) {
     return objectType === 'WORKSHEET_VIEW'
       ? 'No Beast Modes are used by any card across this worksheet.'
       : 'No Beast Modes are used by any card across this app.';
+  }
+  if (objectType === 'BEAST_MODE_FORMULA') {
+    return 'This Beast Mode has no nested Beast Modes and is not nested in another.';
   }
   if (objectType === 'CARD') return 'No Beast Modes found on the dataset(s) powering this card.';
   if (objectType === 'DATAFLOW_TYPE') return "No Beast Modes found on this dataflow's output datasets.";

@@ -98,9 +98,9 @@ export function GetPagesView({
       // Set label early so the loading spinner shows the right text
       setPageTypeLabel(
         sidepanelType === 'getCardPages'
-          ? objectType === 'CARD' || objectType === 'DATA_SOURCE' || objectType === 'DATAFLOW_TYPE' || objectType === 'USER'
-            ? 'Pages'
-            : 'Card Pages'
+          ? PAGE_SCOPED_TYPES.includes(objectType)
+            ? 'Card Pages'
+            : 'Pages'
           : objectType === 'DATA_APP_VIEW'
             ? 'App Pages'
             : 'Child Pages'
@@ -207,11 +207,13 @@ export function GetPagesView({
           sidepanelType === 'getCardPages'
             ? objectType === 'CARD'
               ? 'This card does not appear on any app studio apps, dashboards, report builder pages, or worksheets'
-              : objectType === 'DATA_SOURCE'
-                ? `No pages found for cards using dataset **${objectName}**`
-                : objectType === 'USER'
-                  ? `No pages found for cards owned by **${objectName}**`
-                  : `Cards on ${objectName} are not used on any other pages`
+              : objectType === 'BEAST_MODE_FORMULA'
+                ? `No pages found for cards using Beast Mode **${objectName}**`
+                : objectType === 'DATA_SOURCE'
+                  ? `No pages found for cards using dataset **${objectName}**`
+                  : objectType === 'USER'
+                    ? `No pages found for cards owned by **${objectName}**`
+                    : `Cards on ${objectName} are not used on any other pages`
             : objectType === 'DATA_APP_VIEW'
               ? `No views (pages) found for app studio app ${objectId}`
               : `No child pages found for page ${objectId}`;
@@ -395,7 +397,7 @@ export function GetPagesView({
       const { cardsByPage, orphanedCards, pages } = result;
 
       // For page-like types, filter out the current page
-      const excludeSelf = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(objectType);
+      const excludeSelf = PAGE_SCOPED_TYPES.includes(objectType);
       const stringId = String(objectId);
       const childPages = pages
         .filter((page) => !excludeSelf || String(page.id) !== stringId)
@@ -613,6 +615,10 @@ const CARD_PAGE_GROUPS = [
 // meaningless for these, so instead of Orphaned Cards they get a "Cards that
 // Only Live Here" category listing the cards that appear on no other page.
 const HERE_SCOPED_TYPES = ['DATA_APP', 'DATA_APP_VIEW', 'PAGE', 'WORKSHEET', 'WORKSHEET_VIEW'];
+
+// A Get Card Pages query from one of these lists the OTHER pages its cards
+// reach, dropping the page the query started from.
+const PAGE_SCOPED_TYPES = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'];
 
 // The here-scoped counterpart to Orphaned Cards, shown for page/app/worksheet
 // queries. Like Orphaned Cards it renders as a muted `(0)` row when empty, so

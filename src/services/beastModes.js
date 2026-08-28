@@ -1,28 +1,72 @@
+import { parseBeastModeLinks, rootCardIdsFor } from '@/utils/beastModeLinks';
 import { executeInPage } from '@/utils/executeInPage';
 
-import { hydrateFunctionTemplates } from './functions';
+import { getCardsByIds } from './cards';
+import { getFunctionTemplate, hydrateFunctionTemplates } from './functions';
+
+/**
+ * Fetch the cards a Beast Mode is actually used on: the ones using it directly
+ * plus the card each drill hangs off. Feeds Get Cards, Get Card Pages, and the
+ * card owner/lock views, all of which need navigable cards rather than raw ids.
+ *
+ * @param {Object} params
+ * @param {string|number} params.id - The Beast Mode (function template) ID
+ * @param {Object} [params.metadata] - The detected object's metadata, so an
+ *   already-enriched Beast Mode reads its links without a request
+ * @param {number|null} [params.tabId]
+ * @returns {Promise<Array<Object>>} Full card objects
+ */
+export async function getBeastModeCards({ id, metadata, tabId = null }) {
+  const links = await resolveBeastModeLinks({ id, metadata, tabId });
+  return getCardsByIds({ cardIds: rootCardIdsFor(parseBeastModeLinks(links)), tabId });
+}
+
+/**
+ * The Beast Modes on either side of this one's nesting: `nestedBy` are its
+ * parents (read from its active `FUNCTION_TEMPLATE` links) and `nests` are its
+ * children (read from `functionTemplateDependencies`, Domo's authoritative
+ * nesting list). Domo caps nesting at one level, so in practice only one side is
+ * ever populated.
+ *
+ * Each entry carries the type it should render as: a nested Variable is still a
+ * function template, but it is not a Beast Mode.
+ *
+ * @param {Object} params
+ * @param {string|number} params.id - The Beast Mode (function template) ID
+ * @param {Object} [params.metadata] - The detected object's metadata
+ * @param {number|null} [params.tabId]
+ * @returns {Promise<{
+ *   nestedBy: Array<{id: string, name: string|null, typeId: string}>,
+ *   nests: Array<{id: string, name: string|null, typeId: string}>
+ * }>}
+ */
+export async function getBeastModeRelatives({ id, metadata, tabId = null }) {
+  const template = metadata?.details?.links ? metadata.details : await getFunctionTemplate(id, tabId);
+  const { nestedByIds } = parseBeastModeLinks(template?.links);
+  const nestsIds = [...new Set((template?.functionTemplateDependencies || []).map(String))].filter(
+    (dep) => dep !== String(id)
+  );
+
+  const templates = await hydrateFunctionTemplates(
+    [...new Set([...nestedByIds, ...nestsIds])].map((templateId) => ({ id: templateId })),
+    tabId
+  );
+  // One that won't load keeps its id and still shows, rather than vanishing.
+  const toNamed = (templateId) => ({
+    id: templateId,
+    name: templates.get(templateId)?.name || null,
+    typeId: templates.get(templateId)?.global === true ? 'VARIABLE' : 'BEAST_MODE_FORMULA'
+  });
+
+  return { nestedBy: nestedByIds.map(toNamed), nests: nestsIds.map(toNamed) };
+}
 
 /**
  * Read one Beast Mode's usage out of its own `links` array: the cards and drills
  * that use it, and the Beast Modes that nest it. Used before deleting a Beast
  * Mode, since Domo deletes one that is still in use without complaint, silently
- * breaking every card that references it.
- *
- * `links` comes straight from the template (`GET .../functions/template/{id}`),
- * which the detected object already carries, so no lookup is needed to find the
- * usage itself. A link's `active` flag is the usage signal: the search endpoint's
- * `activeLinks` map is just these links filtered to `active` and grouped by
- * resource type, which holds for card, drill, and nesting links alike. `visible`
- * is unrelated to usage; an active card link comes both ways.
- *
- * `DATA_SOURCE` links are excluded: they name the dataset the formula reads, not
- * a consumer, and Domo reports them `active: false` regardless. Counting one as
- * usage would block every Beast Mode's delete outright.
- *
- * `FUNCTION_TEMPLATE` links name the Beast Modes that nest THIS one (its parents,
- * not its children), which is the direction a delete breaks. Any other active
- * resource type is returned in `otherLinks` rather than dropped, so a kind of
- * usage this code does not model still counts as use.
+ * breaking every card that references it. See `parseBeastModeLinks` for what
+ * counts as usage.
  *
  * @param {Object} params
  * @param {Array<{active: boolean, resource: {id: any, type: string}, visible: boolean}>} params.links
@@ -35,31 +79,7 @@ import { hydrateFunctionTemplates } from './functions';
  * }>}
  */
 export async function getBeastModeUsage({ links, tabId = null }) {
-  const active = {};
-  for (const link of links || []) {
-    const type = link?.resource?.type;
-    if (!link?.active || !type || type === 'DATA_SOURCE') continue;
-    (active[type] = active[type] || []).push(String(link.resource.id));
-  }
-
-  // A drill arrives as a `dr:<drillId>:<rootId>` URN under CARD, where the root
-  // is the card the drill hangs off; a plain card is a bare id. The root is kept
-  // so a drill can be shown under its card rather than as a loose row, and both
-  // ids resolve through the card lookup since a drill id is itself a card id.
-  const cardIds = [];
-  const drillRefs = [];
-  for (const value of active.CARD || []) {
-    if (!value.startsWith('dr:')) {
-      cardIds.push(value);
-      continue;
-    }
-    const [, drillId, rootId] = value.split(':');
-    drillRefs.push({ id: drillId || value, parentId: rootId || null });
-  }
-  const nestedByIds = active.FUNCTION_TEMPLATE || [];
-  const otherLinks = Object.entries(active)
-    .filter(([type]) => type !== 'CARD' && type !== 'FUNCTION_TEMPLATE')
-    .map(([type, ids]) => ({ count: ids.length, type }));
+  const { cardIds, drillRefs, nestedByIds, otherLinks } = parseBeastModeLinks(links);
 
   // A drill's parent card is looked up alongside the rest, since a card whose
   // drill uses the Beast Mode is often not a consumer itself and so has no name
@@ -87,6 +107,21 @@ export async function getBeastModeUsage({ links, tabId = null }) {
     nestedBy: nestedByIds.map((id) => ({ id, name: parentTemplates.get(id)?.name || null })),
     otherLinks
   };
+}
+
+/**
+ * `getBeastModeUsage` for a detected Beast Mode, resolving its links from the
+ * object's own metadata where possible.
+ *
+ * @param {Object} params
+ * @param {string|number} params.id - The Beast Mode (function template) ID
+ * @param {Object} [params.metadata] - The detected object's metadata
+ * @param {number|null} [params.tabId]
+ * @returns {Promise<Object>} Same shape as `getBeastModeUsage`
+ */
+export async function getBeastModeUsageForObject({ id, metadata, tabId = null }) {
+  const links = await resolveBeastModeLinks({ id, metadata, tabId });
+  return getBeastModeUsage({ links, tabId });
 }
 
 /**
@@ -172,42 +207,21 @@ export async function getDatasetBeastModesWithUsage(datasetId, tabId = null) {
 }
 
 /**
- * Batch-resolve card (and drill) ids to their titles. Drill ids are themselves
- * card ids, so both resolve through the same endpoint. Returns a Map keyed by
- * stringified id; ids that can't be resolved are simply absent.
+ * Batch-resolve card (and drill) ids to their titles, keyed by stringified id.
+ * A failed lookup yields no names rather than failing the caller, since an
+ * unnamed usage still has to be reported.
  */
 async function fetchCardTitles(cardIds, tabId) {
   if (!cardIds.length) return new Map();
-  const obj = await executeInPage(
-    async (cardIds) => {
-      const map = {};
-      const chunkSize = 100;
-      for (let i = 0; i < cardIds.length; i += chunkSize) {
-        const chunk = cardIds.slice(i, i + chunkSize);
-        const response = await fetch(`/api/content/v1/cards?urns=${chunk.join(',')}&parts=metadata&includeFiltered=true`);
-        if (!response.ok) continue;
-        const cards = await response.json();
-        for (const c of [].concat(cards)) {
-          const id = c.id ?? c.urn;
-          const title = (c.title || '').trim();
-          if (id != null && title) map[String(id)] = title;
-        }
-      }
-      return map;
-    },
-    [cardIds],
-    tabId
-  );
-  return new Map(Object.entries(obj || {}));
+  const cards = await getCardsByIds({ cardIds, tabId }).catch(() => []);
+  const map = new Map();
+  for (const card of cards) {
+    const title = (card.title || '').trim();
+    if (card.id != null && title) map.set(String(card.id), title);
+  }
+  return map;
 }
 
-/**
- * Fetch the raw Beast Mode search results for a dataset (id, name, dataType,
- * activeLinks, links), paging through all results. Variables are excluded --
- * they are a separate type. Kept separate from `getDatasetFunctions` because
- * that helper collapses drills into the card list, discarding the category
- * split this feature needs.
- */
 async function fetchDatasetFunctionsRaw(datasetId, tabId) {
   return executeInPage(
     async (datasetId) => {
@@ -248,4 +262,19 @@ async function fetchDatasetFunctionsRaw(datasetId, tabId) {
     [datasetId],
     tabId
   );
+}
+
+/**
+ * Fetch the raw Beast Mode search results for a dataset (id, name, dataType,
+ * activeLinks, links), paging through all results. Variables are excluded --
+ * they are a separate type. Kept separate from `getDatasetFunctions` because
+ * that helper collapses drills into the card list, discarding the category
+ * split this feature needs.
+ */
+async function resolveBeastModeLinks({ id, metadata, tabId }) {
+  // Detection stores the whole template response as the object's details, so the
+  // common path needs no request; the fetch covers one that was never enriched.
+  if (metadata?.details?.links) return metadata.details.links;
+  const template = await getFunctionTemplate(id, tabId);
+  return template?.links || [];
 }

@@ -1,7 +1,9 @@
+import { parseBeastModeLinks, rootCardIdsFor } from '@/utils/beastModeLinks';
 import { EXPORT_FORMATS } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
 
 import { extractPageContentIds, getFormsForPage, getQueuesForPage } from './appStudio';
+import { getFunctionTemplate } from './functions';
 
 /**
  * Export a card as a file download, using the card's current view state
@@ -268,11 +270,63 @@ export async function getCardOwners({ cardIds, tabId = null }) {
 }
 
 /**
- * Get all cards for a given object (page, dataset, or dataflow)
+ * Batch-fetch full card objects by id, chunking URNs to keep the query string
+ * within a safe length. A drill id is itself a card id, so drills resolve here too.
+ *
+ * @param {Object} params
+ * @param {Array<string|number>} params.cardIds - Card (or drill) IDs to read
+ * @param {string} [params.parts='metadata'] - Comma-separated parts to request
+ * @param {number|null} [params.tabId=null] - Target tab
+ * @returns {Promise<Array<Object>>} Card objects with a normalized numeric `id`.
+ *   Ids that don't resolve are absent rather than returned empty.
+ * @throws {Error} If a batch request fails
+ */
+export async function getCardsByIds({ cardIds, parts = 'metadata', tabId = null }) {
+  const ids = [...new Set((cardIds || []).filter((id) => id != null).map(String))];
+  if (ids.length === 0) return [];
+
+  const CARD_READ_BATCH_SIZE = 100;
+  const batches = [];
+  for (let i = 0; i < ids.length; i += CARD_READ_BATCH_SIZE) {
+    batches.push(ids.slice(i, i + CARD_READ_BATCH_SIZE));
+  }
+
+  const cards = [];
+  for (const batch of batches) {
+    // Return a structured result rather than throwing inside the page: Chrome
+    // swallows a rejected promise from an async injected function (null result,
+    // no error), which would silently read as "this Beast Mode is used nowhere".
+    const result = await executeInPage(
+      async (batch, parts) => {
+        const params = new URLSearchParams();
+        for (const id of batch) params.append('urns', id);
+        params.append('includeFiltered', 'true');
+        if (parts) params.append('parts', parts);
+        const response = await fetch(`/api/content/v1/cards?${params.toString()}`);
+        if (!response.ok) return { error: `HTTP status: ${response.status}`, ok: false };
+        return { cards: await response.json(), ok: true };
+      },
+      [batch, parts],
+      tabId
+    );
+    if (!result?.ok) throw new Error(result?.error || 'Failed to fetch cards');
+    for (const card of [].concat(result.cards || [])) {
+      const rawId = card?.id ?? (typeof card?.urn === 'string' ? card.urn.split(':').pop() : null);
+      if (rawId == null) continue;
+      const numericId = Number(rawId);
+      cards.push({ ...card, id: Number.isFinite(numericId) ? numericId : rawId });
+    }
+  }
+  return cards;
+}
+
+/**
+ * Get all cards for a given object (page, dataset, dataflow, or Beast Mode)
  * @param {Object} params - Parameters for fetching cards
- * @param {string} params.objectId - The object ID (page, dataset, or dataflow ID)
- * @param {string} params.objectType - The object type ('PAGE', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE')
- * @param {Object} [params.metadata] - Object metadata (required for DATAFLOW_TYPE to access outputs)
+ * @param {string} params.objectId - The object ID (page, dataset, dataflow, or Beast Mode ID)
+ * @param {string} params.objectType - The object type ('PAGE', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'BEAST_MODE_FORMULA')
+ * @param {Object} [params.metadata] - Object metadata (required for DATAFLOW_TYPE to access outputs;
+ *   lets BEAST_MODE_FORMULA read its links without a request)
  * @param {string} [params.parts] - Comma-separated extra parts to request for page-type fetches
  *   (e.g. 'datasources'), so each card comes back with that data attached. Ignored for datasets.
  * @param {number|null} [params.tabId=null] - Target tab
@@ -280,6 +334,14 @@ export async function getCardOwners({ cardIds, tabId = null }) {
  * @throws {Error} If the fetch fails
  */
 export async function getCardsForObject({ metadata, objectId, objectType, parts = null, tabId = null }) {
+  if (objectType === 'BEAST_MODE_FORMULA') {
+    // Detection stores the whole template response as the object's details, and
+    // usage lives in its `links`, so the common path needs no extra request.
+    const template = metadata?.details?.links ? metadata.details : await getFunctionTemplate(objectId, tabId);
+    const cardIds = rootCardIdsFor(parseBeastModeLinks(template?.links));
+    return getCardsByIds({ cardIds, parts: parts || 'metadata', tabId });
+  }
+
   if (objectType === 'DATAFLOW_TYPE') {
     const outputs = metadata?.details?.outputs || [];
     if (outputs.length === 0) return [];

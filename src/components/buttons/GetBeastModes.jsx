@@ -68,7 +68,11 @@ export function GetBeastModes({ currentContext, isDisabled, onStatusUpdate }) {
           }
         </Button>
         <Tooltip.Content className='max-w-60' offset={4}>
-          <span>List the Beast Modes tied to this object and where they are used</span>
+          <span>
+            {objectType === 'BEAST_MODE_FORMULA'
+              ? "List this Beast Mode's nested Beast Modes and the ones it is nested in"
+              : 'List the Beast Modes tied to this object and where they are used'}
+          </span>
           {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>
       </Tooltip>

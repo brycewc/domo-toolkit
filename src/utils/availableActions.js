@@ -16,7 +16,17 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
   const details = metadata?.details;
   const url = currentContext?.url;
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
-  if (['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'].includes(typeId)) {
+  if (
+    [
+      'BEAST_MODE_FORMULA',
+      'DATA_APP_VIEW',
+      'DATA_SOURCE',
+      'DATAFLOW_TYPE',
+      'PAGE',
+      'REPORT_BUILDER_VIEW',
+      'WORKSHEET_VIEW'
+    ].includes(typeId)
+  ) {
     actions.add('getCards');
     if (userRights.includes('content.admin')) {
       actions.add('manageCardLocks');
@@ -39,7 +49,11 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     actions.add('getDatasets');
   }
 
-  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
+  if (
+    ['BEAST_MODE_FORMULA', 'CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
+      typeId
+    )
+  ) {
     actions.add('getBeastModes');
   }
 
@@ -47,7 +61,11 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     actions.add('getChildPages');
   }
 
-  if (['CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
+  if (
+    ['BEAST_MODE_FORMULA', 'CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
+      typeId
+    )
+  ) {
     actions.add('getCardPages');
   }
 

@@ -9,6 +9,7 @@ import { useUserLookup } from '@/hooks/useUserLookup';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
 import { getAlertActions } from '@/services/alerts';
 import { getTemplateApprovals } from '@/services/approvals';
+import { getBeastModeCards } from '@/services/beastModes';
 import { getCardDefinition, getNotebookCardText } from '@/services/cards';
 import { getDesignCards, getDesignInstances } from '@/services/customApps';
 import { getDatasetColumns, getDatasetDetailsForList, getDatasetsForPage } from '@/services/datasets';
@@ -30,6 +31,10 @@ import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 const LAZY_ARRAY_FETCHERS = {
   alertActions: ({ details, objectId, tabId }) =>
     getAlertActions({ actions: details?.actions || [], alertId: objectId, tabId }),
+  beastModeCards: ({ details, objectId, tabId }) =>
+    getBeastModeCards({ id: objectId, metadata: { details }, tabId }).then((cards) =>
+      cards.map((card) => ({ id: card.id, title: card.title || `Card ${card.id}` }))
+    ),
   dataflowInputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.inputs, tabId }),
   dataflowOutputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.outputs, tabId }),
   datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),

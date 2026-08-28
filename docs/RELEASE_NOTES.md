@@ -12,6 +12,12 @@
 - The Current Context footer now shows the name of a dashboard, App Page, or Worksheet View you don't have access to.
 - Navigate to Copied Object now recognizes the ID of a dashboard you don't have access to.
 - Deleting a Beast Mode now lists the cards, drills, and Beast Modes that still use it, and blocks the delete until nothing does.
+- Beast Modes now support Get Cards, listing the cards and drills that use them.
+- Beast Modes now support Get Card Pages.
+- Beast Modes now support Get Beast Modes, listing their nested Beast Modes and the ones they are nested in.
+- Beast Modes now support Manage Card Owners and Manage Card Locks across the cards that use them.
+- The Current Context footer on a Beast Mode now shows its DataSet and the cards using it.
+- The Copy button on a Beast Mode now offers to copy its DataSet ID.
 
 ## UI Improvements
 

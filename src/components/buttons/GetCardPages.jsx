@@ -14,6 +14,7 @@ export function GetCardPages({ currentContext, isDisabled, onStatusUpdate }) {
   const domoObject = currentContext?.domoObject;
   const objectType = domoObject?.typeId;
   const isPageLike = PAGE_LIKE_TYPES.includes(objectType);
+  const isBeastMode = objectType === 'BEAST_MODE_FORMULA';
   const isUser = objectType === 'USER';
 
   let dropdownItems = [];
@@ -92,11 +93,13 @@ export function GetCardPages({ currentContext, isDisabled, onStatusUpdate }) {
         </Button>
         <Tooltip.Content className='max-w-60' offset={4}>
           <span>
-            {isUser
-              ? "List pages (app studio, dashboard, and worksheet) where this user's cards appear"
-              : isPageLike
-                ? 'List other pages (app studio, dashboard, and worksheet) where these cards appear'
-                : 'List pages (app studio, dashboard, and worksheet) where this card appears'}
+            {isBeastMode
+              ? 'List pages (app studio, dashboard, and worksheet) where the cards using this Beast Mode appear'
+              : isUser
+                ? "List pages (app studio, dashboard, and worksheet) where this user's cards appear"
+                : isPageLike
+                  ? 'List other pages (app studio, dashboard, and worksheet) where these cards appear'
+                  : 'List pages (app studio, dashboard, and worksheet) where this card appears'}
           </span>
           {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>

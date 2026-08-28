@@ -21,7 +21,15 @@ import IconPerson from '@icons/person.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconX from '@icons/x.svg?react';
 
-const SUPPORTED_TYPES = ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'];
+const SUPPORTED_TYPES = [
+  'BEAST_MODE_FORMULA',
+  'DATA_APP_VIEW',
+  'DATA_SOURCE',
+  'DATAFLOW_TYPE',
+  'PAGE',
+  'REPORT_BUILDER_VIEW',
+  'WORKSHEET_VIEW'
+];
 
 export function ManageCardOwnersView({ instance = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);

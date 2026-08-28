@@ -1,7 +1,9 @@
+import { DRILL_ONLY_NOTE, groupBeastModeUsageByCard } from '@/utils/beastModeLinks';
+
 import { getDownstreamAlertsForDatasets } from './alerts';
 import { getAppInstanceCollections, getCollectionConnectedApps } from './appDb';
 import { getTemplateApprovalCount } from './approvals';
-import { getBeastModeUsage } from './beastModes';
+import { getBeastModeUsageForObject } from './beastModes';
 import { getCardsForObject } from './cards';
 import { getAppContentSummary } from './customApps';
 import {
@@ -11,7 +13,6 @@ import {
   getOtherDependentCountsForDatasets,
   searchDatasets
 } from './datasets';
-import { getFunctionTemplate } from './functions';
 import { getChildPages, getOnlyHereCardIds } from './pages';
 
 /**
@@ -40,24 +41,18 @@ import { getChildPages, getOnlyHereCardIds } from './pages';
  * - `flat`: render the group's item(s) as leaf rows directly, with no disclosure
  *   wrapper. Use for a 1:1 related object that needs no grouping header.
  */
-// Shown on a card that only appears because a drill under it uses the Beast
-// Mode, both as the row's hover note and as the list's legend.
-const DRILL_ONLY_NOTE = "This card doesn't use the Beast Mode directly; one of its drill views does.";
-
 /**
- * Group a Beast Mode's card and drill usages so each drill sits under the card
- * it drills from, the way the column-usages modal presents them. A card that
- * uses the Beast Mode itself links and reads normally; one that is only here
- * because a drill under it uses it is muted, carries the drill-only note, and
- * is not a link, so "used on the card too" and "used only on its drill" stay
- * distinguishable. A drill whose parent is unknown stays a top-level row rather
- * than being dropped.
+ * Render a Beast Mode's grouped usage as dependency items. A card that uses the
+ * Beast Mode itself links and reads normally; one that is only here because a
+ * drill under it uses it is muted, carries the drill-only note, and is not a
+ * link, so "used on the card too" and "used only on its drill" stay
+ * distinguishable.
  *
  * @param {{cards: Array<Object>, drills: Array<Object>}} usage
  * @param {string} origin
  * @returns {Array<Object>} Dependency items, cards first then orphaned drills.
  */
-function buildBeastModeCardItems({ cards, drills }, origin) {
+function buildBeastModeCardItems(usage, origin) {
   const drillItem = (drill, parentId) => ({
     id: drill.id,
     label: drill.name || `Drill ${drill.id}`,
@@ -66,34 +61,17 @@ function buildBeastModeCardItems({ cards, drills }, origin) {
     url: parentId ? `${origin}/analyzer?cardid=${parentId}&drillviewid=${drill.id}` : null
   });
 
-  const byCardId = new Map();
-  for (const card of cards) {
-    byCardId.set(String(card.id), { drills: [], id: String(card.id), name: card.name, usesDirectly: true });
-  }
-  const orphanDrills = [];
-  for (const drill of drills) {
-    if (!drill.parentId) {
-      orphanDrills.push(drill);
-      continue;
-    }
-    const key = String(drill.parentId);
-    if (!byCardId.has(key)) {
-      byCardId.set(key, { drills: [], id: key, name: drill.parentName, usesDirectly: false });
-    }
-    byCardId.get(key).drills.push(drill);
-  }
-
-  const byName = (a, b) => (a.name || '').localeCompare(b.name || '');
-  const items = [...byCardId.values()].sort(byName).map((card) => ({
+  const { cards, orphanDrills } = groupBeastModeUsageByCard(usage);
+  const items = cards.map((card) => ({
     annotation: card.usesDirectly ? null : DRILL_ONLY_NOTE,
-    children: card.drills.length > 0 ? [...card.drills].sort(byName).map((drill) => drillItem(drill, card.id)) : undefined,
+    children: card.drills.length > 0 ? card.drills.map((drill) => drillItem(drill, card.id)) : undefined,
     id: card.id,
     label: card.name || `Card ${card.id}`,
     muted: !card.usesDirectly,
     typeId: 'CARD',
     url: card.usesDirectly ? `${origin}/kpis/details/${card.id}` : null
   }));
-  return [...items, ...orphanDrills.sort(byName).map((drill) => drillItem(drill, drill.parentId))];
+  return [...items, ...orphanDrills.map((drill) => drillItem(drill, drill.parentId))];
 }
 
 /**
@@ -223,20 +201,14 @@ const FETCHERS = {
   // Domo deletes a still-referenced Beast Mode without complaint and the cards
   // pointing at it break silently, so here every kind of use blocks.
   BEAST_MODE_FORMULA: async ({ id, metadata, origin }, tabId) => {
-    // Detection stores the whole template response as the object's details, and
-    // usage lives in its `links`, so the common path needs no request at all. The
-    // fetch covers an object whose details never got enriched.
-    const template = metadata?.details?.links ? metadata.details : await getFunctionTemplate(id, tabId);
-    const usage = await getBeastModeUsage({ links: template?.links, tabId });
+    const usage = await getBeastModeUsageForObject({ id, metadata, tabId });
 
     const groups = [];
     const reasonParts = [];
     if (usage.cards.length > 0) reasonParts.push(`${usage.cards.length} card${usage.cards.length !== 1 ? 's' : ''}`);
     if (usage.drills.length > 0) reasonParts.push(`${usage.drills.length} drill${usage.drills.length !== 1 ? 's' : ''}`);
     if (usage.nestedBy.length > 0) {
-      reasonParts.push(
-        `${usage.nestedBy.length} Beast Mode${usage.nestedBy.length !== 1 ? 's' : ''} that nest${usage.nestedBy.length !== 1 ? '' : 's'} it`
-      );
+      reasonParts.push(`${usage.nestedBy.length} Beast Mode${usage.nestedBy.length !== 1 ? 's' : ''} it is nested in`);
     }
     for (const other of usage.otherLinks) {
       reasonParts.push(
@@ -289,7 +261,7 @@ const FETCHERS = {
           url: `${origin}/datacenter/beastmode?id=${bm.id}`
         })),
         key: 'nestingBeastModes',
-        label: 'Beast Modes That Nest This One'
+        label: 'Nested in Other Beast Modes'
       });
     }
     // A kind of use this code doesn't model: countable but not nameable, so it
