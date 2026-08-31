@@ -2,6 +2,7 @@ import { AlertDialog, Button, Card, Spinner, Tooltip } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
+import { DisabledTooltip } from '@/components/DisabledTooltip';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
@@ -31,6 +32,12 @@ import { DataList } from './DataList';
  * confirmation copy, the success/loading toast templates, and the actual
  * `run()` function. Optional `cascadeButtons` add secondary delete actions
  * (e.g. "Delete app and all cards" for a `DATA_APP_VIEW` page).
+ *
+ * An entry with `selectionGroupKey` turns that dependency group's rows into
+ * checkboxes: the group's `deletableIds` start checked and are the only ones
+ * that can be, and every other row carries its `unselectableReasons` entry on
+ * the checkbox itself. The cascade reads the result through the `selection` set
+ * its hooks receive, so what it deletes is whatever the user left checked.
  */
 const deletersByType = {
   APP: {
@@ -102,40 +109,57 @@ const deletersByType = {
   DATAFLOW_TYPE: {
     cascadeButtons: [
       {
-        available: ({ deps }) => findDataflowInputs(deps).length > 0,
-        blockedReason: ({ blockingReason }) => blockingReason || 'Resolve the blocking dependencies before deleting.',
-        buildContext: ({ context, deps }) => {
+        available: ({ context }) => (context.domoObject.metadata?.details?.inputs?.length || 0) > 0,
+        blockedReason: ({ blockingReason, eligibleCount, inputCount }) => {
+          if (blockingReason) return blockingReason;
+          if (inputCount === 0) {
+            return 'This DataFlow reads only DataSets that other DataFlows or views produce, and deleting one of those would break whatever produces it.';
+          }
+          if (eligibleCount === 0) {
+            return inputCount === 1
+              ? 'The one connector input dataset is used elsewhere, so it cannot be deleted safely.'
+              : `All ${inputCount} connector input datasets are used elsewhere, so none can be deleted safely.`;
+          }
+          return 'Check at least one input dataset to delete it with the DataFlow.';
+        },
+        buildContext: ({ context, deps, selection }) => {
           const inputItems = findDataflowInputs(deps);
+          const eligibleIds = new Set((findDataflowInputGroup(deps)?.deletableIds || []).map(String));
+          const selectedIds = [...(selection || [])].filter((id) => eligibleIds.has(String(id)));
           return {
             blocked: (deps?.blockingCount ?? 0) > 0,
             blockingReason: deps?.blockingReason || null,
             dataflowId: context.domoObject.id,
             dataflowName: context.domoObject.metadata?.name || context.domoObject.id,
+            eligibleCount: eligibleIds.size,
             inputCount: inputItems.length,
+            keptCount: inputItems.length - selectedIds.length,
             outputCount: context.domoObject.metadata?.details?.outputs?.length || 0,
-            sharedInputCount: inputItems.filter((item) => (item.count ?? 0) > 0).length
+            selectedIds
           };
         },
-        confirmText: ({ dataflowId, dataflowName, inputCount, outputCount, sharedInputCount }) => {
+        confirmText: ({ dataflowId, dataflowName, keptCount, outputCount, selectedIds }) => {
           const outputPart =
             outputCount > 0 ? `, its **${outputCount} output dataset${outputCount !== 1 ? 's' : ''}**,` : '';
-          const shared =
-            sharedInputCount > 0
-              ? ` ${sharedInputCount} of those input dataset${sharedInputCount !== 1 ? 's are' : ' is'} also used by other content, which will lose ${sharedInputCount !== 1 ? 'them' : 'it'}.`
-              : '';
-          return `Delete the dataflow **${dataflowName} (ID: ${dataflowId})**${outputPart} and its **${inputCount} input dataset${inputCount !== 1 ? 's' : ''}** permanently? This cannot be undone.${shared}`;
+          const count = selectedIds.length;
+          const kept =
+            keptCount > 0 ? ` The other ${keptCount} input dataset${keptCount !== 1 ? 's are' : ' is'} left in place.` : '';
+          return `Delete the dataflow **${dataflowName} (ID: ${dataflowId})**${outputPart} and the **${count} input dataset${count !== 1 ? 's' : ''} you selected** permanently? This cannot be undone.${kept}`;
         },
-        isBlocked: ({ blocked }) => blocked,
-        label: ({ outputCount }) =>
-          outputCount > 0 ? 'Delete DataFlow, Outputs, and Inputs' : 'Delete DataFlow and Inputs',
+        isBlocked: ({ blocked, eligibleCount, selectedIds }) => blocked || eligibleCount === 0 || selectedIds.length === 0,
+        label: ({ outputCount, selectedIds }) => {
+          const count = selectedIds.length;
+          const inputPart = count > 0 ? `${count} Selected Input${count !== 1 ? 's' : ''}` : 'Selected Inputs';
+          return outputCount > 0 ? `Delete DataFlow, Outputs, and ${inputPart}` : `Delete DataFlow and ${inputPart}`;
+        },
         loadingMessage: ({ dataflowName, outputCount }) =>
           outputCount > 0
-            ? `Deleting **${dataflowName}**, its outputs, and its inputs…`
-            : `Deleting **${dataflowName}** and its inputs…`,
-        run: async ({ context, deps }) => {
+            ? `Deleting **${dataflowName}**, its outputs, and the selected inputs…`
+            : `Deleting **${dataflowName}** and the selected inputs…`,
+        run: async ({ cascadeContext, context }) => {
           const result = await deleteDataflowWithInputsAndOutputs({
             dataflowId: context.domoObject.id,
-            inputs: findDataflowInputs(deps).map((item) => ({ dataSourceId: item.id })),
+            inputs: cascadeContext.selectedIds.map((id) => ({ dataSourceId: id })),
             outputs: context.domoObject.metadata?.details?.outputs || [],
             tabId: context.tabId
           });
@@ -163,7 +187,7 @@ const deletersByType = {
         },
         successMessage: ({ dataflowName }, result) =>
           `**${dataflowName}**, ${result.datasetsDeleted} output dataset${result.datasetsDeleted !== 1 ? 's' : ''}, and ${result.inputsDeleted} input dataset${result.inputsDeleted !== 1 ? 's' : ''} deleted`,
-        tooltip: () => 'Also deletes the input datasets this dataflow reads, not just its outputs'
+        tooltip: () => 'Also deletes the connector input datasets you checked, which nothing else uses'
       }
     ],
     confirmSuffix: ({ outputCount }) =>
@@ -186,6 +210,7 @@ const deletersByType = {
       }
       return result;
     },
+    selectionGroupKey: 'dataflowInputs',
     successMessage: ({ name, outputCount }) =>
       `**${name}** and ${outputCount} output dataset${outputCount !== 1 ? 's' : ''} deleted`,
     typeName: 'DataFlow'
@@ -410,6 +435,7 @@ export function DeleteObjectView({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
+  const [selectedInputIds, setSelectedInputIds] = useState(() => new Set());
   const mountedRef = useRef(true);
   const { showPromiseStatus } = useStatusBar();
 
@@ -420,6 +446,14 @@ export function DeleteObjectView({
       mountedRef.current = false;
     };
   }, []);
+
+  // Seed the picker from the dependency check: every row that is safe to delete
+  // starts checked. Re-seeding on each check means a refresh can't leave a
+  // now-stale id selected.
+  useEffect(() => {
+    const scope = buildSelectionScope({ config, deps });
+    setSelectedInputIds(scope ? new Set(scope.eligibleIds) : new Set());
+  }, [config, deps]);
 
   const loadData = async () => {
     try {
@@ -485,10 +519,14 @@ export function DeleteObjectView({
     const objectName = currentContext.domoObject.metadata?.name || currentContext.domoObject.id;
     const isCascade = !!action.cascade;
     const cascade = isCascade ? action.cascade : null;
-    const cascadeCtx = isCascade ? cascade.buildContext({ context: currentContext, deps }) : null;
+    const cascadeCtx = isCascade
+      ? cascade.buildContext({ context: currentContext, deps, selection: selectedInputIds })
+      : null;
 
     const promise = isCascade
-      ? Promise.resolve().then(() => cascade.run({ context: currentContext, deps }))
+      ? Promise.resolve().then(() =>
+          cascade.run({ cascadeContext: cascadeCtx, context: currentContext, deps, selection: selectedInputIds })
+        )
       : Promise.resolve().then(() => config.run({ context: currentContext }));
 
     showPromiseStatus(promise, {
@@ -550,6 +588,12 @@ export function DeleteObjectView({
     typeof config.primaryLabel === 'function' ? config.primaryLabel({ outputCount }) : config.primaryLabel;
 
   const availableCascades = (config.cascadeButtons || []).filter((c) => c.available({ context: currentContext, deps }));
+  const primaryUnavailableReason = unavailableReason({
+    blocked: isBlocked,
+    blockedReason: () => deps?.blockingReason,
+    hasDepsError,
+    isLoadingDeps
+  });
 
   // "Will also be deleted" and "Other dependencies" each become a top-level virtual
   // parent group, so the whole view is one DataList: its header carries the
@@ -581,6 +625,45 @@ export function DeleteObjectView({
     );
   }
   const expandedGroupIds = dependencyItems.map((item) => item.id);
+  // Checkboxes on the one group a cascade delete can be narrowed to; every other
+  // row keeps the blank leading spacer. Actions stay on, since deciding what to
+  // delete often means opening a row first.
+  const selectionScope = buildSelectionScope({ config, deps });
+  const pickerAncestors = selectionScope ? collectPickerAncestors(dependencyItems, selectionScope) : new Map();
+  // State holds picker rows only; an ancestor's checkbox is derived from whether
+  // every selectable row under it is ticked, so the two can never disagree.
+  const shownSelection = new Set(selectedInputIds);
+  for (const [ancestorId, { eligible }] of pickerAncestors) {
+    if (eligible.length > 0 && eligible.every((rowId) => selectedInputIds.has(rowId))) shownSelection.add(ancestorId);
+  }
+  const scopedSectionIds = collectScopedSectionIds(dependencyItems, pickerAncestors);
+  const selectionProps = selectionScope
+    ? {
+        getUnselectableTooltip: (item) => {
+          const id = String(item.id);
+          if (selectionScope.reasons[id]) return selectionScope.reasons[id];
+          return pickerAncestors.has(id) ? 'Nothing under here can be deleted with the DataFlow.' : null;
+        },
+        isInSelectionScope: (item) => scopedSectionIds.has(String(item.id)),
+        isSelectable: (item) => {
+          const id = String(item.id);
+          return selectionScope.eligibleIds.has(id) || (pickerAncestors.get(id)?.eligible.length ?? 0) > 0;
+        },
+        onSelectionChange: (incoming) => {
+          const next = new Set([...incoming].filter((id) => selectionScope.eligibleIds.has(id)));
+          for (const [ancestorId, { eligible }] of pickerAncestors) {
+            const wasTicked = shownSelection.has(ancestorId);
+            const isTicked = incoming.has(ancestorId);
+            if (isTicked && !wasTicked) eligible.forEach((rowId) => next.add(rowId));
+            else if (!isTicked && wasTicked) eligible.forEach((rowId) => next.delete(rowId));
+          }
+          setSelectedInputIds(next);
+        },
+        selectedIds: shownSelection,
+        selectionMode: true,
+        showActionsInSelectionMode: true
+      }
+    : null;
   // Show the header "Share all" only when some dependency row is actually
   // shareable (DataList shares them itself via its per-type capabilities).
   const hasShareableDeps = collectShareableObjects(dependencyItems).length > 0;
@@ -588,6 +671,7 @@ export function DeleteObjectView({
   return (
     <>
       <DataList
+        {...(selectionProps || {})}
         allowsMultipleExpanded
         fillHeight
         currentContext={liveContext}
@@ -619,14 +703,32 @@ export function DeleteObjectView({
         footer={
           <div className='flex flex-col gap-2'>
             {availableCascades.map((cascade, idx) => {
-              const ctx = cascade.buildContext({ context: currentContext, deps });
+              const ctx = cascade.buildContext({ context: currentContext, deps, selection: selectedInputIds });
               const cascadeLabel = cascade.label(ctx);
-              const blocked = cascade.isBlocked?.(ctx) ?? false;
+              const reason = unavailableReason({
+                blocked: cascade.isBlocked?.(ctx) ?? false,
+                blockedReason: () => cascade.blockedReason(ctx),
+                hasDepsError,
+                isLoadingDeps
+              });
+              // A reason to explain means the button has to stay hoverable, so it
+              // goes through DisabledTooltip rather than `isDisabled`, which would
+              // kill the very tooltip carrying the explanation.
+              if (reason) {
+                return (
+                  <DisabledTooltip content={reason} key={idx}>
+                    <Button fullWidth variant='danger-soft'>
+                      <IconTrash />
+                      {cascadeLabel}
+                    </Button>
+                  </DisabledTooltip>
+                );
+              }
               return (
                 <Tooltip key={idx}>
                   <Button
                     fullWidth
-                    isDisabled={isDeleting || blocked || hasDepsError || isLoadingDeps}
+                    isDisabled={isDeleting}
                     variant='danger-soft'
                     onPress={() =>
                       setPendingAction({
@@ -639,22 +741,21 @@ export function DeleteObjectView({
                     <IconTrash />
                     {cascadeLabel}
                   </Button>
-                  <Tooltip.Content className='max-w-60'>
-                    {isLoadingDeps
-                      ? 'Checking dependencies…'
-                      : hasDepsError
-                        ? 'Retry the dependency check before deleting.'
-                        : blocked
-                          ? cascade.blockedReason(ctx)
-                          : cascade.tooltip(ctx)}
-                  </Tooltip.Content>
+                  <Tooltip.Content className='max-w-60'>{cascade.tooltip(ctx)}</Tooltip.Content>
                 </Tooltip>
               );
             })}
-            <Tooltip isDisabled={!isBlocked && !hasDepsError && !isLoadingDeps}>
+            {primaryUnavailableReason ? (
+              <DisabledTooltip content={primaryUnavailableReason}>
+                <Button fullWidth variant='danger'>
+                  <IconTrash />
+                  {primaryLabel}
+                </Button>
+              </DisabledTooltip>
+            ) : (
               <Button
                 fullWidth
-                isDisabled={isDeleting || isBlocked || hasDepsError || isLoadingDeps}
+                isDisabled={isDeleting}
                 isPending={isDeleting}
                 variant='danger'
                 onPress={() => setPendingAction({ kind: 'primary', label: primaryLabel })}
@@ -662,14 +763,7 @@ export function DeleteObjectView({
                 <IconTrash />
                 {primaryLabel}
               </Button>
-              <Tooltip.Content className='max-w-60'>
-                {isLoadingDeps
-                  ? 'Checking dependencies…'
-                  : hasDepsError
-                    ? 'Retry the dependency check before deleting.'
-                    : deps?.blockingReason || 'Blocked'}
-              </Tooltip.Content>
-            </Tooltip>
+            )}
           </div>
         }
       />
@@ -693,7 +787,9 @@ export function DeleteObjectView({
               <AlertDialog.Body>
                 {pendingAction?.kind === 'cascade' && pendingAction.cascade ? (
                   parseMarkdownBold(
-                    pendingAction.cascade.confirmText(pendingAction.cascade.buildContext({ context: currentContext, deps }))
+                    pendingAction.cascade.confirmText(
+                      pendingAction.cascade.buildContext({ context: currentContext, deps, selection: selectedInputIds })
+                    )
                   )
                 ) : (
                   <>
@@ -784,6 +880,7 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
     // icon on "Cards on this page").
     const groupTypeId = group.items[0]?.typeId ?? null;
     const dliGroup = DataListItem.createGroup({
+      annotation: group.annotation ?? null,
       children,
       childTypeId: groupTypeId,
       // Defaults to one per row; a group that counts its own rows differently
@@ -798,11 +895,82 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
   });
 }
 
-// The dataflow's input datasets, as listed by the dependency check: already
-// deduped, and with any dataset that is also an output dropped (the outputs are
-// deleted in their own step).
+// What the delete view's checkboxes cover, or null when this type has no
+// picker: `allIds` is every row the picker spans, `eligibleIds` the subset a
+// cascade delete may actually remove.
+function buildSelectionScope({ config, deps }) {
+  if (!config?.selectionGroupKey) return null;
+  const group = (deps?.groups || []).find((g) => g.key === config.selectionGroupKey);
+  if (!group || group.items.length === 0) return null;
+  return {
+    allIds: new Set(group.items.map((item) => String(item.id))),
+    eligibleIds: new Set((group.deletableIds || []).map(String)),
+    reasons: group.unselectableReasons || {}
+  };
+}
+
+function collectPickerAncestors(items, scope) {
+  const map = new Map();
+  const walk = (item) => {
+    const found = { all: [], eligible: [] };
+    for (const child of item.children || []) {
+      const childId = String(child.id);
+      if (scope.allIds.has(childId)) {
+        found.all.push(childId);
+        if (scope.eligibleIds.has(childId)) found.eligible.push(childId);
+      }
+      const nested = walk(child);
+      found.all.push(...nested.all);
+      found.eligible.push(...nested.eligible);
+    }
+    if (found.all.length > 0) map.set(String(item.id), found);
+    return found;
+  };
+  items.forEach(walk);
+  return map;
+}
+
+/**
+ * Every ancestor row that has picker rows under it, mapped to those rows: `all`
+ * for the checkbox column to reach that far up the tree, `eligible` for what
+ * ticking it actually selects. Lets a group header and the section above it act
+ * as select-all for their part of the picker, so the column doesn't run out
+ * halfway up.
+ * @param {Array<DataListItem>} items - The rendered dependency tree
+ * @param {{allIds: Set<string>, eligibleIds: Set<string>}} scope
+ * @returns {Map<string, {all: string[], eligible: string[]}>}
+ */
+/**
+ * Every id inside a top-level section that holds picker rows. Scoping the
+ * checkbox column by section rather than by row keeps a group with no picker
+ * rows of its own (Downstream DataSet Views, say) aligned with the group beside
+ * it, while a section with none at all (Will Also Be Deleted) drops the column
+ * and reads as a plain list.
+ * @param {Array<DataListItem>} items - The rendered dependency tree
+ * @param {Map<string, Object>} pickerAncestors - From `collectPickerAncestors`
+ * @returns {Set<string>}
+ */
+function collectScopedSectionIds(items, pickerAncestors) {
+  const scoped = new Set();
+  const addAll = (item) => {
+    scoped.add(String(item.id));
+    (item.children || []).forEach(addAll);
+  };
+  for (const section of items) {
+    if (pickerAncestors.has(String(section.id))) addAll(section);
+  }
+  return scoped;
+}
+
+function findDataflowInputGroup(deps) {
+  return (deps?.groups || []).find((g) => g.key === 'dataflowInputs') || null;
+}
+
+// The dataflow's connector-backed input datasets, as listed by the dependency
+// check. Inputs another dataflow or view produces are not among them, so this
+// can be shorter than the dataflow's own input list.
 function findDataflowInputs(deps) {
-  return (deps?.groups || []).find((g) => g.key === 'dataflowInputs')?.items || [];
+  return findDataflowInputGroup(deps)?.items || [];
 }
 
 function findRelatedDataset(deps) {
@@ -941,4 +1109,22 @@ async function runTemplateAndDatasetDelete({ context, datasetId }) {
     });
   }
   return { datasetId };
+}
+
+/**
+ * The persistent reason a delete button can't be pressed, or null when it can.
+ * A delete already in flight is deliberately not one of these: it is transient
+ * and needs no explanation, so it natively disables the button instead.
+ * @param {Object} params
+ * @param {boolean} params.blocked - Whether this button's own gate is closed
+ * @param {Function} params.blockedReason - Lazily builds the `blocked` reason
+ * @param {boolean} params.hasDepsError - Whether the dependency check failed
+ * @param {boolean} params.isLoadingDeps - Whether the dependency check is running
+ * @returns {string|null}
+ */
+function unavailableReason({ blocked, blockedReason, hasDepsError, isLoadingDeps }) {
+  if (isLoadingDeps) return 'Checking dependencies…';
+  if (hasDepsError) return 'Retry the dependency check before deleting.';
+  if (blocked) return blockedReason() || 'Blocked by dependencies.';
+  return null;
 }

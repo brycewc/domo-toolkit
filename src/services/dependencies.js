@@ -8,9 +8,11 @@ import { getCardsForObject } from './cards';
 import { getAppContentSummary } from './customApps';
 import {
   getDatasetDependentCount,
+  getDatasetDetailsForList,
   getDatasetImpactCounts,
   getDownstreamViewsForDatasets,
   getOtherDependentCountsForDatasets,
+  isTransformDataset,
   searchDatasets
 } from './datasets';
 import { getChildPages, getOnlyHereCardIds } from './pages';
@@ -40,6 +42,12 @@ import { getChildPages, getOnlyHereCardIds } from './pages';
  *   (e.g. "Approvals (12 requests)") with no enumerated items, instead of a list.
  * - `flat`: render the group's item(s) as leaf rows directly, with no disclosure
  *   wrapper. Use for a 1:1 related object that needs no grouping header.
+ * - `annotation`: a note about the group, shown under its header.
+ * - `deletableIds` + `unselectableReasons`: the subset of the group's item ids a
+ *   cascade delete may remove, and why each of the rest can't be. Paired with a
+ *   `selectionGroupKey` on the delete config, these become checkboxes: only
+ *   `deletableIds` can be checked, and the others carry their reason on the
+ *   checkbox itself. Omit both for a group with no picker.
  */
 /**
  * Render a Beast Mode's grouped usage as dependency items. A card that uses the
@@ -188,6 +196,23 @@ async function fetchAppPageDependencies({ id, origin, parentId, typeId }, tabId)
 }
 
 /**
+ * Why a connector input dataset can't be deleted alongside its dataflow, or null
+ * when it can. A dataset we couldn't check comes first, since its counts aren't
+ * trustworthy enough to report.
+ * @param {{cards: number, dataflows: number, unverified: boolean, views: number}} [dependents]
+ * @returns {string|null}
+ */
+function inputExclusionReason(dependents) {
+  if (!dependents || dependents.unverified) return 'Its other uses could not be checked.';
+  const parts = [];
+  if (dependents.cards > 0) parts.push(`${dependents.cards} card${dependents.cards !== 1 ? 's' : ''}`);
+  if (dependents.dataflows > 0) parts.push(`${dependents.dataflows} dataflow${dependents.dataflows !== 1 ? 's' : ''}`);
+  if (dependents.views > 0) parts.push(`${dependents.views} dataset view${dependents.views !== 1 ? 's' : ''}`);
+  if (parts.length > 0) return `Also used by ${parts.join(', ')}.`;
+  return null;
+}
+
+/**
  * Sum one dataset's other-dependent counts, or null when the lookup failed.
  * @param {{cards: number, dataflows: number, unverified: boolean, views: number}} [dependents]
  * @returns {number|null}
@@ -299,13 +324,11 @@ const FETCHERS = {
     // Cards and alerts both hang off the output datasets and are both removed
     // when those datasets are deleted, so fetch them together. Downstream views
     // built on the outputs are fetched alongside: Domo blocks deleting a dataset
-    // a view sits on, so they must block this delete rather than cascade. Two
-    // dataset-count lookups ride along, each answering the question that matters
-    // for its side: every output's full downstream impact, since all of it goes
-    // when the output does, and every input's dependents other than this dataflow,
-    // since only a shared input costs anything to remove. Best-effort: a failed
-    // lookup leaves those counts unknown rather than blocking the delete.
-    const [cards, alerts, downstream, outputImpacts, inputDependents] = await Promise.all([
+    // a view sits on, so they must block this delete rather than cascade. The
+    // output impact counts ride along, since all of that goes when the output
+    // does. Best-effort: a failed lookup leaves those counts unknown rather than
+    // blocking the delete.
+    const [cards, alerts, downstream, outputImpacts, inputDetails] = await Promise.all([
       getCardsForObject({
         metadata,
         objectId: id,
@@ -315,12 +338,28 @@ const FETCHERS = {
       getDownstreamAlertsForDatasets(outputIds, tabId),
       getDownstreamViewsForDatasets(outputIds, tabId),
       getDatasetImpactCounts({ datasetIds: outputIds.map(String), tabId }).catch(() => ({})),
-      getOtherDependentCountsForDatasets({
-        datasetIds: inputs.map((i) => String(i.dataSourceId)),
-        excludeDataflowId: id,
-        tabId
-      }).catch(() => ({}))
+      inputs.length > 0 ? getDatasetDetailsForList({ datasets: inputs, tabId }).catch(() => []) : Promise.resolve([])
     ]);
+
+    // Only connector-backed inputs are listed. A dataflow output, view, or fusion
+    // could never be deleted from here (Domo has no fallback, so the dataflow or
+    // view that produces it just breaks), and skipping them means no dependency
+    // lookup runs for them either. An input whose details didn't come back is
+    // left out too, since an unclassifiable dataset is not a known-safe one.
+    const detailsById = {};
+    for (const ds of inputDetails) detailsById[String(ds.id)] = ds;
+    const connectorInputs = inputs.filter((i) => {
+      const details = detailsById[String(i.dataSourceId)];
+      return details && !isTransformDataset(details);
+    });
+    const inputDependents =
+      connectorInputs.length > 0
+        ? await getOtherDependentCountsForDatasets({
+            datasetIds: connectorInputs.map((i) => String(i.dataSourceId)),
+            excludeDataflowId: id,
+            tabId
+          }).catch(() => ({}))
+        : {};
     const groups = [
       {
         blocking: false,
@@ -360,26 +399,35 @@ const FETCHERS = {
       }
     ];
 
-    // Inputs: kept only by the primary delete, removed by the alternate one. Each
-    // row carries how much other content depends on it, so a shared input is
-    // obvious before it gets taken down with the dataflow.
-    if (inputs.length > 0) {
-      groups.push({
-        blocking: false,
-        deleted: false,
-        items: inputs.map((i) => ({
-          ...countBadge(
-            otherDependentTotal(inputDependents[String(i.dataSourceId)]),
-            'other dependency',
-            'other dependencies'
-          ),
+    // Inputs: kept by the primary delete, and by the alternate one unless the
+    // user checks them. `deletableIds` is the subset the alternate delete may
+    // offer; every other row carries the reason it is off limits.
+    if (connectorInputs.length > 0) {
+      const deletableIds = [];
+      const unselectableReasons = {};
+      const inputItems = connectorInputs.map((i) => {
+        const id = String(i.dataSourceId);
+        const dependents = inputDependents[id];
+        const reason = inputExclusionReason(dependents);
+        if (reason) unselectableReasons[id] = reason;
+        else deletableIds.push(id);
+        return {
+          ...countBadge(otherDependentTotal(dependents), 'other dependency', 'other dependencies'),
           id: i.dataSourceId,
           label: i.dataSourceName || i.dataSourceId,
           typeId: 'DATA_SOURCE',
           url: `${origin}/datasources/${i.dataSourceId}/details/overview`
-        })),
+        };
+      });
+      groups.push({
+        annotation: 'Only the alternate delete removes these, and only the ones you check.',
+        blocking: false,
+        deletableIds,
+        deleted: false,
+        items: inputItems,
         key: 'dataflowInputs',
-        label: 'Input DataSets'
+        label: 'Connector Input DataSets',
+        unselectableReasons
       });
     }
 

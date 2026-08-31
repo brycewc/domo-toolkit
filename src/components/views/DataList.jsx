@@ -49,7 +49,6 @@ import IconTree from '@icons/tree.svg?react';
 import IconX from '@icons/x.svg?react';
 
 import { AnimatedCheck } from '../AnimatedCheck';
-import { DisabledTooltip } from '../DisabledTooltip';
 import { ErrorAlert } from '../ErrorAlert';
 import { ObjectTypeIcon } from '../ObjectTypeIcon';
 import { ViewHeader } from './ViewHeader';
@@ -88,17 +87,19 @@ import { ViewHeader } from './ViewHeader';
  * @param {ItemActionType[]} [props.itemActions] - Optional allow-list narrowing the per-type action menu (e.g. `['copy']` for selection-mode lists). Omit to show every action the row's type supports.
  * @param {Function} props.onStatusUpdate - Callback to show status messages (title, description, status, timeout)
  * @param {Boolean} props.showActions - Whether to show action buttons on items
+ * @param {Boolean} [props.showActionsInSelectionMode] - Whether rows keep their trailing action slot while `selectionMode` is on (default false, which hides it). Set true for a list that is mostly a read-only reference with a selectable subset, where the per-row actions still carry their weight (e.g. the delete view's dependency list, where opening or copying a dependency is how you decide). Has no effect outside selection mode.
  * @param {Boolean} [props.showActivityLogAll] - Whether to show the header "View activity log for all" action (default true). Set false for selection-style lists where a bulk activity-log view is out of place.
  * @param {Boolean} props.showCounts - Whether to show item counts
  * @param {String} props.objectType - The type of object being displayed (e.g., 'DATA_APP_VIEW', 'PAGE')
  * @param {String} props.itemLabel - Label for items in status messages (default: 'item')
  * @param {Number} props.virtualThreshold - Item array length above which virtualization activates at that level (default: 50). Both the top-level items map and any item's children map virtualize automatically when their length exceeds this. Pass `Infinity` to disable.
  * @param {'transparent' | 'default' | 'secondary' | 'tertiary'} [props.variant] - Card variant (default: HeroUI's `default`). Use `transparent` when nested inside another Card to avoid double shadows/borders.
- * @param {Boolean} [props.selectionMode] - When true, selectable rows render a leading `<Checkbox>` (control only, with `aria-label={item.label}` for screen readers). The row's label, count, empty space, and chevron all live inside the `Disclosure.Trigger` — so clicking the actual checkbox toggles selection while clicking anywhere else in the row toggles the disclosure. Non-selectable rows get a leading 16px placeholder so labels stay column-aligned. The trailing action slot is hidden in selection mode. Items are wrapped in a `CheckboxGroup` so the built-in `selectAll` control can show indeterminate state. Selection state is controlled by the consumer via `selectedIds` + `onSelectionChange`.
+ * @param {Boolean} [props.selectionMode] - When true, selectable rows render a leading `<Checkbox>` (control only, with `aria-label={item.label}` for screen readers). The row's label, count, empty space, and chevron all live inside the `Disclosure.Trigger`, so clicking the actual checkbox toggles selection while clicking anywhere else in the row toggles the disclosure. Non-selectable rows get a leading 16px placeholder so labels stay column-aligned. The trailing action slot is hidden, unless `showActionsInSelectionMode` keeps it. Items are wrapped in a `CheckboxGroup` so the built-in `selectAll` control can show indeterminate state. Selection state is controlled by the consumer via `selectedIds` + `onSelectionChange`.
  * @param {Set} [props.selectedIds] - Controlled set of currently-selected item ids. Required when `selectionMode` is true.
  * @param {Function} [props.onSelectionChange] - `(newSelectedIds: Set<string>) => void` callback fired when the selection set changes. Required when `selectionMode` is true. Receives the full new Set after any add/remove from the wrapping `CheckboxGroup`'s `onChange`.
+ * @param {Function} [props.isInSelectionScope] - `(item) => boolean`. When `selectionMode` is true, a row returning false opts out of the checkbox column entirely: no checkbox and no 16px placeholder, so it renders exactly as it would outside selection mode. Use when the selectable rows all live in one section and the rest of the list should keep reading as a plain list rather than being indented to align with a column it never participates in. Defaults to every row being in scope, which preserves the placeholder behavior other views rely on.
  * @param {Function} [props.isSelectable] - `(item) => boolean` filter. When `selectionMode` is true, only items returning true get a checkbox-wrapped label; others get an empty 16px placeholder to preserve column alignment. Defaults to `() => true`.
- * @param {Function} [props.getUnselectableTooltip] - `(item) => string | null`. When it returns a string for a row that `isSelectable` rejects, that row renders a disabled (unchecked, dimmed) checkbox wrapped in a `DisabledTooltip` showing the string, instead of the empty placeholder. This gives a list where many/all rows are currently unavailable a real checkbox column plus a hover explanation of why each is disabled, rather than a column of blank gaps that just look unchecked. Return null (or omit the prop) to keep the placeholder behavior other views rely on. The checkbox is `isReadOnly` (can't be toggled) but stays hoverable so the tooltip fires.
+ * @param {Function} [props.getUnselectableTooltip] - `(item) => string | null`. When it returns a string for a row that `isSelectable` rejects, that row renders a disabled (unchecked, dimmed) checkbox showing the string on hover, instead of the empty placeholder. This gives a list where many/all rows are currently unavailable a real checkbox column plus a hover explanation of why each is disabled, rather than a column of blank gaps that just look unchecked. Return null (or omit the prop) to keep the placeholder behavior other views rely on. The checkbox is `isReadOnly` (can't be toggled) but stays hoverable so the tooltip fires.
  * @param {Function} [props.getItemBadge] - `(item) => { icon: React.ReactNode, tooltip: string } | null`. Optional trailing status adornment for leaf rows. When it returns a badge, DataList renders `icon` pinned at the row's end (outside the truncating label container, so it never clips with the title), wrapped in a tooltip showing `tooltip`. Purely presentational: it does not affect selection. Returns null for rows with no badge.
  * @param {Function} [props.getItemLock] - `(item) => { locked: boolean, tooltip: string } | null`. When it returns `locked`, the item's checkbox renders read-only (kept checked, can't be unchecked) and muted, wrapped in a tooltip showing `tooltip`. Uses `aria-disabled` rather than `isDisabled` so the tooltip still fires and the row's label link stays clickable. The consumer must also keep the id in `selectedIds` (e.g. re-add it in `onSelectionChange`) so the lock holds. Applies to both leaf rows and parent (group-header) rows; a locked parent gets the same read-only + muted checkbox while its disclosure toggle stays interactive.
  * @param {Object} [props.selectAll] - Opt-in bulk-selection control. When provided and `selectionMode` is true, DataList renders a standardized tri-state "Select all" checkbox below the `banner` (above the items list). Shape: `{ ariaLabel?: string, count: number, isDisabled?: boolean, onToggle: (checked: boolean) => void, showCount?: boolean, total: number }`. `count`/`total` drive the visual state (checked when `count === total`, indeterminate when `0 < count < total`); the checkbox is disabled when `total === 0` or `isDisabled` is true. `onToggle(true)` should select every eligible item, `onToggle(false)` should clear. `showCount` appends `(count / total)` to the label. The consumer owns what "all" means and supplies `count`/`total`/`onToggle`, so grouped or async lists keep their own reconciliation. Ignored when `selectionMode` is false.
@@ -126,6 +127,7 @@ export function DataList({
   getItemLock,
   getUnselectableTooltip,
   headerActions = [],
+  isInSelectionScope,
   isRefreshing = false,
   isSelectable,
   itemActions,
@@ -141,6 +143,7 @@ export function DataList({
   selectedIds,
   selectionMode = false,
   showActions = true,
+  showActionsInSelectionMode = false,
   showActivityLogAll = true,
   showCounts = true,
   subject,
@@ -602,6 +605,7 @@ export function DataList({
                       getItemBadge={getItemBadge}
                       getItemLock={getItemLock}
                       getUnselectableTooltip={getUnselectableTooltip}
+                      isInSelectionScope={isInSelectionScope}
                       isSelectable={isSelectable}
                       isSoleItem={sortedItems.length === 1}
                       item={item}
@@ -611,6 +615,7 @@ export function DataList({
                       selectionMode={selectionMode}
                       shareEnabled={shareEnabled}
                       showActions={showActions}
+                      showActionsInSelectionMode={showActionsInSelectionMode}
                       showCounts={showCounts}
                       virtualThreshold={virtualThreshold}
                       onItemAction={handleItemAction}
@@ -654,6 +659,7 @@ export function DataList({
                       getItemBadge={getItemBadge}
                       getItemLock={getItemLock}
                       getUnselectableTooltip={getUnselectableTooltip}
+                      isInSelectionScope={isInSelectionScope}
                       isSelectable={isSelectable}
                       isSoleItem={sortedItems.length === 1}
                       item={item}
@@ -664,6 +670,7 @@ export function DataList({
                       selectionMode={selectionMode}
                       shareEnabled={shareEnabled}
                       showActions={showActions}
+                      showActionsInSelectionMode={showActionsInSelectionMode}
                       showCounts={showCounts}
                       virtualThreshold={virtualThreshold}
                       onItemAction={handleItemAction}
@@ -815,12 +822,14 @@ function arePropsEqualForRow(prev, next) {
   if (prev.itemActions !== next.itemActions) return false;
   if (prev.objectType !== next.objectType) return false;
   if (prev.showActions !== next.showActions) return false;
+  if (prev.showActionsInSelectionMode !== next.showActionsInSelectionMode) return false;
   if (prev.showCounts !== next.showCounts) return false;
   if (prev.virtualThreshold !== next.virtualThreshold) return false;
   if (prev.onItemAction !== next.onItemAction) return false;
   if (prev.onToggleExpanded !== next.onToggleExpanded) return false;
   if (prev.selectionMode !== next.selectionMode) return false;
   if (prev.isSelectable !== next.isSelectable) return false;
+  if (prev.isInSelectionScope !== next.isInSelectionScope) return false;
   if (prev.depth !== next.depth) return false;
   // Deleting or filtering a group away can leave a row as the list's only item
   // (or stop it being one), which flips how an expanded group sizes itself.
@@ -871,6 +880,7 @@ function arePropsEqualForRow(prev, next) {
  * @param {ItemActionType[]} props.itemActions - Array of action types to show (if not provided, uses default logic)
  * @param {Function} props.onItemAction - Callback when action is clicked
  * @param {Boolean} props.showActions - Whether to show action buttons
+ * @param {Boolean} props.showActionsInSelectionMode - Whether the action slot survives selection mode
  * @param {Boolean} props.showCounts - Whether to show counts
  * @param {String} props.objectType - The type of object being displayed
  * @param {Boolean} props.isSoleItem - True when this row is the only item in its own list. A virtualized group only spreads into the DataList's whole viewport when nothing sits beside it; with siblings around, it keeps its capped window so the other groups stay reachable.
@@ -887,6 +897,7 @@ function DataListItemImpl({
   getItemBadge,
   getItemLock,
   getUnselectableTooltip,
+  isInSelectionScope,
   isSelectable,
   isSoleItem = false,
   item,
@@ -898,6 +909,7 @@ function DataListItemImpl({
   selectionMode = false,
   shareEnabled = false,
   showActions = true,
+  showActionsInSelectionMode = false,
   showCounts = true,
   virtualThreshold = 50
 }) {
@@ -957,40 +969,51 @@ function DataListItemImpl({
   // descendant selector has specificity (0,0,2,0), which beats a plain `mt-0`
   // utility (0,0,1,0), so the `!` important modifier is needed to flip the
   // cascade.
-  const isItemSelectableInMode = selectionMode && (typeof isSelectable === 'function' ? isSelectable(item) : true);
+  // Rows a consumer declares outside the picker opt out of the checkbox column
+  // entirely: no checkbox, and no spacer either. A list whose selectable rows all
+  // sit in one section can keep the rest reading as a plain list, instead of
+  // indenting every row to align with a column it will never take part in.
+  const inSelectionScope = selectionMode && (typeof isInSelectionScope === 'function' ? isInSelectionScope(item) : true);
+  const isItemSelectableInMode = inSelectionScope && (typeof isSelectable === 'function' ? isSelectable(item) : true);
   // Tooltip explaining why a row can't be selected in this mode. When the
   // consumer supplies one, the leading slot renders a disabled checkbox with
   // that explanation instead of an empty spacer (see selectionPlaceholder).
   const unselectableTooltip =
-    selectionMode && !isItemSelectableInMode && typeof getUnselectableTooltip === 'function'
+    inSelectionScope && !isItemSelectableInMode && typeof getUnselectableTooltip === 'function'
       ? getUnselectableTooltip(item)
       : null;
   // What fills the leading slot for a row that can't be selected in this mode.
   // Default: an empty 16px spacer that keeps labels column-aligned. When a
   // consumer supplies `getUnselectableTooltip`, render a disabled (unchecked,
-  // dimmed) checkbox wrapped in a DisabledTooltip instead, so a list where
-  // many/all rows are currently unavailable reads as a checkbox column with a
-  // hover explanation rather than blank gaps that just look unchecked. The
-  // checkbox is `isReadOnly` (can't be toggled) but stays hoverable; the dim +
-  // not-allowed cursor mirror the locked-row treatment used by getItemLock.
+  // dimmed) checkbox with that explanation on hover instead, so a list where
+  // many/all rows are currently unavailable reads as a checkbox column rather
+  // than blank gaps that just look unchecked.
+  //
+  // Identical treatment to a locked row below, Tooltip.Trigger included: a
+  // Checkbox is not a pressable, so it never receives the trigger props a Button
+  // gets from a bare <Tooltip>, and the tooltip would never open without it.
   const selectionPlaceholder =
-    selectionMode && !isItemSelectableInMode ? (
+    inSelectionScope && !isItemSelectableInMode ? (
       unselectableTooltip ? (
-        <DisabledTooltip content={unselectableTooltip}>
-          <Checkbox
-            isReadOnly
-            aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
-            className='mt-0! shrink-0 opacity-60 [--cursor-interactive:var(--cursor-disabled)]'
-            value={String(item.id)}
-            variant='secondary'
-          >
-            <Checkbox.Content>
-              <Checkbox.Control>
-                <Checkbox.Indicator />
-              </Checkbox.Control>
-            </Checkbox.Content>
-          </Checkbox>
-        </DisabledTooltip>
+        <Tooltip>
+          <Tooltip.Trigger className='shrink-0 cursor-not-allowed!'>
+            <Checkbox
+              aria-disabled
+              isReadOnly
+              aria-label={typeof item.label === 'string' ? item.label : `Select ${item.id}`}
+              className='mt-0! shrink-0 opacity-60 [--cursor-interactive:var(--cursor-disabled)]'
+              value={String(item.id)}
+              variant='secondary'
+            >
+              <Checkbox.Content>
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+              </Checkbox.Content>
+            </Checkbox>
+          </Tooltip.Trigger>
+          <Tooltip.Content className='max-w-60'>{unselectableTooltip}</Tooltip.Content>
+        </Tooltip>
       ) : (
         <div className='h-9 w-4 shrink-0' />
       )
@@ -1305,25 +1328,34 @@ function DataListItemImpl({
     return actions;
   }, [hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, shareEnabled, showActions]);
 
-  // Optional leading info-icon marker rendered between the icon and the label
-  // text. It carries no tooltip of its own: the marker sits inside the label's
-  // Tooltip trigger, so hovering it already opens the row's tooltip, which
-  // states the annotation (see labelTooltipContent). A trigger of its own would
-  // nest one focusable element inside another and fire both tooltips at once.
+  // Optional info-icon marker leading the whole label, ahead of the object's
+  // type icon. On a normal row it carries no tooltip of its own: the marker sits
+  // inside the label's Tooltip trigger, so hovering it already opens the row's
+  // tooltip, which states the annotation (see labelTooltipContent). A trigger of
+  // its own would nest one focusable element inside another and fire both
+  // tooltips at once. Virtual parents render their label as plain text with no
+  // tooltip of any kind, so there the marker owns the annotation and needs its
+  // own trigger to show it.
   // Sitting at the START of the label, it survives the label's `truncate`.
-  // Virtual parents are the exception: they render their label as plain text
-  // with no tooltip, so there the marker keeps a native title.
   // Match the marker icon to the adjacent ObjectTypeIcon's 16px box so the two
   // icons share an identical bottom-line; a smaller icon bottom-aligned next to
   // a 16px one reads as vertically staggered (its optical center sits higher).
-  const annotationMarker = item.annotation ? (
-    <span
-      className='mr-1 inline-flex cursor-help align-text-bottom text-accent'
-      title={item.isVirtualParent ? item.annotation : undefined}
-    >
-      <IconInfoCircle className='size-4 shrink-0' />
-    </span>
-  ) : null;
+  const annotationIcon = <IconInfoCircle className='size-4 shrink-0' />;
+  const annotationMarker = !item.annotation ? null : item.isVirtualParent ? (
+    <Tooltip>
+      {/* Renders a span, not the default div: a virtual parent's label sits in a
+          <p>, and a div inside it is invalid HTML that React flags. */}
+      <Tooltip.Trigger
+        className='mr-1 inline-flex cursor-help align-text-bottom text-accent'
+        render={(props) => <span {...props} />}
+      >
+        {annotationIcon}
+      </Tooltip.Trigger>
+      <Tooltip.Content className='max-w-60'>{item.annotation}</Tooltip.Content>
+    </Tooltip>
+  ) : (
+    <span className='mr-1 inline-flex cursor-help align-text-bottom text-accent'>{annotationIcon}</span>
+  );
 
   // Pages with a negative ID are Domo's system pseudo-pages (Overview,
   // Favorites, Shared) rather than real, user-created pages, so they get a
@@ -1360,8 +1392,8 @@ function DataListItemImpl({
 
   const labelInner = (
     <>
-      <ObjectTypeIcon className='mr-1 inline-block shrink-0 align-text-bottom' size={16} typeId={item.typeId} />
       {annotationMarker}
+      <ObjectTypeIcon className='mr-1 inline-block shrink-0 align-text-bottom' size={16} typeId={item.typeId} />
       {item.label}
     </>
   );
@@ -1406,14 +1438,19 @@ function DataListItemImpl({
   // can't drift: full name, the annotation when the row carries one, then the
   // object's id. An annotation is a sentence rather than a name, so it gets a
   // width to wrap in; rows without one keep their content-sized tooltip.
+  //
+  // The id line never wraps: a dataset UUID lands right on HeroUI's default
+  // `max-w-xs`, so it broke across two lines or not depending on the name beside
+  // it. `min-w-min` is what lets it hold: min-width beats max-width, so the
+  // tooltip widens to the unbreakable id while prose keeps wrapping.
   const labelTooltipContent = (
     <Tooltip.Content
-      className={`flex flex-col flex-wrap items-start gap-1 text-left${item.annotation ? ' max-w-60' : ''}`}
+      className={`flex min-w-min flex-col flex-wrap items-start gap-1 text-left${item.annotation ? ' max-w-60' : ''}`}
       offset={4}
       placement='top left'
     >
       {labelTitle}
-      <span>
+      <span className='whitespace-nowrap'>
         {typeLabel ? `${typeLabel} ID: ` : 'ID: '}
         {item.originalId ?? item.id}
       </span>
@@ -1571,7 +1608,7 @@ function DataListItemImpl({
           </div>
           {chipCluster}
           {badgeNode}
-          {statusIndicator ?? (selectionMode ? null : actions)}
+          {statusIndicator ?? (selectionMode && !showActionsInSelectionMode ? null : actions)}
         </div>
       </div>
     );
@@ -1586,6 +1623,7 @@ function DataListItemImpl({
     getItemBadge,
     getItemLock,
     getUnselectableTooltip,
+    isInSelectionScope,
     isSelectable,
     // A nested group inherits the fill only when this row filled and the group
     // is that row's lone child, so the "nothing beside it" rule holds at depth.
@@ -1599,6 +1637,7 @@ function DataListItemImpl({
     selectionMode,
     shareEnabled,
     showActions,
+    showActionsInSelectionMode,
     showCounts,
     virtualThreshold
   });
@@ -1857,7 +1896,7 @@ function DataListItemImpl({
             </Disclosure.Trigger>
           </>
         )}
-        {selectionMode ? null : actions}
+        {selectionMode && !showActionsInSelectionMode ? null : actions}
       </Disclosure.Heading>
       <Disclosure.Content>
         <Disclosure.Body>

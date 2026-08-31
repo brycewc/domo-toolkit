@@ -23,6 +23,8 @@
 - Get Usage can show only the active workflow versions.
 - Get Usage can narrow the list to the package version you are viewing.
 - The Current Context footer on a Code Engine Package now has Workflows, App Designs, and Custom Apps tabs.
+- Deleting a DataFlow and its inputs now lets you pick which inputs go.
+- An input DataSet that can't be deleted with its DataFlow now says why.
 
 ## UI Improvements
 
@@ -31,6 +33,8 @@
 
 ## Bug Fixes
 
+- Deleting a DataFlow's inputs no longer removes an input that other content still uses or that another DataFlow produces.
+- A checkbox you can't tick, such as one in Manage Card Locks or Manage Card Owners, now explains why when you hover it.
 - Lists now order names containing numbers by value, so Card 9 comes before Card 10 instead of after it.
 - Remap Columns no longer offers to drop a broken view column that the view also filters, groups, or sorts on.
 - A Beast Mode whose formula can't be read no longer fails every content type in Migrate Content; it is now reported on its own and the rest still migrate.
