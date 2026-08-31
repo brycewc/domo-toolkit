@@ -23,6 +23,9 @@
 - Get Usage can show only the active workflow versions.
 - Get Usage can narrow the list to the package version you are viewing.
 - The Current Context footer on a Code Engine Package now has Workflows, App Designs, and Custom Apps tabs.
+- Code Engine Packages now support Delete, removing the package and every version it has.
+- Deleting a Code Engine Package now lists the workflows and custom apps that use it, and blocks the delete until nothing live does.
+- Delete on a Code Engine Package version now deletes its whole package.
 - Deleting a DataFlow and its inputs now lets you pick which inputs go.
 - An input DataSet that can't be deleted with its DataFlow now says why.
 

@@ -2,6 +2,10 @@ import { DataListItem } from '@/models/DataListItem';
 import { DomoObject } from '@/models/DomoObject';
 import { withCanonicalGroups } from '@/utils/dataListGroups';
 
+export const ACTIVE_CHIP = { color: 'success', label: 'Active' };
+
+export const INACTIVE_CHIP = { color: 'danger', label: 'Inactive' };
+
 // The workflow endpoint returns a row per model version, so its totals count
 // versions rather than workflows. Shared by the group subtext and the header.
 export const USAGE_NOUNS = { designs: 'app design', instances: 'custom app', workflows: 'workflow version' };
@@ -39,7 +43,14 @@ export function buildUsageItems({
   const items = [];
   const versionlessNote = filterToVersion ? NO_VERSION_NOTE : null;
 
-  const workflowRows = buildWorkflowRows({ activeByModel, activeOnly, filterToVersion, origin, ownerNames, usage: workflows });
+  const workflowRows = buildWorkflowRows({
+    activeByModel,
+    activeOnly,
+    filterToVersion,
+    origin,
+    ownerNames,
+    usage: workflows
+  });
   const designRows = buildSimpleRows({
     annotation: versionlessNote,
     origin,
@@ -93,10 +104,6 @@ export function buildUsageItems({
 
   return { counts, hidden, items: withCanonicalGroups(items, USAGE_GROUPS) };
 }
-
-const ACTIVE_CHIP = { color: 'success', label: 'Active' };
-
-const INACTIVE_CHIP = { color: 'danger', label: 'Inactive' };
 
 const NO_LINK_NOTE = 'No card shows this app, so there is nowhere to open it.';
 

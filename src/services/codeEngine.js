@@ -1,5 +1,83 @@
 import { executeInPage } from '@/utils/executeInPage';
 
+import { getWorkflowVersions } from './workflows';
+
+/**
+ * Delete a Code Engine package along with every version it has. Deployed
+ * versions go first: Domo refuses to delete a package while one is still
+ * deployed, while the version endpoint itself accepts a deployed version.
+ * Undeployed versions are left alone, since the package delete takes them.
+ *
+ * A version failure stops everything before the package is touched, so a
+ * package is never left half-emptied by a delete that would have failed anyway.
+ *
+ * Domo drops a package once its last version goes, so when every version was
+ * deployed the package delete finds nothing left and 404s. That is the intended
+ * end state, not a failure.
+ *
+ * @param {Object} params
+ * @param {string} params.packageId - Code Engine package UUID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{stage?: 'package'|'versions', statusCode?: number, success: boolean,
+ *   versionsDeleted: number, versionsFailed?: number}>}
+ */
+export async function deleteCodeEnginePackageWithVersions({ packageId, tabId = null }) {
+  return executeInPage(
+    async (packageId) => {
+      const infoResponse = await fetch(`/api/codeengine/v2/packages/${packageId}?parts=versions`);
+      if (!infoResponse.ok) {
+        return { stage: 'versions', statusCode: infoResponse.status, success: false, versionsDeleted: 0, versionsFailed: 0 };
+      }
+      const info = await infoResponse.json();
+      const deployed = (info.versions || []).filter((v) => v.released != null && v.version).map((v) => v.version);
+
+      // One at a time: Domo rejects concurrent deletes on the same package, so
+      // firing them together loses all but one. A 404 means the version is
+      // already gone, which is the outcome asked for.
+      let versionsDeleted = 0;
+      let versionsFailed = 0;
+      for (const version of deployed) {
+        const versionResponse = await fetch(`/api/codeengine/v2/packages/${packageId}/versions/${version}`, {
+          method: 'DELETE'
+        }).catch(() => null);
+        if (versionResponse?.ok || versionResponse?.status === 404) versionsDeleted++;
+        else versionsFailed++;
+      }
+      if (versionsFailed > 0) {
+        return { stage: 'versions', success: false, versionsDeleted, versionsFailed };
+      }
+
+      const response = await fetch(`/api/codeengine/v2/packages/${packageId}`, { method: 'DELETE' });
+      if (!response.ok && response.status !== 404) {
+        return { stage: 'package', statusCode: response.status, success: false, versionsDeleted };
+      }
+      return { success: true, versionsDeleted };
+    },
+    [packageId],
+    tabId
+  );
+}
+
+/**
+ * Map each referenced workflow model to the set of its versions that are live.
+ * A model whose lookup fails is omitted, which callers read as "unknown" rather
+ * than asserting its versions are inactive on missing data.
+ * @param {Array<Object>} workflowItems - Raw items from the workflow usage endpoint
+ * @param {number|null} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Map<string, Set<string>>>}
+ */
+export async function getActiveWorkflowVersionsByModel(workflowItems, tabId = null) {
+  const modelIds = [...new Set(workflowItems.map((item) => item.entityId).filter(Boolean))];
+  const entries = await Promise.all(
+    modelIds.map((modelId) =>
+      getWorkflowVersions(modelId, tabId)
+        .then((versions) => [modelId, new Set(versions.filter((v) => v.active).map((v) => String(v.version)))])
+        .catch(() => null)
+    )
+  );
+  return new Map(entries.filter(Boolean));
+}
+
 export async function getCodeEngineCode({ packageId, tabId, version }) {
   return executeInPage(
     async (packageId, version) => {
@@ -300,6 +378,26 @@ export async function getCodeEngineUsage({ kind, packageId, tabId = null, versio
     [path, packageId, version],
     tabId
   );
+}
+
+/**
+ * Everything that references a package, plus which of the referencing workflow
+ * versions are live. The single definition of "what uses this package", shared
+ * by the Get Usage view and the delete dependency check so the two can't drift.
+ *
+ * @param {Object} params
+ * @param {string} params.packageId - Code Engine package UUID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{activeByModel: Map<string, Set<string>>, designs: Object, instances: Object, workflows: Object}>}
+ */
+export async function getCodeEngineUsageSummary({ packageId, tabId = null }) {
+  const [designs, instances, workflows] = await Promise.all([
+    getCodeEngineUsage({ kind: 'designs', packageId, tabId }),
+    getCodeEngineUsage({ kind: 'instances', packageId, tabId }),
+    getCodeEngineUsage({ kind: 'workflows', packageId, tabId })
+  ]);
+  const activeByModel = await getActiveWorkflowVersionsByModel(workflows.items, tabId);
+  return { activeByModel, designs, instances, workflows };
 }
 
 /**

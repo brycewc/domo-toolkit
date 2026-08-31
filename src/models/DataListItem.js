@@ -125,6 +125,8 @@ export class DataListItem {
    *   explicit value for async-loading rows where children aren't populated yet
    *   but a total is known.
    * @param {string} [config.metadata] - Optional metadata (defaults to child count description)
+   * @param {boolean} [config.sortChildrenDescending] - Reverses this group's rows,
+   *   for a list whose newest entry is the interesting one (e.g. a package's versions).
    * @param {'loading'|'loaded'|'transferring'|'transferred'|'error'|'failed'} [config.status]
    *   Async state that DataList renders as a spinner or X icon in the count slot.
    * @param {string} [config.error] - Error message rendered inside the body when expanded (status='error'/'failed').
@@ -146,6 +148,7 @@ export class DataListItem {
     id,
     label,
     metadata,
+    sortChildrenDescending = false,
     status,
     typeId = null
   }) {
@@ -163,6 +166,7 @@ export class DataListItem {
       isVirtualParent: true,
       label,
       metadata: metadata || `${childCount} item${childCount !== 1 ? 's' : ''}`,
+      sortChildrenDescending,
       status,
       typeId,
       url: null

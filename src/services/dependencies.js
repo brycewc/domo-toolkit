@@ -1,10 +1,12 @@
 import { DRILL_ONLY_NOTE, groupBeastModeUsageByCard } from '@/utils/beastModeLinks';
+import { ACTIVE_CHIP, INACTIVE_CHIP } from '@/utils/codeEngineUsage';
 
 import { getDownstreamAlertsForDatasets } from './alerts';
 import { getAppInstanceCollections, getCollectionConnectedApps } from './appDb';
 import { getTemplateApprovalCount } from './approvals';
 import { getBeastModeUsageForObject } from './beastModes';
 import { getCardsForObject } from './cards';
+import { getCodeEnginePackageVersions, getCodeEngineUsageSummary } from './codeEngine';
 import { getAppContentSummary } from './customApps';
 import {
   getDatasetDependentCount,
@@ -43,11 +45,19 @@ import { getChildPages, getOnlyHereCardIds } from './pages';
  * - `flat`: render the group's item(s) as leaf rows directly, with no disclosure
  *   wrapper. Use for a 1:1 related object that needs no grouping header.
  * - `annotation`: a note about the group, shown under its header.
+ * - `sortChildrenDescending`: reverse the group's rows, for a list whose newest
+ *   entry is the interesting one.
  * - `deletableIds` + `unselectableReasons`: the subset of the group's item ids a
  *   cascade delete may remove, and why each of the rest can't be. Paired with a
  *   `selectionGroupKey` on the delete config, these become checkboxes: only
  *   `deletableIds` can be checked, and the others carry their reason on the
  *   checkbox itself. Omit both for a group with no picker.
+ *
+ * A fetcher returning the object form may also set `clearNote`: the sentence the
+ * view shows in an all-clear banner. The generic "No dependencies found" banner
+ * only appears when nothing at all was found, so a type whose groups always hold
+ * something the delete removes anyway (a package's own versions) needs this to
+ * say the usage check ran and came back empty.
  */
 /**
  * Render a Beast Mode's grouped usage as dependency items. A card that uses the
@@ -80,6 +90,63 @@ function buildBeastModeCardItems(usage, origin) {
     url: card.usesDirectly ? `${origin}/kpis/details/${card.id}` : null
   }));
   return [...items, ...orphanDrills.map((drill) => drillItem(drill, drill.parentId))];
+}
+
+/**
+ * Workflow rows for a Code Engine package, grouped by model with the
+ * referencing versions nested beneath and chipped by deployment state, the same
+ * way the Get Usage view presents them. `activeCount` is what the delete block
+ * turns on, so a version whose deployment state couldn't be read is not counted.
+ * @param {Object} params
+ * @param {Map<string, Set<string>>} params.activeByModel - Live versions per workflow model
+ * @param {string} params.origin - The instance origin
+ * @param {{items: Array<Object>}} params.usage - Workflow usage result
+ * @returns {{activeCount: number, rows: Array<Object>}}
+ */
+function buildPackageWorkflowRows({ activeByModel, origin, usage }) {
+  const byModel = new Map();
+  for (const item of usage.items) {
+    if (!item.entityId) continue;
+    let entry = byModel.get(item.entityId);
+    if (!entry) {
+      entry = { name: item.name, versions: [] };
+      byModel.set(item.entityId, entry);
+    }
+    if (item.version && !entry.versions.includes(item.version)) entry.versions.push(item.version);
+  }
+
+  let activeCount = 0;
+  const rows = [...byModel.entries()].map(([modelId, entry]) => {
+    // null when the version lookup failed, which leaves deployment unmarked
+    // rather than asserting a version is inactive on missing data.
+    const activeVersions = activeByModel.get(modelId) ?? null;
+    const children = entry.versions.map((version) => {
+      const isActive = activeVersions ? activeVersions.has(String(version)) : null;
+      if (isActive) activeCount++;
+      return {
+        chip: isActive === null ? null : isActive ? ACTIVE_CHIP : INACTIVE_CHIP,
+        id: version,
+        label: version,
+        muted: isActive === false,
+        parentId: modelId,
+        typeId: 'WORKFLOW_MODEL_VERSION',
+        url: `${origin}/workflows/models/${modelId}/${version}?_wfv=view`
+      };
+    });
+    const noneActive =
+      activeVersions && entry.versions.length > 0 && entry.versions.every((v) => !activeVersions.has(String(v)));
+    return {
+      children: children.length > 0 ? children : undefined,
+      chip: noneActive ? INACTIVE_CHIP : null,
+      ...countBadge(children.length || null, 'version', 'versions'),
+      id: modelId,
+      label: entry.name || `Workflow ${modelId}`,
+      typeId: 'WORKFLOW_MODEL',
+      url: `${origin}/workflows/models/${modelId}`
+    };
+  });
+
+  return { activeCount, rows };
 }
 
 /**
@@ -222,6 +289,8 @@ function otherDependentTotal(dependents) {
   return dependents.cards + dependents.dataflows + dependents.views;
 }
 
+const DEPLOYED_CHIP = { color: 'warning', label: 'Deployed' };
+
 const FETCHERS = {
   // Domo deletes a still-referenced Beast Mode without complaint and the cards
   // pointing at it break silently, so here every kind of use blocks.
@@ -305,6 +374,157 @@ const FETCHERS = {
     }
 
     return groups;
+  },
+  // Deleting a package takes every version with it, so what matters is whether
+  // anything live still calls into it. Active workflow versions and deployed
+  // custom apps block; app designs only reference the source, so they don't.
+  CODEENGINE_PACKAGE: async ({ id, origin }, tabId) => {
+    const [{ activeByModel, designs, instances, workflows }, packageInfo] = await Promise.all([
+      getCodeEngineUsageSummary({ packageId: id, tabId }),
+      // Best-effort: the delete re-reads the version list in the page anyway, so
+      // a failed lookup costs the preview, not the delete.
+      getCodeEnginePackageVersions(id, tabId).catch(() => null)
+    ]);
+
+    const { activeCount, rows: workflowRows } = buildPackageWorkflowRows({ activeByModel, origin, usage: workflows });
+    const instanceRows = instances.items
+      .filter((item) => item.entityId)
+      .map((item) => ({
+        id: item.entityId,
+        label: item.name || `App ${item.entityId}`,
+        typeId: 'RYUU_INSTANCE',
+        // An instance has no page of its own, so the endpoint hands back a card
+        // link instead; it is null when no card shows the app.
+        url: item.link || null
+      }));
+    const designRows = designs.items
+      .filter((item) => item.entityId)
+      .map((item) => ({
+        id: item.entityId,
+        label: item.name || `Design ${item.entityId}`,
+        typeId: 'RYUU_APP',
+        url: `${origin}/assetlibrary/${item.entityId}/overview`
+      }));
+
+    const hiddenCount = (workflows.privateCount || 0) + (instances.privateCount || 0);
+    // A designs lookup that failed changes nothing, since designs never block.
+    const blockingFailures = [workflows.error ? 'workflow' : null, instances.error ? 'custom app' : null].filter(Boolean);
+    const usedByParts = [];
+    if (activeCount > 0) usedByParts.push(`${activeCount} active workflow version${activeCount !== 1 ? 's' : ''}`);
+    if (instanceRows.length > 0)
+      usedByParts.push(`${instanceRows.length} custom app${instanceRows.length !== 1 ? 's' : ''}`);
+    if (hiddenCount > 0) usedByParts.push(`${hiddenCount} object${hiddenCount !== 1 ? 's' : ''} you can't see`);
+    const sentences = [];
+    if (usedByParts.length > 0) {
+      sentences.push(
+        `This package is still used by ${usedByParts.join(', ')}. Remove the remaining uses before deleting it.`
+      );
+    }
+    if (blockingFailures.length > 0) {
+      sentences.push(
+        `Its ${blockingFailures.join(' and ')} usage could not be checked, so there is no way to tell what deleting it would break.`
+      );
+    }
+    // One combined reason on every blocking group, since only the first reaches the banner.
+    const blockingReason = sentences.join(' ') || null;
+    const workflowsBlock = activeCount > 0 || (workflows.privateCount || 0) > 0 || !!workflows.error;
+    const instancesBlock = instanceRows.length > 0 || (instances.privateCount || 0) > 0 || !!instances.error;
+
+    const versions = (packageInfo?.versions || []).filter((v) => v.version);
+    const deployedCount = versions.filter((v) => v.released != null).length;
+    const groups = [
+      {
+        annotation: 'Deployed versions are deleted first, then the package takes the rest with it.',
+        blocking: false,
+        count: versions.length,
+        countLabel: `version${versions.length !== 1 ? 's' : ''}${deployedCount > 0 ? `, ${deployedCount} deployed` : ''}`,
+        deleted: true,
+        items: versions.map((v) => ({
+          chip: v.released != null ? DEPLOYED_CHIP : null,
+          id: v.version,
+          label: v.version,
+          parentId: id,
+          typeId: 'CODEENGINE_PACKAGE_VERSION'
+        })),
+        key: 'packageVersions',
+        label: 'Package Versions',
+        // Newest first: on a package with dozens of versions the recent ones are
+        // what a reader checks before deleting.
+        sortChildrenDescending: true
+      },
+      {
+        blocking: workflowsBlock,
+        blockingReason,
+        deleted: false,
+        items: workflowRows,
+        key: 'usageWorkflows',
+        label: 'Workflows Using This Package'
+      },
+      {
+        blocking: instancesBlock,
+        blockingReason,
+        deleted: false,
+        items: instanceRows,
+        key: 'usageInstances',
+        label: 'Custom Apps Using This Package'
+      },
+      {
+        annotation: "A design references the package but isn't running, so it doesn't block the delete.",
+        blocking: false,
+        deleted: false,
+        items: designRows,
+        key: 'usageDesigns',
+        label: 'Custom App Designs Using This Package'
+      }
+    ];
+
+    // Consumers the caller can't read come back with every field nulled, so they
+    // can never be rows; a count-only group is the only way to show them at all.
+    for (const [kind, label, summaryTypeId, noun, usage, blocking] of [
+      ['hiddenWorkflows', "Workflows You Can't See", 'WORKFLOW_MODEL', 'workflow version', workflows, true],
+      ['hiddenInstances', "Custom Apps You Can't See", 'RYUU_INSTANCE', 'custom app', instances, true],
+      ['hiddenDesigns', "Custom App Designs You Can't See", 'RYUU_APP', 'app design', designs, false]
+    ]) {
+      const count = usage.privateCount || 0;
+      if (count === 0) continue;
+      groups.push({
+        blocking,
+        blockingReason,
+        count,
+        countLabel: `${noun}${count !== 1 ? 's' : ''}`,
+        deleted: false,
+        items: [],
+        key: kind,
+        label,
+        summaryTypeId
+      });
+    }
+
+    const failedKinds = [workflows.error, instances.error, designs.error].filter(Boolean);
+    if (failedKinds.length > 0) {
+      groups.push({
+        annotation: failedKinds.join(', '),
+        blocking: blockingFailures.length > 0,
+        blockingReason,
+        count: failedKinds.length,
+        countLabel: failedKinds.length === 1 ? 'check' : 'checks',
+        deleted: false,
+        items: [],
+        key: 'usageCheckFailed',
+        label: 'Usage Checks That Failed',
+        summaryTypeId: null
+      });
+    }
+
+    // The versions group always has rows, so the generic "nothing found" banner
+    // can never fire here and the user would be left guessing whether usage was
+    // checked at all. `totalCount` covers the hidden consumers too.
+    const nothingUses = [designs, instances, workflows].every((usage) => !usage.totalCount && !usage.error);
+
+    return {
+      clearNote: nothingUses ? 'No workflows, custom apps, or app designs use this package.' : null,
+      groups
+    };
   },
   DATA_APP_VIEW: fetchAppPageDependencies,
   DATAFLOW_TYPE: async ({ id, metadata, origin }, tabId) => {
@@ -669,6 +889,7 @@ const FETCHERS = {
  *   totalCount: number,
  *   blockingCount: number,
  *   blockingReason: string|null,
+ *   clearNote: string|null,
  *   supported: boolean,
  *   appSummary: {cardCount: number, cardIds: number[], pageCount: number}|null,
  *   onlyHereCardCount: number|null
@@ -681,6 +902,7 @@ export async function getDependenciesForDelete({ object, origin, tabId = null })
       appSummary: null,
       blockingCount: 0,
       blockingReason: null,
+      clearNote: null,
       groups: [],
       onlyHereCardCount: null,
       supported: false,
@@ -701,10 +923,12 @@ export async function getDependenciesForDelete({ object, origin, tabId = null })
 
   // Fetchers return either a bare groups array or an object carrying extra data
   // the view reads: `appSummary` (app-wide page/card totals for the cascade
-  // delete) and `onlyHereCardIds` (cards that live only on this page, for the
-  // alternate delete's card-count preview).
+  // delete), `onlyHereCardIds` (cards that live only on this page, for the
+  // alternate delete's card-count preview), and `clearNote` (the all-clear
+  // banner's sentence).
   const allGroups = Array.isArray(fetched) ? fetched : fetched.groups;
   const appSummary = Array.isArray(fetched) ? null : (fetched.appSummary ?? null);
+  const clearNote = Array.isArray(fetched) ? null : (fetched.clearNote ?? null);
   const onlyHereCardIds = Array.isArray(fetched) ? null : (fetched.onlyHereCardIds ?? null);
 
   const groups = allGroups.filter((g) => g.items.length > 0 || (g.count ?? 0) > 0);
@@ -727,6 +951,7 @@ export async function getDependenciesForDelete({ object, origin, tabId = null })
     appSummary,
     blockingCount,
     blockingReason,
+    clearNote,
     groups,
     onlyHereCardCount: onlyHereCardIds == null ? null : onlyHereCardIds.length,
     supported: true,

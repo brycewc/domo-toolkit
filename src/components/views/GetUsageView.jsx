@@ -5,9 +5,8 @@ import { Alert } from '@/components/Alert';
 import { CloseButton } from '@/components/CloseButton';
 import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
-import { getCodeEngineUsage } from '@/services/codeEngine';
+import { getCodeEngineUsageSummary } from '@/services/codeEngine';
 import { fetchUserDisplayNames } from '@/services/users';
-import { getWorkflowVersions } from '@/services/workflows';
 import { buildUsageItems, USAGE_NOUNS } from '@/utils/codeEngineUsage';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { soleExpandedGroupIds } from '@/utils/dataListGroups';
@@ -107,11 +106,7 @@ export function GetUsageView({
       });
 
       const tabId = await getValidTabForInstance(instance);
-      const [designs, instances, workflows] = await Promise.all([
-        getCodeEngineUsage({ kind: 'designs', packageId, tabId }),
-        getCodeEngineUsage({ kind: 'instances', packageId, tabId }),
-        getCodeEngineUsage({ kind: 'workflows', packageId, tabId })
-      ]);
+      const { activeByModel, designs, instances, workflows } = await getCodeEngineUsageSummary({ packageId, tabId });
 
       const nothingFound = [designs, instances, workflows].every((result) => !result.totalCount && !result.error);
       if (nothingFound) {
@@ -122,10 +117,7 @@ export function GetUsageView({
         return;
       }
 
-      const [activeByModel, ownerNames] = await Promise.all([
-        fetchActiveWorkflowVersions(workflows.items, tabId),
-        fetchOwnerNames([designs, instances, workflows], tabId)
-      ]);
+      const ownerNames = await fetchOwnerNames([designs, instances, workflows], tabId);
 
       if (!mountedRef.current) return;
       setError(null);
@@ -259,25 +251,6 @@ export function GetUsageView({
       onStatusUpdate={onStatusUpdate}
     />
   );
-}
-
-/**
- * Map each referenced workflow model to the set of its versions that are live.
- * A model whose lookup fails is omitted, which callers read as "unknown".
- * @param {Array<Object>} workflowItems - Raw items from the workflow usage endpoint
- * @param {number|null} tabId
- * @returns {Promise<Map<string, Set<string>>>}
- */
-async function fetchActiveWorkflowVersions(workflowItems, tabId) {
-  const modelIds = [...new Set(workflowItems.map((item) => item.entityId).filter(Boolean))];
-  const entries = await Promise.all(
-    modelIds.map((modelId) =>
-      getWorkflowVersions(modelId, tabId)
-        .then((versions) => [modelId, new Set(versions.filter((v) => v.active).map((v) => String(v.version)))])
-        .catch(() => null)
-    )
-  );
-  return new Map(entries.filter(Boolean));
 }
 
 /**

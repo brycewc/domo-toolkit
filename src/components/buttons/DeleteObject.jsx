@@ -2,15 +2,20 @@ import { Button, Tooltip } from '@heroui/react';
 
 import { DisabledTooltip } from '@/components/DisabledTooltip';
 import { useLaunchView } from '@/hooks/useLaunchView';
+import { isCodeEngineInWorkflow } from '@/utils/availableActions';
 import IconTrash from '@icons/trash.svg?react';
+
+const CODE_ENGINE_TYPES = ['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'];
 
 const SUPPORTED_TYPES = [
   'APP',
   'BEAST_MODE_FORMULA',
+  'CODEENGINE_PACKAGE',
+  'CODEENGINE_PACKAGE_VERSION',
   'DATA_APP_VIEW',
   'DATAFLOW_TYPE',
-  'PAGE',
   'MAGNUM_COLLECTION',
+  'PAGE',
   'REPORT_SCHEDULE',
   'RYUU_APP',
   'TEMPLATE',
@@ -25,10 +30,19 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
   const typeId = currentContext?.domoObject?.typeId;
   const typeName = currentContext?.domoObject?.typeName?.toLowerCase() || 'object';
 
+  const isInWorkflow = isCodeEngineInWorkflow(currentContext);
+
   const isDeleteForbidden = (() => {
     const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
     const isOwner = currentContext?.domoObject?.metadata?.isOwner;
 
+    if (CODE_ENGINE_TYPES.includes(typeId)) {
+      // A version's own response carries no owner, so ownership comes off the
+      // package the delete actually targets.
+      const packageOwner = currentContext?.domoObject?.metadata?.parent?.details?.owner;
+      const ownsPackage = isOwner || (packageOwner != null && String(packageOwner) === String(currentContext?.user?.id));
+      return !ownsPackage && !userRights.includes('codeengine.package.admin');
+    }
     if (typeId === 'DATAFLOW_TYPE') {
       return !isOwner && !userRights.includes('dataflow.admin');
     }
@@ -62,6 +76,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
     !currentContext?.domoObject ||
     !SUPPORTED_TYPES.includes(typeId) ||
     (typeId === 'DATAFLOW_TYPE' && currentContext?.domoObject?.metadata?.details?.deleted === true) ||
+    isInWorkflow ||
     isDeleteForbidden;
 
   // Persistent reasons the action is unavailable (the pending state is transient
@@ -73,9 +88,11 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
         ? `Delete isn't supported for ${typeName}s`
         : typeId === 'DATAFLOW_TYPE' && currentContext?.domoObject?.metadata?.details?.deleted === true
           ? 'This dataflow is already deleted'
-          : isDeleteForbidden
-            ? `You don't have permission to delete this ${typeName}`
-            : null;
+          : isInWorkflow
+            ? 'Open the Code Engine package itself to delete it'
+            : isDeleteForbidden
+              ? `You don't have permission to delete this ${typeName}`
+              : null;
 
   if (disabledReason) {
     return (

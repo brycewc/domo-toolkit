@@ -10,6 +10,7 @@ import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { deleteDatastoreAndAllCollections } from '@/services/appDb';
 import { deleteApprovalTemplate } from '@/services/approvals';
+import { deleteCodeEnginePackageWithVersions } from '@/services/codeEngine';
 import { deleteAppAndAllContent } from '@/services/customApps';
 import { deleteDataflowAndOutputs, deleteDataflowWithInputsAndOutputs } from '@/services/dataflows';
 import { deleteDataset } from '@/services/datasets';
@@ -51,6 +52,41 @@ const deletersByType = {
     primaryLabel: 'Delete Beast Mode',
     run: ({ context }) => deleteObject({ object: context.domoObject, tabId: context.tabId }),
     typeName: 'Beast Mode Formula'
+  },
+  CODEENGINE_PACKAGE: {
+    confirmSuffix: ' and every version it has',
+    primaryLabel: 'Delete Package and All Versions',
+    run: async ({ context }) => {
+      const result = await deleteCodeEnginePackageWithVersions({
+        packageId: context.domoObject.id,
+        tabId: context.tabId
+      });
+      if (!result?.success) {
+        if (result?.stage === 'versions') {
+          const total = (result.versionsFailed || 0) + (result.versionsDeleted || 0);
+          throw new Error(
+            total > 0
+              ? `Failed to delete ${result.versionsFailed} of ${total} deployed version${total !== 1 ? 's' : ''}. The package was not deleted.`
+              : `Could not read the package's versions (HTTP ${result?.statusCode}). The package was not deleted.`
+          );
+        }
+        throw new Error(
+          `Deployed versions deleted, but the package could not be deleted (HTTP ${result?.statusCode}). Its remaining versions were left in place.`
+        );
+      }
+      const origin = context.origin;
+      await redirectTabIfViewingObject({
+        ids: [context.domoObject.id],
+        tabId: context.tabId,
+        url: `${origin}/codeengine`
+      });
+      return result;
+    },
+    successMessage: ({ name }, result) =>
+      result?.versionsDeleted > 0
+        ? `**${name}** and its ${result.versionsDeleted} deployed version${result.versionsDeleted !== 1 ? 's' : ''} deleted`
+        : `**${name}** deleted`,
+    typeName: 'Code Engine Package'
   },
   DATA_APP_VIEW: {
     cascadeButtons: [
@@ -463,6 +499,7 @@ export function DeleteObjectView({
         return;
       }
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
+      retargetVersionToPackage(context);
       const typeId = context?.domoObject?.typeId;
       const cfg = deletersByType[typeId];
       if (!context || !cfg) {
@@ -539,10 +576,13 @@ export function DeleteObjectView({
           return cascade.successMessage(cascadeCtx, result);
         }
         if (config.successMessage) {
-          return config.successMessage({
-            name: objectName,
-            outputCount: currentContext.domoObject.metadata?.details?.outputs?.length || 0
-          });
+          return config.successMessage(
+            {
+              name: objectName,
+              outputCount: currentContext.domoObject.metadata?.details?.outputs?.length || 0
+            },
+            result
+          );
         }
         return result?.statusDescription || `**${objectName}** deleted`;
       }
@@ -846,11 +886,13 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
       const nestedChildren = item.children?.map(
         (child) =>
           new DataListItem({
+            chip: child.chip ?? null,
             // A drill only resolves to a URL through the card it drills from, so
             // a child carrying a parentId passes it to its DomoObject.
             domoObject: baseUrl ? new DomoObject(child.typeId, child.id, baseUrl, {}, null, child.parentId ?? null) : null,
             id: child.id,
             label: child.label,
+            muted: child.muted ?? false,
             typeId: child.typeId,
             url: child.url
           })
@@ -858,9 +900,10 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
       const dli = new DataListItem({
         annotation: item.annotation ?? null,
         children: nestedChildren,
+        chip: item.chip ?? null,
         count: item.count,
         countLabel: item.countLabel,
-        domoObject: baseUrl ? new DomoObject(item.typeId, item.id, baseUrl) : null,
+        domoObject: baseUrl ? new DomoObject(item.typeId, item.id, baseUrl, {}, null, item.parentId ?? null) : null,
         id: item.id,
         label: item.label,
         muted: item.muted ?? false,
@@ -888,6 +931,7 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
       count: group.count,
       id: `${idPrefix}-${idx}`,
       label: group.label,
+      sortChildrenDescending: group.sortChildrenDescending ?? false,
       typeId: groupTypeId
     });
     if (group.countLabel) dliGroup.countLabel = group.countLabel;
@@ -1052,6 +1096,20 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry }) 
     );
   }
 
+  if (deps.clearNote) {
+    return (
+      <Alert className='w-full' status='success' variant='transparent'>
+        <Alert.Content>
+          <Alert.Title className='flex items-center gap-1'>
+            <AlertStatusIcon />
+            Nothing else depends on this
+          </Alert.Title>
+          <Alert.Description>{deps.clearNote}</Alert.Description>
+        </Alert.Content>
+      </Alert>
+    );
+  }
+
   return null;
 }
 
@@ -1062,6 +1120,24 @@ function resolveSuffix(config, context) {
     });
   }
   return config.confirmSuffix || '';
+}
+
+/**
+ * A Code Engine package version has no delete of its own, since Domo removes
+ * every version with the package. Swapping the version for its parent package
+ * here, before the config lookup, is what lets the rest of the view, the
+ * dependency check, and the delete itself all speak in packages. Mutates the
+ * freshly deserialized context this view owns; a no-op for every other type.
+ * @param {DomoContext|null} context
+ */
+function retargetVersionToPackage(context) {
+  const domoObject = context?.domoObject;
+  if (domoObject?.typeId !== 'CODEENGINE_PACKAGE_VERSION' || !domoObject.parentId) return;
+  const parent = domoObject.metadata?.parent;
+  context.domoObject = new DomoObject('CODEENGINE_PACKAGE', domoObject.parentId, domoObject.baseUrl, {
+    details: parent?.details ?? {},
+    name: parent?.name || `Package ${domoObject.parentId}`
+  });
 }
 
 async function runPageDelete({ cardScope = 'all', context, parentAppId = null }) {

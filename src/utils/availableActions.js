@@ -242,6 +242,8 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     [
       'APP',
       'BEAST_MODE_FORMULA',
+      'CODEENGINE_PACKAGE',
+      'CODEENGINE_PACKAGE_VERSION',
       'DATA_APP_VIEW',
       'DATAFLOW_TYPE',
       'MAGNUM_COLLECTION',
@@ -252,7 +254,8 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
       'VARIABLE',
       'WORKFLOW_MODEL',
       'WORKSHEET_VIEW'
-    ].includes(typeId)
+    ].includes(typeId) &&
+    !isCodeEngineInWorkflow(currentContext)
   ) {
     actions.add('deleteObject');
   }
@@ -271,4 +274,19 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
   }
 
   return actions;
+}
+
+/**
+ * Whether a Code Engine package (or one of its versions) is being looked at from
+ * inside the workflow editor rather than on its own page. A tile pinned to a
+ * version carries the workflow id; one pinned to no version carries nothing, so
+ * the path is what settles the rest. A package's own page is `/codeengine/{id}`
+ * and never matches.
+ * @param {Object} currentContext
+ * @returns {boolean}
+ */
+export function isCodeEngineInWorkflow(currentContext) {
+  const domoObject = currentContext?.domoObject;
+  if (!['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(domoObject?.typeId)) return false;
+  return !!domoObject.metadata?.context?.workflowModelId || !!pathnameOf(currentContext?.url)?.startsWith('/workflows/');
 }
