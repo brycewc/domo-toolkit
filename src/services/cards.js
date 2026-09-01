@@ -536,13 +536,16 @@ export async function getNotebookCardText({ cardId, tabId = null }) {
 
 /**
  * Get all cards owned by a user or group.
+ *
+ * The search index's owner facet stays stale for months after an owner is
+ * removed, so each hit is confirmed against the card's live owner list.
  * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
  * @param {'USER'|'GROUP'} [ownerType='USER'] - Whether ownerId is a user or group
  * @returns {Promise<Array<{id: number, name: string}>>}
  */
 export async function getOwnedCards(ownerId, tabId = null, ownerType = 'USER') {
-  return executeInPage(
+  const indexed = await executeInPage(
     async (ownerId, ownerType) => {
       const allCards = [];
       const count = 50;
@@ -591,6 +594,13 @@ export async function getOwnedCards(ownerId, tabId = null, ownerType = 'USER') {
     },
     [ownerId, ownerType],
     tabId
+  );
+
+  const cards = indexed || [];
+  if (cards.length === 0) return cards;
+  const ownersByCardId = await getCardOwners({ cardIds: cards.map((c) => c.id), tabId });
+  return cards.filter((c) =>
+    (ownersByCardId[String(c.id)] || []).some((o) => o.id === String(ownerId) && o.type === ownerType)
   );
 }
 
