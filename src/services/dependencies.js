@@ -58,6 +58,10 @@ import { getChildPages, getOnlyHereCardIds } from './pages';
  * only appears when nothing at all was found, so a type whose groups always hold
  * something the delete removes anyway (a package's own versions) needs this to
  * say the usage check ran and came back empty.
+ *
+ * And `deferred`: a promise resolving to a fuller return value of the same shape,
+ * for advisory data too slow to hold the listing behind. It replaces the first
+ * result, so it must repeat every field that one set, and never reject.
  */
 /**
  * Render a Beast Mode's grouped usage as dependency items. A card that uses the
@@ -277,6 +281,51 @@ function inputExclusionReason(dependents) {
   if (dependents.views > 0) parts.push(`${dependents.views} dataset view${dependents.views !== 1 ? 's' : ''}`);
   if (parts.length > 0) return `Also used by ${parts.join(', ')}.`;
   return null;
+}
+
+/**
+ * Turn a fetcher's return value into the result shape the view renders, first
+ * pass and `deferred` second pass alike.
+ * @param {Array<Object>|Object} fetched - A fetcher's return value
+ * @returns {Object} The normalized result, without `deferred`
+ */
+function normalizeDependencyResult(fetched) {
+  // Fetchers return either a bare groups array or an object carrying extra data
+  // the view reads: `appSummary` (app-wide page/card totals for the cascade
+  // delete), `onlyHereCardIds` (cards that live only on this page, for the
+  // alternate delete's card-count preview), and `clearNote` (the all-clear
+  // banner's sentence).
+  const allGroups = Array.isArray(fetched) ? fetched : fetched.groups;
+  const appSummary = Array.isArray(fetched) ? null : (fetched.appSummary ?? null);
+  const clearNote = Array.isArray(fetched) ? null : (fetched.clearNote ?? null);
+  const onlyHereCardIds = Array.isArray(fetched) ? null : (fetched.onlyHereCardIds ?? null);
+
+  const groups = allGroups.filter((g) => g.items.length > 0 || (g.count ?? 0) > 0);
+
+  let totalCount = 0;
+  let blockingCount = 0;
+  let blockingReason = null;
+  for (const g of groups) {
+    totalCount += g.items.length || (g.count ?? 0);
+    if (g.blocking) {
+      // Counted the same way as totalCount above: a count-only group would
+      // otherwise set a blocking reason while leaving blockingCount at 0, which
+      // the view reads as not blocked.
+      blockingCount += g.items.length || (g.count ?? 0);
+      blockingReason = blockingReason || g.blockingReason || null;
+    }
+  }
+
+  return {
+    appSummary,
+    blockingCount,
+    blockingReason,
+    clearNote,
+    groups,
+    onlyHereCardCount: onlyHereCardIds == null ? null : onlyHereCardIds.length,
+    supported: true,
+    totalCount
+  };
 }
 
 /**
@@ -541,14 +590,16 @@ const FETCHERS = {
       seenInputIds.add(inputId);
       return true;
     });
+    // Ten seconds per dataset on a large instance, and it only decorates each
+    // output row with a badge, so it is handed back as `deferred` instead of
+    // holding the listing. A failed lookup leaves the counts unknown.
+    const impacts = getDatasetImpactCounts({ datasetIds: outputIds.map(String), tabId }).catch(() => ({}));
+
     // Cards and alerts both hang off the output datasets and are both removed
     // when those datasets are deleted, so fetch them together. Downstream views
     // built on the outputs are fetched alongside: Domo blocks deleting a dataset
-    // a view sits on, so they must block this delete rather than cascade. The
-    // output impact counts ride along, since all of that goes when the output
-    // does. Best-effort: a failed lookup leaves those counts unknown rather than
-    // blocking the delete.
-    const [cards, alerts, downstream, outputImpacts, inputDetails] = await Promise.all([
+    // a view sits on, so they must block this delete rather than cascade.
+    const [cards, alerts, downstream, inputDetails] = await Promise.all([
       getCardsForObject({
         metadata,
         objectId: id,
@@ -557,7 +608,6 @@ const FETCHERS = {
       }),
       getDownstreamAlertsForDatasets(outputIds, tabId),
       getDownstreamViewsForDatasets(outputIds, tabId),
-      getDatasetImpactCounts({ datasetIds: outputIds.map(String), tabId }).catch(() => ({})),
       inputs.length > 0 ? getDatasetDetailsForList({ datasets: inputs, tabId }).catch(() => []) : Promise.resolve([])
     ]);
 
@@ -580,119 +630,126 @@ const FETCHERS = {
             tabId
           }).catch(() => ({}))
         : {};
-    const groups = [
-      {
-        blocking: false,
-        deleted: true,
-        // Each output carries its total downstream impact, so how far the delete
-        // reaches is visible without opening anything.
-        items: outputs.map((o) => ({
-          ...countBadge(outputImpacts[String(o.dataSourceId)], 'dependency', 'dependencies'),
-          id: o.dataSourceId,
-          label: o.dataSourceName || o.dataSourceId,
-          typeId: 'DATA_SOURCE',
-          url: `${origin}/datasources/${o.dataSourceId}/details/overview`
-        })),
-        label: 'Output DataSets'
-      },
-      {
-        blocking: false,
-        deleted: true,
-        items: cards.map((c) => ({
-          id: c.id,
-          label: c.title || `Card ${c.id}`,
-          typeId: 'CARD',
-          url: `${origin}/kpis/details/${c.id}`
-        })),
-        label: 'Cards'
-      },
-      {
-        blocking: false,
-        deleted: true,
-        items: alerts.map((a) => ({
-          id: a.id,
-          label: a.name || `Alert ${a.id}`,
-          typeId: 'ALERT',
-          url: `${origin}/alerts/${a.id}`
-        })),
-        label: 'Alerts'
-      }
-    ];
+    const buildGroups = (outputImpacts) => {
+      const groups = [
+        {
+          blocking: false,
+          deleted: true,
+          // Each output carries its total downstream impact, so how far the delete
+          // reaches is visible without opening anything.
+          items: outputs.map((o) => ({
+            ...countBadge(outputImpacts[String(o.dataSourceId)], 'dependency', 'dependencies'),
+            id: o.dataSourceId,
+            label: o.dataSourceName || o.dataSourceId,
+            typeId: 'DATA_SOURCE',
+            url: `${origin}/datasources/${o.dataSourceId}/details/overview`
+          })),
+          label: 'Output DataSets'
+        },
+        {
+          blocking: false,
+          deleted: true,
+          items: cards.map((c) => ({
+            id: c.id,
+            label: c.title || `Card ${c.id}`,
+            typeId: 'CARD',
+            url: `${origin}/kpis/details/${c.id}`
+          })),
+          label: 'Cards'
+        },
+        {
+          blocking: false,
+          deleted: true,
+          items: alerts.map((a) => ({
+            id: a.id,
+            label: a.name || `Alert ${a.id}`,
+            typeId: 'ALERT',
+            url: `${origin}/alerts/${a.id}`
+          })),
+          label: 'Alerts'
+        }
+      ];
 
-    // Inputs: kept by the primary delete, and by the alternate one unless the
-    // user checks them. `deletableIds` is the subset the alternate delete may
-    // offer; every other row carries the reason it is off limits.
-    if (connectorInputs.length > 0) {
-      const deletableIds = [];
-      const unselectableReasons = {};
-      const inputItems = connectorInputs.map((i) => {
-        const id = String(i.dataSourceId);
-        const dependents = inputDependents[id];
-        const reason = inputExclusionReason(dependents);
-        if (reason) unselectableReasons[id] = reason;
-        else deletableIds.push(id);
-        return {
-          ...countBadge(otherDependentTotal(dependents), 'other dependency', 'other dependencies'),
-          id: i.dataSourceId,
-          label: i.dataSourceName || i.dataSourceId,
-          typeId: 'DATA_SOURCE',
-          url: `${origin}/datasources/${i.dataSourceId}/details/overview`
-        };
-      });
-      groups.push({
-        annotation: 'Only the alternate delete removes these, and only the ones you check.',
-        blocking: false,
-        deletableIds,
-        deleted: false,
-        items: inputItems,
-        key: 'dataflowInputs',
-        label: 'Connector Input DataSets',
-        unselectableReasons
-      });
-    }
-
-    // Downstream views built on the outputs block the delete: Domo rejects
-    // deleting a dataset a view sits on, so the whole dataflow delete would fail
-    // partway. Outputs whose lineage couldn't be checked block too, so an
-    // unverified lookup never lets through a delete that then fails at runtime.
-    if (downstream.views.length > 0 || downstream.unverifiedOutputIds.length > 0) {
-      const viewItems = downstream.views.map((v) => ({
-        id: v.id,
-        label: v.name || `DataSet ${v.id}`,
-        typeId: 'DATA_SOURCE',
-        url: `${origin}/datasources/${v.id}/details/overview`
-      }));
-      const unverifiedItems = downstream.unverifiedOutputIds.map((oid) => {
-        const output = outputs.find((o) => String(o.dataSourceId) === oid);
-        return {
-          id: oid,
-          label: `${output?.dataSourceName || oid} (downstream views could not be verified)`,
-          typeId: 'DATA_SOURCE',
-          url: `${origin}/datasources/${oid}/details/overview`
-        };
-      });
-      const items = [...viewItems, ...unverifiedItems];
-      const reasonParts = [];
-      if (viewItems.length > 0) {
-        reasonParts.push(
-          `${viewItems.length} dataset view${viewItems.length !== 1 ? 's' : ''} ${viewItems.length === 1 ? 'is' : 'are'} built on this dataflow's output datasets`
-        );
+      // Inputs: kept by the primary delete, and by the alternate one unless the
+      // user checks them. `deletableIds` is the subset the alternate delete may
+      // offer; every other row carries the reason it is off limits.
+      if (connectorInputs.length > 0) {
+        const deletableIds = [];
+        const unselectableReasons = {};
+        const inputItems = connectorInputs.map((i) => {
+          const id = String(i.dataSourceId);
+          const dependents = inputDependents[id];
+          const reason = inputExclusionReason(dependents);
+          if (reason) unselectableReasons[id] = reason;
+          else deletableIds.push(id);
+          return {
+            ...countBadge(otherDependentTotal(dependents), 'other dependency', 'other dependencies'),
+            id: i.dataSourceId,
+            label: i.dataSourceName || i.dataSourceId,
+            typeId: 'DATA_SOURCE',
+            url: `${origin}/datasources/${i.dataSourceId}/details/overview`
+          };
+        });
+        groups.push({
+          annotation: 'Only the alternate delete removes these, and only the ones you check.',
+          blocking: false,
+          deletableIds,
+          deleted: false,
+          items: inputItems,
+          key: 'dataflowInputs',
+          label: 'Connector Input DataSets',
+          unselectableReasons
+        });
       }
-      if (unverifiedItems.length > 0) {
-        reasonParts.push(
-          `${unverifiedItems.length} output dataset${unverifiedItems.length !== 1 ? 's' : ''} could not be checked for downstream views`
-        );
-      }
-      groups.push({
-        blocking: true,
-        blockingReason: `${reasonParts.join(' and ')}. Domo blocks deleting a dataset that a view is built on, so delete or repoint ${items.length === 1 ? 'it' : 'them'} first.`,
-        deleted: false,
-        items,
-        label: 'Downstream DataSet Views'
-      });
-    }
 
-    return groups;
+      // Downstream views built on the outputs block the delete: Domo rejects
+      // deleting a dataset a view sits on, so the whole dataflow delete would fail
+      // partway. Outputs whose lineage couldn't be checked block too, so an
+      // unverified lookup never lets through a delete that then fails at runtime.
+      if (downstream.views.length > 0 || downstream.unverifiedOutputIds.length > 0) {
+        const viewItems = downstream.views.map((v) => ({
+          id: v.id,
+          label: v.name || `DataSet ${v.id}`,
+          typeId: 'DATA_SOURCE',
+          url: `${origin}/datasources/${v.id}/details/overview`
+        }));
+        const unverifiedItems = downstream.unverifiedOutputIds.map((oid) => {
+          const output = outputs.find((o) => String(o.dataSourceId) === oid);
+          return {
+            id: oid,
+            label: `${output?.dataSourceName || oid} (downstream views could not be verified)`,
+            typeId: 'DATA_SOURCE',
+            url: `${origin}/datasources/${oid}/details/overview`
+          };
+        });
+        const items = [...viewItems, ...unverifiedItems];
+        const reasonParts = [];
+        if (viewItems.length > 0) {
+          reasonParts.push(
+            `${viewItems.length} dataset view${viewItems.length !== 1 ? 's' : ''} ${viewItems.length === 1 ? 'is' : 'are'} built on this dataflow's output datasets`
+          );
+        }
+        if (unverifiedItems.length > 0) {
+          reasonParts.push(
+            `${unverifiedItems.length} output dataset${unverifiedItems.length !== 1 ? 's' : ''} could not be checked for downstream views`
+          );
+        }
+        groups.push({
+          blocking: true,
+          blockingReason: `${reasonParts.join(' and ')}. Domo blocks deleting a dataset that a view is built on, so delete or repoint ${items.length === 1 ? 'it' : 'them'} first.`,
+          deleted: false,
+          items,
+          label: 'Downstream DataSet Views'
+        });
+      }
+
+      return groups;
+    };
+
+    return {
+      deferred: impacts.then((outputImpacts) => ({ groups: buildGroups(outputImpacts) })),
+      groups: buildGroups({})
+    };
   },
   MAGNUM_COLLECTION: async ({ id, metadata, origin, parentId }, tabId) => {
     // The parent datastore ID is enriched onto the collection as parentId, and
@@ -892,7 +949,8 @@ const FETCHERS = {
  *   clearNote: string|null,
  *   supported: boolean,
  *   appSummary: {cardCount: number, cardIds: number[], pageCount: number}|null,
- *   onlyHereCardCount: number|null
+ *   onlyHereCardCount: number|null,
+ *   deferred: Promise<Object>|null
  * }>}
  */
 export async function getDependenciesForDelete({ object, origin, tabId = null }) {
@@ -903,6 +961,7 @@ export async function getDependenciesForDelete({ object, origin, tabId = null })
       blockingCount: 0,
       blockingReason: null,
       clearNote: null,
+      deferred: null,
       groups: [],
       onlyHereCardCount: null,
       supported: false,
@@ -921,40 +980,10 @@ export async function getDependenciesForDelete({ object, origin, tabId = null })
     tabId
   );
 
-  // Fetchers return either a bare groups array or an object carrying extra data
-  // the view reads: `appSummary` (app-wide page/card totals for the cascade
-  // delete), `onlyHereCardIds` (cards that live only on this page, for the
-  // alternate delete's card-count preview), and `clearNote` (the all-clear
-  // banner's sentence).
-  const allGroups = Array.isArray(fetched) ? fetched : fetched.groups;
-  const appSummary = Array.isArray(fetched) ? null : (fetched.appSummary ?? null);
-  const clearNote = Array.isArray(fetched) ? null : (fetched.clearNote ?? null);
-  const onlyHereCardIds = Array.isArray(fetched) ? null : (fetched.onlyHereCardIds ?? null);
-
-  const groups = allGroups.filter((g) => g.items.length > 0 || (g.count ?? 0) > 0);
-
-  let totalCount = 0;
-  let blockingCount = 0;
-  let blockingReason = null;
-  for (const g of groups) {
-    totalCount += g.items.length || (g.count ?? 0);
-    if (g.blocking) {
-      // Counted the same way as totalCount above: a count-only group would
-      // otherwise set a blocking reason while leaving blockingCount at 0, which
-      // the view reads as not blocked.
-      blockingCount += g.items.length || (g.count ?? 0);
-      blockingReason = blockingReason || g.blockingReason || null;
-    }
-  }
+  const deferred = Array.isArray(fetched) ? null : (fetched.deferred ?? null);
 
   return {
-    appSummary,
-    blockingCount,
-    blockingReason,
-    clearNote,
-    groups,
-    onlyHereCardCount: onlyHereCardIds == null ? null : onlyHereCardIds.length,
-    supported: true,
-    totalCount
+    ...normalizeDependencyResult(fetched),
+    deferred: deferred ? deferred.then(normalizeDependencyResult) : null
   };
 }

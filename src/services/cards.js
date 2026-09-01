@@ -1,5 +1,5 @@
 import { parseBeastModeLinks, rootCardIdsFor } from '@/utils/beastModeLinks';
-import { EXPORT_FORMATS } from '@/utils/constants';
+import { DEPENDENCY_FETCH_CONCURRENCY, EXPORT_FORMATS } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
 
 import { extractPageContentIds, getFormsForPage, getQueuesForPage } from './appStudio';
@@ -346,14 +346,26 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
     const outputs = metadata?.details?.outputs || [];
     if (outputs.length === 0) return [];
 
+    // Each output is its own page round-trip, so they run together and are
+    // deduped afterwards in output order rather than as they arrive.
+    const perOutput = new Array(outputs.length);
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(DEPENDENCY_FETCH_CONCURRENCY, outputs.length) }, async () => {
+        while (next < outputs.length) {
+          const index = next++;
+          perOutput[index] = await getCardsForObject({
+            objectId: outputs[index].dataSourceId,
+            objectType: 'DATA_SOURCE',
+            tabId
+          });
+        }
+      })
+    );
+
     const allCards = [];
     const seen = new Set();
-    for (const output of outputs) {
-      const dsCards = await getCardsForObject({
-        objectId: output.dataSourceId,
-        objectType: 'DATA_SOURCE',
-        tabId
-      });
+    for (const dsCards of perOutput) {
       for (const card of dsCards) {
         if (!seen.has(card.id)) {
           seen.add(card.id);

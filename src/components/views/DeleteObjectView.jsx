@@ -490,6 +490,7 @@ export function DeleteObjectView({
   const [currentContext, setCurrentContext] = useState(null);
   const [config, setConfig] = useState(null);
   const [deps, setDeps] = useState(null);
+  const [depsSeed, setDepsSeed] = useState(null);
   const [isLoadingDeps, setIsLoadingDeps] = useState(false);
   const [depsError, setDepsError] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -497,6 +498,7 @@ export function DeleteObjectView({
   const [pendingAction, setPendingAction] = useState(null);
   const [selectedInputIds, setSelectedInputIds] = useState(() => new Set());
   const mountedRef = useRef(true);
+  const depsRequestRef = useRef(0);
   const { showPromiseStatus } = useStatusBar();
 
   useEffect(() => {
@@ -509,11 +511,12 @@ export function DeleteObjectView({
 
   // Seed the picker from the dependency check: every row that is safe to delete
   // starts checked. Re-seeding on each check means a refresh can't leave a
-  // now-stale id selected.
+  // now-stale id selected. Seeded from the first pass only, so the slower counts
+  // folding in later can't wipe out what the user has ticked since.
   useEffect(() => {
-    const scope = buildSelectionScope({ config, deps });
+    const scope = buildSelectionScope({ config, deps: depsSeed });
     setSelectedInputIds(scope ? new Set(scope.eligibleIds) : new Set());
-  }, [config, deps]);
+  }, [config, depsSeed]);
 
   const loadData = async () => {
     try {
@@ -544,6 +547,8 @@ export function DeleteObjectView({
   };
 
   const loadDependencies = async (context) => {
+    const requestId = ++depsRequestRef.current;
+    const isCurrent = () => mountedRef.current && requestId === depsRequestRef.current;
     setIsLoadingDeps(true);
     setDepsError(null);
     try {
@@ -552,14 +557,24 @@ export function DeleteObjectView({
         origin: context.origin,
         tabId: context.tabId
       });
-      if (mountedRef.current) setDeps(result);
+      if (isCurrent()) {
+        setDeps(result);
+        setDepsSeed(result);
+      }
+      // A count too slow to hold the list behind (a dataflow output's downstream
+      // impact) lands here, so the rows gain their badges once it arrives.
+      result.deferred
+        ?.then((updated) => {
+          if (isCurrent()) setDeps(updated);
+        })
+        .catch((error) => console.error('[DeleteObjectView] Error loading deferred dependencies:', error));
     } catch (error) {
       console.error('[DeleteObjectView] Error loading dependencies:', error);
-      if (mountedRef.current) {
+      if (isCurrent()) {
         setDepsError(error.message || 'Failed to check dependencies');
       }
     } finally {
-      if (mountedRef.current) setIsLoadingDeps(false);
+      if (isCurrent()) setIsLoadingDeps(false);
     }
   };
 

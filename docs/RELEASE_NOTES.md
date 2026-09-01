@@ -28,6 +28,9 @@
 - Delete on a Code Engine Package version now deletes its whole package.
 - Deleting a DataFlow and its inputs now lets you pick which inputs go.
 - An input DataSet that can't be deleted with its DataFlow now says why.
+- The dependency list for deleting a DataFlow now appears right away.
+- An output DataSet's dependency count now fills in as it arrives.
+- A DataFlow's cards now load faster when it has several output DataSets.
 
 ## UI Improvements
 

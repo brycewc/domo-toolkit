@@ -1,3 +1,4 @@
+import { DEPENDENCY_FETCH_CONCURRENCY } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
@@ -148,11 +149,11 @@ export async function getDownstreamAlerts(datasetId, tabId = null) {
  */
 export async function getDownstreamAlertsForDatasets(datasetIds, tabId = null) {
   return executeInPage(
-    async (datasetIds) => {
-      const byId = new Map();
+    async (datasetIds, concurrency) => {
       const limit = 200;
 
-      for (const datasetId of datasetIds) {
+      const alertsForDataset = async (datasetId) => {
+        const found = [];
         let moreData = true;
         let offset = 0;
 
@@ -164,20 +165,39 @@ export async function getDownstreamAlertsForDatasets(datasetIds, tabId = null) {
           const data = await response.json();
 
           if (Array.isArray(data) && data.length > 0) {
-            for (const a of data) {
-              if (!byId.has(a.id)) byId.set(a.id, { id: a.id, name: a.name || String(a.id) });
-            }
+            for (const a of data) found.push({ id: a.id, name: a.name || String(a.id) });
             offset += limit;
             if (data.length < limit) moreData = false;
           } else {
             moreData = false;
           }
         }
-      }
+        return found;
+      };
 
+      // Datasets run together, but each one's pages stay sequential since every
+      // page's offset depends on the last. Results land in the input's order so
+      // the list reads the same whichever dataset finishes first.
+      const perDataset = new Array(datasetIds.length);
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: Math.min(concurrency, datasetIds.length) }, async () => {
+          while (next < datasetIds.length) {
+            const index = next++;
+            perDataset[index] = await alertsForDataset(datasetIds[index]);
+          }
+        })
+      );
+
+      const byId = new Map();
+      for (const found of perDataset) {
+        for (const alert of found) {
+          if (!byId.has(alert.id)) byId.set(alert.id, alert);
+        }
+      }
       return [...byId.values()];
     },
-    [datasetIds],
+    [datasetIds, DEPENDENCY_FETCH_CONCURRENCY],
     tabId
   );
 }
@@ -561,7 +581,11 @@ export async function moveAlertToTarget({ alertId, columnMap, droppedColumns, or
         for (const s of srcSubs) {
           if (!s || s.subscriberId == null || existingIds.has(String(s.subscriberId))) continue;
           const subRes = await fetch(`/api/social/v4/alerts/${newId}/subscriptions`, {
-            body: JSON.stringify({ subscribedBy: s.subscribedBy, subscriberId: String(s.subscriberId), type: s.type || 'USER' }),
+            body: JSON.stringify({
+              subscribedBy: s.subscribedBy,
+              subscriberId: String(s.subscriberId),
+              type: s.type || 'USER'
+            }),
             headers: { 'Content-Type': 'application/json' },
             method: 'POST'
           });

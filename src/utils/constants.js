@@ -79,6 +79,11 @@ export const SECTION_TITLES = {
   '/workspaces': 'Workspaces'
 };
 
+// Domo's impact and lineage endpoints can take ten seconds each on a large
+// instance, so per-dataset dependency lookups run together rather than one at a
+// time; the cap keeps a wide list from firing every request at once.
+export const DEPENDENCY_FETCH_CONCURRENCY = 6;
+
 export const EXPORT_FORMATS = {
   csv: {
     accept: 'text/csv',

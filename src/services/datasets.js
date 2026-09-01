@@ -1,4 +1,5 @@
 import { getObjectType } from '@/models/DomoObjectType';
+import { DEPENDENCY_FETCH_CONCURRENCY } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
 
 import { getJupyterWorkspaceDatasets } from './jupyterWorkspaces';
@@ -240,10 +241,10 @@ export async function getDatasetImpactCounts({ datasetIds, tabId = null }) {
   if (!datasetIds || datasetIds.length === 0) return {};
 
   return executeInPage(
-    async (datasetIds) => {
+    async (datasetIds, concurrency) => {
       const totals = {};
 
-      for (const datasetId of datasetIds) {
+      const readImpact = async (datasetId) => {
         try {
           const response = await fetch(`/api/data/v1/impacts/DATA_SOURCE/${datasetId}`, { credentials: 'include' });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -256,11 +257,18 @@ export async function getDatasetImpactCounts({ datasetIds, tabId = null }) {
         } catch {
           totals[String(datasetId)] = null;
         }
-      }
+      };
+
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: Math.min(concurrency, datasetIds.length) }, async () => {
+          while (next < datasetIds.length) await readImpact(datasetIds[next++]);
+        })
+      );
 
       return totals;
     },
-    [datasetIds],
+    [datasetIds, DEPENDENCY_FETCH_CONCURRENCY],
     tabId
   );
 }
@@ -584,27 +592,42 @@ export async function getDependentDatasets({ datasetId, tabId }) {
  */
 export async function getDownstreamViewsForDatasets(datasetIds, tabId = null) {
   return executeInPage(
-    async (datasetIds) => {
-      const seen = new Set();
-      const unverifiedOutputIds = [];
+    async (datasetIds, concurrency) => {
+      // Both lists are filled by index and flattened afterwards, so the datasets
+      // running together still come out in the order they were passed in.
+      const childIdsPerDataset = new Array(datasetIds.length);
+      const unverifiedPerDataset = new Array(datasetIds.length);
 
-      for (const datasetId of datasetIds) {
+      const readChildren = async (datasetId, index) => {
         try {
           const url = `/api/data/v1/lineage/DATA_SOURCE/${datasetId}?maxDepth=1&requestEntities=DATA_SOURCE&traverseUp=false`;
           const response = await fetch(url, { credentials: 'include' });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const lineage = await response.json();
           const children = lineage[`DATA_SOURCE${datasetId}`]?.children || [];
-          for (const child of children) {
-            if (!child || child.type !== 'DATA_SOURCE') continue;
-            const idStr = String(child.id);
-            if (idStr === String(datasetId)) continue;
-            seen.add(idStr);
-          }
+          childIdsPerDataset[index] = children
+            .filter((child) => child && child.type === 'DATA_SOURCE' && String(child.id) !== String(datasetId))
+            .map((child) => String(child.id));
         } catch {
-          unverifiedOutputIds.push(String(datasetId));
+          unverifiedPerDataset[index] = String(datasetId);
         }
+      };
+
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: Math.min(concurrency, datasetIds.length) }, async () => {
+          while (next < datasetIds.length) {
+            const index = next++;
+            await readChildren(datasetIds[index], index);
+          }
+        })
+      );
+
+      const seen = new Set();
+      for (const ids of childIdsPerDataset) {
+        for (const id of ids || []) seen.add(id);
       }
+      const unverifiedOutputIds = unverifiedPerDataset.filter(Boolean);
 
       const viewIds = [...seen];
       let views = [];
@@ -625,7 +648,7 @@ export async function getDownstreamViewsForDatasets(datasetIds, tabId = null) {
 
       return { unverifiedOutputIds, views };
     },
-    [datasetIds],
+    [datasetIds, DEPENDENCY_FETCH_CONCURRENCY],
     tabId
   );
 }
@@ -652,7 +675,7 @@ export async function getOtherDependentCountsForDatasets({ datasetIds, excludeDa
   if (!datasetIds || datasetIds.length === 0) return {};
 
   return executeInPage(
-    async (datasetIds, excludeDataflowId) => {
+    async (datasetIds, excludeDataflowId, concurrency) => {
       const counts = {};
 
       const fetchJson = async (url) => {
@@ -661,12 +684,10 @@ export async function getOtherDependentCountsForDatasets({ datasetIds, excludeDa
         return response.json();
       };
 
-      for (const datasetId of datasetIds) {
+      const countOne = async (datasetId) => {
         const entry = { cards: 0, dataflows: 0, unverified: false, views: 0 };
         counts[String(datasetId)] = entry;
 
-        // One dataset's two lookups run together, but the list is walked one
-        // dataset at a time so a wide input list doesn't flood the API.
         const [lineage, cards] = await Promise.allSettled([
           fetchJson(
             `/api/data/v1/lineage/DATA_SOURCE/${datasetId}?maxDepth=1&requestEntities=DATA_SOURCE,DATAFLOW&traverseUp=false`
@@ -696,11 +717,18 @@ export async function getOtherDependentCountsForDatasets({ datasetIds, excludeDa
         } else {
           entry.unverified = true;
         }
-      }
+      };
+
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: Math.min(concurrency, datasetIds.length) }, async () => {
+          while (next < datasetIds.length) await countOne(datasetIds[next++]);
+        })
+      );
 
       return counts;
     },
-    [datasetIds, excludeDataflowId],
+    [datasetIds, excludeDataflowId, DEPENDENCY_FETCH_CONCURRENCY],
     tabId
   );
 }
