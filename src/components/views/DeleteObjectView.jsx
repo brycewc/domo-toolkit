@@ -330,7 +330,19 @@ const deletersByType = {
   REPORT_SCHEDULE: {
     confirmSuffix: '',
     primaryLabel: 'Delete Scheduled Report',
-    run: ({ context }) => deleteObject({ object: context.domoObject, tabId: context.tabId }),
+    run: async ({ context }) => {
+      const result = await deleteObject({ object: context.domoObject, tabId: context.tabId });
+      if (result.statusType !== 'success') {
+        throw new Error(result.statusDescription || 'Delete failed');
+      }
+      const origin = context.origin;
+      await redirectTabIfViewingObject({
+        ids: [context.domoObject.id],
+        tabId: context.tabId,
+        url: `${origin}/scheduled-reports`
+      });
+      return result;
+    },
     typeName: 'Scheduled Report'
   },
   TEMPLATE: {
@@ -365,7 +377,19 @@ const deletersByType = {
     ],
     confirmSuffix: '',
     primaryLabel: 'Delete Template',
-    run: ({ context }) => deleteObject({ object: context.domoObject, tabId: context.tabId }),
+    run: async ({ context }) => {
+      const result = await deleteObject({ object: context.domoObject, tabId: context.tabId });
+      if (result.statusType !== 'success') {
+        throw new Error(result.statusDescription || 'Delete failed');
+      }
+      const origin = context.origin;
+      await redirectTabIfViewingObject({
+        ids: [context.domoObject.id],
+        tabId: context.tabId,
+        url: `${origin}/approval/request-forms`
+      });
+      return result;
+    },
     typeName: 'Template'
   },
   VARIABLE: {
@@ -1176,13 +1200,26 @@ async function runPageDelete({ cardScope = 'all', context, parentAppId = null })
 }
 
 async function runTemplateAndDatasetDelete({ context, datasetId }) {
-  await deleteApprovalTemplate({ tabId: context.tabId, templateId: context.domoObject.id });
+  const templateId = context.domoObject.id;
+  await deleteApprovalTemplate({ tabId: context.tabId, templateId });
+  let datasetError = null;
   try {
     await deleteDataset({ datasetId, tabId: context.tabId });
   } catch (err) {
-    throw new Error(`Template deleted, but the dataset could not be removed (${err.message}). Delete it manually.`, {
-      cause: err
-    });
+    datasetError = err;
+  }
+  // The template is gone even when the dataset delete failed, so rescue the tab
+  // before reporting that failure. A surviving dataset keeps its own page.
+  await redirectTabIfViewingObject({
+    ids: datasetError ? [templateId] : [templateId, datasetId],
+    tabId: context.tabId,
+    url: `${context.origin}/approval/request-forms`
+  });
+  if (datasetError) {
+    throw new Error(
+      `Template deleted, but the dataset could not be removed (${datasetError.message}). Delete it manually.`,
+      { cause: datasetError }
+    );
   }
   return { datasetId };
 }

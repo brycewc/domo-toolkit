@@ -37,6 +37,8 @@
 ## Bug Fixes
 
 - Deleting a DataFlow's inputs no longer removes an input that other content still uses or that another DataFlow produces.
+- Deleting a Scheduled Report now sends you to the Scheduled Reports list if you are still on the deleted report's page.
+- Deleting an Approval Template now sends you to the Request Forms list if you are still on the deleted template's page.
 - A checkbox you can't tick, such as one in Manage Card Locks or Manage Card Owners, now explains why when you hover it.
 - Lists now order names containing numbers by value, so Card 9 comes before Card 10 instead of after it.
 - Remap Columns no longer offers to drop a broken view column that the view also filters, groups, or sorts on.
