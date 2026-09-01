@@ -45,13 +45,8 @@ export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpd
       return;
     }
 
-    let removed = 0;
-    definition.definition.controls.forEach((control) => {
-      if (Array.isArray(control.values) && control.values.length === 1 && control.values[0] === '') {
-        control.values = [];
-        removed++;
-      }
-    });
+    const removed = countEmptyStringFilters(definition);
+    removeEmptyStringFilters(definition);
 
     const promise = updateCardDefinition({ cardId, definition, tabId }).then(() => {
       setEmptyCount(0);
@@ -88,9 +83,44 @@ export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpd
   );
 }
 
+function collectFilterGroups(definition) {
+  const { controls, subscriptions } = definition?.definition ?? {};
+  const groups = Array.isArray(controls) ? [controls] : [];
+  if (subscriptions && typeof subscriptions === 'object') {
+    Object.values(subscriptions).forEach((subscription) => {
+      if (Array.isArray(subscription?.filters)) groups.push(subscription.filters);
+    });
+  }
+  return groups;
+}
+
 function countEmptyStringFilters(definition) {
-  if (!Array.isArray(definition?.definition?.controls)) return 0;
-  return definition.definition.controls.filter(
-    (control) => Array.isArray(control.values) && control.values.length === 1 && control.values[0] === ''
-  ).length;
+  const columns = new Set();
+  collectFilterGroups(definition).forEach((group) => {
+    group.forEach((filter) => {
+      if (isEmptyStringFilter(filter)) columns.add(filter.column ?? filter.formulaId ?? filter);
+    });
+  });
+  return columns.size;
+}
+
+function isEmptyStringFilter(filter) {
+  return Array.isArray(filter?.values) && filter.values.length === 1 && filter.values[0] === '';
+}
+
+function removeEmptyStringFilters(definition) {
+  const { controls, subscriptions } = definition?.definition ?? {};
+
+  if (Array.isArray(controls)) {
+    controls.forEach((control) => {
+      if (isEmptyStringFilter(control)) control.values = [];
+    });
+  }
+
+  if (subscriptions && typeof subscriptions === 'object') {
+    Object.values(subscriptions).forEach((subscription) => {
+      if (!Array.isArray(subscription?.filters)) return;
+      subscription.filters = subscription.filters.filter((filter) => !isEmptyStringFilter(filter));
+    });
+  }
 }

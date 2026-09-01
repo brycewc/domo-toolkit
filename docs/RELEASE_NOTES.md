@@ -52,3 +52,4 @@
 - Migrate Content and Remap Columns no longer count a column as used when the formula line referencing it is commented out.
 - Migrate Content and Remap Columns no longer miss a column because an earlier commented-out line left a backtick unclosed.
 - Document Collections are recognized again now that Domo moved them to a new address, and links to them open the right page.
+- Remove Empty String Filters now also finds empty string filters saved in a card's filter list, not just its quick filters.
