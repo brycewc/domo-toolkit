@@ -51,8 +51,10 @@ import {
 } from '@/services/functions';
 import {
   compareDatasetSchemas,
+  findDataflowInputConflicts,
   getDownstreamCards,
   getDownstreamCardsRaw,
+  getDownstreamDatasetIds,
   getDownstreamLineage,
   MIGRATE_TYPES,
   migrateAllDownstreamContent
@@ -366,6 +368,50 @@ export function MigrateDownstreamContentView({
     }
     return acc;
   }, [results, selectedIds]);
+
+  // Derived from the input lists captured during discovery, so this is available
+  // on a compatible-schema migration too, where the column scan never runs.
+  const dataflowInputConflicts = useMemo(
+    () =>
+      findDataflowInputConflicts({
+        originId: datasetId,
+        selectedDataflows: selectedItemsByType.dataflows,
+        targetId: selectedDatasetId
+      }),
+    [datasetId, selectedDatasetId, selectedItemsByType]
+  );
+  // Views and fusions carry no input list on their rows, so the ones already
+  // reading the target are found by intersecting the selection with the target's
+  // own downstream. One request per target, rather than one per selected view.
+  const [targetReaderIds, setTargetReaderIds] = useState(null);
+  useEffect(() => {
+    if (!selectedDatasetId || selectedDatasetId === datasetId) {
+      setTargetReaderIds(null);
+      return;
+    }
+    let cancelled = false;
+    getDownstreamDatasetIds(selectedDatasetId, tabId)
+      .then((ids) => {
+        if (!cancelled) setTargetReaderIds(new Set(ids));
+      })
+      .catch(() => {
+        if (!cancelled) setTargetReaderIds(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [datasetId, selectedDatasetId, tabId, targetRefreshKey]);
+
+  const unrepointableDatasets = useMemo(() => {
+    if (!targetReaderIds) return [];
+    return selectedItemsByType.datasets.filter((d) => targetReaderIds.has(String(d.id)));
+  }, [selectedItemsByType, targetReaderIds]);
+
+  const mergeableDataflows = useMemo(() => dataflowInputConflicts.filter((c) => c.canCollapse), [dataflowInputConflicts]);
+  const unrepointableDataflows = useMemo(
+    () => dataflowInputConflicts.filter((c) => !c.canCollapse),
+    [dataflowInputConflicts]
+  );
 
   const excludeIds = useMemo(() => (datasetId ? new Set([datasetId]) : null), [datasetId]);
 
@@ -1465,11 +1511,13 @@ export function MigrateDownstreamContentView({
             } else if (status === 'done') {
               const failed = result?.failed ?? 0;
               const succeeded = result?.succeeded ?? 0;
+              const skipped = result?.skipped ?? [];
               next[typeKey] = {
                 count: count ?? succeeded + failed,
-                error: failed > 0 ? formatErrors(result) : null,
-                errorDetail: failed > 0 ? (result?.errors ?? null) : null,
+                error: failed > 0 ? formatErrors(result) : formatSkips(skipped),
+                errorDetail: failed > 0 ? (result?.errors ?? null) : skipped.length > 0 ? skipped : null,
                 failed,
+                skipped: skipped.length,
                 status: failed > 0 ? 'failed' : 'transferred',
                 succeeded
               };
@@ -1492,10 +1540,14 @@ export function MigrateDownstreamContentView({
       let totalSucceeded = 0;
       let totalFailed = 0;
       let totalManualReview = 0;
+      let totalSkipped = 0;
+      let totalMerged = 0;
       for (const [, r] of transferResults) {
         totalSucceeded += r.succeeded || 0;
         totalFailed += r.failed || 0;
         totalManualReview += r.manualReview?.length || 0;
+        totalSkipped += r.skipped?.length || 0;
+        totalMerged += r.mergedInputs?.length || 0;
       }
 
       // SQL dataflows whose input repointed but whose SQL we couldn't safely
@@ -1504,32 +1556,37 @@ export function MigrateDownstreamContentView({
         totalManualReview > 0
           ? ` ${totalManualReview} SQL dataflow${totalManualReview !== 1 ? 's' : ''} flagged for manual review.`
           : '';
+      const skipNote =
+        totalSkipped > 0 ? ` ${totalSkipped} item${totalSkipped !== 1 ? 's' : ''} skipped, already reading the target.` : '';
+      const mergeNote =
+        totalMerged > 0 ? ` ${totalMerged} dataflow${totalMerged !== 1 ? 's' : ''} had an input merged.` : '';
 
       const targetLabel = targetName ? `**${targetName}**` : `**${targetId}**`;
       if (totalFailed > 0) {
         showStatus(
           'Migration Partially Complete',
-          `**${totalSucceeded}** succeeded, **${totalFailed}** failed migrating to ${targetLabel}.${reviewNote}`,
+          `**${totalSucceeded}** succeeded, **${totalFailed}** failed migrating to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}`,
           'warning',
           7000
         );
         // Some items failed: drop back to the list, where each per-type row
         // shows its own failure message, instead of closing.
         if (mountedRef.current) setPage('select');
-      } else if (totalManualReview > 0) {
+      } else if (totalManualReview > 0 || totalSkipped > 0) {
         showStatus(
           'Migration Complete',
-          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}.${reviewNote}`,
+          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}`,
           'warning',
           9000
         );
-        // Inputs repointed cleanly, but some SQL needs a hand edit. The toast
-        // persists past unmount, so closing is fine.
-        onBackToDefault?.();
+        // Something still needs the user: a hand edit, or an item left behind.
+        // Skips keep the list open so the rows naming them stay visible.
+        if (totalSkipped > 0 && mountedRef.current) setPage('select');
+        else onBackToDefault?.();
       } else {
         showStatus(
           'Migration Complete',
-          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}`,
+          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}${mergeNote}`,
           'success',
           7000
         );
@@ -1899,6 +1956,60 @@ export function MigrateDownstreamContentView({
               </Alert>
             )}
 
+            {mergeableDataflows.length > 0 && (
+              <Alert className='w-full border border-border bg-transparent' status='warning'>
+                <Alert.Content>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <AlertStatusIcon />
+                    {mergeableDataflows.length === 1
+                      ? '1 dataflow already reads the target'
+                      : `${mergeableDataflows.length} dataflows already read the target`}
+                  </Alert.Title>
+                  <Alert.Description>
+                    {mergeableDataflows.map((d) => d.name).join(', ')} already read{' '}
+                    {selectedDatasetName || selectedDatasetId}. Their input tile for {datasetName} will be merged into the
+                    one they already have, and every tile reading it will be repointed.
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+
+            {unrepointableDataflows.length > 0 && (
+              <Alert className='w-full border border-border bg-transparent' status='warning'>
+                <Alert.Content>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <AlertStatusIcon />
+                    {unrepointableDataflows.length === 1
+                      ? "1 dataflow can't be repointed"
+                      : `${unrepointableDataflows.length} dataflows can't be repointed`}
+                  </Alert.Title>
+                  <Alert.Description>
+                    {unrepointableDataflows.map((d) => d.name).join(', ')} already read{' '}
+                    {selectedDatasetName || selectedDatasetId} and run on SQL, where merging the two inputs would mean
+                    rewriting their SQL. They'll be skipped, so repoint them in Domo.
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+
+            {unrepointableDatasets.length > 0 && (
+              <Alert className='w-full border border-border bg-transparent' status='warning'>
+                <Alert.Content>
+                  <Alert.Title className='flex items-center gap-1'>
+                    <AlertStatusIcon />
+                    {unrepointableDatasets.length === 1
+                      ? "1 view can't be repointed"
+                      : `${unrepointableDatasets.length} views can't be repointed`}
+                  </Alert.Title>
+                  <Alert.Description>
+                    {unrepointableDatasets.map((d) => d.name || d.id).join(', ')} already read{' '}
+                    {selectedDatasetName || selectedDatasetId}, so repointing would leave them reading it twice. They'll be
+                    skipped, so update them in Domo.
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+
             {!isScanning && scanResult && appColumnCollisions.length > 0 && (
               <Alert className='w-full border border-border bg-transparent' status='warning'>
                 <Alert.Content>
@@ -2077,6 +2188,13 @@ export function MigrateDownstreamContentView({
                   from <span className='font-medium'>{datasetName}</span> to{' '}
                   <span className='font-medium'>{selectedDatasetName || selectedDatasetId}</span>.
                 </p>
+                {unrepointableDataflows.length + unrepointableDatasets.length > 0 && (
+                  <p className='text-warning'>
+                    <span className='font-medium'>{unrepointableDataflows.length + unrepointableDatasets.length}</span>{' '}
+                    {unrepointableDataflows.length + unrepointableDatasets.length === 1 ? 'item' : 'items'} will be skipped
+                    because they already read {selectedDatasetName || selectedDatasetId}.
+                  </p>
+                )}
                 {hasMismatches && (
                   <p className='text-warning'>
                     The schemas don't fully match
@@ -2794,6 +2912,12 @@ function formatErrors(result) {
   if (!result?.errors?.length) return null;
   const n = result.errors.length;
   return `${n} item${n === 1 ? '' : 's'} failed`;
+}
+
+function formatSkips(skipped) {
+  if (!skipped?.length) return null;
+  const n = skipped.length;
+  return `${n} item${n === 1 ? '' : 's'} skipped`;
 }
 
 function isParentKey(id) {

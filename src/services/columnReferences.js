@@ -202,6 +202,40 @@ export function collectViewDroppableColumns(viewDefinition, sourceAliases, sourc
 }
 
 /**
+ * Every source dataset the view reads, by walking the whole definition for input
+ * references rather than only the top-level FROM/JOIN. Covers template views
+ * (`TABLE` node names), UNION branches (tables nested inside the SUB_SELECT), and
+ * fusions (`from` / `datasource` fields), keeping only dataset UUIDs and dropping
+ * the view's own id.
+ *
+ * @param {Object} viewDefinition
+ * @param {string} viewId
+ * @returns {string[]}
+ */
+export function enumerateViewSourceIds(viewDefinition, viewId) {
+  const ids = new Set();
+  const strip = (s) => (typeof s === 'string' ? s.replace(/`/g, '') : s);
+  const add = (raw) => {
+    const value = strip(raw);
+    if (typeof value === 'string' && VIEW_SOURCE_UUID.test(value) && value !== viewId) ids.add(value);
+  };
+  const walk = (node) => {
+    if (node == null || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item);
+      return;
+    }
+    if (node['@type'] === 'TABLE') add(node.name);
+    // Fusion input references live on plain `from` / `datasource` string fields.
+    if (typeof node.from === 'string') add(node.from);
+    if (typeof node.datasource === 'string') add(node.datasource);
+    for (const value of Object.values(node)) walk(value);
+  };
+  walk(viewDefinition);
+  return [...ids];
+}
+
+/**
  * Scan an alert's rule for the column names it references, so a cross-schema
  * migration surfaces them for remap the same way cards and dataflows are. An
  * alert stores rule columns in two shapes, matching the alert rewriter
@@ -324,6 +358,11 @@ export function extractCardColumnRefs(cardResponse) {
   return refs;
 }
 
+// ---------------------------------------------------------------------------
+// Generic walker: handles all three column-ref shapes uniformly. Pass in
+// `onColumnRef(name)` to collect refs.
+// ---------------------------------------------------------------------------
+
 /**
  * @param {Object} dataflowDefinition
  * @returns {Set<string>}
@@ -333,11 +372,6 @@ export function extractDataflowColumnRefs(dataflowDefinition) {
   walkForColumnRefs(dataflowDefinition, (name) => refs.add(name));
   return refs;
 }
-
-// ---------------------------------------------------------------------------
-// Generic walker — handles all three column-ref shapes uniformly. Pass in
-// `onColumnRef(name)` to collect refs.
-// ---------------------------------------------------------------------------
 
 /**
  * Extract the column refs a view actually USES: the columns named in its query
@@ -1029,3 +1063,5 @@ function walkViewSourceRefs(node, sourceAliases, sourceId, onRef) {
     walkViewSourceRefs(value, sourceAliases, sourceId, onRef);
   }
 }
+
+const VIEW_SOURCE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

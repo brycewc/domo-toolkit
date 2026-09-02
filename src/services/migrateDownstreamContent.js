@@ -12,6 +12,7 @@ import { moveAlertToTarget } from './alerts';
 import { getCardDefinition } from './cards';
 import {
   collectViewDroppableColumns,
+  enumerateViewSourceIds,
   extractDataflowColumnRefs,
   findOriginAliases,
   isFusionView,
@@ -37,6 +38,39 @@ import { getCurrentUserId } from './users';
 // ===========================================================================
 // DISCOVERY
 // ===========================================================================
+
+/**
+ * Find the selected dataflows that already read the target dataset.
+ *
+ * Repointing one of these would list the target as an input twice, which Domo
+ * rejects on save. Magic ETL dataflows can be repaired by merging the two input
+ * tiles (see `collapseDuplicateDataflowInput`); SQL engines can't, because the
+ * merge would have to rewrite every statement that names the dropped tile's
+ * table.
+ *
+ * @param {Object} params
+ * @param {string} params.originId
+ * @param {string} params.targetId
+ * @param {Array<{id: any, name?: string, databaseType?: string, inputDatasetIds?: string[]}>} params.selectedDataflows
+ * @returns {Array<{canCollapse: boolean, engine: string, id: any, name: string}>}
+ */
+export function findDataflowInputConflicts({ originId, selectedDataflows, targetId }) {
+  // Remap Columns drives the same swaps with origin === target, where every
+  // dataflow trivially "already reads the target" and nothing is being repointed.
+  if (!targetId || !originId || targetId === originId) return [];
+  const conflicts = [];
+  for (const df of selectedDataflows || []) {
+    if (!(df?.inputDatasetIds || []).includes(targetId)) continue;
+    const engine = getDataflowEngine({ databaseType: df.databaseType });
+    conflicts.push({
+      canCollapse: engine === 'magic',
+      engine,
+      id: df.id,
+      name: df.name || String(df.id)
+    });
+  }
+  return conflicts;
+}
 
 /**
  * Cards and drill views sourced from this dataset.
@@ -141,6 +175,31 @@ export async function getDownstreamContent(datasetId, tabId = null) {
 }
 
 /**
+ * The ids of the derived datasets (views and fusions) that read this dataset
+ * directly. One request, and unlike `getDownstreamLineage` it skips the name
+ * hydration, so it stays cheap enough to run every time a target is picked.
+ *
+ * @param {string} datasetId
+ * @param {number|null} tabId
+ * @returns {Promise<string[]>}
+ */
+export async function getDownstreamDatasetIds(datasetId, tabId = null) {
+  const ids = await executeInPage(
+    async (datasetId) => {
+      const url = `/api/data/v1/lineage/DATA_SOURCE/${datasetId}?traverseUp=false&maxDepth=1&requestEntities=DATA_SOURCE`;
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) return [];
+      const lineage = await response.json();
+      const children = lineage[`DATA_SOURCE${datasetId}`]?.children || [];
+      return [...new Set(children.filter((c) => c?.type === 'DATA_SOURCE').map((c) => String(c.id)))];
+    },
+    [datasetId],
+    tabId
+  );
+  return Array.isArray(ids) ? ids : [];
+}
+
+/**
  * Walk the lineage graph downstream from this dataset. Returns separate
  * arrays for the derived datasets and dataflows that take this dataset as an
  * input. Dataset names aren't in the lineage payload, so we bulk-fetch their
@@ -218,13 +277,21 @@ export async function getDownstreamLineage(datasetId, tabId = null) {
   // Hydrate dataflow names — the lineage endpoint returns IDs only.
   // Best-effort: a failed detail fetch falls back to the ID-based label
   // rather than blocking the whole migration picker.
+  // Inputs and engine ride along for `findDataflowInputConflicts`: the column scan
+  // that would otherwise supply them only runs on a schema mismatch, so it misses
+  // every compatible-schema migration.
   const dataflowsWithNames = await Promise.all(
     lineage.dataflows.map(async (df) => {
       try {
         const detail = await getDataflowDetail(df.id, tabId);
-        return { id: df.id, name: detail?.name || `Dataflow ${df.id}` };
+        return {
+          databaseType: detail?.databaseType,
+          id: df.id,
+          inputDatasetIds: (detail?.inputs || []).map((i) => i?.dataSourceId).filter(Boolean),
+          name: detail?.name || `Dataflow ${df.id}`
+        };
       } catch {
-        return { id: df.id, name: `Dataflow ${df.id}` };
+        return { databaseType: null, id: df.id, inputDatasetIds: [], name: `Dataflow ${df.id}` };
       }
     })
   );
@@ -496,7 +563,8 @@ export async function swapCardInput({
  * @param {string} [params.originName] - Origin dataset name, for the version comment.
  * @param {string} [params.targetName] - Target dataset name, for the version comment.
  * @param {number|null} [params.tabId]
- * @returns {Promise<{success: boolean, error?: string, unhandled?: Array<{actionId: any, field: string, index?: number}>}>}
+ * @returns {Promise<{success: boolean, error?: string, mergedInput?: boolean, skipped?: boolean,
+ *   skipReason?: string, unhandled?: Array<{actionId: any, field: string, index?: number}>}>}
  */
 export async function swapDataflowInput({
   cachedDefinition,
@@ -514,6 +582,16 @@ export async function swapDataflowInput({
       definition = await fetchDataflowDefinitionInPage(dataflowId, tabId);
     }
     const engine = getDataflowEngine(definition);
+    // Magic ETL merges the two input tiles below. A SQL engine can't: every
+    // statement naming the dropped tile's table would have to be rewritten too.
+    const alreadyReadsTarget = originId !== targetId && (definition?.inputs || []).some((i) => i?.dataSourceId === targetId);
+    if (alreadyReadsTarget && engine !== 'magic') {
+      return {
+        skipped: true,
+        skipReason: 'already reads the target dataset, and its SQL would have to be rewritten by hand',
+        success: false
+      };
+    }
     // Magic ETL rewrites column refs in structured fields; Redshift/MySQL
     // rewrite them inside SQL, scoped to the origin alias. `unhandled` lists
     // SQL statements left verbatim (origin SELECT *, etc.) for manual review.
@@ -546,11 +624,28 @@ export async function swapDataflowInput({
       // already flagged them for manual review, and blindly running the
       // structured rewriter could corrupt an unfamiliar definition shape.
     }
+    // Runs after the rewrite so the rewriters (and the remap count above) still
+    // see both tiles, and before the version comment so it describes what saved.
+    let mergedInput = false;
+    if (alreadyReadsTarget) {
+      const collapse = collapseDuplicateDataflowInput(definition, originId, targetId);
+      if (!collapse.collapsed) {
+        return {
+          skipped: true,
+          skipReason: "already reads the target dataset in a shape the input tiles can't be merged in",
+          success: false
+        };
+      }
+      definition = collapse.definition;
+      mergedInput = true;
+    }
     // Record a version-history comment on the new dataflow version so the
     // change is auditable in Domo. Set it even for a pure repoint (count 0).
     setDataflowVersionDescription(definition, originName, targetName, remappedColumnCount);
     const putResult = await putDataflowInPage(dataflowId, definition, originId, targetId, tabId);
-    return putResult.success && unhandled.length > 0 ? { ...putResult, unhandled } : putResult;
+    if (!putResult.success) return putResult;
+    if (unhandled.length > 0) return { ...putResult, mergedInput, unhandled };
+    return mergedInput ? { ...putResult, mergedInput } : putResult;
   } catch (err) {
     return { error: err?.message || String(err), success: false };
   }
@@ -653,6 +748,86 @@ export async function swapFusionInput({
   }
 }
 
+/**
+ * Merge a Magic ETL dataflow's origin input tile into the target input tile it
+ * already has, so repointing doesn't list the target as an input twice.
+ *
+ * Tiles point at each other by bare action id, in more fields than a single
+ * shape: `dependsOn`, a single-input tile's `input`, a join's `step1`/`step2`,
+ * an output tile's `inputs`, and the canvas `colorSource`. Rather than enumerate
+ * them, the redundant tiles are deleted and one id sweep repoints every
+ * reference at the survivor (tile ids are UUIDs, so it can't hit a substring).
+ *
+ * Returns the definition untouched with `collapsed: false` whenever the shape
+ * isn't unambiguous; the caller skips those rather than guess.
+ *
+ * @param {Object} definition - Hydrated dataflow definition.
+ * @param {string} originId - Dataset being migrated away from.
+ * @param {string} targetId - Dataset being migrated to.
+ * @returns {{collapsed: boolean, definition: Object}}
+ */
+function collapseDuplicateDataflowInput(definition, originId, targetId) {
+  if (!definition || typeof definition !== 'object') return { collapsed: false, definition };
+  if (!originId || !targetId || originId === targetId) return { collapsed: false, definition };
+  if (!Array.isArray(definition.actions)) return { collapsed: false, definition };
+
+  const loadTiles = definition.actions.filter((a) => a?.type === 'LoadFromVault');
+  const survivors = loadTiles.filter((a) => a.dataSourceId === targetId);
+  const redundant = loadTiles.filter((a) => a.dataSourceId === originId);
+  if (survivors.length !== 1 || redundant.length === 0) return { collapsed: false, definition };
+
+  const survivorId = survivors[0].id;
+  const removedIds = redundant.map((a) => a.id);
+  if (!survivorId || removedIds.some((id) => !id)) return { collapsed: false, definition };
+  const removed = new Set(removedIds);
+
+  // A tile fed by both the origin and the target would come out reading the
+  // survivor twice, which is not a join Magic ETL can express.
+  for (const action of definition.actions) {
+    const refs = Array.isArray(action?.dependsOn) ? action.dependsOn : [];
+    const relinked = refs.map((ref) => (removed.has(ref) ? survivorId : ref));
+    if (new Set(relinked).size !== new Set(refs).size) return { collapsed: false, definition };
+  }
+
+  const pruned = JSON.parse(JSON.stringify(definition));
+  pruned.actions = pruned.actions.filter((a) => !removed.has(a?.id));
+  pruneDataflowGuiElements(pruned.gui, removed);
+  dropRedundantDataflowTrigger(pruned.triggerSettings, originId, targetId);
+
+  let json = JSON.stringify(pruned);
+  for (const removedId of removedIds) json = json.replaceAll(removedId, survivorId);
+  const next = JSON.parse(json);
+
+  const inputs = Array.isArray(next.inputs) ? next.inputs : [];
+  const survivingInput = inputs.find((i) => i?.dataSourceId === targetId);
+  if (survivingInput) {
+    // Keep whichever schedule loads more: trigger on either dataset's update, and
+    // take a full load if either side was taking one.
+    for (const dropped of inputs.filter((i) => i?.dataSourceId === originId)) {
+      if (dropped?.executeFlowWhenUpdated) survivingInput.executeFlowWhenUpdated = true;
+      if (dropped?.onlyLoadNewVersions === false) survivingInput.onlyLoadNewVersions = false;
+    }
+  }
+  next.inputs = inputs.filter((i) => i?.dataSourceId !== originId);
+  if (typeof next.numInputs === 'number') next.numInputs = next.inputs.length;
+
+  return { collapsed: true, definition: next };
+}
+
+/**
+ * Drop the origin's "run when this dataset updates" trigger when the target
+ * already has one, so the id sweep doesn't leave the same trigger listed twice.
+ * A trigger on the origin alone is left for the sweep to repoint.
+ */
+function dropRedundantDataflowTrigger(triggerSettings, originId, targetId) {
+  for (const trigger of triggerSettings?.triggers || []) {
+    const events = trigger?.triggerEvents;
+    if (!Array.isArray(events)) continue;
+    if (!events.some((e) => e?.datasetId === targetId)) continue;
+    trigger.triggerEvents = events.filter((e) => e?.datasetId !== originId);
+  }
+}
+
 async function fetchDataflowDefinitionInPage(dataflowId, tabId) {
   return executeInPage(
     async (dataflowId) => {
@@ -694,6 +869,21 @@ async function fetchFusionDefinitionInPage(fusionId, tabId) {
   );
 }
 
+/** Drop deleted tiles from the canvas, which lists them by action id. */
+function pruneDataflowGuiElements(gui, removedIds) {
+  if (!gui || typeof gui !== 'object') return;
+  const keep = (list) => (Array.isArray(list) ? list.filter((el) => !removedIds.has(el?.id)) : list);
+  gui.elements = keep(gui.elements);
+  if (Array.isArray(gui.disabledActions)) {
+    gui.disabledActions = gui.disabledActions.filter((id) => !removedIds.has(id));
+  }
+  if (gui.canvases && typeof gui.canvases === 'object') {
+    for (const canvas of Object.values(gui.canvases)) {
+      if (canvas && typeof canvas === 'object') canvas.elements = keep(canvas.elements);
+    }
+  }
+}
+
 /**
  * Migration-aware card PUT — bypasses `updateCardDefinition` so we can route
  * dataset-persisted beast modes to `formulas.dsUpdated` instead of force-
@@ -713,6 +903,7 @@ async function fetchFusionDefinitionInPage(fusionId, tabId) {
  * dataProvider.dataSourceId from columns[0].sourceId, transforms
  * conditionalFormats from array to {card, datasource}.
  */
+
 async function putCardForMigration(cardId, definition, tabId, { isDrill = false, urn = null } = {}) {
   const datasetId = definition?.columns?.[0]?.sourceId;
   // Each entry in the card's own field catalog carries the dataset it comes from,
@@ -815,6 +1006,15 @@ async function putDataflowInPage(dataflowId, definition, originId, targetId, tab
         });
         if (!putResponse.ok) {
           const text = await putResponse.text().catch(() => '');
+          // Backstop for a duplicate input the pre-flight check missed (a detail
+          // fetch that failed, or an input added in Domo since discovery).
+          if (text.includes('same input data set twice')) {
+            return {
+              error:
+                'This dataflow already reads the target dataset, so repointing it would list that dataset as an input twice.',
+              success: false
+            };
+          }
           return {
             error: `PUT dataflow HTTP ${putResponse.status}: ${text}`.trim(),
             success: false
@@ -1314,7 +1514,16 @@ export async function migrateAllDownstreamContent({
         // Nothing selected for this type: record an empty result but emit no
         // progress, so the UI's progress tally counts only types actually being
         // migrated (see the beastModes branch above).
-        const result = { attempted: [], count: 0, errors: [], failed: 0, manualReview: [], succeeded: 0 };
+        const result = {
+          attempted: [],
+          count: 0,
+          errors: [],
+          failed: 0,
+          manualReview: [],
+          mergedInputs: [],
+          skipped: [],
+          succeeded: 0
+        };
         results.set(type.key, result);
         return;
       }
@@ -1323,6 +1532,8 @@ export async function migrateAllDownstreamContent({
 
       const errors = [];
       const manualReview = [];
+      const mergedInputs = [];
+      const skipped = [];
       let succeeded = 0;
       for (const item of items) {
         const cached = definitionsByItemKey?.get?.(makeItemKey(type.key, item.id))?.definition;
@@ -1343,12 +1554,23 @@ export async function migrateAllDownstreamContent({
           targetName,
           useFullPath
         });
-        if (resp?.success) {
+        if (resp?.skipped) {
+          // Deliberately not written, so this is not a failure. The user was
+          // warned before migrating and has to repoint it in Domo.
+          skipped.push({
+            id: item.id,
+            name: item.name || String(item.id),
+            reason: resp.skipReason || 'could not be repointed safely'
+          });
+        } else if (resp?.success) {
           succeeded++;
           // SQL dataflow statements we couldn't safely rewrite (origin SELECT *,
           // etc.). The input still repointed; the user must fix these by hand.
           if (Array.isArray(resp.unhandled) && resp.unhandled.length > 0) {
             manualReview.push({ id: item.id, name: item.name || String(item.id) });
+          }
+          if (resp.mergedInput) {
+            mergedInputs.push({ id: item.id, name: item.name || String(item.id) });
           }
         } else {
           errors.push({ error: resp?.error || 'Unknown error', id: item.id });
@@ -1361,6 +1583,8 @@ export async function migrateAllDownstreamContent({
         errors,
         failed: errors.length,
         manualReview,
+        mergedInputs,
+        skipped,
         succeeded
       };
       results.set(type.key, result);
@@ -1561,6 +1785,16 @@ async function dispatchDatasetSwap(item, options) {
     } catch (err) {
       return { error: err?.message || String(err), success: false };
     }
+  }
+  // Both sides of the join would become the same dataset under one name, and the
+  // joined side carries no alias, so its column refs stop resolving. Neither PUT
+  // reports it: the fusion save disables validation outright.
+  if (options.originId !== options.targetId && enumerateViewSourceIds(indexed, item.id).includes(options.targetId)) {
+    return {
+      skipped: true,
+      skipReason: 'already reads the target dataset, which would leave it reading that dataset twice',
+      success: false
+    };
   }
   if (isFusionView(indexed)) {
     return swapFusionInput({

@@ -58,3 +58,6 @@
 - Migrate Content and Remap Columns no longer miss a column because an earlier commented-out line left a backtick unclosed.
 - Document Collections are recognized again now that Domo moved them to a new address, and links to them open the right page.
 - Remove Empty String Filters now also finds empty string filters saved in a card's filter list, not just its quick filters.
+- Migrate Content now merges the input tiles of a Magic ETL DataFlow that already reads the target DataSet, instead of failing it.
+- Migrate Content now warns as soon as you pick a target DataSet that some of the selected content already reads it.
+- Migrate Content now skips a SQL DataFlow, DataSet View, or Fusion that already reads the target DataSet, and says which ones it left behind.

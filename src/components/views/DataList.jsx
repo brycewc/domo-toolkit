@@ -933,7 +933,9 @@ function DataListItemImpl({
   const isLoadingState = item.isVirtualParent && (item.status === 'loading' || item.status === 'transferring');
   const isErrorState = item.isVirtualParent && (item.status === 'error' || item.status === 'failed');
   const isSuccessState = item.isVirtualParent && item.status === 'transferred';
-  const showsErrorBody = isErrorState && item.error;
+  // A finished group can still carry a message when items were deliberately
+  // skipped, so the body isn't reserved for failures.
+  const showsErrorBody = (isErrorState || isSuccessState) && item.error;
   const statusIndicator = isLoadingState ? (
     <Spinner
       className={`shrink-0 ${item.status === 'transferring' ? 'text-warning' : 'text-accent'}`}
@@ -1902,7 +1904,12 @@ function DataListItemImpl({
         <Disclosure.Body>
           {showsErrorBody && !errorDismissed && (
             <div className='p-2'>
-              <ErrorAlert detail={item.errorDetail} title={item.error} onDismiss={() => setErrorDismissed(true)} />
+              <ErrorAlert
+                detail={item.errorDetail}
+                status={isErrorState ? 'danger' : 'warning'}
+                title={item.error}
+                onDismiss={() => setErrorDismissed(true)}
+              />
             </div>
           )}
           {hasChildren && (

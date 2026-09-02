@@ -19,6 +19,7 @@ import {
   collectFusionDroppableColumns,
   collectViewColumnRefsForSource,
   collectViewDroppableColumns,
+  enumerateViewSourceIds,
   extractFusionViewColumnRefs,
   fetchDatasetSchemaColumns,
   fetchDatasetViewDefinition,
@@ -26,8 +27,6 @@ import {
   isFusionView
 } from './columnReferences';
 import { swapDatasetViewInput, swapFusionInput } from './migrateDownstreamContent';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Detect the open view's own broken input column references: columns its
@@ -195,40 +194,6 @@ export async function repairViewColumns({
   }
 
   return { dropped, errors, failed: errors.length, remapped };
-}
-
-/**
- * Every source dataset the view reads, by walking the whole definition for input
- * references rather than only the top-level FROM/JOIN. Covers template views
- * (`TABLE` node names), UNION branches (tables nested inside the SUB_SELECT), and
- * fusions (`from` / `datasource` fields), keeping only dataset UUIDs and dropping
- * the view's own id.
- *
- * @param {Object} viewDefinition
- * @param {string} viewId
- * @returns {string[]}
- */
-function enumerateViewSourceIds(viewDefinition, viewId) {
-  const ids = new Set();
-  const strip = (s) => (typeof s === 'string' ? s.replace(/`/g, '') : s);
-  const add = (raw) => {
-    const value = strip(raw);
-    if (typeof value === 'string' && UUID_RE.test(value) && value !== viewId) ids.add(value);
-  };
-  const walk = (node) => {
-    if (node == null || typeof node !== 'object') return;
-    if (Array.isArray(node)) {
-      for (const item of node) walk(item);
-      return;
-    }
-    if (node['@type'] === 'TABLE') add(node.name);
-    // Fusion input references live on plain `from` / `datasource` string fields.
-    if (typeof node.from === 'string') add(node.from);
-    if (typeof node.datasource === 'string') add(node.datasource);
-    for (const value of Object.values(node)) walk(value);
-  };
-  walk(viewDefinition);
-  return [...ids];
 }
 
 /**
