@@ -84,6 +84,9 @@ export const SECTION_TITLES = {
 // time; the cap keeps a wide list from firing every request at once.
 export const DEPENDENCY_FETCH_CONCURRENCY = 6;
 
+// Lists here run to thousands of rows, and a tab per row locks up the browser.
+export const MAX_OPEN_ALL_TABS = 50;
+
 export const EXPORT_FORMATS = {
   csv: {
     accept: 'text/csv',

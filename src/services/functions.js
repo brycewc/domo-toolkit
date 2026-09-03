@@ -412,6 +412,9 @@ export async function getFunctionTemplate(functionId, tabId = null) {
  * list (a card-level one, or one on another dataset). A template that fails to
  * load counts as not nesting; the migrate error path still reports the rejection.
  *
+ * A Variable is listed as a dependency like a nested Beast Mode but does not
+ * count toward the depth limit (verified via `functions/validateFunctions`).
+ *
  * @param {Array<{id: any}>} beastModes
  * @param {number|null} [tabId]
  * @returns {Promise<Set<string>>} The ids, as strings, that nest at least one other Beast Mode.
@@ -421,9 +424,21 @@ export async function getNestingBeastModeIds(beastModes, tabId = null) {
   const list = (beastModes || []).filter((bm) => bm?.id != null);
   if (list.length === 0) return nesting;
   const templates = await hydrateFunctionTemplates(list, tabId);
+  const depsById = new Map();
   for (const [id, template] of templates) {
     const deps = (template?.functionTemplateDependencies || []).map(String).filter((dep) => dep !== id);
-    if (deps.length > 0) nesting.add(id);
+    if (deps.length > 0) depsById.set(id, deps);
+  }
+  if (depsById.size === 0) return nesting;
+  const depTemplates = await hydrateFunctionTemplates(
+    [...new Set([...depsById.values()].flat())].map((id) => ({ id })),
+    tabId
+  );
+  for (const [id, deps] of depsById) {
+    // A dependency that won't load counts as a Beast Mode: warning about a depth
+    // Domo would have allowed costs the user a rename, missing one costs them the
+    // Beast Mode.
+    if (deps.some((dep) => depTemplates.get(dep)?.variable !== true)) nesting.add(id);
   }
   return nesting;
 }

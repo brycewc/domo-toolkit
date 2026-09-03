@@ -1429,6 +1429,7 @@ export const MIGRATE_TYPES = [
  * @param {string} [params.targetName] - Target dataset name, for the dataflow version-history comment.
  * @param {{ beastModes?: Array<{id: any, name?: string, legacyId?: string}>, cards: Array<{id: any, name?: string}>, datasets: Array<{id: string, name?: string}>, dataflows: Array<{id: any, name?: string}> }} params.selectedItems
  * @param {Record<string, {disposition: 'create'|'rename'|'keep'|'overwrite', newName?: string}>} [params.beastModeChoices] - Per origin Beast Mode id, the conflict resolution chosen on the target.
+ * @param {Array<{id: any, name: string, legacyId?: string}>} [params.originBeastModes] - Every Beast Mode saved to the origin dataset, selected or not, so a nested reference to one that isn't migrating is told apart from a reference to a Variable or another dataset's Beast Mode.
  * @param {Array<{id: any, name: string, legacyId?: string}>} [params.targetBeastModes] - The target dataset's existing Beast Modes (for keep/overwrite).
  * @param {Record<string, string|null>} [params.columnMap] - Origin → target column-name map. Null targets and no-op entries are skipped.
  * @param {string[]} [params.droppedColumns] - Origin column names to remove entirely (the "drop column" choice): pruned from card definitions, from an alert's primary-key / metadata / filter column references, and from the output of any dataset view that only selects them.
@@ -1444,6 +1445,7 @@ export async function migrateAllDownstreamContent({
   definitionsByItemKey,
   droppedColumns,
   onProgress,
+  originBeastModes,
   originId,
   originName,
   pdpMap,
@@ -1485,6 +1487,7 @@ export async function migrateAllDownstreamContent({
       beastModeChoices,
       columnMap,
       definitionsByItemKey,
+      originBeastModes,
       originId,
       selectedBeastModes: beastModeItems,
       tabId,
@@ -1932,6 +1935,7 @@ async function migrateBeastModes({
   beastModeChoices,
   columnMap,
   definitionsByItemKey,
+  originBeastModes,
   originId,
   selectedBeastModes,
   tabId,
@@ -1947,6 +1951,11 @@ async function migrateBeastModes({
   // its own references and numericRemap for any nested formulas it embeds.
   const idRemap = {};
   const numericRemap = {};
+  const originBeastModeNames = new Map(
+    [...(originBeastModes || []), ...selectedBeastModes]
+      .filter((bm) => bm?.id != null)
+      .map((bm) => [String(bm.id), bm.name || String(bm.id)])
+  );
   const targetByName = new Map((targetBeastModes || []).map((b) => [b.name, b]));
   const applyRemap = hasEffectiveMapping(columnMap);
   const toCreate = [];
@@ -2021,25 +2030,51 @@ async function migrateBeastModes({
     }
   }
 
+  // Read back by name what a wave's bulk response didn't surface positionally.
+  // Called per wave, not after the last one: a later wave nests these, so leaving
+  // them unmapped would trip its dangling guard over a dependency that exists.
+  const resolveCreatedByName = async (unresolved) => {
+    let refByName;
+    try {
+      refByName = new Map((await getDatasetFunctions(targetId, tabId)).map((b) => [b.name, b]));
+    } catch (err) {
+      for (const c of unresolved) errors.push({ error: err?.message || String(err), id: c.origin.id });
+      return;
+    }
+    for (const c of unresolved) {
+      const found = refByName.get(c.name);
+      if (found) {
+        mapIds(c.origin, found);
+        succeeded++;
+      } else {
+        errors.push({ error: `Created Beast Mode "${c.name}" not found on the target`, id: c.origin.id });
+      }
+    }
+  };
+
   // Create in dependency-ordered waves, extending both remaps after each wave.
   if (toCreate.length > 0) {
     const waves = orderBeastModeCreateWaves(toCreate);
-    const unresolved = [];
     for (const wave of waves) {
+      const unresolved = [];
       const buildable = [];
       for (const c of wave) {
         // Safety net: a nested Beast Mode whose dependency wasn't migrated (an
         // earlier failure, or a UI regression that let a dependency be dropped)
         // would still reference the origin's numeric id and dangle on the
         // target. `functionTemplateDependencies` is Domo's authoritative dep
-        // list; once a dep is migrated it has a numericRemap entry, so an
-        // unmapped dep (other than the Beast Mode's own id) means skip + report.
-        const dangling = (c.template.functionTemplateDependencies || []).some(
-          (d) => String(d) !== String(c.origin?.id) && !numericRemap[String(d)]
-        );
-        if (dangling) {
+        // list, but only the origin dataset's own Beast Modes are being remapped:
+        // a nested Variable is instance-level and a Beast Mode saved elsewhere
+        // belongs to another dataset, so both keep the same id on the target.
+        const missing = (c.template.functionTemplateDependencies || [])
+          .map(String)
+          .filter((d) => d !== String(c.origin?.id) && originBeastModeNames.has(d) && !numericRemap[d]);
+        if (missing.length > 0) {
+          const named = missing.map((d) => `"${originBeastModeNames.get(d)}"`).join(', ');
           errors.push({
-            error: `"${c.name}" nests a Beast Mode that wasn't migrated; skipped to avoid a broken formula`,
+            error:
+              `"${c.name}" nests ${named}, which ${missing.length === 1 ? "wasn't" : "weren't"} migrated; ` +
+              'skipped to avoid a broken formula',
             id: c.origin.id
           });
           continue;
@@ -2068,24 +2103,7 @@ async function migrateBeastModes({
           unresolved.push(c);
         }
       }
-    }
-
-    if (unresolved.length > 0) {
-      try {
-        const refreshed = await getDatasetFunctions(targetId, tabId);
-        const refByName = new Map(refreshed.map((b) => [b.name, b]));
-        for (const c of unresolved) {
-          const found = refByName.get(c.name);
-          if (found) {
-            mapIds(c.origin, found);
-            succeeded++;
-          } else {
-            errors.push({ error: `Created Beast Mode "${c.name}" not found on the target`, id: c.origin.id });
-          }
-        }
-      } catch (err) {
-        for (const c of unresolved) errors.push({ error: err?.message || String(err), id: c.origin.id });
-      }
+      if (unresolved.length > 0) await resolveCreatedByName(unresolved);
     }
   }
 

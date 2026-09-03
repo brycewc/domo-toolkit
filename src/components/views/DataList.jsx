@@ -1,4 +1,5 @@
 import {
+  AlertDialog,
   Button,
   ButtonGroup,
   Card,
@@ -23,6 +24,7 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { getObjectType } from '@/models/DomoObjectType';
 import { shareWithSelf } from '@/services/share';
 import { launchActivityLog } from '@/utils/activityLog';
+import { MAX_OPEN_ALL_TABS } from '@/utils/constants';
 import { copyToClipboard } from '@/utils/copyToClipboard';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
@@ -80,6 +82,7 @@ import { ViewHeader } from './ViewHeader';
  * @param {string} [props.subjectTypeId] - typeId for an `ObjectTypeIcon` rendered inline before the subject. Defaults to `objectType` when omitted.
  * @param {boolean} [props.beta] - Renders the standard "Beta" chip beneath the feature icon (passed through to `ViewHeader`).
  * @param {HeaderActionType[]} props.headerActions - Array of action types to show in header
+ * @param {Boolean} [props.isActive] - Whether this list's instance view is the one on screen (default true). The side panel keeps every visited instance's view mounted and hides the inactive ones with `visibility`, which a portaled dialog escapes, so the Open All confirmation is gated on this to keep one instance's dialog off another instance's list.
  * @param {Function} props.onClose - Callback when close button is clicked (shows close button if provided)
  * @param {boolean} props.isRefreshing - Whether refresh action is in progress
  * @param {string|number} props.objectId - The view's source object ID, used by the `reload` header action to detect when the current object already matches this view
@@ -127,6 +130,7 @@ export function DataList({
   getItemLock,
   getUnselectableTooltip,
   headerActions = [],
+  isActive = true,
   isInSelectionScope,
   isRefreshing = false,
   isSelectable,
@@ -154,6 +158,9 @@ export function DataList({
   virtualThreshold = 50
 }) {
   const [isHeaderShared, setIsHeaderShared] = useState(false);
+  // The uncapped list, not a boolean: the dialog states both counts and the
+  // confirm handler opens from it without recomputing.
+  const [pendingOpenAllUrls, setPendingOpenAllUrls] = useState(null);
   // Centralized expansion state, keyed by item.id, survives unmount/remount
   // when items virtualize. See `VirtualizedItems` below.
   const [expandedIds, setExpandedIds] = useState(() => new Set(defaultExpandedIds || []));
@@ -182,6 +189,11 @@ export function DataList({
       return next;
     });
   }, []);
+
+  // The sort recurses through children, so for a 130-item parent list with 400
+  // leaf children it is non-trivial. Memoizing keeps it from re-running on
+  // every state change (e.g. each Disclosure toggle).
+  const sortedItems = useMemo(() => sortItemsByLabel(items), [items]);
 
   // Loggable objects across the whole list (deduped) for the header "View
   // activity log for all" action. Drives both whether that header button shows
@@ -275,18 +287,14 @@ export function DataList({
           }
 
           case 'openAll': {
-            // Filter out DATA_APP items (we want their children, not the app itself)
-            const urls = collectAllUrls(items, (item) => item.typeId !== 'DATA_APP');
-            const count = urls.length;
-            urls.forEach((url) => {
-              window.open(url, '_blank', 'noopener,noreferrer');
-            });
-            onStatusUpdate?.(
-              'Opened',
-              `Opened **${count}** ${itemLabel}${count !== 1 ? 's' : ''} in new tabs`,
-              'success',
-              2000
-            );
+            // Must stay `sortedItems`: a capped batch has to open the first rows
+            // the user can see. DATA_APP is skipped in favor of its children.
+            const urls = collectAllUrls(sortedItems, (item) => item.typeId !== 'DATA_APP');
+            if (urls.length > MAX_OPEN_ALL_TABS) {
+              setPendingOpenAllUrls(urls);
+              break;
+            }
+            openUrlsWithLimit({ itemLabel, onStatusUpdate, urls });
             break;
           }
 
@@ -325,7 +333,17 @@ export function DataList({
         onStatusUpdate?.('Error', err.message || `Failed to ${actionType}`, 'danger', 3000);
       }
     },
-    [currentContext, headerLogObjects, items, itemLabel, onRefresh, onStatusUpdate, shareItemsWithSelf, viewType]
+    [
+      currentContext,
+      headerLogObjects,
+      items,
+      itemLabel,
+      onRefresh,
+      onStatusUpdate,
+      shareItemsWithSelf,
+      sortedItems,
+      viewType
+    ]
   );
 
   /**
@@ -400,22 +418,18 @@ export function DataList({
             }
             break;
           }
-          case 'openAll':
-            if (item.children) {
-              const count = item.children.length;
-              item.children.forEach((child) => {
-                if (child.url) {
-                  window.open(child.url, '_blank', 'noopener,noreferrer');
-                }
-              });
-              onStatusUpdate?.(
-                'Opened',
-                `Opened **${count}** ${itemLabel}${count !== 1 ? 's' : ''} in new tabs`,
-                'success',
-                2000
-              );
+          case 'openAll': {
+            if (!item.children) break;
+            // Direct children only, unlike the header action: a group header's
+            // batch shouldn't also drag in each child's own drills and cards.
+            const urls = item.children.filter((child) => child.url).map((child) => child.url);
+            if (urls.length > MAX_OPEN_ALL_TABS) {
+              setPendingOpenAllUrls(urls);
+              break;
             }
+            openUrlsWithLimit({ itemLabel, onStatusUpdate, urls });
             break;
+          }
 
           case 'share': {
             if (!item.domoObject) break;
@@ -445,6 +459,14 @@ export function DataList({
     },
     [currentContext, itemLabel, onStatusUpdate, shareItemsWithSelf, shareOneWithSelf]
   );
+
+  // Stays synchronous so the window.open loop runs inside the confirm press's
+  // user-activation window. React batches the state update until this returns.
+  const confirmOpenAll = () => {
+    const urls = pendingOpenAllUrls ?? [];
+    setPendingOpenAllUrls(null);
+    openUrlsWithLimit({ itemLabel, onStatusUpdate, urls });
+  };
 
   const hasInlineActions = headerActions.length > 0 || (customHeaderActions && customHeaderActions.length > 0);
   const hasHeader = feature || subject || subtext || beta || hasInlineActions || onClose;
@@ -529,10 +551,6 @@ export function DataList({
       </CheckboxGroup>
     );
   };
-  // sortItemsByLabel recurses through children — for 130-item parent lists with
-  // 400 leaf children that's a non-trivial sort. Memoizing keeps it from
-  // re-running on every state change (e.g. each Disclosure toggle).
-  const sortedItems = useMemo(() => sortItemsByLabel(items), [items]);
 
   // Remount key for the top-level DisclosureGroup. React Aria seeds a group's
   // expansion from defaultExpandedKeys once at mount and ignores later changes,
@@ -544,154 +562,188 @@ export function DataList({
   const expansionSeedKey = defaultExpandedIds ? [...defaultExpandedIds].join('|') : '';
 
   return (
-    <Card
-      className={`datalist-root flex min-h-0 w-full flex-1 flex-col gap-0 p-2 ${fillHeight ? 'h-full' : 'max-h-fit'}`}
-      variant={variant}
-    >
-      {hasHeader && (
-        <ViewHeader
-          actions={headerActionSpecs}
-          beta={beta}
-          feature={feature}
-          featureIcon={featureIcon}
-          subject={subject}
-          subjectTypeId={subjectTypeId ?? objectType}
-          subtext={subtext}
-          onClose={onClose}
-        />
-      )}
-      <Separator className='mt-1.5' />
-      {banner && <div className='shrink-0 pt-2'>{banner}</div>}
-      {selectionMode && selectAll && (
-        <div className='shrink-0 pt-2 pb-1'>
-          <Checkbox
-            aria-label={selectAll.ariaLabel ?? 'Select all'}
-            isDisabled={Boolean(selectAll.isDisabled) || selectAll.total === 0}
-            isIndeterminate={selectAll.count > 0 && selectAll.count < selectAll.total}
-            isSelected={selectAll.total > 0 && selectAll.count === selectAll.total}
-            variant='secondary'
-            onChange={selectAll.onToggle}
-          >
-            <Checkbox.Content>
-              <Checkbox.Control>
-                <Checkbox.Indicator />
-              </Checkbox.Control>
-              {selectAll.showCount ? `Select all (${selectAll.count} / ${selectAll.total})` : 'Select all'}
-            </Checkbox.Content>
-          </Checkbox>
-        </div>
-      )}
-      {sortedItems.length > virtualThreshold
-        ? // Virtualized top-level: VirtualizedItems is the scroll container, so
-          // it renders its own ScrollShadow around the windowed rows rather than
-          // being wrapped in one here. Same edge fade, and TanStack still
-          // listens for scroll on the element that actually scrolls.
-          withSelectionGroup(
-            <Card.Content className='flex min-h-0 w-full flex-1 flex-col p-0'>
-              <DisclosureGroup
-                allowsMultipleExpanded={allowsMultipleExpanded}
-                className='flex min-h-0 w-full flex-1 flex-col divide-y divide-border'
-                defaultExpandedKeys={defaultExpandedIds}
-                key={expansionSeedKey}
-              >
-                <VirtualizedItems
-                  items={sortedItems}
-                  renderItem={(item) => (
-                    <DataListItem
-                      allowsMultipleExpanded={allowsMultipleExpanded}
-                      defaultExpandedIds={defaultExpandedIds}
-                      expandedIds={expandedIds}
-                      fillHeight={fillHeight}
-                      getItemBadge={getItemBadge}
-                      getItemLock={getItemLock}
-                      getUnselectableTooltip={getUnselectableTooltip}
-                      isInSelectionScope={isInSelectionScope}
-                      isSelectable={isSelectable}
-                      isSoleItem={sortedItems.length === 1}
-                      item={item}
-                      itemActions={itemActions}
-                      objectType={objectType}
-                      selectedIds={selectedIds}
-                      selectionMode={selectionMode}
-                      shareEnabled={shareEnabled}
-                      showActions={showActions}
-                      showActionsInSelectionMode={showActionsInSelectionMode}
-                      showCounts={showCounts}
-                      virtualThreshold={virtualThreshold}
-                      onItemAction={handleItemAction}
-                      onToggleExpanded={onToggleExpanded}
-                    />
-                  )}
-                />
-              </DisclosureGroup>
-            </Card.Content>
-          )
-        : withSelectionGroup(
-            <ScrollShadow
-              hideScrollBar
-              // `overscroll-y-contain` only when the DataList owns its scroll
-              // viewport (`fillHeight`, bounded by a flex parent). When content-
-              // sized (e.g. inside a modal body that owns the scroll), this
-              // container isn't actually scrollable, and `contain` would still
-              // block wheel events from chaining to the ancestor scroller — so
-              // scrolling over the rows would do nothing while the margins and
-              // scrollbar worked. `overscroll-y-auto` there lets the wheel reach
-              // the real scroller. In the bounded case this stays scrollable, so
-              // `auto` only matters at the edge, where it chains to the
-              // overflow-hidden shell (a no-op): no regression.
-              className={`min-h-0 flex-1 overflow-y-auto overscroll-x-none ${fillHeight ? 'overscroll-y-contain' : 'overscroll-y-auto'}`}
-              offset={2}
-              orientation='vertical'
+    <>
+      <Card
+        className={`datalist-root flex min-h-0 w-full flex-1 flex-col gap-0 p-2 ${fillHeight ? 'h-full' : 'max-h-fit'}`}
+        variant={variant}
+      >
+        {hasHeader && (
+          <ViewHeader
+            actions={headerActionSpecs}
+            beta={beta}
+            feature={feature}
+            featureIcon={featureIcon}
+            subject={subject}
+            subjectTypeId={subjectTypeId ?? objectType}
+            subtext={subtext}
+            onClose={onClose}
+          />
+        )}
+        <Separator className='mt-1.5' />
+        {banner && <div className='shrink-0 pt-2'>{banner}</div>}
+        {selectionMode && selectAll && (
+          <div className='shrink-0 pt-2 pb-1'>
+            <Checkbox
+              aria-label={selectAll.ariaLabel ?? 'Select all'}
+              isDisabled={Boolean(selectAll.isDisabled) || selectAll.total === 0}
+              isIndeterminate={selectAll.count > 0 && selectAll.count < selectAll.total}
+              isSelected={selectAll.total > 0 && selectAll.count === selectAll.total}
+              variant='secondary'
+              onChange={selectAll.onToggle}
             >
-              <Card.Content>
+              <Checkbox.Content>
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+                {selectAll.showCount ? `Select all (${selectAll.count} / ${selectAll.total})` : 'Select all'}
+              </Checkbox.Content>
+            </Checkbox>
+          </div>
+        )}
+        {sortedItems.length > virtualThreshold
+          ? // Virtualized top-level: VirtualizedItems is the scroll container, so
+            // it renders its own ScrollShadow around the windowed rows rather than
+            // being wrapped in one here. Same edge fade, and TanStack still
+            // listens for scroll on the element that actually scrolls.
+            withSelectionGroup(
+              <Card.Content className='flex min-h-0 w-full flex-1 flex-col p-0'>
                 <DisclosureGroup
                   allowsMultipleExpanded={allowsMultipleExpanded}
-                  className='flex w-full flex-col divide-y divide-border'
+                  className='flex min-h-0 w-full flex-1 flex-col divide-y divide-border'
                   defaultExpandedKeys={defaultExpandedIds}
                   key={expansionSeedKey}
                 >
-                  {sortedItems.map((item, index) => (
-                    <DataListItem
-                      allowsMultipleExpanded={allowsMultipleExpanded}
-                      defaultExpandedIds={defaultExpandedIds}
-                      expandedIds={expandedIds}
-                      fillHeight={fillHeight}
-                      getItemBadge={getItemBadge}
-                      getItemLock={getItemLock}
-                      getUnselectableTooltip={getUnselectableTooltip}
-                      isInSelectionScope={isInSelectionScope}
-                      isSelectable={isSelectable}
-                      isSoleItem={sortedItems.length === 1}
-                      item={item}
-                      itemActions={itemActions}
-                      key={item.id || index}
-                      objectType={objectType}
-                      selectedIds={selectedIds}
-                      selectionMode={selectionMode}
-                      shareEnabled={shareEnabled}
-                      showActions={showActions}
-                      showActionsInSelectionMode={showActionsInSelectionMode}
-                      showCounts={showCounts}
-                      virtualThreshold={virtualThreshold}
-                      onItemAction={handleItemAction}
-                      onToggleExpanded={onToggleExpanded}
-                    />
-                  ))}
+                  <VirtualizedItems
+                    items={sortedItems}
+                    renderItem={(item) => (
+                      <DataListItem
+                        allowsMultipleExpanded={allowsMultipleExpanded}
+                        defaultExpandedIds={defaultExpandedIds}
+                        expandedIds={expandedIds}
+                        fillHeight={fillHeight}
+                        getItemBadge={getItemBadge}
+                        getItemLock={getItemLock}
+                        getUnselectableTooltip={getUnselectableTooltip}
+                        isInSelectionScope={isInSelectionScope}
+                        isSelectable={isSelectable}
+                        isSoleItem={sortedItems.length === 1}
+                        item={item}
+                        itemActions={itemActions}
+                        objectType={objectType}
+                        selectedIds={selectedIds}
+                        selectionMode={selectionMode}
+                        shareEnabled={shareEnabled}
+                        showActions={showActions}
+                        showActionsInSelectionMode={showActionsInSelectionMode}
+                        showCounts={showCounts}
+                        virtualThreshold={virtualThreshold}
+                        onItemAction={handleItemAction}
+                        onToggleExpanded={onToggleExpanded}
+                      />
+                    )}
+                  />
                 </DisclosureGroup>
               </Card.Content>
-            </ScrollShadow>
-          )}
-      {footer && (
-        // Mirrors the header's Separator pattern (`mt-1.5` on the top divider)
-        // so the footer slot has the same 6px breathing room above its rule as
-        // the header has below its rule. `shrink-0` keeps it pinned even when
-        // the list above is taller than the viewport.
-        <>
-          <Separator className='mt-1.5' />
-          <div className='shrink-0 pt-2'>{footer}</div>
-        </>
-      )}
-    </Card>
+            )
+          : withSelectionGroup(
+              <ScrollShadow
+                hideScrollBar
+                // `overscroll-y-contain` only when the DataList owns its scroll
+                // viewport (`fillHeight`, bounded by a flex parent). When content-
+                // sized (e.g. inside a modal body that owns the scroll), this
+                // container isn't actually scrollable, and `contain` would still
+                // block wheel events from chaining to the ancestor scroller, so
+                // scrolling over the rows would do nothing while the margins and
+                // scrollbar worked. `overscroll-y-auto` there lets the wheel reach
+                // the real scroller. In the bounded case this stays scrollable, so
+                // `auto` only matters at the edge, where it chains to the
+                // overflow-hidden shell (a no-op): no regression.
+                className={`min-h-0 flex-1 overflow-y-auto overscroll-x-none ${fillHeight ? 'overscroll-y-contain' : 'overscroll-y-auto'}`}
+                offset={2}
+                orientation='vertical'
+              >
+                <Card.Content>
+                  <DisclosureGroup
+                    allowsMultipleExpanded={allowsMultipleExpanded}
+                    className='flex w-full flex-col divide-y divide-border'
+                    defaultExpandedKeys={defaultExpandedIds}
+                    key={expansionSeedKey}
+                  >
+                    {sortedItems.map((item, index) => (
+                      <DataListItem
+                        allowsMultipleExpanded={allowsMultipleExpanded}
+                        defaultExpandedIds={defaultExpandedIds}
+                        expandedIds={expandedIds}
+                        fillHeight={fillHeight}
+                        getItemBadge={getItemBadge}
+                        getItemLock={getItemLock}
+                        getUnselectableTooltip={getUnselectableTooltip}
+                        isInSelectionScope={isInSelectionScope}
+                        isSelectable={isSelectable}
+                        isSoleItem={sortedItems.length === 1}
+                        item={item}
+                        itemActions={itemActions}
+                        key={item.id || index}
+                        objectType={objectType}
+                        selectedIds={selectedIds}
+                        selectionMode={selectionMode}
+                        shareEnabled={shareEnabled}
+                        showActions={showActions}
+                        showActionsInSelectionMode={showActionsInSelectionMode}
+                        showCounts={showCounts}
+                        virtualThreshold={virtualThreshold}
+                        onItemAction={handleItemAction}
+                        onToggleExpanded={onToggleExpanded}
+                      />
+                    ))}
+                  </DisclosureGroup>
+                </Card.Content>
+              </ScrollShadow>
+            )}
+        {footer && (
+          // Mirrors the header's Separator pattern (`mt-1.5` on the top divider)
+          // so the footer slot has the same 6px breathing room above its rule as
+          // the header has below its rule. `shrink-0` keeps it pinned even when
+          // the list above is taller than the viewport.
+          <>
+            <Separator className='mt-1.5' />
+            <div className='shrink-0 pt-2'>{footer}</div>
+          </>
+        )}
+      </Card>
+      <AlertDialog
+        isOpen={pendingOpenAllUrls !== null && isActive}
+        onOpenChange={(open) => {
+          if (!open) setPendingOpenAllUrls(null);
+        }}
+      >
+        <AlertDialog.Backdrop>
+          <AlertDialog.Container className='p-1'>
+            <AlertDialog.Dialog className='p-2 pt-3'>
+              <div className='absolute top-0 left-0 h-1.25 w-full bg-warning' />
+              <AlertDialog.CloseTrigger className='absolute top-3 right-2' variant='ghost'>
+                <IconX />
+              </AlertDialog.CloseTrigger>
+              <AlertDialog.Header>
+                <AlertDialog.Heading>Open All in New Tabs</AlertDialog.Heading>
+              </AlertDialog.Header>
+              <AlertDialog.Body>
+                Opening all <strong>{pendingOpenAllUrls?.length ?? 0}</strong> {itemLabel}s would exceed the{' '}
+                {MAX_OPEN_ALL_TABS} tab limit. Only the first {MAX_OPEN_ALL_TABS} will open, in the order shown.
+              </AlertDialog.Body>
+              <AlertDialog.Footer>
+                <Button size='sm' slot='close' variant='tertiary'>
+                  Cancel
+                </Button>
+                <Button size='sm' variant='primary' onPress={confirmOpenAll}>
+                  Open First {MAX_OPEN_ALL_TABS}
+                </Button>
+              </AlertDialog.Footer>
+            </AlertDialog.Dialog>
+          </AlertDialog.Container>
+        </AlertDialog.Backdrop>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -786,6 +838,29 @@ function collectAllUrls(itemList, filter = null) {
   };
   traverse(itemList);
   return urls;
+}
+
+/**
+ * Open up to `MAX_OPEN_ALL_TABS` of `urls` in new tabs and report what opened.
+ * Callers confirm with the user before handing over a longer list, so a
+ * truncated batch here is always one the user accepted.
+ * @param {Object} params
+ * @param {string} params.itemLabel - Noun for the status message (e.g. 'card').
+ * @param {Function} [params.onStatusUpdate] - DataList's status callback.
+ * @param {string[]} params.urls - Full candidate list, in the order the list renders.
+ */
+function openUrlsWithLimit({ itemLabel, onStatusUpdate, urls }) {
+  const opened = urls.slice(0, MAX_OPEN_ALL_TABS);
+  opened.forEach((url) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  });
+  const total = urls.length;
+  const label = `${itemLabel}${total !== 1 ? 's' : ''}`;
+  const description =
+    total > opened.length
+      ? `Opened the first **${opened.length}** of **${total}** ${label} in new tabs`
+      : `Opened **${total}** ${label} in new tabs`;
+  onStatusUpdate?.('Opened', description, 'success', 2000);
 }
 
 // Row geometry for virtualization. ROW_HEIGHT matches `min-h-9` on flat rows

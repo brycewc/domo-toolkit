@@ -23,6 +23,7 @@ const PARENT_SCOPED_TYPES = ['DATA_APP_VIEW', 'WORKSHEET_VIEW'];
 export function GetWorkspacesView({
   currentContext = null,
   instance: viewInstance = null,
+  isActive = true,
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
@@ -188,6 +189,7 @@ export function GetWorkspacesView({
       feature='Workspaces for'
       featureIcon={<IconWorkspace />}
       headerActions={['openAll', 'reload', 'refresh']}
+      isActive={isActive}
       isRefreshing={isRefreshing}
       itemLabel='workspace'
       items={items}

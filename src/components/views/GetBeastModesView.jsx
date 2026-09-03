@@ -34,6 +34,7 @@ const PAGE_TYPES = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'];
 export function GetBeastModesView({
   currentContext = null,
   instance: viewInstance = null,
+  isActive = true,
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
@@ -199,6 +200,7 @@ export function GetBeastModesView({
       feature='Beast Modes for'
       featureIcon={<IconBeastMode />}
       headerActions={['openAll', 'reload', 'refresh']}
+      isActive={isActive}
       isRefreshing={isRefreshing}
       itemLabel='Beast Mode'
       items={items}

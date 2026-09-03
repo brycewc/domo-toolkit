@@ -1525,6 +1525,7 @@ export function MigrateDownstreamContentView({
             return next;
           });
         },
+        originBeastModes: beastModeItems,
         originId: datasetId,
         originName: datasetName,
         pdpMap,
@@ -1618,6 +1619,7 @@ export function MigrateDownstreamContentView({
     }
   }, [
     beastModeChoices,
+    beastModeItems,
     cardBeastModeResolutions,
     datasetId,
     datasetName,

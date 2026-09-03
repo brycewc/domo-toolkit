@@ -32,6 +32,7 @@ const PAGE_TYPES = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'];
 export function GetDatasetsView({
   currentContext = null,
   instance: viewInstance = null,
+  isActive = true,
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
@@ -313,6 +314,7 @@ export function GetDatasetsView({
       feature={`${viewData?.typeLabel} for`}
       featureIcon={<IconDatabase />}
       headerActions={['openAll', 'reload', 'refresh']}
+      isActive={isActive}
       isRefreshing={isRefreshing}
       itemLabel='dataset'
       items={items}

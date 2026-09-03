@@ -22,6 +22,7 @@ import { DataList } from './DataList';
 export function GetUsageView({
   currentContext = null,
   instance: viewInstance = null,
+  isActive = true,
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
@@ -236,6 +237,7 @@ export function GetUsageView({
       feature='Usage of'
       featureIcon={<IconContentSearch />}
       headerActions={['openAll', 'reload', 'refresh']}
+      isActive={isActive}
       isRefreshing={isRefreshing}
       itemLabel='object'
       items={items}

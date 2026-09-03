@@ -24,6 +24,7 @@ import { DataList } from './DataList';
 export function GetCardsView({
   currentContext = null,
   instance: viewInstance = null,
+  isActive = true,
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
@@ -361,6 +362,7 @@ export function GetCardsView({
       feature={titlePrefix}
       featureIcon={<IconCard />}
       headerActions={['openAll', 'reload', 'refresh']}
+      isActive={isActive}
       isRefreshing={isRefreshing}
       itemLabel={hasMultipleTypes ? 'item' : 'card'}
       items={items}

@@ -24,6 +24,7 @@ import { DataList } from './DataList';
 export function GetPagesView({
   currentContext = null,
   instance: viewInstance = null,
+  isActive = true,
   onBackToDefault = null,
   onStatusUpdate = null
 }) {
@@ -578,6 +579,7 @@ export function GetPagesView({
       defaultExpandedIds={soleExpandedGroupIds(items)}
       feature={renderFeature()}
       featureIcon={pageData?.sidepanelType === 'getCardPages' ? <IconPagesBars /> : <IconTree />}
+      isActive={isActive}
       isRefreshing={isRefreshing}
       itemLabel='page'
       items={items}

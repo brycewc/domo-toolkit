@@ -31,6 +31,7 @@
 - The dependency list for deleting a DataFlow now appears right away.
 - An output DataSet's dependency count now fills in as it arrives.
 - A DataFlow's cards now load faster when it has several output DataSets.
+- Open All now warns when a list has more than 50 items and opens only the first 50.
 
 ## UI Improvements
 
@@ -40,6 +41,7 @@
 ## Bug Fixes
 
 - Deleting a DataFlow's inputs no longer removes an input that other content still uses or that another DataFlow produces.
+- Open All on a group now reports the number of items it actually opened.
 - Deleting a Scheduled Report now sends you to the Scheduled Reports list if you are still on the deleted report's page.
 - Deleting an Approval Template now sends you to the Request Forms list if you are still on the deleted template's page.
 - A checkbox you can't tick, such as one in Manage Card Locks or Manage Card Owners, now explains why when you hover it.
@@ -61,3 +63,8 @@
 - Migrate Content now merges the input tiles of a Magic ETL DataFlow that already reads the target DataSet, instead of failing it.
 - Migrate Content now warns as soon as you pick a target DataSet that some of the selected content already reads it.
 - Migrate Content now skips a SQL DataFlow, DataSet View, or Fusion that already reads the target DataSet, and says which ones it left behind.
+- Migrate Content and Remap Columns now update a pro-code app card that takes its DataSet binding from its App Design, instead of reporting success while leaving it unchanged.
+- Migrate Content now reports a pro-code app card that doesn't read the DataSet as skipped instead of counting it as migrated.
+- Migrate Content now migrates a Beast Mode whose formula uses a Variable instead of skipping it.
+- Migrate Content no longer skips a Beast Mode when the Beast Mode it nests did migrate.
+- Migrate Content now names the nested Beast Mode that didn't migrate when it skips one over it.

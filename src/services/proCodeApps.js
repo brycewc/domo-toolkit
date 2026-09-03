@@ -3,20 +3,15 @@
  * Remap Columns and Migrate Content.
  *
  * A pro-code app binds to one or more datasets and references their columns. The
- * live binding each placed app card uses lives on that card's instance context
- * (`/domoapps/apps/v2/{instanceId}` → `context.mapping[]`), separate from the
- * shared design version's manifest
+ * binding for a placed app card lives on that card's app instance
+ * (`/domoapps/apps/v2/{instanceId}` → `mapping[]`). An instance with no mapping
+ * of its own inherits the shared design version's manifest
  * (`/api/apps/v1/designs/{designId}/versions/{version}/assets?path=manifest.json`
- * → `datasetsMapping[]`). Each placed card is repaired in isolation like a chart
- * card by rewriting its instance binding.
- *
- * The design itself is repaired too, but only when its own binding still points
- * at the same source dataset as the card (design === source === card): that is
- * the one case where the card has not diverged from its design, so repointing the
- * shared design is safe and keeps the editor preview and any future cards built
- * from it in sync. When the card has diverged (its instance points somewhere the
- * design's manifest does not), the design is left untouched, since mutating it
- * would silently repoint every other card built from that design.
+ * → `datasetsMapping[]`, base64 under `content`), so that manifest is the base
+ * when the instance carries nothing. Each placed card is repaired in isolation
+ * like a chart card, and the design is only ever read, never written: Domo's own
+ * editor leaves it alone, and rewriting it would repoint every other card built
+ * from it.
  *
  * The app's own code references the stable `alias`; only the `columnName`
  * bridge to the real dataset column breaks on a rename, so a column repair
@@ -73,13 +68,13 @@ export function findAppColumnCollisions(fieldGroups, columnMap) {
 /**
  * Discover the pro-code app cards that consume this dataset. Splits the
  * downstream-cards list on `type === 'domoapp'`, batch-resolves each app card's
- * instance id / title / fullpage flag, then reads each instance's live context
- * to pull the dataset binding (`mapping[]` entry for this dataset).
+ * instance id, title and fullpage flag, then reads each instance's binding,
+ * falling back to the design manifest when the instance carries no mapping.
  *
  * @param {string} datasetId
  * @param {number|null} [tabId]
  * @param {any[]|null} [rawCards] - Pre-fetched dataset → cards list (drill=true). Pass the shared fetch so the endpoint isn't hit twice; omit to fetch here.
- * @returns {Promise<Array<{id: number, instanceId: string, contextId: string, name: string, fullpage: boolean, designId: string|null, fields: Array<{alias: string, columnName: string|null, beastModeName: string|null}>, fieldGroups: Array<Array<{alias: string, columnName: string|null, beastModeName: string|null}>>}>>}
+ * @returns {Promise<Array<{id: number, instanceId: string, name: string, fullpage: boolean, designId: string|null, fields: Array<{alias: string, columnName: string|null, beastModeName: string|null}>, fieldGroups: Array<Array<{alias: string, columnName: string|null, beastModeName: string|null}>>}>>}
  */
 export async function getDownstreamApps(datasetId, tabId = null, rawCards = null) {
   const cards = rawCards || (await fetchDownstreamCardsRaw(datasetId, tabId));
@@ -89,8 +84,7 @@ export async function getDownstreamApps(datasetId, tabId = null, rawCards = null
   for (const card of Array.isArray(cards) ? cards : []) {
     if (card?.type !== 'domoapp') continue;
     if (!matchesDataset(card.datasourceId)) continue;
-    const cardId =
-      card.id || card.kpiId || (typeof card.urn === 'string' ? parseInt(card.urn.split(':').pop(), 10) : null);
+    const cardId = card.id || card.kpiId || (typeof card.urn === 'string' ? parseInt(card.urn.split(':').pop(), 10) : null);
     if (!Number.isFinite(cardId) || seen.has(cardId)) continue;
     seen.add(cardId);
     appCards.push({ id: cardId, name: card.title || card.name || `App ${cardId}` });
@@ -100,51 +94,58 @@ export async function getDownstreamApps(datasetId, tabId = null, rawCards = null
 }
 
 /**
- * Repair (and optionally repoint) one pro-code app card's dataset binding.
- * Reads the live instance context, rewrites every origin-dataset binding entry's
- * `fields[].columnName` per `columnMap` (skipping Beast Mode fields), repoints
- * each entry's `dataSetId` when migrating (origin !== target), and saves with the
- * editor's two-PUT sequence: PUT the full context back in place, then PUT the
- * instance to re-bind the (same) context to the card. An app that binds the same
- * dataset under multiple aliases has every matching entry repaired.
+ * Repair (and optionally repoint) one pro-code app card's dataset binding, using
+ * the same save Domo's own app editor performs: create a context seeded with the
+ * current binding, PUT the edited mapping onto it, then commit it to the instance.
+ * Every entry for the origin dataset is repaired, so an app that binds it under
+ * several aliases has all of them moved.
  *
- * After the instance is saved, the shared design's manifest is repaired the same
- * way, but ONLY when the design's own binding still points at `originId` (i.e.
- * design === source === card). In that aligned case the design's
- * `datasetsMapping` entry gets the same `columnName` rewrites and `dataSetId`
- * repoint and is written back via the design asset endpoint, so the editor
- * preview and future cards match. When the design's binding has diverged from the
- * card, the design is left untouched. The design write is best-effort: a failure
- * is reported in `designError` but does not fail the (already-saved) instance
- * repair.
+ * The base mapping is the instance's own when it has one and the design
+ * manifest's otherwise, since an instance with no mapping inherits the design's.
+ * Reading only the instance made those apps look unrelated to the dataset and the
+ * repair silently wrote nothing.
  *
  * @param {Object} params
- * @param {{ instanceId: string, contextId: string, fullpage: boolean, name: string }} params.app
+ * @param {{ instanceId: string, fullpage: boolean, name: string }} params.app
  * @param {Record<string, string|null>} [params.columnMap] - Origin → target column name. Null/no-op entries are skipped.
  * @param {string} params.originId - The dataset whose binding entry is rewritten.
  * @param {string} params.targetId - Destination dataset id (equals originId for an in-place remap).
  * @param {number|null} [params.tabId]
- * @returns {Promise<{success: boolean, error?: string, designUpdated?: boolean, designError?: string}>}
+ * @returns {Promise<{success: boolean, error?: string, skipped?: boolean, skipReason?: string}>}
  */
 export async function swapAppColumns({ app, columnMap, originId, tabId = null, targetId }) {
   const { fullpage, instanceId, name } = app || {};
   if (!instanceId) return { error: 'App card has no instance id', success: false };
   return executeInPage(
     async (instanceId, originId, targetId, columnMap, fullpage, cardTitle) => {
+      const signature = (entry) =>
+        JSON.stringify([
+          String(entry?.dataSetId),
+          (Array.isArray(entry?.fields) ? entry.fields : []).map((f) => f?.columnName ?? null)
+        ]);
       try {
-        const getRes = await fetch(`/domoapps/apps/v2/${instanceId}`, { credentials: 'include' });
-        if (!getRes.ok) return { error: `GET app instance HTTP ${getRes.status}`, success: false };
-        const instance = await getRes.json();
-        const context = instance?.context;
-        if (!context || !context.id) return { error: 'App instance has no context', success: false };
+        const instRes = await fetch(`/domoapps/apps/v2/${instanceId}`, { credentials: 'include' });
+        if (!instRes.ok) return { error: `GET app instance HTTP ${instRes.status}`, success: false };
+        const instance = await instRes.json();
+        const designId = instance?.designId || instance?.context?.designId || null;
 
-        const mapping = Array.isArray(context.mapping) ? context.mapping : [];
-        // An app can bind the same dataset under multiple aliases, so repair every
-        // entry for the origin dataset, not just the first — otherwise a migrate
-        // would leave a second alias dangling on the old dataset.
+        let mapping = Array.isArray(instance?.mapping) ? instance.mapping : [];
+        if (mapping.length === 0) {
+          mapping = (await readDesignMapping(designId, instance?.designVersion)) || [];
+        }
+        const seed = JSON.parse(JSON.stringify(mapping));
         const entries = mapping.filter((m) => m && String(m.dataSetId) === String(originId));
-        // Nothing on this app references the origin dataset — nothing to repair.
-        if (entries.length === 0) return { success: true };
+        if (entries.length === 0) {
+          // The dataset lists this card as downstream, but nothing the app binds
+          // reads it. Reporting success here is what made a stale listing look
+          // like a completed repoint.
+          return {
+            error: 'App does not read this DataSet',
+            skipped: true,
+            skipReason: 'does not read this DataSet',
+            success: false
+          };
+        }
 
         const map = columnMap || {};
         for (const entry of entries) {
@@ -157,16 +158,37 @@ export async function swapAppColumns({ app, columnMap, originId, tabId = null, t
               field.columnName = map[from];
             }
           }
-          // Repoint the binding to the target dataset when migrating. A no-op for
-          // an in-place remap (origin === target).
           if (targetId && String(targetId) !== String(originId)) {
             entry.dataSetId = targetId;
           }
         }
 
-        const contextId = context.id;
-        const ctxRes = await fetch(`/domoapps/apps/v2/contexts/${contextId}`, {
-          body: JSON.stringify(context),
+        const createRes = await fetch('/domoapps/apps/v2/contexts', {
+          body: JSON.stringify({
+            accountMapping: instance.accountMapping || [],
+            actionMapping: instance.actionMapping || [],
+            collections: instance.collections || [],
+            designId,
+            designVersion: instance.designVersion ?? null,
+            mapping: seed,
+            packageMapping: instance.packageMapping || [],
+            workflowMapping: instance.workflowMapping || []
+          }),
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!createRes.ok) {
+          const text = await createRes.text().catch(() => '');
+          return { error: `POST app context HTTP ${createRes.status}: ${text}`.trim(), success: false };
+        }
+        // The create answers with [context, []].
+        const created = await createRes.json();
+        const context = Array.isArray(created) ? created[0] : created;
+        if (!context?.id) return { error: 'Created app context has no id', success: false };
+
+        const ctxRes = await fetch(`/domoapps/apps/v2/contexts/${context.id}`, {
+          body: JSON.stringify({ ...context, mapping }),
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           method: 'PUT'
@@ -177,81 +199,56 @@ export async function swapAppColumns({ app, columnMap, originId, tabId = null, t
         }
 
         const params = new URLSearchParams({ cardTitle: cardTitle || '', fullpage: String(Boolean(fullpage)) });
-        const instRes = await fetch(`/domoapps/apps/v2/${instanceId}?${params.toString()}`, {
-          body: JSON.stringify({ contextId, id: instanceId }),
+        const commitRes = await fetch(`/domoapps/apps/v2/${instanceId}?${params.toString()}`, {
+          body: JSON.stringify({ contextId: context.id, id: instanceId }),
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           method: 'PUT'
         });
-        if (!instRes.ok) {
-          const text = await instRes.text().catch(() => '');
-          return { error: `PUT app instance HTTP ${instRes.status}: ${text}`.trim(), success: false };
+        if (!commitRes.ok) {
+          const text = await commitRes.text().catch(() => '');
+          return { error: `PUT app instance HTTP ${commitRes.status}: ${text}`.trim(), success: false };
         }
 
-        // The instance is repaired. Now repoint the shared design too, but only
-        // when its own binding still points at the source dataset (design ===
-        // source === card). When the card has diverged from its design, leave the
-        // design alone so we never repoint every other card built from it. This
-        // is best-effort: a failure here is reported but does not fail the
-        // already-saved instance repair.
-        let designUpdated = false;
-        let designError = null;
-        const designId = context.designId;
-        if (designId) {
-          try {
-            const metaRes = await fetch(`/api/apps/v1/designs/${designId}`, { credentials: 'include' });
-            const version = metaRes.ok ? (await metaRes.json())?.latestVersion : null;
-            if (version) {
-              const assetUrl = `/api/apps/v1/designs/${designId}/versions/${version}/assets?path=manifest.json`;
-              const manRes = await fetch(assetUrl, { credentials: 'include' });
-              if (manRes.ok) {
-                const manifest = await manRes.json();
-                const designMapping = Array.isArray(manifest.datasetsMapping) ? manifest.datasetsMapping : [];
-                // Update the design only when it binds the same source dataset as
-                // the card. No matching entry means the design has diverged — skip
-                // it. Handle every matching entry (same dataset, multiple aliases).
-                const designEntries = designMapping.filter((m) => m && String(m.dataSetId) === String(originId));
-                if (designEntries.length > 0) {
-                  let changed = false;
-                  for (const designEntry of designEntries) {
-                    for (const field of Array.isArray(designEntry.fields) ? designEntry.fields : []) {
-                      if (!field || field.beastModeName != null) continue;
-                      const from = field.columnName;
-                      if (typeof from === 'string' && map[from] != null && map[from] !== from) {
-                        field.columnName = map[from];
-                        changed = true;
-                      }
-                    }
-                    if (targetId && String(targetId) !== String(originId)) {
-                      designEntry.dataSetId = targetId;
-                      changed = true;
-                    }
-                  }
-                  if (changed) {
-                    const wRes = await fetch(assetUrl, {
-                      body: JSON.stringify(manifest),
-                      credentials: 'include',
-                      headers: { 'Content-Type': 'application/json' },
-                      method: 'POST'
-                    });
-                    if (wRes.ok) {
-                      designUpdated = true;
-                    } else {
-                      const t = await wRes.text().catch(() => '');
-                      designError = `POST design manifest HTTP ${wRes.status}: ${t}`.trim();
-                    }
-                  }
-                }
-              }
-            }
-          } catch (err) {
-            designError = err?.message || String(err);
+        // The commit answers with the saved instance, so the binding is verified
+        // from it rather than trusting the status code.
+        const committed = await commitRes.json().catch(() => null);
+        let saved = Array.isArray(committed?.mapping) ? committed.mapping : null;
+        if (!saved) {
+          const verifyRes = await fetch(`/domoapps/apps/v2/${instanceId}`, { credentials: 'include' });
+          const fresh = verifyRes.ok ? await verifyRes.json().catch(() => null) : null;
+          saved = Array.isArray(fresh?.mapping) ? fresh.mapping : null;
+        }
+        if (!saved) return { error: 'Could not read back the saved app binding', success: false };
+        const savedByAlias = new Map(saved.map((m) => [m?.alias, m]));
+        for (const entry of entries) {
+          const after = savedByAlias.get(entry.alias);
+          if (!after || signature(after) !== signature(entry)) {
+            return { error: `App binding "${entry.alias}" did not save`, success: false };
           }
         }
 
-        return { designError, designUpdated, success: true };
+        return { success: true };
       } catch (err) {
         return { error: err?.message || String(err), success: false };
+      }
+
+      async function readDesignMapping(designId, designVersion) {
+        if (!designId) return null;
+        const metaRes = await fetch(`/api/apps/v1/designs/${designId}`, { credentials: 'include' });
+        const version = designVersion || (metaRes.ok ? (await metaRes.json())?.latestVersion : null);
+        if (!version) return null;
+        const res = await fetch(`/api/apps/v1/designs/${designId}/versions/${version}/assets?path=manifest.json`, {
+          credentials: 'include'
+        });
+        if (!res.ok) return null;
+        const payload = await res.json();
+        // The asset endpoint answers with the manifest base64-encoded under
+        // `content`, not as the manifest itself.
+        const manifest = payload?.content
+          ? JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(payload.content), (ch) => ch.charCodeAt(0))))
+          : payload;
+        return Array.isArray(manifest?.datasetsMapping) ? manifest.datasetsMapping : null;
       }
     },
     [instanceId, originId, targetId, columnMap || {}, Boolean(fullpage), name || ''],
@@ -275,17 +272,17 @@ async function fetchDownstreamCardsRaw(datasetId, tabId) {
 }
 
 /**
- * Batch-resolve app cards to their instance ids / titles / fullpage flags, then
- * read each instance's live context to extract the dataset binding. One bridge
- * call: the batch metadata fetch plus the per-instance context reads all run in
- * the page so a card list of any size costs a single round trip.
+ * Batch-resolve app cards to their instance ids, titles and fullpage flags, then
+ * read each instance to extract the dataset binding. One bridge call: the batch
+ * metadata fetch plus the per-instance reads all run in the page so a card list
+ * of any size costs a single round trip.
  */
 async function resolveAppInstances(appCards, datasetId, tabId) {
   return executeInPage(
     async (appCards, datasetId) => {
       const ids = appCards.map((c) => c.id);
       const metaRes = await fetch(
-        `/api/content/v1/cards?urns=${ids.join(',')}&parts=metadata,domoapp,datasources&includeFiltered=true`,
+        `/api/content/v1/cards?urns=${ids.join(',')}&parts=metadata,domoapp&includeFiltered=true`,
         { credentials: 'include' }
       );
       if (!metaRes.ok) throw new Error(`Failed to fetch app card metadata: HTTP ${metaRes.status}`);
@@ -296,22 +293,55 @@ async function resolveAppInstances(appCards, datasetId, tabId) {
         if (cid != null) metaById.set(String(cid), m);
       }
 
+      // Cards placed from the same design share its manifest, so it is fetched
+      // once per design rather than once per card.
+      const designMappings = new Map();
+      const designMappingFor = async (designId, designVersion) => {
+        if (!designId) return [];
+        if (designMappings.has(designId)) return designMappings.get(designId);
+        let mapping = [];
+        try {
+          const metaRes = await fetch(`/api/apps/v1/designs/${designId}`, { credentials: 'include' });
+          const version = designVersion || (metaRes.ok ? (await metaRes.json())?.latestVersion : null);
+          if (version) {
+            const res = await fetch(`/api/apps/v1/designs/${designId}/versions/${version}/assets?path=manifest.json`, {
+              credentials: 'include'
+            });
+            if (res.ok) {
+              const payload = await res.json();
+              // The asset endpoint answers with the manifest base64-encoded under
+              // `content`, not as the manifest itself.
+              const manifest = payload?.content
+                ? JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(payload.content), (ch) => ch.charCodeAt(0))))
+                : payload;
+              if (Array.isArray(manifest?.datasetsMapping)) mapping = manifest.datasetsMapping;
+            }
+          }
+        } catch {
+          mapping = [];
+        }
+        designMappings.set(designId, mapping);
+        return mapping;
+      };
+
       const rows = [];
       for (const card of appCards) {
         const meta = metaById.get(String(card.id));
         const instanceId = meta?.domoapp?.id;
         if (!instanceId) continue;
-        let ctxRes;
+        let instRes;
         try {
-          ctxRes = await fetch(`/domoapps/apps/v2/${instanceId}`, { credentials: 'include' });
+          instRes = await fetch(`/domoapps/apps/v2/${instanceId}`, { credentials: 'include' });
         } catch {
           continue;
         }
-        if (!ctxRes.ok) continue;
-        const instance = await ctxRes.json();
-        const context = instance?.context;
-        if (!context) continue;
-        const mapping = Array.isArray(context.mapping) ? context.mapping : [];
+        if (!instRes.ok) continue;
+        const instance = await instRes.json();
+        const designId = instance?.designId || instance?.context?.designId || null;
+        // An instance with no mapping of its own runs on the design's, so that
+        // manifest is the binding for these cards.
+        let mapping = Array.isArray(instance?.mapping) ? instance.mapping : [];
+        if (mapping.length === 0) mapping = await designMappingFor(designId, instance?.designVersion);
         // The same dataset can be bound under multiple aliases; collect every
         // matching binding. `fieldGroups` keeps them separate (each is its own
         // query, so collision detection is per group); `fields` is the flattened
@@ -322,8 +352,7 @@ async function resolveAppInstances(appCards, datasetId, tabId) {
         // it rather than coercing (Boolean('false') is truthy).
         const fp = meta?.metadata?.fullpage;
         rows.push({
-          contextId: context.id,
-          designId: context.designId || null,
+          designId,
           fieldGroups,
           fields: fieldGroups.flat(),
           fullpage: fp === true || fp === 'true',
