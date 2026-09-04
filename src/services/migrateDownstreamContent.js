@@ -1649,10 +1649,16 @@ function applyCardBeastModeResolutions(definition, resolutions) {
  * DROPPED: Domo derives the nesting server-side from the expression, and sending
  * them makes the bulk create reject a nested Beast Mode ("cannot contain another
  * calculation"). `persistedOnDataSource: true` and a single visible target
- * `DATA_SOURCE` link mark it as saved to the dataset. Callers set the final
- * `id`/`legacyId` (left at 0/absent for create, the target's for overwrite).
+ * `DATA_SOURCE` link mark it as saved to the dataset.
+ *
+ * `overwriteOf` switches the entry from creating to replacing that (already
+ * read) target template. Domo rejects an update that changes a Beast Mode's
+ * links ("Function links cannot be updated using the update template
+ * endpoint"), so the target's own links go back verbatim, and `legacyId`,
+ * `locked`, and `owner` are left off so the target keeps its own (Domo reads an
+ * absent field as unchanged) instead of inheriting the origin's.
  */
-function buildBeastModeEntry(template, { currentUserId, name, numericRemap, originId, targetId }) {
+function buildBeastModeEntry(template, { currentUserId, name, numericRemap, originId, overwriteOf = null, targetId }) {
   const remapped = remapNestedBeastModeIds(JSON.parse(JSON.stringify(template)), numericRemap);
   const entry = JSON.parse(JSON.stringify(remapped).replaceAll(originId, targetId));
   delete entry.created;
@@ -1660,10 +1666,17 @@ function buildBeastModeEntry(template, { currentUserId, name, numericRemap, orig
   delete entry.checkSum;
   delete entry.legacyId;
   delete entry.functionTemplateDependencies;
-  entry.id = 0;
   entry.name = name;
-  entry.owner = currentUserId;
   entry.persistedOnDataSource = true;
+  if (overwriteOf) {
+    delete entry.locked;
+    delete entry.owner;
+    entry.id = overwriteOf.id;
+    entry.links = overwriteOf.links || [];
+    return entry;
+  }
+  entry.id = 0;
+  entry.owner = currentUserId;
   entry.links = [{ resource: { id: targetId, type: 'DATA_SOURCE' }, visible: true }];
   return entry;
 }
@@ -2110,18 +2123,37 @@ async function migrateBeastModes({
   // Overwrites run last so their references to freshly-created Beast Modes
   // resolve through the now-complete `numericRemap`.
   if (toUpdate.length > 0) {
-    const entries = toUpdate.map((u) => {
-      const entry = buildBeastModeEntry(u.template, { currentUserId, name: u.name, numericRemap, originId, targetId });
-      entry.id = u.target.id;
-      entry.legacyId = u.target.legacyId;
-      return entry;
-    });
-    try {
-      await updateDatasetFunctions({ functions: entries, tabId });
-      // Both remaps were already seeded for overwrites during classification.
-      succeeded += toUpdate.length;
-    } catch (err) {
-      for (const u of toUpdate) errors.push({ error: err?.message || String(err), id: u.origin.id });
+    const writes = [];
+    for (const u of toUpdate) {
+      // The target's own template, not its search hit: the update has to send the
+      // target's links back exactly as Domo stored them.
+      let target;
+      try {
+        target = await getFunctionTemplate(u.target.id, tabId);
+      } catch (err) {
+        errors.push({ error: err?.message || String(err), id: u.origin.id });
+        continue;
+      }
+      writes.push({
+        entry: buildBeastModeEntry(u.template, {
+          currentUserId,
+          name: u.name,
+          numericRemap,
+          originId,
+          overwriteOf: target,
+          targetId
+        }),
+        record: u
+      });
+    }
+    if (writes.length > 0) {
+      try {
+        await updateDatasetFunctions({ functions: writes.map((w) => w.entry), tabId });
+        // Both remaps were already seeded for overwrites during classification.
+        succeeded += writes.length;
+      } catch (err) {
+        for (const w of writes) errors.push({ error: err?.message || String(err), id: w.record.origin.id });
+      }
     }
   }
 

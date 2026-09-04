@@ -1352,7 +1352,7 @@ export function MigrateDownstreamContentView({
       const inFlight = Object.values(transferStatus).filter((x) => x.status === 'transferring').length;
       const done = Object.values(transferStatus).filter((x) => x.status === 'transferred' || x.status === 'failed').length;
       const total = inFlight + done;
-      return `Migrating… **${done}**/${total}`;
+      return `Migrating… **${done}**/${total} ${total === 1 ? 'Type' : 'Types'}`;
     }
     if (!isFullyLoaded) {
       return `Searching downstream content… (${MIGRATE_TYPES.length - loadingCount}/${MIGRATE_TYPES.length})`;
@@ -2200,7 +2200,7 @@ export function MigrateDownstreamContentView({
             {isTransferring ? (
               <>
                 <Spinner color='currentColor' size='sm' />
-                Migrating… {migratedDone}/{migratedTotal}
+                Migrating… {migratedDone}/{migratedTotal} {migratedTotal === 1 ? 'Type' : 'Types'}
               </>
             ) : (
               <>

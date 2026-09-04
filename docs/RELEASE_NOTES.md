@@ -44,6 +44,7 @@
 ## UI Improvements
 
 - Delete Unused Beast Modes now shows its delete progress on the Delete button instead of above the list.
+- Migrate Content's progress now reads "Migrating… 2/5 Types", labeling what its count is counting.
 - The "System" chip on a system page now sits at the right of the row next to its actions instead of beside the name.
 - A report's page is now labeled "Report Page" wherever it is listed.
 
@@ -83,3 +84,4 @@
 - Navigate to Copied Object now identifies a Variable instead of calling it a Beast Mode.
 - Objects Owned and Transfer Ownership no longer list a DataFlow that has been deleted.
 - A custom app card no longer shows a Definition tab that fails to load.
+- Choosing Overwrite for a Beast Mode conflict in Migrate Content now replaces the target's Beast Mode instead of failing every one of them.
