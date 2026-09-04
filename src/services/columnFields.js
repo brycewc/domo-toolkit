@@ -24,6 +24,9 @@
  *      `type === 'Field'` is unambiguous in Magic ETL expression trees, so this
  *      also covers Field leaves nested inside Operation exprs (Filter, etc.).
  *
+ * One shape is deliberately excluded: a node flagged `calendar: true` names a
+ * Standard Calendar field, not a dataset column (see `isCalendarColumnEntry`).
+ *
  * Magic ETL action variants surface the same column-bearing concept under
  * different keys across action types (Filter, Group By, Join, Pivot,
  * Rename, etc.), which is why the lists are deliberately wide.
@@ -182,6 +185,25 @@ export function isCalculatedColumnEntry(node) {
   if (!node || typeof node !== 'object') return false;
   if (node.isCalculation === true) return true;
   return typeof node.id === 'string' && node.id.startsWith('calculation_');
+}
+
+/**
+ * Whether a node's column reference is a Standard Calendar field rather than a
+ * dataset column. A card grouping a date axis by month carries the grain as
+ * `{calendar: true, column: 'CalendarMonth', mapping: 'ITEM'}`, derived from the
+ * card's real date column, which the definition names separately (`dateGrain`,
+ * `dateRangeFilter`) and the walkers reach through the ordinary `column` rule.
+ *
+ * Such a reference is neither remappable nor droppable: it is in no dataset's
+ * schema, and renaming or dropping a real column of the same name would rewrite
+ * the chart's grain. The flag must be exactly `true`; the truthy-string shape
+ * (`calendar: 'StandardCalendar'`) is a query-context field, not this.
+ *
+ * @param {any} node
+ * @returns {boolean}
+ */
+export function isCalendarColumnEntry(node) {
+  return !!node && typeof node === 'object' && node.calendar === true;
 }
 
 /**

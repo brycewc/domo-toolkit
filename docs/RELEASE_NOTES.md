@@ -8,6 +8,7 @@
 - Remap Columns now reloads the dataset's Cards page if you are still on it when the remap finishes.
 - Migrate Content now warns before you migrate that a nested Beast Mode can't be created when the Beast Mode it nests is already nested on the target, and names the one to bring a copy of instead.
 - Migrate Content now has a Refresh button on the page where you pick the target DataSet.
+- Migrate Content now has a Set All button that applies one choice to every Beast Mode conflict at once.
 - The Activity Log now shows when the DomoStats Activity Log dataset last updated.
 - The Current Context footer now shows the name of a dashboard, App Page, or Worksheet View you don't have access to.
 - Navigate to Copied Object now recognizes the ID of a dashboard you don't have access to.
@@ -68,3 +69,4 @@
 - Migrate Content now migrates a Beast Mode whose formula uses a Variable instead of skipping it.
 - Migrate Content no longer skips a Beast Mode when the Beast Mode it nests did migrate.
 - Migrate Content now names the nested Beast Mode that didn't migrate when it skips one over it.
+- Migrate Content and Remap Columns no longer ask you to remap the date grouping on a card's axis, such as month or quarter, as if it were a DataSet column.

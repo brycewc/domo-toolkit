@@ -5,6 +5,7 @@ import {
   Card,
   Collection,
   Description,
+  Dropdown,
   EmptyState,
   Header,
   Input,
@@ -96,6 +97,17 @@ const DROP = '__drop__';
 // the alert watches all rows" choice. The unresolved state is a null value (no
 // selection), which keeps the migration blocked until the user picks.
 const PDP_REMOVE = '__pdp_remove__';
+
+const BEAST_MODE_DISPOSITIONS = [
+  { id: 'keep', label: 'Keep existing' },
+  { id: 'overwrite', label: 'Overwrite' },
+  { id: 'rename', label: 'Rename new' }
+];
+
+const CARD_BEAST_MODE_DISPOSITIONS = [
+  { id: 'useTarget', label: "Use target's" },
+  { id: 'rename', label: "Rename card's" }
+];
 
 export function MigrateDownstreamContentView({
   currentContext = null,
@@ -694,6 +706,21 @@ export function MigrateDownstreamContentView({
     }));
   }, []);
 
+  // Set every conflict at once, keeping any name already typed on a row so
+  // switching the whole list to Rename new doesn't discard that work.
+  const handleAllBeastModeChoices = useCallback(
+    (disposition) => {
+      setBeastModeChoices((prev) => {
+        const next = {};
+        for (const bm of beastModeConflicts) {
+          next[bm.id] = disposition === 'rename' ? { disposition, newName: prev[bm.id]?.newName ?? '' } : { disposition };
+        }
+        return next;
+      });
+    },
+    [beastModeConflicts]
+  );
+
   // Fetch the origin's card-level Beast Modes when a target is chosen, so we can
   // flag any whose name collides with a target dataset Beast Mode.
   useEffect(() => {
@@ -748,6 +775,19 @@ export function MigrateDownstreamContentView({
       [bmId]: disposition === 'rename' ? { disposition, newName: newName ?? '' } : { disposition }
     }));
   }, []);
+
+  const handleAllCardBeastModeChoices = useCallback(
+    (disposition) => {
+      setCardBeastModeChoices((prev) => {
+        const next = {};
+        for (const bm of cardBeastModeConflicts) {
+          next[bm.id] = disposition === 'rename' ? { disposition, newName: prev[bm.id]?.newName ?? '' } : { disposition };
+        }
+        return next;
+      });
+    },
+    [cardBeastModeConflicts]
+  );
 
   const targetBeastModeByName = useMemo(() => new Map(targetBeastModes.map((b) => [b.name, b])), [targetBeastModes]);
 
@@ -2061,7 +2101,16 @@ export function MigrateDownstreamContentView({
 
             {beastModeConflicts.length > 0 && (
               <div className='flex flex-col gap-1'>
-                <Label className='text-sm font-medium'>Beast Mode Conflicts</Label>
+                <div className='flex items-center justify-between gap-2'>
+                  <Label className='text-sm font-medium'>Beast Mode Conflicts</Label>
+                  {beastModeConflicts.length > 1 && (
+                    <SetAllConflictsMenu
+                      items={BEAST_MODE_DISPOSITIONS}
+                      tooltip="Applies one choice to all of these Beast Modes. Adjust individual ones afterward. Rename new still needs each row's name."
+                      onApply={handleAllBeastModeChoices}
+                    />
+                  )}
+                </div>
                 <Description className='text-xs'>
                   The target already has a Beast Mode with each of these names. Keep the target's, overwrite it with the
                   incoming one, or rename the incoming so both exist. Cards that use it are repointed either way.
@@ -2083,7 +2132,16 @@ export function MigrateDownstreamContentView({
 
             {cardBeastModeConflicts.length > 0 && (
               <div className='flex flex-col gap-1'>
-                <Label className='text-sm font-medium'>Card Beast Mode Conflicts</Label>
+                <div className='flex items-center justify-between gap-2'>
+                  <Label className='text-sm font-medium'>Card Beast Mode Conflicts</Label>
+                  {cardBeastModeConflicts.length > 1 && (
+                    <SetAllConflictsMenu
+                      items={CARD_BEAST_MODE_DISPOSITIONS}
+                      tooltip="Applies one choice to all of these Beast Modes. Adjust individual ones afterward. Rename card's still needs each row's name."
+                      onApply={handleAllCardBeastModeChoices}
+                    />
+                  )}
+                </div>
                 <Description className='text-xs'>
                   A selected card has a Beast Mode whose name already exists as a Beast Mode on the target dataset, which
                   Domo won't allow. Use the target's Beast Mode instead, or rename the card's so both can exist.
@@ -2988,6 +3046,29 @@ function PdpMapRow({ choice, onChange, originName, targetPolicies }) {
         </Select.Popover>
       </Select>
     </div>
+  );
+}
+
+function SetAllConflictsMenu({ items, onApply, tooltip }) {
+  return (
+    <Dropdown>
+      <Tooltip>
+        <Button size='sm' variant='secondary'>
+          Set All
+          <IconChevronDown />
+        </Button>
+        <Tooltip.Content className='max-w-80 text-wrap'>{tooltip}</Tooltip.Content>
+      </Tooltip>
+      <Dropdown.Popover className='w-fit min-w-40' placement='bottom right'>
+        <Dropdown.Menu onAction={(key) => onApply(String(key))}>
+          {items.map((item) => (
+            <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
+              <Label>{item.label}</Label>
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown>
   );
 }
 

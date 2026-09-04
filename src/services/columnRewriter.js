@@ -21,6 +21,7 @@ import {
   COLUMN_VALUE_FIELDS,
   EXPRESSION_FIELDS,
   isCalculatedColumnEntry,
+  isCalendarColumnEntry,
   isColumnListParent,
   QUALIFIED_REF_RE,
   REMOVABLE_ENTRY_LIST_FIELDS,
@@ -714,7 +715,10 @@ function walkAndRemoveColumns(node, drop) {
         if (item && typeof item === 'object') {
           // A card-level Beast Mode entry is skipped at `name`/`id`, so a drop
           // can never delete the Beast Mode itself (see
-          // `isCalculatedColumnEntry`).
+          // `isCalculatedColumnEntry`); a calendar entry is kept whole, so
+          // dropping a real column of the same name can't delete a chart's date
+          // grain (see `isCalendarColumnEntry`).
+          if (isCalendarColumnEntry(item)) return true;
           const isCalc = isCalculatedColumnEntry(item);
           for (const fieldName of ['column', 'columnName', 'inStreamName', 'name', 'field', 'id']) {
             if (isCalc && (fieldName === 'name' || fieldName === 'id')) continue;
@@ -785,16 +789,19 @@ function walkAndRewriteColumns(node, columnMap, parentKey = null, options = {}) 
           // Pick the first column-bearing field present on the item. A
           // card-level Beast Mode entry is skipped at `name`/`id` so a rename
           // can't retitle the Beast Mode (see `isCalculatedColumnEntry`); its
-          // `value` formula is still rewritten as an expression field.
-          const isCalc = isCalculatedColumnEntry(item);
-          for (const fieldName of ['column', 'columnName', 'inStreamName', 'name', 'field', 'id']) {
-            if (isCalc && (fieldName === 'name' || fieldName === 'id')) continue;
-            if (typeof item[fieldName] === 'string') {
-              const rewritten = rewriteColumnName(item[fieldName], columnMap);
-              if (!reshapeColumnRefToBeastMode(item, fieldName, item[fieldName], rewritten, options)) {
-                item[fieldName] = rewritten;
+          // `value` formula is still rewritten as an expression field. A
+          // calendar entry is left alone entirely (see `isCalendarColumnEntry`).
+          if (!isCalendarColumnEntry(item)) {
+            const isCalc = isCalculatedColumnEntry(item);
+            for (const fieldName of ['column', 'columnName', 'inStreamName', 'name', 'field', 'id']) {
+              if (isCalc && (fieldName === 'name' || fieldName === 'id')) continue;
+              if (typeof item[fieldName] === 'string') {
+                const rewritten = rewriteColumnName(item[fieldName], columnMap);
+                if (!reshapeColumnRefToBeastMode(item, fieldName, item[fieldName], rewritten, options)) {
+                  item[fieldName] = rewritten;
+                }
+                break;
               }
-              break;
             }
           }
           walkAndRewriteColumns(item, columnMap, key, options);
@@ -807,7 +814,9 @@ function walkAndRewriteColumns(node, columnMap, parentKey = null, options = {}) 
     if (COLUMN_VALUE_FIELDS.has(key) && typeof value === 'string') {
       // `name` and `id` are over-broad on their own — only treat as column
       // refs when nested under a known column-list parent, and never on a
-      // card-level Beast Mode entry.
+      // card-level Beast Mode entry. A calendar node's column-bearing keys name
+      // a calendar field, not a column (see `isCalendarColumnEntry`).
+      if (isCalendarColumnEntry(node)) continue;
       if ((key === 'name' || key === 'id') && (!isColumnListParent(parentKey) || isCalculatedColumnEntry(node))) {
         continue;
       }

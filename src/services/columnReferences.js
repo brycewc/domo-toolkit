@@ -30,6 +30,7 @@ import {
   eachExpressionRef,
   EXPRESSION_FIELDS,
   isCalculatedColumnEntry,
+  isCalendarColumnEntry,
   isColumnListParent,
   QUALIFIED_REF_RE,
   stripBackticks
@@ -956,13 +957,16 @@ function walkForColumnRefs(node, onColumnRef, parentKey = null) {
         } else if (item && typeof item === 'object') {
           // Pick the first present known column-bearing field. A card-level
           // Beast Mode entry is skipped at `name`/`id`: those hold its display
-          // name and calc id, not a column (see `isCalculatedColumnEntry`).
-          const isCalc = isCalculatedColumnEntry(item);
-          for (const fieldName of ['column', 'columnName', 'inStreamName', 'name', 'field', 'id']) {
-            if (isCalc && (fieldName === 'name' || fieldName === 'id')) continue;
-            if (typeof item[fieldName] === 'string') {
-              onColumnRef(stripBackticks(item[fieldName]));
-              break;
+          // name and calc id, not a column (see `isCalculatedColumnEntry`). A
+          // calendar entry is skipped outright (see `isCalendarColumnEntry`).
+          if (!isCalendarColumnEntry(item)) {
+            const isCalc = isCalculatedColumnEntry(item);
+            for (const fieldName of ['column', 'columnName', 'inStreamName', 'name', 'field', 'id']) {
+              if (isCalc && (fieldName === 'name' || fieldName === 'id')) continue;
+              if (typeof item[fieldName] === 'string') {
+                onColumnRef(stripBackticks(item[fieldName]));
+                break;
+              }
             }
           }
           // Recurse into the rest of the object (sort objects may carry
@@ -977,8 +981,11 @@ function walkForColumnRefs(node, onColumnRef, parentKey = null) {
     if (COLUMN_VALUE_FIELDS.has(key) && typeof value === 'string') {
       // `name` and `id` are over-broad on their own — only treat as column
       // refs when nested under a parent that's a column-list context, and never
-      // on a card-level Beast Mode entry.
-      if ((key === 'name' || key === 'id') && (!isColumnListParent(parentKey) || isCalculatedColumnEntry(node))) {
+      // on a card-level Beast Mode entry. A calendar node names a calendar
+      // field at every column-bearing key (see `isCalendarColumnEntry`).
+      if (isCalendarColumnEntry(node)) {
+        // skip
+      } else if ((key === 'name' || key === 'id') && (!isColumnListParent(parentKey) || isCalculatedColumnEntry(node))) {
         // skip
       } else {
         onColumnRef(stripBackticks(value));
