@@ -77,6 +77,7 @@ const TYPE_KEY_TO_DOMO_TYPE = {
   metrics: 'METRIC',
   pages: 'PAGE',
   projectsAndTasks: 'PROJECT',
+  reports: 'REPORT_BUILDER',
   repositories: 'REPOSITORY',
   subscriptions: 'SUBSCRIPTION',
   taskCenterQueues: 'HOPPER_QUEUE',

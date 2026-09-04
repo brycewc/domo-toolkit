@@ -1,7 +1,12 @@
 import { releases } from '@/data/releases';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
-import { fetchObjectDetailsInPage, getObjectType, resolvePrimaryCopy } from '@/models/DomoObjectType';
+import {
+  fetchObjectDetailsInPage,
+  getObjectType,
+  refineTypeFromMetadata,
+  resolvePrimaryCopy
+} from '@/models/DomoObjectType';
 import { getDataflowForOutputDataset } from '@/services/dataflows';
 import { runEnrichments } from '@/services/enrichments';
 import { getFeatureSwitches } from '@/services/features';
@@ -1407,15 +1412,16 @@ async function detectAndStoreContext(tabId) {
     // Check if a detected PAGE is actually a data app view
     let isBrokenAppStudioPageUrl = false;
     if (detected.typeId === 'PAGE') {
-      const appId = await executeInPage(checkPageType, [objectId], tabId);
+      const { appId, type } = (await executeInPage(checkPageType, [objectId], tabId)) || {};
       if (isStale()) return null;
-      if (appId) {
-        detected.typeId = 'DATA_APP_VIEW';
+      const refinedTypeId = refineTypeFromMetadata(detected.typeId, { details: { type } });
+      if (refinedTypeId !== detected.typeId) {
+        detected.typeId = refinedTypeId;
         detected.parentId = appId;
-        typeModel = getObjectType('DATA_APP_VIEW');
+        typeModel = getObjectType(refinedTypeId);
         // A bare /page/{id} that resolves to an App Studio page is Domo's broken
         // "must be viewed within its app" dead-end; flag it for redirect below.
-        isBrokenAppStudioPageUrl = true;
+        isBrokenAppStudioPageUrl = refinedTypeId === 'DATA_APP_VIEW';
       }
     }
 
@@ -1489,16 +1495,13 @@ async function detectAndStoreContext(tabId) {
     domoObject.metadata = enrichedMetadata;
     domoObject.metadata.context = {};
 
-    // Beast Modes and Variables share the same URL (/datacenter/beastmode?id=)
-    // and the same function-template endpoint, so URL detection can't tell them
-    // apart. The enriched details carry a `global` flag that is true only for
-    // Variables; anything else (false or absent) is a Beast Mode. Refine the
-    // type here, after enrichment, since `global` isn't known at URL-detection
-    // time. Both types share `urlPath`, so the already-built URL stays valid;
-    // we only need to swap the type model (which drives icon, label, parents).
-    if (detected.typeId === 'BEAST_MODE_FORMULA' && enrichedMetadata.details?.global === true) {
-      detected.typeId = 'VARIABLE';
-      typeModel = getObjectType('VARIABLE');
+    // Siblings that share a URL and an endpoint (Beast Mode vs Variable, brick vs
+    // pro-code app design) are only separable once the response is in hand. The URL
+    // is already built and stays valid; only the type model swaps.
+    const refinedTypeId = refineTypeFromMetadata(detected.typeId, enrichedMetadata);
+    if (refinedTypeId !== detected.typeId) {
+      detected.typeId = refinedTypeId;
+      typeModel = getObjectType(refinedTypeId);
       domoObject.objectType = typeModel;
     }
 
@@ -1525,31 +1528,6 @@ async function detectAndStoreContext(tabId) {
       }
     }
 
-    // Bricks and pro-code apps share the same URL (/assetlibrary/{id}/overview)
-    // and design endpoint, so URL detection can't tell them apart; it defaults
-    // every custom app to APP (brick). Refine the type here after enrichment.
-    // The authoritative signal is the design's latest version carrying the
-    // `client-code-enabled` flag (a brick); a design is effectively one type, so
-    // the latest version reflects its current nature. If version data isn't
-    // available, fall back to the older heuristic (a brick design has no
-    // `createdBy`). Both types share `urlPath`, so the already-built URL stays
-    // valid; we only swap the type model (which drives icon, label, endpoint).
-    if (detected.typeId === 'APP') {
-      const versions = enrichedMetadata.versions;
-      let isBrick;
-      if (Array.isArray(versions) && versions.length > 0) {
-        const latest = versions.find((v) => v.version === enrichedMetadata.latestVersion) ?? versions[versions.length - 1];
-        isBrick = latest?.flags?.['client-code-enabled'] === true;
-      } else {
-        isBrick = enrichedMetadata.details?.createdBy == null;
-      }
-      if (!isBrick) {
-        detected.typeId = 'RYUU_APP';
-        typeModel = getObjectType('RYUU_APP');
-        domoObject.objectType = typeModel;
-      }
-    }
-
     // Preserve workflow context from CE tile detection within a workflow
     if (detected.workflowModelId) {
       domoObject.metadata.context.workflowModelId = detected.workflowModelId;
@@ -1563,7 +1541,7 @@ async function detectAndStoreContext(tabId) {
 
     // Preserve page/app context when a card is viewed from a page or app
     if (detected.pageId) {
-      const appId = await executeInPage(checkPageType, [detected.pageId], tabId);
+      const { appId } = (await executeInPage(checkPageType, [detected.pageId], tabId)) || {};
       if (isStale()) return null;
       if (appId) {
         domoObject.metadata.context.appViewId = detected.pageId;

@@ -8,6 +8,7 @@ import { getAppInstance } from './customApps';
 import { getDataflowPermission } from './dataflows';
 import { getDatasetsForAccount } from './datasets';
 import { getChildPages, getPagesForCards, getSubpageIds } from './pages';
+import { getReportAppContext } from './reportBuilder';
 import { getFullUserDetails, getUserReportsTo } from './users';
 import { getVersionDefinition, getWorkflowPermission } from './workflows';
 
@@ -112,7 +113,7 @@ const ENRICHMENTS = [
     },
     id: 'app-pages',
     storePath: 'context.appPages',
-    types: ['DATA_APP_VIEW', 'WORKSHEET_VIEW', 'REPORT_BUILDER_VIEW']
+    types: ['DATA_APP_VIEW', 'WORKSHEET_VIEW', 'REPORT_BUILDER_PAGE']
   },
 
   // Pages and cardsByPage for CARD
@@ -140,7 +141,7 @@ const ENRICHMENTS = [
     fetch: ({ objectId, tabId, typeId }) => getCardsForObject({ objectId, objectType: typeId, tabId }),
     id: 'page-cards',
     storePath: 'context.cards',
-    types: ['PAGE', 'DATA_APP_VIEW', 'DATA_SOURCE', 'WORKSHEET_VIEW', 'REPORT_BUILDER_VIEW']
+    types: ['PAGE', 'DATA_APP_VIEW', 'DATA_SOURCE', 'WORKSHEET_VIEW', 'REPORT_BUILDER_PAGE']
   },
 
   // Forms for page-like types
@@ -154,7 +155,7 @@ const ENRICHMENTS = [
     },
     id: 'page-forms',
     storePath: 'context.forms',
-    types: ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW']
+    types: ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW']
   },
 
   // Queues for page-like types
@@ -168,7 +169,29 @@ const ENRICHMENTS = [
     },
     id: 'page-queues',
     storePath: 'context.queues',
-    types: ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW']
+    types: ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW']
+  },
+
+  // Report, report page, and owning Studio App for the Report Builder family.
+  // The app link is a hidden `app-studio:<id>` tag on the report, so it can only
+  // be reached from the report itself.
+  {
+    fallback: {},
+    fetch: ({ domoObject, enrichedMetadata, objectId, tabId, typeId }) =>
+      getReportAppContext({
+        details: enrichedMetadata.details,
+        objectId,
+        parentId: domoObject.parentId,
+        tabId,
+        typeId
+      }),
+    id: 'report-app-context',
+    storePath: {
+      'context.dataAppId': 'dataAppId',
+      'context.reportId': 'reportId',
+      'context.reportPageId': 'reportPageId'
+    },
+    types: ['REPORT_BUILDER', 'REPORT_BUILDER_PAGE', 'REPORT_BUILDER_VIEW', 'REPORT_SCHEDULE']
   },
 
   // Workflow permission
@@ -285,7 +308,7 @@ const ENRICHMENTS = [
  * When all three groups (cards, forms, queues) have resolved for a page-like type,
  * the orchestrator builds a combined content array.
  */
-const PAGE_CONTENT_TYPES = new Set(['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW']);
+const PAGE_CONTENT_TYPES = new Set(['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW']);
 
 /**
  * Run all enrichments that match the given object type.

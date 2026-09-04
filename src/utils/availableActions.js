@@ -23,7 +23,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
       'DATA_SOURCE',
       'DATAFLOW_TYPE',
       'PAGE',
-      'REPORT_BUILDER_VIEW',
+      'REPORT_BUILDER_PAGE',
       'WORKSHEET_VIEW'
     ].includes(typeId)
   ) {

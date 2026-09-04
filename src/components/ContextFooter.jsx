@@ -15,6 +15,7 @@ import { getCodeEngineUsage } from '@/services/codeEngine';
 import { getDesignCards, getDesignInstances } from '@/services/customApps';
 import { getDatasetColumns, getDatasetDetailsForList, getDatasetsForPage } from '@/services/datasets';
 import { getJupyterWorkspaceAccounts, getJupyterWorkspaceDatasets } from '@/services/jupyterWorkspaces';
+import { getReportsForApp, getSchedulesForReport } from '@/services/reportBuilder';
 import { getWorkflowTriggers } from '@/services/workflows';
 import { copyJsonNode } from '@/utils/copyToClipboard';
 import { executeInPage } from '@/utils/executeInPage';
@@ -58,6 +59,14 @@ const LAZY_ARRAY_FETCHERS = {
     getJupyterWorkspaceDatasets({ entries: details?.inputConfiguration, tabId }),
   jupyterWorkspaceOutputs: ({ details, tabId }) =>
     getJupyterWorkspaceDatasets({ entries: details?.outputConfiguration, tabId }),
+  reportSchedules: ({ objectId, tabId }) =>
+    getSchedulesForReport({ reportId: objectId, tabId }).then((views) =>
+      views.map((view) => ({
+        reportViewId: view.reportViewId,
+        subject: view.subject || `Delivery ${view.reportViewId}`
+      }))
+    ),
+  reportsForApp: ({ objectId, tabId }) => getReportsForApp({ dataAppId: objectId, tabId }),
   templateApprovals: ({ objectId, tabId }) => getTemplateApprovals(objectId, tabId),
   workflowTriggers: ({ objectId, tabId }) => getWorkflowTriggers(objectId, { tabId })
 };

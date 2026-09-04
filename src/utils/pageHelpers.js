@@ -70,9 +70,7 @@ export async function waitForCardPages(currentContext, maxAttempts = 50) {
 export async function waitForChildPages(currentContext, maxAttempts = 50) {
   try {
     const objectType = currentContext.domoObject?.typeId;
-    // Only PAGE enriches its children into context.childPages. The app-view family
-    // (DATA_APP_VIEW, WORKSHEET_VIEW, REPORT_BUILDER_VIEW) all enrich into
-    // context.appPages, so anything that is not a PAGE reads from there.
+    // Only PAGE enriches into childPages; every other page-like type uses appPages.
     const propertyName = objectType === 'PAGE' ? 'childPages' : 'appPages';
 
     let childPages = currentContext.domoObject.metadata?.context?.[propertyName];

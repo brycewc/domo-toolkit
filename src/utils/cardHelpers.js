@@ -17,7 +17,7 @@ export async function waitForCards(currentContext, maxAttempts = 50) {
   let queues = details?.queues;
 
   const objectType = currentContext.domoObject?.typeId;
-  const hasFormsAndQueues = ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'].includes(objectType);
+  const hasFormsAndQueues = ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW'].includes(objectType);
 
   // Three states per field:
   // 1. undefined/null: Not yet checked - need to wait

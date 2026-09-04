@@ -166,7 +166,7 @@ export function GetCardsView({
 
       if (cards.length === 0 && forms.length === 0 && queues.length === 0) {
         const typeName = domoObject.typeName?.toLowerCase() || 'object';
-        const hasFormsAndQueues = ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'].includes(objectType);
+        const hasFormsAndQueues = ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW'].includes(objectType);
         onStatusUpdate?.(
           hasFormsAndQueues ? 'No Items Found' : 'No Cards Found',
           hasFormsAndQueues

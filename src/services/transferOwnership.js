@@ -17,6 +17,7 @@ import { getOwnedJupyterWorkspaces, transferJupyterWorkspaces } from './jupyterW
 import { getOwnedMetrics, transferMetrics } from './metrics';
 import { getOwnedPages, transferPages } from './pages';
 import { getOwnedProjectsAndTasks, transferProjectsAndTasks } from './projects';
+import { getOwnedReports, transferReports } from './reportBuilder';
 import { getOwnedRepositories, transferRepositories } from './sandbox';
 import { getOwnedSubscriptions, transferSubscriptions } from './subscriptions';
 import {
@@ -196,6 +197,15 @@ export const TRANSFER_TYPES = [
     transfer: transferProjectsAndTasks
   },
   {
+    // No groupOwnable: the owner-change endpoint validates the id is a real user,
+    // so a report can't be handed to a group.
+    getOwned: getOwnedReports,
+    key: 'reports',
+    label: 'Reports',
+    requiredAuthority: 'content.admin',
+    transfer: transferReports
+  },
+  {
     getOwned: getOwnedRepositories,
     key: 'repositories',
     label: 'Sandbox Repositories',
@@ -272,6 +282,7 @@ export const TYPE_KEY_TO_LOG_TYPE = {
   metrics: 'METRIC',
   pages: 'PAGE',
   projectsAndTasks: null,
+  reports: 'REPORT_BUILDER',
   repositories: 'REPOSITORY',
   subscriptions: 'SUBSCRIPTION',
   taskCenterQueues: 'HOPPER_QUEUE',

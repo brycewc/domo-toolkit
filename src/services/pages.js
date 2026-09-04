@@ -4,30 +4,33 @@ import { storeSidepanelData } from '@/utils/sidepanel';
 import { getCardsForObject } from './cards';
 
 /**
- * Check if a page is actually a data app view and get its parent app ID.
- * Uses the stacks API type property to distinguish pages from app views.
- * This is a page-context function — call via executeInPage.
+ * Read the stacks type a page reports, plus its parent app ID when it is an App
+ * Studio page. Which type that makes the page is `refineTypeFromMetadata`'s call,
+ * not this function's: it is stringified and injected, so it can fetch but cannot
+ * import. This is a page-context function, call via executeInPage.
  * @param {string} pageId - The page ID to check
- * @returns {Promise<string|null>} The parent app ID if data app view, null if regular page
+ * @returns {Promise<{appId: string|null, type: string|null}>} Stacks type ('page', 'dav', 'rbv')
+ *   and the parent app ID, either null when unavailable
  */
 export async function checkPageType(pageId) {
   try {
     const stacksResponse = await fetch(`/api/content/v3/stacks/${pageId}`);
-    if (!stacksResponse.ok) return null;
+    if (!stacksResponse.ok) return { appId: null, type: null };
     const stacksData = await stacksResponse.json();
-    if (stacksData.type !== 'dav') return null;
+    const type = stacksData.type || null;
+    if (type !== 'dav') return { appId: null, type };
 
     const summaryResponse = await fetch('/api/content/v1/pages/summary?limit=1&skip=0', {
       body: JSON.stringify({ pageId }),
       headers: { 'Content-Type': 'application/json' },
       method: 'POST'
     });
-    if (!summaryResponse.ok) return null;
+    if (!summaryResponse.ok) return { appId: null, type };
     const summaryData = await summaryResponse.json();
     const appId = summaryData.pages?.[0]?.dataAppId;
-    return appId ? appId.toString() : null;
+    return { appId: appId ? appId.toString() : null, type };
   } catch (e) {
-    return null;
+    return { appId: null, type: null };
   }
 }
 
@@ -637,7 +640,7 @@ export async function getPagesForCards(cardIds, tabId = null) {
             name,
             parentId,
             parentName,
-            type: 'REPORT_BUILDER_VIEW'
+            type: 'REPORT_BUILDER_PAGE'
           }))
         ];
 

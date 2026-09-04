@@ -1,3 +1,4 @@
+import { refineTypeFromMetadata } from '@/models/DomoObjectType';
 import { parseBeastModeLinks, rootCardIdsFor } from '@/utils/beastModeLinks';
 import { executeInPage } from '@/utils/executeInPage';
 
@@ -55,7 +56,7 @@ export async function getBeastModeRelatives({ id, metadata, tabId = null }) {
   const toNamed = (templateId) => ({
     id: templateId,
     name: templates.get(templateId)?.name || null,
-    typeId: templates.get(templateId)?.global === true ? 'VARIABLE' : 'BEAST_MODE_FORMULA'
+    typeId: refineTypeFromMetadata('BEAST_MODE_FORMULA', { details: templates.get(templateId) })
   });
 
   return { nestedBy: nestedByIds.map(toNamed), nests: nestsIds.map(toNamed) };

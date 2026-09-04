@@ -81,6 +81,25 @@ function extractCardIdFromModal() {
   return null;
 }
 
+let lastDetectedReportId = null;
+
+function extractReportBuilderId() {
+  // Mirror of detectReportBuilderModal in utils/currentObject.js, which cannot be
+  // imported there because it is stringified and injected. Keep the two in sync.
+  for (const dialog of document.querySelectorAll('[role="dialog"]')) {
+    const fiberKey = Object.keys(dialog).find((k) => k.startsWith('__reactFiber$'));
+    if (!fiberKey) continue;
+    let fiber = dialog[fiberKey];
+    for (let i = 0; i < 15 && fiber; i++) {
+      const contextId = fiber.memoizedProps?.reportContextId;
+      const match = typeof contextId === 'string' ? contextId.match(/:(\d+)$/) : null;
+      if (match) return match[1];
+      fiber = fiber.return;
+    }
+  }
+  return null;
+}
+
 // Handle a detected card modal: extract ID and trigger redetection
 function handleCardModalDetected() {
   const cardId = extractCardIdFromModal();
@@ -100,6 +119,13 @@ function handleCardModalDetected() {
       }
     }, 200);
   }
+}
+
+function handleReportBuilderModal() {
+  const reportId = extractReportBuilderId();
+  if (reportId === lastDetectedReportId) return;
+  lastDetectedReportId = reportId;
+  triggerContextRedetection();
 }
 
 // Send message to service worker to trigger context re-detection
@@ -281,6 +307,24 @@ const MODAL_DETECTORS = [
     selector: '.bulk-item-details-content',
     urlGuard: '/admin/',
     urlGuardMethod: 'startsWith'
+  },
+
+  // Report Builder modal — deduped on the extracted report id rather than the
+  // dialog's presence, so unrelated dialogs in an app cost nothing.
+  {
+    onDetected() {
+      handleReportBuilderModal();
+    },
+    onLoadCheck() {
+      handleReportBuilderModal();
+    },
+    onRemoved() {
+      if (lastDetectedReportId === null) return;
+      lastDetectedReportId = null;
+      triggerContextRedetection();
+    },
+    selector: '[role="dialog"]',
+    urlGuard: 'app-studio'
   },
 
   // Workflow trigger timer modal

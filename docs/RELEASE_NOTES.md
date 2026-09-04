@@ -2,6 +2,13 @@
 
 ## New Features and Improvements
 
+- The Current Context footer on a Scheduled Report for a report now shows the report and the Studio App it belongs to.
+- The Current Context footer on a Studio App now has a Reports tab.
+- The Current Context footer on a report now shows its Studio App, its report page, and its deliveries.
+- The Copy button on a report now offers to copy its App ID and its report page ID.
+- Reports now support Objects Owned and Transfer Ownership.
+- Transferring a report now also moves its deliveries to the new owner.
+- A report you have open in Report Builder is now recognized as the current object.
 - Migrate Content and Remap Columns can now drop a column that a dataset view only selects, removing the output columns it feeds instead of forcing a remap.
 - Choosing to drop such a column now says which view columns go away with it.
 - Migrate Content now opens faster on datasets with a lot of Beast Modes.
@@ -38,9 +45,11 @@
 
 - Delete Unused Beast Modes now shows its delete progress on the Delete button instead of above the list.
 - The "System" chip on a system page now sits at the right of the row next to its actions instead of beside the name.
+- A report's page is now labeled "Report Page" wherever it is listed.
 
 ## Bug Fixes
 
+- The Activity Log on a report's page now shows that page's events instead of coming back empty.
 - Deleting a DataFlow's inputs no longer removes an input that other content still uses or that another DataFlow produces.
 - Open All on a group now reports the number of items it actually opened.
 - Deleting a Scheduled Report now sends you to the Scheduled Reports list if you are still on the deleted report's page.
@@ -70,3 +79,5 @@
 - Migrate Content no longer skips a Beast Mode when the Beast Mode it nests did migrate.
 - Migrate Content now names the nested Beast Mode that didn't migrate when it skips one over it.
 - Migrate Content and Remap Columns no longer ask you to remap the date grouping on a card's axis, such as month or quarter, as if it were a DataSet column.
+- Navigate to Copied Object now identifies a pro-code custom app design as pro-code instead of calling it a brick.
+- Navigate to Copied Object now identifies a Variable instead of calling it a Beast Mode.

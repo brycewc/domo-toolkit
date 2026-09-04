@@ -6,7 +6,8 @@ import {
   fetchObjectDetailsInPage,
   getAllNavigableObjectTypes,
   getAllObjectTypesWithApiConfig,
-  getObjectType
+  getObjectType,
+  refineTypeFromMetadata
 } from '@/models/DomoObjectType';
 import { executeInPage } from '@/utils/executeInPage';
 import { instanceKeyFromUrl, instanceOriginFromKey } from '@/utils/instance';
@@ -193,30 +194,10 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       if (abortRef.current !== runId) return;
       if (!metadata?.details) continue;
 
-      // A fallback response is a different shape carrying no `type`, so the discriminators below
-      // would reject the very result it was reached for.
-      if (!metadata.viaFallback) {
-        if (typeConfig.id === 'DATAFLOW_TYPE' && metadata.details.deleted === true) {
-          continue;
-        }
-        if (typeConfig.id === 'DATA_APP_VIEW' && metadata.details.type !== 'dav') {
-          continue;
-        }
-        if (typeConfig.id === 'PAGE' && metadata.details.type !== 'page') {
-          continue;
-        }
-        if (typeConfig.id === 'REPORT_BUILDER_PAGE' && metadata.details.type !== 'rbv') {
-          continue;
-        }
-        // TEMPLATE and CERTIFICATION_PROCESS share the same API endpoint;
-        // discriminate by `details.type`: 'AC' → TEMPLATE, anything else → CERTIFICATION_PROCESS.
-        if (typeConfig.id === 'TEMPLATE' && metadata.details.type !== 'AC') {
-          continue;
-        }
-        if (typeConfig.id === 'CERTIFICATION_PROCESS' && (!metadata.details.type || metadata.details.type === 'AC')) {
-          continue;
-        }
-      }
+      // Types that share an endpoint don't need rejecting here; `buildResolvedDomoObject`
+      // settles which sibling the response describes. A deleted DataFlow is a different
+      // matter: its endpoint still answers, for an object no longer there.
+      if (typeConfig.id === 'DATAFLOW_TYPE' && metadata.details.deleted === true) continue;
 
       const domoObject = buildResolvedDomoObject(typeConfig, metadata, baseUrl, text);
       // STREAM without an associated dataset can't redirect; try next type.
@@ -417,7 +398,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
   );
 }
 
-function buildDomoMetadata(typeConfig, metadata) {
+function buildDomoMetadata(typeId, metadata) {
   // Carry through every field fetchObjectDetailsInPage resolved (name, created,
   // parentId, and any future `api.paths` entry), mirroring the page-detection
   // path's whole-object assign in background.js. Spreading instead of an explicit
@@ -425,7 +406,7 @@ function buildDomoMetadata(typeConfig, metadata) {
   const domoMetadata = { ...metadata };
   // CERTIFICATION_PROCESS doesn't go through the page-detection pipeline, so
   // the clipboard flow has to add the context discriminator itself.
-  if (typeConfig.id === 'CERTIFICATION_PROCESS' && metadata.details?.type) {
+  if (typeId === 'CERTIFICATION_PROCESS' && metadata.details?.type) {
     domoMetadata.context = {
       certifiedType: metadata.details.type.startsWith('CC:CARD') ? 'certified-cards' : 'certified-datasets'
     };
@@ -443,7 +424,10 @@ function buildResolvedDomoObject(typeConfig, metadata, baseUrl, fallbackId) {
       name: metadata.details.dataSource.name
     });
   }
-  return new DomoObject(typeConfig.id, fallbackId, baseUrl, buildDomoMetadata(typeConfig, metadata));
+  // Whichever sibling of a shared endpoint was tried first got the response, so the
+  // type comes from the response rather than from the attempt that fetched it.
+  const typeId = refineTypeFromMetadata(typeConfig.id, metadata);
+  return new DomoObject(typeId, fallbackId, baseUrl, buildDomoMetadata(typeId, metadata));
 }
 
 function isValidDomoId(text) {

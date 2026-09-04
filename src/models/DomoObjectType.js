@@ -742,6 +742,13 @@ export const ObjectTypeRegistry = {
         isArray: true,
         itemTypeId: 'DATA_APP_VIEW',
         label: 'Pages'
+      },
+      {
+        fetcher: 'reportsForApp',
+        isArray: true,
+        itemIdField: 'reportId',
+        itemTypeId: 'REPORT_BUILDER',
+        label: 'Reports'
       }
     ],
     urlPath: '/app-studio/{id}'
@@ -1277,11 +1284,37 @@ export const ObjectTypeRegistry = {
   PUBLICATION_GROUP: new DomoObjectType('PUBLICATION_GROUP', 'Publication Group', {
     idPattern: /^\d+$/
   }),
-  REPORT: new DomoObjectType('REPORT', 'Report', { idPattern: /^\d+$/ }),
+  REPORT: new DomoObjectType('REPORT', 'Report', {
+    // Left id-only: the audit log mixes id spaces under this type (Unsubscribed
+    // events key off a schedule id, Created/Updated/Deleted do not), so an api or
+    // urlPath would resolve the wrong object for one action or the other.
+    idPattern: /^\d+$/
+  }),
   REPORT_BUILDER: new DomoObjectType('REPORT_BUILDER', 'Report Builder', {
     api: { endpoint: '/content/v1/reportbuilder/{id}', paths: { name: 'title' } },
+    copyConfigs: [
+      { label: 'App ID', source: 'metadata.context.dataAppId' },
+      { label: 'Report Page ID', source: 'metadata.context.reportPageId' }
+    ],
+    // CheckIn looks unrelated to a report on its own, but it is the icon Domo uses
+    // for reports in its own UI. Matching Domo is the point; don't "fix" it.
     icon: { component: 'CheckIn' },
-    idPattern: /^\d+$/
+    idPattern: /^\d+$/,
+    // No urlPath: Domo has no working report URL. Its ?report= param on an
+    // app-studio URL reaches a modal that keys its layout off an in-page
+    // singleton, so a cold link renders a blank report. Navigate via the app.
+    parents: ['DATA_APP'],
+    relatedData: [
+      { field: 'dataAppId', fieldSource: 'context', label: 'Studio App', typeId: 'DATA_APP' },
+      { field: 'reportPageId', fieldSource: 'context', label: 'Report Page', typeId: 'REPORT_BUILDER_PAGE' },
+      {
+        fetcher: 'reportSchedules',
+        isArray: true,
+        itemIdField: 'reportViewId',
+        itemTypeId: 'REPORT_BUILDER_VIEW',
+        label: 'Deliveries'
+      }
+    ]
   }),
   REPORT_BUILDER_PAGE: new DomoObjectType('REPORT_BUILDER_PAGE', 'Report Page', {
     api: {
@@ -1290,30 +1323,48 @@ export const ObjectTypeRegistry = {
     },
     icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
-    parents: ['REPORT_BUILDER_VIEW']
+    parents: ['REPORT_BUILDER'],
+    relatedData: [
+      { field: 'reportId', fieldSource: 'context', label: 'Report', typeId: 'REPORT_BUILDER' },
+      { field: 'dataAppId', fieldSource: 'context', label: 'Studio App', typeId: 'DATA_APP' },
+      {
+        field: 'content',
+        fieldSource: 'context',
+        isArray: true,
+        itemTypeField: 'type',
+        label: 'Content'
+      }
+    ]
   }),
-  REPORT_BUILDER_VIEW: new DomoObjectType('REPORT_BUILDER_VIEW', 'Report Builder View', {
+  REPORT_BUILDER_VIEW: new DomoObjectType('REPORT_BUILDER_VIEW', 'Report View', {
     api: {
       endpoint: '/content/v1/reportbuilder/views/{id}',
       paths: { name: 'subject' }
     },
     icon: { component: 'Document' },
     idPattern: /^\d+$/,
-    parents: ['REPORT_BUILDER']
+    parents: ['REPORT_BUILDER'],
+    // A delivery target, not a page. Shares an id space with REPORT_SCHEDULE (both
+    // key off report_schedule.report_id), hence the same URL.
+    urlPath: '/scheduled-reports/history/{id}'
   }),
   REPORT_SCHEDULE: new DomoObjectType('REPORT_SCHEDULE', 'Scheduled Report', {
     api: {
       endpoint: '/content/v1/reportschedules/{id}',
       paths: { created: 'schedule.startDate', name: 'title', parentId: 'viewId' }
     },
-    icon: { component: 'CalendarTime' },
+    icon: { component: 'Calendar' },
     idPattern: /^\d+$/,
     // Single, fixed parent type, so getParent() enriches metadata.parent with the
     // CONTAINER_VIEW details, which the View tab shows and the Resource tab reads.
     parents: ['CONTAINER_VIEW'],
     relatedData: [
       { label: 'View', source: 'parent', typeId: 'CONTAINER_VIEW' },
-      { field: 'resourceId', fieldSource: 'parent', label: 'Resource', typeField: 'resourceType' }
+      { field: 'resourceId', fieldSource: 'parent', label: 'Resource', typeField: 'resourceType' },
+      // Only present when the schedule belongs to a Report Builder report, which
+      // is also the only case the enrichment spends a request on.
+      { field: 'reportId', fieldSource: 'context', label: 'Report', typeId: 'REPORT_BUILDER' },
+      { field: 'dataAppId', fieldSource: 'context', label: 'Studio App', typeId: 'DATA_APP' }
     ],
     urlPath: '/scheduled-reports/history/{id}'
   }),
@@ -1355,9 +1406,6 @@ export const ObjectTypeRegistry = {
     parents: ['RYUU_APP'],
     relatedData: [{ label: 'App Design', source: 'parentId', typeId: 'RYUU_APP' }]
     // No urlPath: an instance has no standalone page; it's reached as a related object from a card.
-  }),
-  SCHEDULE: new DomoObjectType('SCHEDULE', 'Schedule', {
-    icon: { component: 'CalendarTime' }
   }),
   SEGMENT: new DomoObjectType('SEGMENT', 'Segment', { idPattern: /^\d+$/ }),
   SESSION: new DomoObjectType('SESSION', 'Session', {
@@ -1865,8 +1913,64 @@ export function getObjectType(type) {
   return ObjectTypeRegistry[type] || ALIAS_LOOKUP[type] || null;
 }
 
+// Keyed by the `type` /content/v3/stacks/{id} reports for the page types sharing it.
+const STACKS_TYPE_BY_RESPONSE = { dav: 'DATA_APP_VIEW', page: 'PAGE', rbv: 'REPORT_BUILDER_PAGE' };
+const STACKS_TYPE_IDS = new Set([...Object.values(STACKS_TYPE_BY_RESPONSE), 'WORKSHEET_VIEW']);
+
 /**
- * Resolve the primary copy value and label for a Domo object — the value the
+ * Settle which of a group of sibling types an object actually is, once a response
+ * from the endpoint they share is in hand. Siblings share a `urlPath` too, so an
+ * already-built URL stays valid across the swap. Every such decision belongs here:
+ * a caller holding a discriminator it fetched itself (`checkPageType`) passes it
+ * in rather than acting on it.
+ * @param {string} typeId - The type ID detection settled on
+ * @param {Object} metadata - Metadata from `fetchObjectDetailsInPage`
+ * @returns {string} The sibling type the response describes, or `typeId` unchanged
+ */
+export function refineTypeFromMetadata(typeId, metadata) {
+  // A fallback endpoint returns a differently shaped response carrying none of the
+  // discriminators below, so it can only produce a wrong answer.
+  if (!metadata || metadata.viaFallback) return typeId;
+  const details = metadata.details;
+
+  // A brick's latest design version carries the `client-code-enabled` flag; without
+  // version data, fall back to the older heuristic (a brick has no `createdBy`).
+  if (typeId === 'APP' || typeId === 'RYUU_APP') {
+    const versions = metadata.versions;
+    let isBrick;
+    if (Array.isArray(versions) && versions.length > 0) {
+      const latest = versions.find((v) => v.version === metadata.latestVersion) ?? versions[versions.length - 1];
+      isBrick = latest?.flags?.['client-code-enabled'] === true;
+    } else {
+      isBrick = details?.createdBy == null;
+    }
+    return isBrick ? 'APP' : 'RYUU_APP';
+  }
+
+  // `global` is true only for a Variable; anything else (false or absent) is a Beast Mode.
+  if (typeId === 'BEAST_MODE_FORMULA' && details?.global === true) {
+    return 'VARIABLE';
+  }
+
+  // A Worksheet View also reports 'dav', and only its app's type tells the two
+  // apart, so one detection already settled on keeps its type.
+  if (STACKS_TYPE_IDS.has(typeId)) {
+    const refined = STACKS_TYPE_BY_RESPONSE[details?.type];
+    if (!refined || (typeId === 'WORKSHEET_VIEW' && refined === 'DATA_APP_VIEW')) return typeId;
+    return refined;
+  }
+
+  // Approval Templates and Certification Processes are both templates behind one
+  // GraphQL query; 'AC' is an Approval Template.
+  if ((typeId === 'CERTIFICATION_PROCESS' || typeId === 'TEMPLATE') && details?.type) {
+    return details.type === 'AC' ? 'TEMPLATE' : 'CERTIFICATION_PROCESS';
+  }
+
+  return typeId;
+}
+
+/**
+ * Resolve the primary copy value and label for a Domo object: the value the
  * Copy button (and the copy keyboard shortcut) places on the clipboard. Mirrors
  * the Copy button's precedence: a type's `primary` copyConfig overrides the
  * default object ID; otherwise the object's own ID is used.

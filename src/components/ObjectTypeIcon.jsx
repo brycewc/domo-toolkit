@@ -7,6 +7,7 @@ import IconAiRobot from '@icons/ai-robot.svg?react';
 import IconApprovalCenter from '@icons/approval-center.svg?react';
 import IconBuilding from '@icons/building.svg?react';
 import IconCalendarTime from '@icons/calendar-time.svg?react';
+import IconCalendar from '@icons/calendar.svg?react';
 import IconCardNotebook from '@icons/card-notebook.svg?react';
 import IconCard from '@icons/card.svg?react';
 import IconCertifiedCompany from '@icons/certified-company.svg?react';
@@ -66,6 +67,7 @@ const ICON_MAP = {
   AiRobot: IconAiRobot,
   ApprovalCenter: IconApprovalCenter,
   Building: IconBuilding,
+  Calendar: IconCalendar,
   CalendarTime: IconCalendarTime,
   Card: IconCard,
   CardNotebook: IconCardNotebook,

@@ -8,7 +8,7 @@ import IconCard from '@icons/card.svg?react';
 // Types that have cards pre-fetched in background
 const PRE_FETCHED_TYPES = ['DATA_APP_VIEW', 'DATA_SOURCE', 'PAGE', 'WORKSHEET_VIEW'];
 
-const FORMS_AND_QUEUES_TYPES = ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW'];
+const FORMS_AND_QUEUES_TYPES = ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW'];
 
 export function GetCards({ currentContext, isDisabled, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();

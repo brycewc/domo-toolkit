@@ -30,11 +30,41 @@ export async function detectCurrentObject() {
     return null;
   }
 
+  function detectReportBuilderModal() {
+    // Report Builder never touches the URL, so the id comes from React props.
+    // Scans every dialog rather than matching a CSS-module class name, since only
+    // the report modal carries reportContextId. Mirrored in contentScript.js.
+    for (const dialog of document.querySelectorAll('[role="dialog"]')) {
+      const fiberKey = Object.keys(dialog).find((k) => k.startsWith('__reactFiber$'));
+      if (!fiberKey) continue;
+      let fiber = dialog[fiberKey];
+      for (let i = 0; i < 15 && fiber; i++) {
+        const contextId = fiber.memoizedProps?.reportContextId;
+        // An unsaved new report is keyed ':-1', which this deliberately misses.
+        const match = typeof contextId === 'string' ? contextId.match(/:(\d+)$/) : null;
+        if (match) return match[1];
+        fiber = fiber.return;
+      }
+    }
+    return null;
+  }
+
   let objectType;
   let id;
   const parts = url.split(/[/?=&]/);
 
+  const reportBuilderId = url.includes('app-studio') && !detectCardModal() ? detectReportBuilderModal() : null;
+
   switch (true) {
+    case !!reportBuilderId:
+      return {
+        baseUrl: location.origin,
+        id: reportBuilderId,
+        parentId: parts[parts.indexOf('app-studio') + 1],
+        typeId: 'REPORT_BUILDER',
+        url
+      };
+
     case url.includes('alerts/'):
       objectType = 'ALERT';
       break;

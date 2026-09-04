@@ -383,7 +383,7 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
         switch (objectType) {
           case 'DATA_APP_VIEW':
           case 'PAGE':
-          case 'REPORT_BUILDER_VIEW':
+          case 'REPORT_BUILDER_PAGE':
           case 'WORKSHEET_VIEW': {
             const url = parts
               ? `/api/content/v3/stacks/${objectId}/cards?parts=${parts}`

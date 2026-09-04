@@ -497,7 +497,7 @@ export function GetPagesView({
     if (items.length === undefined) return null;
 
     if (pageData?.sidepanelType === 'getCardPages') {
-      const pageTypes = new Set(['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_VIEW', 'WORKSHEET_VIEW']);
+      const pageTypes = new Set(['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW']);
       const cardIds = new Set();
       const tally = (list) => {
         let pages = 0;
@@ -719,7 +719,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
   const pagesByType = {
     DATA_APP_VIEW: [],
     PAGE: [],
-    REPORT_BUILDER_VIEW: [],
+    REPORT_BUILDER_PAGE: [],
     WORKSHEET_VIEW: []
   };
 
@@ -812,9 +812,9 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
   }
 
   // Handle Report Builder pages - group by report first (same structure as App Studio)
-  if (pagesByType.REPORT_BUILDER_VIEW.length > 0) {
+  if (pagesByType.REPORT_BUILDER_PAGE.length > 0) {
     const pagesByReport = new Map();
-    pagesByType.REPORT_BUILDER_VIEW.forEach((page) => {
+    pagesByType.REPORT_BUILDER_PAGE.forEach((page) => {
       const reportId = page.parentId;
       if (!pagesByReport.has(reportId)) {
         pagesByReport.set(reportId, {
@@ -831,9 +831,9 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
         const sortedPages = pages.sort((a, b) => a.pageTitle.localeCompare(b.pageTitle));
 
         const pageChildren = sortedPages.map((page) => {
-          const cardChildren = buildCardChildren(page.pageId, cardsByPage, origin, 'REPORT_BUILDER_VIEW', reportId);
+          const cardChildren = buildCardChildren(page.pageId, cardsByPage, origin, 'REPORT_BUILDER_PAGE', reportId);
           const domoObject = new DomoObject(
-            'REPORT_BUILDER_VIEW',
+            'REPORT_BUILDER_PAGE',
             page.pageId,
             origin,
             { name: page.pageTitle },
@@ -863,7 +863,7 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
         childTypeId: 'REPORT_BUILDER',
         id: 'REPORT_BUILDER_group',
         label: 'Report Builder Pages',
-        metadata: `${pagesByReport.size} report${pagesByReport.size !== 1 ? 's' : ''}, ${pagesByType.REPORT_BUILDER_VIEW.length} page${pagesByType.REPORT_BUILDER_VIEW.length !== 1 ? 's' : ''}`
+        metadata: `${pagesByReport.size} report${pagesByReport.size !== 1 ? 's' : ''}, ${pagesByType.REPORT_BUILDER_PAGE.length} page${pagesByType.REPORT_BUILDER_PAGE.length !== 1 ? 's' : ''}`
       })
     );
   }
