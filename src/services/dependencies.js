@@ -441,7 +441,7 @@ const FETCHERS = {
       .map((item) => ({
         id: item.entityId,
         label: item.name || `App ${item.entityId}`,
-        typeId: 'RYUU_INSTANCE',
+        typeId: 'APP_INSTANCE',
         // An instance has no page of its own, so the endpoint hands back a card
         // link instead; it is null when no card shows the app.
         url: item.link || null
@@ -531,7 +531,7 @@ const FETCHERS = {
     // can never be rows; a count-only group is the only way to show them at all.
     for (const [kind, label, summaryTypeId, noun, usage, blocking] of [
       ['hiddenWorkflows', "Workflows You Can't See", 'WORKFLOW_MODEL', 'workflow version', workflows, true],
-      ['hiddenInstances', "Custom Apps You Can't See", 'RYUU_INSTANCE', 'custom app', instances, true],
+      ['hiddenInstances', "Custom Apps You Can't See", 'APP_INSTANCE', 'custom app', instances, true],
       ['hiddenDesigns', "Custom App Designs You Can't See", 'RYUU_APP', 'app design', designs, false]
     ]) {
       const count = usage.privateCount || 0;

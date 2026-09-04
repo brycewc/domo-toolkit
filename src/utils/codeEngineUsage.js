@@ -62,7 +62,7 @@ export function buildUsageItems({
     annotation: versionlessNote,
     origin,
     ownerNames,
-    typeId: 'RYUU_INSTANCE',
+    typeId: 'APP_INSTANCE',
     usage: instances
   });
 
@@ -112,7 +112,7 @@ const NO_VERSION_NOTE = "Domo doesn't record which package version this uses, so
 // Rendered order comes from DataList's alphabetical sort, so this matches it.
 const USAGE_GROUPS = [
   { childTypeId: 'RYUU_APP', id: 'designs_group', label: 'Custom App Designs' },
-  { childTypeId: 'RYUU_INSTANCE', id: 'instances_group', label: 'Custom Apps' },
+  { childTypeId: 'APP_INSTANCE', id: 'instances_group', label: 'Custom Apps' },
   { childTypeId: 'WORKFLOW_MODEL', id: 'workflows_group', label: 'Workflows' }
 ];
 

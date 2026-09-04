@@ -251,13 +251,7 @@ export async function getDataflowPermission(dataflowId, tabId = null) {
 }
 
 /**
- * Update a DataFlow's details (name and description)
- * @param {string} dataflowId - The DataFlow ID
- * @param {Object} updates - Object containing name and/or description
- * @returns {Promise<Object>} - The updated DataFlow object
- */
-/**
- * Get all dataflows owned by a user.
+ * Get all dataflows owned by a user, excluding deleted ones.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<Array<{id: string, name: string}>>}
@@ -305,7 +299,32 @@ export async function getOwnedDataflows(userId, tabId = null) {
         }
       }
 
-      return allDataflows;
+      // The search index keeps stale entries whose indexed `deleted` still
+      // reads false, so deletion has to be re-read live. Only ids reported
+      // deleted are dropped; an omitted id stays, never hiding a real dataflow.
+      const batchSize = 100;
+      const batches = [];
+      for (let i = 0; i < allDataflows.length; i += batchSize) {
+        batches.push(allDataflows.slice(i, i + batchSize));
+      }
+
+      const verified = await Promise.all(
+        batches.map(async (batch) => {
+          try {
+            const params = batch.map((d) => `dataFlowId=${encodeURIComponent(d.id)}`).join('&');
+            const response = await fetch(`/api/dataprocessing/v1/dataflows/search?${params}`);
+            if (!response.ok) return batch;
+            const objects = await response.json();
+            if (!Array.isArray(objects)) return batch;
+            const deletedIds = new Set(objects.filter((o) => o.deleted).map((o) => String(o.databaseId)));
+            return batch.filter((d) => !deletedIds.has(String(d.id)));
+          } catch {
+            return batch;
+          }
+        })
+      );
+
+      return verified.flat();
     },
     [userId],
     tabId
@@ -649,6 +668,12 @@ export async function transferDataflows(dataflowIds, fromUserId, toUserId, tabId
   return result;
 }
 
+/**
+ * Update a DataFlow's details (name and description)
+ * @param {string} dataflowId - The DataFlow ID
+ * @param {Object} updates - Object containing name and/or description
+ * @returns {Promise<Object>} - The updated DataFlow object
+ */
 export async function updateDataflowDetails(dataflowId, updates) {
   // Return a structured result rather than throwing: Chrome swallows a rejected
   // promise from an async injected function (null result, no error), which would

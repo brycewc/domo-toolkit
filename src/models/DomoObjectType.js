@@ -401,10 +401,18 @@ export const ObjectTypeRegistry = {
     icon: { component: 'CodeTags' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     relatedData: [
-      { fetcher: 'designInstances', isArray: true, itemTypeId: 'RYUU_INSTANCE', label: 'Instances' },
+      { fetcher: 'designInstances', isArray: true, itemTypeId: 'APP_INSTANCE', label: 'Instances' },
       { fetcher: 'designCards', isArray: true, itemTypeId: 'CARD', label: 'Cards' }
     ],
     urlPath: '/assetlibrary/{id}/overview'
+  }),
+  APP_INSTANCE: new DomoObjectType('APP_INSTANCE', 'Custom App', {
+    api: { endpoint: '/apps/v1/instances/{id}', paths: { created: 'createdDate', parentId: 'designId' } },
+    icon: { component: 'Code' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['RYUU_APP'],
+    relatedData: [{ label: 'App Design', source: 'parentId', typeId: 'RYUU_APP' }]
+    // No urlPath: an instance has no standalone page; it's reached as a related object from a card.
   }),
   APPROVAL: new DomoObjectType('APPROVAL', 'Approval', {
     api: {
@@ -530,7 +538,7 @@ export const ObjectTypeRegistry = {
         // Only present on domoapp cards (the app instance behind the card).
         field: 'domoapp.id',
         label: 'Custom App',
-        typeId: 'RYUU_INSTANCE'
+        typeId: 'APP_INSTANCE'
       },
       {
         // designId is enriched onto context from the instance (see enrichments.js).
@@ -629,7 +637,7 @@ export const ObjectTypeRegistry = {
         fetcher: 'codeEngineInstanceUsage',
         isArray: true,
         itemIdField: 'entityId',
-        itemTypeId: 'RYUU_INSTANCE',
+        itemTypeId: 'APP_INSTANCE',
         label: 'Custom Apps'
       }
     ],
@@ -691,7 +699,7 @@ export const ObjectTypeRegistry = {
         fetcher: 'codeEngineInstanceUsage',
         isArray: true,
         itemIdField: 'entityId',
-        itemTypeId: 'RYUU_INSTANCE',
+        itemTypeId: 'APP_INSTANCE',
         label: 'Custom Apps'
       }
     ]
@@ -1394,18 +1402,10 @@ export const ObjectTypeRegistry = {
     icon: { component: 'Code' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     relatedData: [
-      { fetcher: 'designInstances', isArray: true, itemTypeId: 'RYUU_INSTANCE', label: 'Instances' },
+      { fetcher: 'designInstances', isArray: true, itemTypeId: 'APP_INSTANCE', label: 'Instances' },
       { fetcher: 'designCards', isArray: true, itemTypeId: 'CARD', label: 'Cards' }
     ],
     urlPath: '/assetlibrary/{id}/overview'
-  }),
-  RYUU_INSTANCE: new DomoObjectType('RYUU_INSTANCE', 'Custom App', {
-    api: { endpoint: '/apps/v1/instances/{id}', paths: { created: 'createdDate', parentId: 'designId' } },
-    icon: { component: 'Code' },
-    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['RYUU_APP'],
-    relatedData: [{ label: 'App Design', source: 'parentId', typeId: 'RYUU_APP' }]
-    // No urlPath: an instance has no standalone page; it's reached as a related object from a card.
   }),
   SEGMENT: new DomoObjectType('SEGMENT', 'Segment', { idPattern: /^\d+$/ }),
   SESSION: new DomoObjectType('SESSION', 'Session', {

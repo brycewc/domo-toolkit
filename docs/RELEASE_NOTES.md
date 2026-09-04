@@ -81,3 +81,4 @@
 - Migrate Content and Remap Columns no longer ask you to remap the date grouping on a card's axis, such as month or quarter, as if it were a DataSet column.
 - Navigate to Copied Object now identifies a pro-code custom app design as pro-code instead of calling it a brick.
 - Navigate to Copied Object now identifies a Variable instead of calling it a Beast Mode.
+- Objects Owned and Transfer Ownership no longer list a DataFlow that has been deleted.
