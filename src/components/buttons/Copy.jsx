@@ -2,7 +2,7 @@ import { Button, Dropdown, Kbd, Label, Tooltip } from '@heroui/react';
 import { useMemo, useState } from 'react';
 
 import { useLongPress } from '@/hooks/useLongPress';
-import { getObjectType, resolvePrimaryCopy } from '@/models/DomoObjectType';
+import { getObjectType, matchesCondition, resolvePrimaryCopy } from '@/models/DomoObjectType';
 import { copyToClipboard } from '@/utils/copyToClipboard';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 
@@ -23,16 +23,8 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
     const resolve = (source) =>
       typeof source === 'function' ? source(domoObject) : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
 
-    const isVisible = (config) => {
-      if (!config.when) return !!resolve(config.source);
-      if (typeof config.when === 'function') return !!config.when(domoObject);
-      if (typeof config.when === 'string') return !!resolve(config.when);
-      const val = resolve(config.when.field);
-      if (config.when.length !== undefined) {
-        return Array.isArray(val) && val.length === config.when.length;
-      }
-      return typeof val === 'string' && val.toLowerCase() === config.when.matches.toLowerCase();
-    };
+    const isVisible = (config) =>
+      config.when ? matchesCondition(config.when, domoObject) : !!resolve(config.source);
 
     return typeModel.copyConfigs
       .filter((c) => !c.primary && isVisible(c))

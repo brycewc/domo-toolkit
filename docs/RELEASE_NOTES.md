@@ -82,3 +82,4 @@
 - Navigate to Copied Object now identifies a pro-code custom app design as pro-code instead of calling it a brick.
 - Navigate to Copied Object now identifies a Variable instead of calling it a Beast Mode.
 - Objects Owned and Transfer Ownership no longer list a DataFlow that has been deleted.
+- A custom app card no longer shows a Definition tab that fails to load.

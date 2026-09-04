@@ -19,10 +19,7 @@ export class DomoObjectType {
    *   - source: dot-path on DomoObject to resolve the copy value (e.g., 'parentId', 'metadata.details.streamId'),
    *     or a function (domoObject) => value that derives the copy value — return null/undefined to hide the entry.
    *   - primary: if true, overrides the default copy action; original object ID moves to dropdown
-   *   - when: visibility condition — omit to show when source is truthy,
-   *     string path for truthy check, { field, matches } for case-insensitive equality,
-   *     { field, length } for array-length equality (e.g., show only when an array has exactly N items),
-   *     or a function (domoObject) => boolean for arbitrary checks.
+   *   - when: visibility condition (see `matchesCondition`) — omit to show when source is truthy
    * @param {Object} [options.extractConfig] - Configuration for extracting ID from URL
    * @param {string} [options.featureSwitch] - Instance feature switch this type requires (e.g. 'approvalcenter').
    *   Consumers route through `isTypeFeatureEnabled()` in `@/utils/featureSwitches`, which fails open while the
@@ -58,6 +55,8 @@ export class DomoObjectType {
    *   base as `field`, e.g. a CONTAINER_VIEW's `resourceType` deciding whether
    *   `resourceId` is a PAGE/CARD/DATA_APP). This is the single-entry analog of
    *   `itemTypeField` for arrays; the entry then needs no static `typeId`.
+   *   Any entry can carry `when: <condition>` (see `matchesCondition`) to drop the
+   *   tab entirely for objects the entry doesn't apply to.
    * @param {string} [options.urlPath] - The URL path pattern. Supported placeholders:
    *   - `{id}`: the object ID
    *   - `{parent}`: the parent object ID (fetched async if needed)
@@ -505,7 +504,10 @@ export const ObjectTypeRegistry = {
     relatedData: [
       {
         fetcher: 'cardDefinition',
-        label: 'Definition'
+        label: 'Definition',
+        // The KPI definition endpoint doesn't resolve for custom app cards (brick or
+        // pro-code); the Custom App and App Design tabs below cover those instead.
+        when: { field: 'metadata.details.type', notMatches: 'domoapp' }
       },
       {
         field: 'datasources',
@@ -1911,6 +1913,27 @@ const ALIAS_LOOKUP = (() => {
  */
 export function getObjectType(type) {
   return ObjectTypeRegistry[type] || ALIAS_LOOKUP[type] || null;
+}
+
+/**
+ * Evaluate a `when` visibility condition against a Domo object. Shared by the
+ * Copy button's `copyConfigs` and the Current Context footer's `relatedData`.
+ * @param {string|Object|Function} when - String dot-path (truthy check), a function (domoObject) => boolean,
+ *   or { field, matches } / { field, notMatches } for case-insensitive (in)equality,
+ *   or { field, length } for array-length equality
+ * @param {Object} domoObject - The DomoObject to resolve paths against
+ * @returns {boolean} Whether the condition is met
+ */
+export function matchesCondition(when, domoObject) {
+  if (typeof when === 'function') return !!when(domoObject);
+  const resolve = (path) => path.split('.').reduce((cur, key) => cur?.[key], domoObject);
+  if (typeof when === 'string') return !!resolve(when);
+  const val = resolve(when.field);
+  if (when.length !== undefined) return Array.isArray(val) && val.length === when.length;
+  if (when.notMatches !== undefined) {
+    return typeof val !== 'string' || val.toLowerCase() !== when.notMatches.toLowerCase();
+  }
+  return typeof val === 'string' && val.toLowerCase() === when.matches.toLowerCase();
 }
 
 // Keyed by the `type` /content/v3/stacks/{id} reports for the page types sharing it.

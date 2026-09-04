@@ -6,7 +6,7 @@ import { Alert } from '@/components/Alert';
 import { useConnectorVersion } from '@/hooks/useConnectorVersion';
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
-import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
+import { fetchObjectDetailsInPage, getObjectType, matchesCondition } from '@/models/DomoObjectType';
 import { getAlertActions } from '@/services/alerts';
 import { getTemplateApprovals } from '@/services/approvals';
 import { getBeastModeCards } from '@/services/beastModes';
@@ -177,6 +177,7 @@ export function ContextFooter({
     if (typeModel.relatedData) {
       for (const related of typeModel.relatedData) {
         if (related.source === 'self') continue;
+        if (related.when && !matchesCondition(related.when, domoObject)) continue;
         if (related.isArray) {
           const arrayBase =
             related.fieldSource === 'context'
