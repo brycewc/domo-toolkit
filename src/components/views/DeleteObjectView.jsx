@@ -39,6 +39,9 @@ import { DataList } from './DataList';
  * that can be, and every other row carries its `unselectableReasons` entry on
  * the checkbox itself. The cascade reads the result through the `selection` set
  * its hooks receive, so what it deletes is whatever the user left checked.
+ *
+ * An optional `caveat` is a standing note about what the dependency check can't
+ * see for that type, shown above the list whatever the check turns up.
  */
 const deletersByType = {
   APP: {
@@ -226,6 +229,8 @@ const deletersByType = {
         tooltip: () => 'Also deletes the connector input datasets you checked, which nothing else uses'
       }
     ],
+    caveat:
+      'This check does not cover Jupyter Workspaces, Workflows, Code Engine Packages, Workspaces, Governance Toolkit Jobs, or input DataSet Stream (e.g., DataSet Copy Connector). Verify those manually before deleting.',
     confirmSuffix: ({ outputCount }) =>
       outputCount > 0 ? ` and ${outputCount} output dataset${outputCount !== 1 ? 's' : ''}` : '',
     primaryLabel: ({ outputCount }) => (outputCount > 0 ? 'Delete DataFlow and All Outputs' : 'Delete DataFlow'),
@@ -747,12 +752,39 @@ export function DeleteObjectView({
   // shareable (DataList shares them itself via its per-type capabilities).
   const hasShareableDeps = collectShareableObjects(dependencyItems).length > 0;
 
+  const dependencyBanner = renderDependencyBanner({
+    deps,
+    error: depsError,
+    isBlocked,
+    isLoading: isLoadingDeps,
+    onRetry: () => loadDependencies(currentContext)
+  });
+  const caveatAlert = config.caveat ? (
+    <Alert className='w-full' status='accent' variant='transparent'>
+      <Alert.Content>
+        <Alert.Title className='flex items-center gap-1'>
+          <AlertStatusIcon />
+          Some usage is not checked
+        </Alert.Title>
+        <Alert.Description>{config.caveat}</Alert.Description>
+      </Alert.Content>
+    </Alert>
+  ) : null;
+  const banner =
+    dependencyBanner || caveatAlert ? (
+      <div className='flex w-full flex-col gap-2'>
+        {dependencyBanner}
+        {caveatAlert}
+      </div>
+    ) : null;
+
   return (
     <>
       <DataList
         {...(selectionProps || {})}
         allowsMultipleExpanded
         fillHeight
+        banner={banner}
         currentContext={liveContext}
         defaultExpandedIds={expandedGroupIds}
         feature='Delete'
@@ -772,13 +804,6 @@ export function DeleteObjectView({
         onClose={onBackToDefault || undefined}
         onRefresh={handleRefresh}
         onStatusUpdate={onStatusUpdate}
-        banner={renderDependencyBanner({
-          deps,
-          error: depsError,
-          isBlocked,
-          isLoading: isLoadingDeps,
-          onRetry: () => loadDependencies(currentContext)
-        })}
         footer={
           <div className='flex flex-col gap-2'>
             {availableCascades.map((cascade, idx) => {

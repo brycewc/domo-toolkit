@@ -36,6 +36,7 @@
 - Delete on a Code Engine Package version now deletes its whole package.
 - Deleting a DataFlow and its inputs now lets you pick which inputs go.
 - An input DataSet that can't be deleted with its DataFlow now says why.
+- Deleting a DataFlow now names the places the dependency check doesn't look, such as Jupyter Workspaces, Workflows, and Code Engine Packages.
 - The dependency list for deleting a DataFlow now appears right away.
 - An output DataSet's dependency count now fills in as it arrives.
 - A DataFlow's cards now load faster when it has several output DataSets.
@@ -85,3 +86,4 @@
 - Objects Owned and Transfer Ownership no longer list a DataFlow that has been deleted.
 - A custom app card no longer shows a Definition tab that fails to load.
 - Choosing Overwrite for a Beast Mode conflict in Migrate Content now replaces the target's Beast Mode instead of failing every one of them.
+- The card counts shown for both DataSets in the Data Center and on their overview pages now update after Migrate Content runs.

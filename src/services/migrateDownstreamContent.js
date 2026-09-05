@@ -1595,6 +1595,10 @@ export async function migrateAllDownstreamContent({
     })
   );
 
+  if ([...results.values()].some((result) => result.succeeded > 0)) {
+    await recalculateLineageCounts([originId, targetId], tabId);
+  }
+
   return results;
 }
 
@@ -2246,6 +2250,32 @@ function orderBeastModeCreateWaves(createRecords) {
     waves.push(wave.map((i) => createRecords[i]));
   }
   return waves;
+}
+
+/**
+ * Recompute each dataset's stored card/alert/DataFlow/DataSet tallies and
+ * re-publish them to the search index. Domo keeps those as running deltas that
+ * only the card-move endpoint updates, so a card the migration had to rewrite
+ * instead (column remap, Beast Modes, dropped columns, a drill) leaves both
+ * datasets showing their pre-migration counts forever. Best effort: it needs the
+ * DataSet Admin grant, and the migration is correct without it.
+ */
+async function recalculateLineageCounts(datasetIds, tabId) {
+  return executeInPage(
+    async (datasetIds) => {
+      await Promise.allSettled(
+        datasetIds.map((id) =>
+          fetch(`/api/data/v1/lineage/admin/DATA_SOURCE/${id}/queueImpactRecalculate`, {
+            credentials: 'include',
+            method: 'POST'
+          })
+        )
+      );
+      return { success: true };
+    },
+    [datasetIds],
+    tabId
+  );
 }
 
 /**
