@@ -18,7 +18,7 @@ const LevelPill = memo(function LevelPill({
 }) {
   if (isRoot) {
     return (
-      <Button size='sm' variant='primary' onPress={onRootClick}>
+      <Button size='sm' variant='secondary' onPress={onRootClick}>
         Root
       </Button>
     );

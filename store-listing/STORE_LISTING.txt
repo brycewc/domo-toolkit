@@ -49,7 +49,7 @@ OBJECT-SPECIFIC ACTIONS
 - Sync Datastore: Trigger a sync on an AppDB collection.
 - Generate Schema: Infer a column schema for an AppDB collection from its recent documents, edit it, and apply it (optionally turning on sync to produce a dataset).
 - Update Action Versions: Bulk update a workflow's code engine and subflow actions to the latest version without unmapping inputs and outputs.
-- Copy Color Rules: Copy a dataset's color rules to another.
+- Copy Color Rules: Copy a dataset's color rules to another, all or just the ones you pick.
 - Cancel Stuck Stream Update: Cancel a dataset stream execution stuck in a storing state with no UI cancel option.
 - Generate Definition from JSDoc: Derive a Code Engine package manifest (function names, parameters, types, descriptions) from JSDoc in a package's source and update the definition to match, with a structural diff before you confirm.
 - Lock Cards: Lock all cards on a page, app studio page, dataset, worksheet, report builder report, or all dataflow outputs.

@@ -23,6 +23,7 @@ import { DOMO_MATCH_PATTERNS, EXCLUDED_HOSTNAMES, INTERNAL_MATCH_PATTERNS, SECTI
 import { copyToClipboard } from '@/utils/copyToClipboard';
 import { detectCurrentObject, isDomoUrl } from '@/utils/currentObject';
 import { executeInPage } from '@/utils/executeInPage';
+import { removeInternalFaviconRules, seedInternalFaviconRules } from '@/utils/faviconRules';
 import { pathnameOf } from '@/utils/general';
 import { instanceKeyFromUrl, isInternalDomoHostname, isInternalInstanceKey, isLocalDomoHostname } from '@/utils/instance';
 import { hasInternalAccess, registerInternalContentScript, unregisterInternalContentScript } from '@/utils/internalInstance';
@@ -923,12 +924,19 @@ chrome.permissions.onAdded.addListener(async (permissions) => {
     internalAccessGranted = await hasInternalAccess();
     if (!internalAccessGranted) return;
     await registerInternalContentScript();
+    // Must run after internalAccessGranted is set (the rules-changed broadcast skips
+    // internal hosts otherwise) and before the loop below injects any content script.
+    await seedInternalFaviconRules();
     // Detect the internal tabs that were being skipped, so the popup fills in as
     // soon as the user opts in rather than waiting for the next navigation.
     const tabs = await chrome.tabs.query({ url: DOMO_MATCH_PATTERNS });
     for (const tab of tabs) {
       if (tab.url && isActionableDomoUrl(tab.url) && isInternalInstanceKey(instanceKeyFromUrl(tab.url) || '')) {
         await detectAndStoreContext(tab.id);
+        // Registration does not inject retroactively, so a tab open since before the
+        // grant would keep its favicon until the next navigation. Detection first:
+        // the script bails on a *.localhost host until the origin is confirmed.
+        await ensureContentScript(tab.id);
       }
     }
   }
@@ -938,6 +946,9 @@ chrome.permissions.onRemoved.addListener(async (permissions) => {
   if (permissions.origins?.some((origin) => INTERNAL_MATCH_PATTERNS.includes(origin))) {
     internalAccessGranted = false;
     await unregisterInternalContentScript();
+    // The seeded rules can only ever match an internal host, so they go with the
+    // permission rather than sitting in the list unable to match anything.
+    await removeInternalFaviconRules();
     // Drop confirmed origins too. confirmDomoTab checks the permission before the
     // cache, so a stale entry cannot grant access, but clearing means re-granting
     // after repointing a dev server re-probes instead of trusting an old verdict.

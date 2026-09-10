@@ -15,7 +15,8 @@ import { deleteAppAndAllContent } from '@/services/customApps';
 import { deleteDataflowAndOutputs, deleteDataflowWithInputsAndOutputs } from '@/services/dataflows';
 import { deleteDataset } from '@/services/datasets';
 import { deleteObject } from '@/services/deleteObject';
-import { getDependenciesForDelete } from '@/services/dependencies';
+import { getDependenciesForDelete, withExtraDependencyGroups } from '@/services/dependencies';
+import { getJupyterWorkspacesForDataset } from '@/services/jupyterWorkspaces';
 import { deletePageAndAllCards } from '@/services/pages';
 import { voidTaskCenterTask } from '@/services/taskCenter';
 import { cancelWorkflowExecution } from '@/services/workflows';
@@ -49,6 +50,14 @@ import { DataList } from './DataList';
  * this object. `caveatTitle` retitles it for a type whose note is a consequence
  * rather than a gap in the check.
  *
+ * `onDemandChecks` declares lookups too expensive to run on open, each offered as
+ * a prompt with a button instead. An entry needs a `key`, the `buttonLabel`,
+ * `promptTitle` and `promptDescription` for the prompt, a `run({ context })` that
+ * resolves to the found items, and a `toGroups({ context, items })` returning
+ * dependency groups in the same shape a fetcher produces. A check's groups fold
+ * into the loaded result once it finishes, so they list, count, and block exactly
+ * like the automatic ones.
+ *
  * A type whose removal isn't a deletion overrides the view's verb with `feature`
  * (the header), `actionIcon` (header and buttons), `confirmActionLabel` (the
  * dialog's confirm button, which also supplies the verb in the failure toast),
@@ -56,6 +65,10 @@ import { DataList } from './DataList';
  * rendered through `parseMarkdownBold`), `dismissLabel` (the dialog's cancel
  * button), and `loadingMessage`.
  */
+
+const datasetCaveat =
+  'This check does not cover Jupyter Workspaces, Workflows, Code Engine Packages, Workspaces, Governance Toolkit Jobs, Input DataSet Streams (e.g., DataSet Copy Connector), Domo Everywhere Publications, or Custom App Designs. Verify those manually before deleting.';
+
 const deletersByType = {
   APP: {
     confirmSuffix: '',
@@ -158,6 +171,48 @@ const deletersByType = {
     run: ({ context }) => runPageDelete({ context, parentAppId: context.domoObject.parentId }),
     typeName: 'Page'
   },
+  DATA_SOURCE: {
+    caveat: datasetCaveat,
+    confirmSuffix: '',
+    onDemandChecks: [
+      {
+        buttonLabel: 'Check Jupyter Workspaces',
+        key: 'jupyterWorkspaces',
+        promptDescription:
+          'Finding them means reading every Jupyter Workspace in the instance, so it only runs when you ask.',
+        promptTitle: "Jupyter Workspaces aren't searched automatically",
+        run: ({ context }) => getJupyterWorkspacesForDataset(context.domoObject.id, context.tabId),
+        toGroups: ({ context, items }) => [
+          {
+            annotation: 'Only Jupyter Workspaces you have access to are listed.',
+            blocking: false,
+            deleted: false,
+            items: items.map((workspace) => ({
+              chip: jupyterUsageChip(workspace),
+              id: workspace.id,
+              label: workspace.name || `Jupyter Workspace ${workspace.id}`,
+              typeId: 'DATA_SCIENCE_NOTEBOOK',
+              url: `${context.origin}/jupyter-workspaces/${workspace.id}`
+            })),
+            key: 'jupyterWorkspaces',
+            label: 'Jupyter Workspaces Using This DataSet'
+          }
+        ]
+      }
+    ],
+    primaryLabel: 'Delete DataSet',
+    run: async ({ context }) => {
+      await deleteDataset({ datasetId: context.domoObject.id, tabId: context.tabId });
+      const origin = context.origin;
+      await redirectTabIfViewingObject({
+        ids: [context.domoObject.id],
+        tabId: context.tabId,
+        url: `${origin}/datacenter/datasets`
+      });
+      return { success: true };
+    },
+    typeName: 'DataSet'
+  },
   DATAFLOW_TYPE: {
     cascadeButtons: [
       {
@@ -242,8 +297,7 @@ const deletersByType = {
         tooltip: () => 'Also deletes the connector input datasets you checked, which nothing else uses'
       }
     ],
-    caveat:
-      'This check does not cover Jupyter Workspaces, Workflows, Code Engine Packages, Workspaces, Governance Toolkit Jobs, or input DataSet Stream (e.g., DataSet Copy Connector). Verify those manually before deleting.',
+    caveat: datasetCaveat,
     confirmSuffix: ({ outputCount }) =>
       outputCount > 0 ? ` and ${outputCount} output dataset${outputCount !== 1 ? 's' : ''}` : '',
     primaryLabel: ({ outputCount }) => (outputCount > 0 ? 'Delete DataFlow and All Outputs' : 'Delete DataFlow'),
@@ -601,7 +655,10 @@ export function DeleteObjectView({
   const holdContent = useViewReady(!isLoading);
   const [currentContext, setCurrentContext] = useState(null);
   const [config, setConfig] = useState(null);
-  const [deps, setDeps] = useState(null);
+  const [autoDeps, setAutoDeps] = useState(null);
+  // Per opt-in check: `{ error, groups, status }`. A key absent from here is a
+  // check the user hasn't run, which is what the prompt offers.
+  const [checkResults, setCheckResults] = useState({});
   const [depsSeed, setDepsSeed] = useState(null);
   const [isLoadingDeps, setIsLoadingDeps] = useState(false);
   const [depsError, setDepsError] = useState(null);
@@ -670,14 +727,14 @@ export function DeleteObjectView({
         tabId: context.tabId
       });
       if (isCurrent()) {
-        setDeps(result);
+        setAutoDeps(result);
         setDepsSeed(result);
       }
       // A count too slow to hold the list behind (a dataflow output's downstream
       // impact) lands here, so the rows gain their badges once it arrives.
       result.deferred
         ?.then((updated) => {
-          if (isCurrent()) setDeps(updated);
+          if (isCurrent()) setAutoDeps(updated);
         })
         .catch((error) => console.error('[DeleteObjectView] Error loading deferred dependencies:', error));
     } catch (error) {
@@ -690,15 +747,50 @@ export function DeleteObjectView({
     }
   };
 
+  const runCheck = async (check) => {
+    if (!currentContext) return;
+    setCheckResults((prev) => ({ ...prev, [check.key]: { error: null, groups: [], status: 'loading' } }));
+    try {
+      const items = await check.run({ context: currentContext });
+      if (!mountedRef.current) return;
+      setCheckResults((prev) => ({
+        ...prev,
+        [check.key]: { error: null, groups: check.toGroups({ context: currentContext, items }), status: 'loaded' }
+      }));
+    } catch (error) {
+      console.error(`[DeleteObjectView] Error running the ${check.key} check:`, error);
+      if (!mountedRef.current) return;
+      setCheckResults((prev) => ({
+        ...prev,
+        [check.key]: { error: error.message || 'The check failed', groups: [], status: 'error' }
+      }));
+    }
+  };
+
   const handleRefresh = async () => {
     if (!currentContext) return;
     setIsRefreshing(true);
     try {
-      await loadDependencies(currentContext);
+      // A check the user never ran stays unrun; refreshing is not the moment to
+      // start an expensive search they declined.
+      const started = onDemandChecks.filter((check) => checkResults[check.key]);
+      await Promise.all([loadDependencies(currentContext), ...started.map((check) => runCheck(check))]);
     } finally {
       if (mountedRef.current) setIsRefreshing(false);
     }
   };
+
+  const onDemandChecks = config?.onDemandChecks || [];
+  // What a finished opt-in check found joins the automatic result, so its groups
+  // list, count, and block the same way every other group does.
+  const deps = onDemandChecks.reduce(
+    (merged, check) =>
+      checkResults[check.key]?.status === 'loaded'
+        ? withExtraDependencyGroups(merged, checkResults[check.key].groups)
+        : merged,
+    autoDeps
+  );
+  const runningCheck = onDemandChecks.find((check) => checkResults[check.key]?.status === 'loading') ?? null;
 
   const performDelete = (action) => {
     if (!config || !currentContext) return;
@@ -787,7 +879,8 @@ export function DeleteObjectView({
     blocked: isBlocked,
     blockedReason: () => deps?.blockingReason,
     hasDepsError,
-    isLoadingDeps
+    isLoadingDeps,
+    runningCheckLabel: runningCheck?.buttonLabel ?? null
   });
 
   // "Will also be deleted" and "Other dependencies" each become a top-level virtual
@@ -871,7 +964,10 @@ export function DeleteObjectView({
     error: depsError,
     isBlocked,
     isLoading: isLoadingDeps,
-    onRetry: () => loadDependencies(currentContext)
+    onRetry: () => loadDependencies(currentContext),
+    unrunCheckLabels: onDemandChecks
+      .filter((check) => !checkResults[check.key])
+      .map((check) => check.buttonLabel.replace(/^Check /, ''))
   });
   const caveatText = typeof config.caveat === 'function' ? config.caveat({ context: currentContext, deps }) : config.caveat;
   const caveatAlert = caveatText ? (
@@ -885,13 +981,18 @@ export function DeleteObjectView({
       </Alert.Content>
     </Alert>
   ) : null;
+  const checkBanners = onDemandChecks
+    .map((check) => renderCheckBanner({ check, onRun: () => runCheck(check), result: checkResults[check.key] }))
+    .filter(Boolean);
   // The caveat is a standing note for the type, so it sits above the dependency
   // banner, which comes and goes as the check runs. The other way round, the
-  // caveat slides down and back up as the spinner is replaced.
+  // caveat slides down and back up as the spinner is replaced. An opt-in check's
+  // prompt stands until pressed, so it goes with the caveat rather than below.
   const banner =
-    dependencyBanner || caveatAlert ? (
+    dependencyBanner || caveatAlert || checkBanners.length > 0 ? (
       <div className='flex w-full flex-col gap-2'>
         {caveatAlert}
+        {checkBanners}
         {dependencyBanner}
       </div>
     ) : null;
@@ -931,7 +1032,8 @@ export function DeleteObjectView({
                 blocked: cascade.isBlocked?.(ctx) ?? false,
                 blockedReason: () => cascade.blockedReason(ctx),
                 hasDepsError,
-                isLoadingDeps
+                isLoadingDeps,
+                runningCheckLabel: runningCheck?.buttonLabel ?? null
               });
               // A reason to explain means the button has to stay hoverable, so it
               // goes through DisabledTooltip rather than `isDisabled`, which would
@@ -1213,12 +1315,78 @@ function findSourceExecution(deps) {
   return deps?.groups?.find((g) => g.key === 'sourceExecution') || null;
 }
 
+// A workspace reading the DataSet loses an input; one writing it loses its
+// destination, so the row says which (or both) rather than just naming it.
+function jupyterUsageChip({ inputAliases, outputAliases }) {
+  const reads = (inputAliases?.length ?? 0) > 0;
+  const writes = (outputAliases?.length ?? 0) > 0;
+  if (reads && writes) return { color: 'warning', label: 'Reads and Writes' };
+  if (writes) return { color: 'warning', label: 'Writes' };
+  return { color: 'default', label: 'Reads' };
+}
+
+/**
+ * One opt-in check's banner: the offer to run it, a spinner while it runs, or
+ * its failure with a retry. Returns null once it has finished, since its groups
+ * are then in the list itself.
+ * @param {Object} params
+ * @param {Object} params.check - The `onDemandChecks` entry
+ * @param {Function} params.onRun - Starts the check
+ * @param {{error: string|null, status: string}} [params.result] - Its state, absent until first run
+ * @returns {JSX.Element|null}
+ */
+function renderCheckBanner({ check, onRun, result }) {
+  if (result?.status === 'loaded') return null;
+
+  if (result?.status === 'loading') {
+    return (
+      <div className='flex items-center justify-center gap-2 py-3' key={check.key}>
+        <Spinner size='sm' />
+        <span className='text-xs text-muted'>{check.buttonLabel.replace(/^Check /, 'Searching ')}…</span>
+      </div>
+    );
+  }
+
+  if (result?.status === 'error') {
+    return (
+      <Alert className='w-full' key={check.key} status='danger' variant='transparent'>
+        <Alert.Content>
+          <Alert.Title className='flex items-center gap-1'>
+            <AlertStatusIcon />
+            {check.buttonLabel.replace(/^Check /, 'Could not check ')}
+          </Alert.Title>
+          <Alert.Description>{result.error}</Alert.Description>
+          <Button fullWidth className='mt-2' size='sm' variant='secondary' onPress={onRun}>
+            <IconSync /> Retry
+          </Button>
+        </Alert.Content>
+      </Alert>
+    );
+  }
+
+  return (
+    <Alert className='w-full' key={check.key} status='accent' variant='transparent'>
+      <Alert.Content>
+        <Alert.Title className='flex items-center gap-1'>
+          <AlertStatusIcon />
+          {check.promptTitle}
+        </Alert.Title>
+        <Alert.Description>{check.promptDescription}</Alert.Description>
+        <Button fullWidth className='mt-2' size='sm' variant='secondary' onPress={onRun}>
+          <IconSync />
+          {check.buttonLabel}
+        </Button>
+      </Alert.Content>
+    </Alert>
+  );
+}
+
 // The dependency-check status shown above the affected-objects list: a loading
 // spinner, an error with retry, a "not supported" or "none found" notice, or a
 // blocking warning when something prevents the delete. Returns null once a
 // normal set of dependencies has loaded (the list itself carries it then), so
 // the consumer can pass the result straight to DataList's `banner` slot.
-function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry }) {
+function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry, unrunCheckLabels = [] }) {
   if (isLoading) {
     return (
       <div className='flex items-center justify-center gap-2 py-3'>
@@ -1269,6 +1437,10 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry }) 
             <AlertStatusIcon />
             No dependencies found
           </Alert.Title>
+          {/* An all-clear would otherwise read as covering the search the user hasn't run. */}
+          {unrunCheckLabels.length > 0 && (
+            <Alert.Description>{`${unrunCheckLabels.join(' and ')} not searched`}</Alert.Description>
+          )}
         </Alert.Content>
       </Alert>
     );
@@ -1401,11 +1573,15 @@ async function runTemplateAndDatasetDelete({ context, datasetId }) {
  * @param {Function} params.blockedReason - Lazily builds the `blocked` reason
  * @param {boolean} params.hasDepsError - Whether the dependency check failed
  * @param {boolean} params.isLoadingDeps - Whether the dependency check is running
+ * @param {string|null} [params.runningCheckLabel] - Label of the opt-in check in flight, if any
  * @returns {string|null}
  */
-function unavailableReason({ blocked, blockedReason, hasDepsError, isLoadingDeps }) {
+function unavailableReason({ blocked, blockedReason, hasDepsError, isLoadingDeps, runningCheckLabel = null }) {
   if (isLoadingDeps) return 'Checking dependencies…';
   if (hasDepsError) return 'Retry the dependency check before deleting.';
+  // An opt-in check in flight could still turn up something blocking, so the
+  // delete waits for it. Declining to run one never gates the delete.
+  if (runningCheckLabel) return `${runningCheckLabel.replace(/^Check /, 'Checking ')}…`;
   if (blocked) return blockedReason() || 'Blocked by dependencies.';
   return null;
 }

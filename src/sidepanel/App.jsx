@@ -5,7 +5,6 @@ import { ActionButtons } from '@/components/ActionButtons';
 import { ContextFooter } from '@/components/ContextFooter';
 import { ToastProvider } from '@/components/ToastProvider';
 import { ApiErrorsView } from '@/components/views/ApiErrorsView';
-import { CopyColorRulesView } from '@/components/views/CopyColorRulesView';
 import { DeleteObjectView } from '@/components/views/DeleteObjectView';
 import { DeleteUnusedBeastModesView } from '@/components/views/DeleteUnusedBeastModesView';
 import { DuplicateView } from '@/components/views/DuplicateView';
@@ -449,17 +448,6 @@ export default function App() {
 
         {slot.type === 'updateDetails' && (
           <UpdateDetailsView
-            instance={instance}
-            isActive={isActive}
-            key={slot.viewKey}
-            liveContext={currentContext}
-            onBackToDefault={backToDefault}
-            onStatusUpdate={showStatus}
-          />
-        )}
-
-        {slot.type === 'copyColorRules' && (
-          <CopyColorRulesView
             instance={instance}
             isActive={isActive}
             key={slot.viewKey}

@@ -1,8 +1,8 @@
-import { Accordion, Button, Card, Chip, ScrollShadow, Separator, Switch } from '@heroui/react';
+import { Accordion, Button, Card, Chip, Link, ScrollShadow, Separator, Switch } from '@heroui/react';
 import { Fragment } from 'react';
 
 import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
-import { instanceLabel } from '@/utils/instance';
+import { instanceLabel, instanceOriginFromKey } from '@/utils/instance';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 
@@ -89,9 +89,15 @@ export function PerInstanceSettings() {
                           <div className='flex flex-row items-center justify-between gap-3'>
                             <div className='flex min-w-0 flex-col gap-1'>
                               <span className='text-xs text-muted'>{config.datasetIdLabel}</span>
-                              <code className='truncate text-xs' title={instanceSettings[config.datasetIdField]}>
+                              <Link
+                                className='min-w-0 font-mono text-xs decoration-accent hover:text-accent'
+                                href={datasetUrl(instance, instanceSettings[config.datasetIdField])}
+                                target='_blank'
+                                title={instanceSettings[config.datasetIdField]}
+                              >
                                 {instanceSettings[config.datasetIdField]}
-                              </code>
+                                <Link.Icon />
+                              </Link>
                             </div>
                             {config.toggle && (
                               <Switch
@@ -138,4 +144,8 @@ export function PerInstanceSettings() {
       </Accordion>
     </div>
   );
+}
+
+function datasetUrl(instance, datasetId) {
+  return `${instanceOriginFromKey(instance)}/datasources/${datasetId}/details/overview`;
 }

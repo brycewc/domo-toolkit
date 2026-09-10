@@ -219,7 +219,7 @@ export function GeneralSettings() {
         </div>
         <ScrollShadow className='min-h-0 flex-1 px-30'>
           <div className='flex w-full flex-col gap-2'>
-            <Select className='w-50' placeholder='System' value={settings.themePreference} onChange={handleThemeChange}>
+            <Select className='w-60' placeholder='System' value={settings.themePreference} onChange={handleThemeChange}>
               <Label>Theme</Label>
               <Select.Trigger>
                 <Select.Value />
@@ -256,8 +256,8 @@ export function GeneralSettings() {
                 System, light, or dark theme (applies to popup, side panel, and options pages)
               </Description>
             </Select>
-            <Select className='w-50' value={settings.iconColor} onChange={handleIconColorChange}>
-              <Label>Extension Icon</Label>
+            <Select className='w-60' value={settings.iconColor} onChange={handleIconColorChange}>
+              <Label>Extension icon</Label>
               <Select.Trigger>
                 <Select.Value />
                 <Select.Indicator>
@@ -293,8 +293,8 @@ export function GeneralSettings() {
                 Choose the toolbar icon color. Useful when a custom browser theme makes the default hard to see.
               </Description>
             </Select>
-            <TextField className='w-50' onChange={handleDefaultInstanceChange}>
-              <Label>Default Domo Instance</Label>
+            <TextField className='w-60' onChange={handleDefaultInstanceChange}>
+              <Label>Default instance</Label>
               <Input placeholder='Enter an instance' value={settings.defaultDomoInstance} />
               <Description className='w-lg'>
                 This is used when navigating to copied objects from non-Domo websites. Enter without .domo.com (e.g., company
@@ -339,7 +339,7 @@ export function GeneralSettings() {
               </Description>
             </Switch>
             <Select
-              className='w-50'
+              className='w-60'
               isDisabled={!settings.showClearCookiesButton}
               value={settings.clearCookiesButtonBehavior}
               onChange={handleButtonBehaviorChange}

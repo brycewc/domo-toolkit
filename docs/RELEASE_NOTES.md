@@ -39,6 +39,12 @@
 - Deleting a DataFlow and its inputs now lets you pick which inputs go.
 - An input DataSet that can't be deleted with its DataFlow now says why.
 - Deleting a DataFlow now names the places the dependency check doesn't look, such as Jupyter Workspaces, Workflows, and Code Engine Packages.
+- DataSets now support Delete.
+- Deleting a DataSet now lists the cards, Alerts, Beast Modes, and PDP policies that go with it.
+- Deleting a DataSet is blocked while a DataSet View is built on it.
+- Deleting a DataSet now lists the DataFlow that produces it.
+- Deleting a DataSet can now search for the Jupyter Workspaces that read or write it when you press Check Jupyter Workspaces.
+- Deleting a DataSet now names the places the dependency check doesn't look.
 - Deleting a Workflow now lists the DataSets, forms, Task Center queues, Code Engine Packages, subflows, pages, and Jupyter Workspaces it uses, instead of reporting that dependencies can't be checked.
 - Deleting a Workflow now names anything the check couldn't read, such as an object the workflow picks while it runs.
 - The dependency list for deleting a DataFlow now appears right away.
@@ -62,6 +68,12 @@
 - Migrate Content now moves the Jupyter Workspaces that read a DataSet onto the new DataSet.
 - Migrate Content searches for Jupyter Workspaces only when you press Check Jupyter Workspaces.
 - Migrate Content now warns that a migrated Jupyter Workspace's notebook code still names the old columns.
+- Copy Color Rules now lets you pick which rules to copy instead of copying all of them.
+- Copy Color Rules can now add its rules to the destination's existing ones instead of always replacing them.
+- Copy Color Rules now lists each rule with its color, grouped by the column it tests.
+- Copy Color Rules now says why a copy was rejected instead of showing an error code.
+- Favicon Preferences now offers bottom-local and bottom-rig effects, putting a colored band across the bottom of the icon with LOCAL or RIG in it.
+- Enabling internal Domo instances now adds favicon rules that mark locally run instances LOCAL and test rigs RIG, and turning the setting back off removes them.
 
 ## UI Improvements
 
@@ -81,6 +93,8 @@
 - A toast's message now starts at the icon instead of indenting past it.
 - The icon on an alert or toast whose title wraps now stays on the first line instead of centering against the whole title.
 - Buttons in an alert or a toast now carry an icon and stretch to fill the width.
+- The Activity Log Dataset ID in Per-Instance Settings is now a link that opens that DataSet in a new tab.
+- The side panel now closes when you open the extension settings from it.
 
 ## Bug Fixes
 

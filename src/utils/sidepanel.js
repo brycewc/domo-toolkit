@@ -192,7 +192,7 @@ export async function storeSidepanelData(options) {
     ...rest,
     // Near-full serialization (not toStorageJSON): this single per-window record
     // is read back by views via getSidepanelData, and some need the heavy fields
-    // toStorageJSON drops, e.g. CopyColorRules reads metadata.details.properties
+    // toStorageJSON drops, e.g. the color-rules duplicator reads metadata.details.properties
     // and Ownership reads user. slimContextForSidepanel trims metadata.context to
     // its small routing fields, dropping the re-fetchable enrichment payloads (the
     // workflow definition chief among them) that no view reads back from here and

@@ -90,7 +90,8 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
   }
 
   if (typeId === 'DATA_SOURCE') {
-    actions.add('copyColorRules');
+    // One key for every duplicator a dataset offers; see duplicators/descriptors.js.
+    actions.add('duplicate');
     actions.add('getViewInputs');
     actions.add('dataRepair');
     actions.add('migrateDownstreamContent');
@@ -198,6 +199,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     actions.add('transferOwnership');
     actions.add('getOwnedObjects');
     actions.add('getCardPages');
+    // Also added for DATA_SOURCE above; both types have duplicators.
     actions.add('duplicate');
     // Only offer the jump to admin settings from the person's public profile
     // (/up/{id}); on the admin page itself (/admin/people/{id}) it's redundant.
@@ -250,6 +252,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
       'CODEENGINE_PACKAGE',
       'CODEENGINE_PACKAGE_VERSION',
       'DATA_APP_VIEW',
+      'DATA_SOURCE',
       'DATAFLOW_TYPE',
       'HOPPER_TASK',
       'MAGNUM_COLLECTION',

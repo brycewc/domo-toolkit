@@ -6,7 +6,6 @@ import { ApiErrors } from '@/components/buttons/ApiErrors';
 import { CancelStreamExecution } from '@/components/buttons/CancelStreamExecution';
 import { ClearCookies } from '@/components/buttons/ClearCookies';
 import { Copy } from '@/components/buttons/Copy';
-import { CopyColorRules } from '@/components/buttons/CopyColorRules';
 import { CopyFilteredUrl } from '@/components/buttons/CopyFilteredUrl';
 import { DataRepair } from '@/components/buttons/DataRepair';
 import { DeleteObject } from '@/components/buttons/DeleteObject';
@@ -48,7 +47,7 @@ import { ViewLineage } from '@/components/buttons/ViewLineage';
 import { useSupportMode } from '@/hooks/useSupportMode';
 import { ACTION_BAR_COLLAPSED_EVENT } from '@/hooks/useViewReady';
 import { getAvailableActions } from '@/utils/availableActions';
-import { isSidepanel, openSidepanel } from '@/utils/sidepanel';
+import { openSidepanel } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconGear from '@icons/gear.svg?react';
 import IconRightRailFill from '@icons/right-rail-fill.svg?react';
@@ -170,7 +169,7 @@ export function ActionButtons({
                           windowId: currentWindow.id
                         });
                       }
-                      if (!isSidepanel()) window.close();
+                      window.close();
                     }}
                   >
                     <IconGear />
@@ -339,9 +338,6 @@ export function ActionButtons({
                 )}
                 {availableActions.has('directSignOn') && (
                   <DirectSignOn currentContext={currentContext} isDisabled={!isDomoPage} />
-                )}
-                {availableActions.has('copyColorRules') && (
-                  <CopyColorRules currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('manageCardLocks') && (
                   <ManageCardLocks

@@ -83,7 +83,7 @@ export function Welcome() {
       id: 'cookies',
       label: (
         <p>
-          431 "request headers too large" errors resolve themselves and your current session stays logged in{' '}
+          431 "request headers too large" errors resolve themselves and keep your session{' '}
           <Link
             className='text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
             href='#general-settings'

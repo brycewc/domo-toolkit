@@ -6,6 +6,11 @@
 import { EXCLUDED_HOSTNAMES } from './utils/constants';
 import { instanceKeyFromUrl } from './utils/instance';
 
+// The effects that write a word into a band. They draw over the instance's own logo
+// when it has one, since a local dev server usually proxies a real instance and its
+// logo is what identifies which one.
+const BAND_LABELS = { 'bottom-local': 'LOCAL', 'bottom-rig': 'RIG' };
+
 /**
  * Apply favicon modifications based on rules
  * @param {Array} rules - Array of favicon rules from storage
@@ -73,9 +78,12 @@ export async function applyFaviconRules(rules) {
     return;
   }
 
+  const instanceLogo = BAND_LABELS[matchingRule.effect] ? await getInstanceLogo(subdomain) : null;
+  // The logo id joins the key so swapping the logo invalidates icons drawn from it.
+  const cacheKey = generateCacheKey(subdomain, matchingRule, instanceLogo?.id);
+
   // Check cache first (instance-logo has its own caching logic)
   if (matchingRule.effect !== 'instance-logo') {
-    const cacheKey = generateCacheKey(subdomain, matchingRule);
     const cachedFavicon = await getCachedFavicon(cacheKey);
 
     if (cachedFavicon) {
@@ -94,12 +102,11 @@ export async function applyFaviconRules(rules) {
   } else if (matchingRule.effect === 'domo-logo-colored') {
     faviconDataUrl = await applyDomoLogoColored(favicon, matchingRule.color);
   } else {
-    faviconDataUrl = await applyColorEffect(favicon, matchingRule.effect, matchingRule.color);
+    faviconDataUrl = await applyColorEffect(favicon, matchingRule.effect, matchingRule.color, instanceLogo?.dataUrl);
   }
 
   // Cache the result (except for instance-logo)
   if (faviconDataUrl && matchingRule.effect !== 'instance-logo') {
-    const cacheKey = generateCacheKey(subdomain, matchingRule);
     await cacheFavicon(cacheKey, faviconDataUrl);
   }
 }
@@ -138,13 +145,38 @@ export async function applyInstanceLogoAuto() {
 }
 
 /**
+ * Draw a colored band across the bottom of the icon with a short label in it
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {number} size - Canvas size
+ * @param {string} color - The band color
+ * @param {string} text - The label, a few characters at most
+ */
+function applyBandLabel(ctx, size, color, text) {
+  const band = size / 3;
+
+  ctx.save();
+  ctx.fillStyle = hexToRgba(color);
+  ctx.fillRect(0, size - band, size, band);
+
+  ctx.fillStyle = labelColorFor(color);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // An explicit stack keeps the label off whatever font the Domo page has loaded.
+  ctx.font = `700 ${Math.round(band * 0.85)}px Arial, Helvetica, sans-serif`;
+  // The maxWidth argument condenses the glyphs to fit instead of overflowing.
+  ctx.fillText(text, size / 2, size - band / 2, size - 2);
+  ctx.restore();
+}
+
+/**
  * Apply color effect to favicon
  * @param {HTMLLinkElement} favicon - The favicon element
- * @param {string} effect - The effect type (top, right, bottom, left, cover, replace, background, xor-top)
+ * @param {string} effect - The effect type (top, right, bottom, bottom-local, bottom-rig, left)
  * @param {string} color - The color to apply
+ * @param {string} [baseImageUrl] - Image to draw under the effect, defaulting to the Domo logo
  * @returns {Promise<string>} The favicon data URL
  */
-async function applyColorEffect(favicon, effect, color) {
+async function applyColorEffect(favicon, effect, color, baseImageUrl) {
   const img = new Image();
 
   return new Promise((resolve, reject) => {
@@ -156,8 +188,8 @@ async function applyColorEffect(favicon, effect, color) {
       canvas.height = size;
       const ctx = canvas.getContext('2d');
 
-      // Draw the fresh Domo logo as a clean base
-      ctx.drawImage(img, 0, 0, size, size);
+      // Draw the fresh logo as a clean base
+      drawContain(ctx, img, size);
 
       // Apply the effect
       applyEffect(ctx, size, effect, color);
@@ -174,8 +206,8 @@ async function applyColorEffect(favicon, effect, color) {
       reject(error);
     };
 
-    // Always use the fresh Domo logo to prevent effect stacking
-    img.src = chrome.runtime.getURL('public/domo-logo.png');
+    // Always start from a fresh image to prevent effect stacking
+    img.src = baseImageUrl || chrome.runtime.getURL('public/domo-logo.png');
   });
 }
 
@@ -237,6 +269,11 @@ function applyEffect(ctx, size, effect, color) {
       ctx.fillRect(0, (size * 3) / 4, size, size / 4);
       break;
 
+    case 'bottom-local':
+    case 'bottom-rig':
+      applyBandLabel(ctx, size, color, BAND_LABELS[effect]);
+      break;
+
     case 'left':
       ctx.fillRect(0, 0, size / 4, size);
       break;
@@ -257,76 +294,10 @@ function applyEffect(ctx, size, effect, color) {
  * @param {string} subdomain - The subdomain
  */
 async function applyInstanceLogo(favicon, subdomain) {
-  try {
-    // Check if instance logo exists and get its ID
-    const checkUrl = '/api/content/v1/avatar/CUSTOMER/CUSTOMER/all';
-    const checkResponse = await fetch(checkUrl);
+  const logo = await getInstanceLogo(subdomain);
 
-    if (!checkResponse.ok) {
-      console.warn('Could not check for instance logo');
-      return;
-    }
-
-    const avatars = await checkResponse.json();
-
-    if (!Array.isArray(avatars) || avatars.length === 0) {
-      // console.log('No instance logo available');
-      return;
-    }
-
-    // Find the primary logo
-    const primaryLogo = avatars.find((avatar) => avatar.primary === true);
-    if (!primaryLogo || !primaryLogo.id) {
-      // console.log('No primary instance logo found');
-      return;
-    }
-
-    const currentLogoId = primaryLogo.id;
-
-    // Check if we have a cached logo with the same ID
-    const logoCacheKey = generateInstanceLogoCacheKey(subdomain);
-    const logoIdCacheKey = generateInstanceLogoIdCacheKey(subdomain);
-
-    const cachedLogoId = await getCachedFavicon(logoIdCacheKey);
-
-    if (cachedLogoId === currentLogoId) {
-      // Logo hasn't changed, use cached version
-      const cachedLogo = await getCachedFavicon(logoCacheKey);
-      if (cachedLogo) {
-        // console.log('Using cached instance logo (ID matches):', currentLogoId);
-        favicon.href = cachedLogo;
-        return;
-      }
-    }
-
-    // Logo has changed or not cached, fetch it
-    const logoUrl = '/api/content/v1/avatar/CUSTOMER/CUSTOMER';
-
-    // Fetch the logo and convert to data URL for caching
-    const logoResponse = await fetch(logoUrl);
-
-    if (!logoResponse.ok) {
-      console.warn('Could not fetch instance logo');
-      return;
-    }
-
-    const logoBlob = await logoResponse.blob();
-    const logoDataUrl = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.readAsDataURL(logoBlob);
-    });
-
-    // Apply the logo
-    favicon.href = logoDataUrl;
-
-    // Cache the logo and its ID
-    await cacheFavicon(logoCacheKey, logoDataUrl);
-    await cacheFavicon(logoIdCacheKey, currentLogoId);
-
-    // console.log('Applied and cached instance logo with ID:', currentLogoId);
-  } catch (error) {
-    console.error('Error fetching instance logo:', error);
+  if (logo) {
+    favicon.href = logo.dataUrl;
   }
 }
 
@@ -345,13 +316,30 @@ async function cacheFavicon(cacheKey, dataUrl) {
 }
 
 /**
+ * Draw an image centered in a square, scaled to fit. An instance logo is any shape,
+ * so stretching it to the canvas would distort it.
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {HTMLImageElement} img - The image to draw
+ * @param {number} size - Canvas size
+ */
+function drawContain(ctx, img, size) {
+  const scale = Math.min(size / img.width, size / img.height);
+  const width = img.width * scale;
+  const height = img.height * scale;
+
+  ctx.drawImage(img, (size - width) / 2, (size - height) / 2, width, height);
+}
+
+/**
  * Generate a cache key for a favicon rule
  * @param {string} subdomain - The subdomain
  * @param {Object} rule - The favicon rule
+ * @param {string} [logoId] - Id of the instance logo the icon was drawn over, when it was
  * @returns {string} Cache key
  */
-function generateCacheKey(subdomain, rule) {
-  return `favicon_${subdomain}_${rule.effect}_${rule.color || 'none'}`;
+function generateCacheKey(subdomain, rule, logoId) {
+  const base = `favicon_${subdomain}_${rule.effect}_${rule.color || 'none'}`;
+  return logoId ? `${base}_${logoId}` : base;
 }
 
 /**
@@ -406,6 +394,68 @@ function getFavicon() {
 }
 
 /**
+ * Get the instance's primary logo, reusing the cached copy while its id is unchanged
+ * @param {string} subdomain - The subdomain
+ * @returns {Promise<{dataUrl: string, id: string}|null>} The logo, or null when none is set
+ */
+async function getInstanceLogo(subdomain) {
+  try {
+    const checkResponse = await fetch('/api/content/v1/avatar/CUSTOMER/CUSTOMER/all');
+
+    if (!checkResponse.ok) {
+      console.warn('Could not check for instance logo');
+      return null;
+    }
+
+    const avatars = await checkResponse.json();
+
+    if (!Array.isArray(avatars) || avatars.length === 0) {
+      // console.log('No instance logo available');
+      return null;
+    }
+
+    const primaryLogo = avatars.find((avatar) => avatar.primary === true);
+    if (!primaryLogo || !primaryLogo.id) {
+      // console.log('No primary instance logo found');
+      return null;
+    }
+
+    const id = primaryLogo.id;
+    const logoCacheKey = generateInstanceLogoCacheKey(subdomain);
+    const logoIdCacheKey = generateInstanceLogoIdCacheKey(subdomain);
+
+    if ((await getCachedFavicon(logoIdCacheKey)) === id) {
+      const cachedLogo = await getCachedFavicon(logoCacheKey);
+      if (cachedLogo) {
+        return { dataUrl: cachedLogo, id };
+      }
+    }
+
+    const logoResponse = await fetch('/api/content/v1/avatar/CUSTOMER/CUSTOMER');
+
+    if (!logoResponse.ok) {
+      console.warn('Could not fetch instance logo');
+      return null;
+    }
+
+    const logoBlob = await logoResponse.blob();
+    const dataUrl = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(logoBlob);
+    });
+
+    await cacheFavicon(logoCacheKey, dataUrl);
+    await cacheFavicon(logoIdCacheKey, id);
+
+    return { dataUrl, id };
+  } catch (error) {
+    console.error('Error fetching instance logo:', error);
+    return null;
+  }
+}
+
+/**
  * Convert hex color (with optional alpha) to rgba format
  * @param {string} hex - Hex color code (e.g., '#FF0000' or '#FF0000FF')
  * @returns {string} RGBA color string (e.g., 'rgba(255, 0, 0, 1)')
@@ -426,4 +476,18 @@ function hexToRgba(hex) {
   }
 
   return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+/**
+ * Pick a readable label color for a band, so a light custom color still works
+ * @param {string} hex - Band color, with or without alpha
+ * @returns {string} Either black or white
+ */
+function labelColorFor(hex) {
+  const rgb = hex.replace('#', '').substring(0, 6);
+  const [r, g, b] = [0, 2, 4].map((offset) => parseInt(rgb.substring(offset, offset + 2), 16));
+  // YIQ brightness, not WCAG relative luminance: the latter's crossover puts black
+  // on a mid-red band, which loses to white once the icon is scaled to 16px. Alpha
+  // is ignored, since a translucent band's real backdrop is the logo underneath.
+  return (r * 299 + g * 587 + b * 114) / 1000 > 128 ? '#000000' : '#FFFFFF';
 }

@@ -32,17 +32,28 @@ export function buildRefreshAction({ isRefreshing = false, onRefresh }) {
  * navigated to, by re-launching `viewType` for `currentContext`. It disables
  * itself (with an explanatory reason) when there is no current object, when the
  * current object's type can't support this view, or when it already matches the
- * object this view was launched for.
+ * object this view was launched for. `extras` reach `launchView` for views whose
+ * action key alone does not identify them, such as the aspect behind `duplicate`,
+ * and `unsupportedReason` disables reload for a constraint the key cannot express.
  */
-export function buildReloadAction({ currentContext, objectId, objectType, onStatusUpdate, viewType }) {
+export function buildReloadAction({
+  currentContext,
+  extras,
+  objectId,
+  objectType,
+  onStatusUpdate,
+  unsupportedReason,
+  viewType
+}) {
   const currentTypeId = currentContext?.domoObject?.typeId;
   const disabledReason = !currentTypeId
     ? 'Navigate to a Domo object to reload'
     : !getAvailableActions(currentContext).has(viewType)
       ? "Current object doesn't support this view"
-      : currentContext.domoObject.id === objectId && currentTypeId === objectType
-        ? 'Already showing data for the current object'
-        : null;
+      : (unsupportedReason ??
+        (currentContext.domoObject.id === objectId && currentTypeId === objectType
+          ? 'Already showing data for the current object'
+          : null));
   return {
     ariaLabel: 'Reload',
     disabledReason,
@@ -50,7 +61,7 @@ export function buildReloadAction({ currentContext, objectId, objectType, onStat
     key: 'reload',
     onPress: async () => {
       try {
-        await launchView({ currentContext, type: viewType });
+        await launchView({ currentContext, type: viewType, ...extras });
       } catch (err) {
         console.error('[headerActions] Error in reload:', err);
         onStatusUpdate?.('Error', err.message || 'Failed to reload', 'danger', 3000);

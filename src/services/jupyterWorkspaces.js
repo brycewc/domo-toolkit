@@ -3,60 +3,17 @@ import { executeInPage } from '@/utils/executeInPage';
 import { hasEffectiveMapping } from './columnRewriter';
 
 /**
- * Find the Jupyter Workspaces that read a dataset, matching on inputs only.
- * A workspace that merely writes the dataset is upstream, but when one does
- * both its output aliases ride along so the caller can flag it.
- *
- * The unpaginated list endpoint is the only source: workspace search never
- * returns the input/output configuration and silently ignores a DATASOURCE_ID
- * filter. `instances=false` keeps Domo from enumerating every running
- * JupyterHub server, which is slow and fails when JupyterHub is unreachable.
- * Domo returns every workspace to a notebook admin and only readable ones to
- * everyone else, so a non-admin's answer is incomplete.
+ * Find the Jupyter Workspaces that read a dataset, matching on inputs only. A
+ * workspace that merely writes the dataset is upstream, so it is left out here;
+ * `getJupyterWorkspacesForDataset` returns both sides.
  *
  * @param {string} datasetId - The dataset's GUID
  * @param {number|null} [tabId] - Optional Chrome tab ID
  * @returns {Promise<Array<{id: string, inputAliases: string[], name: string, outputAliases: string[], owner: number|null}>>}
  */
 export async function getDownstreamJupyterWorkspaces(datasetId, tabId = null) {
-  const result = await executeInPage(
-    async (datasetId) => {
-      try {
-        const response = await fetch('/api/datascience/v1/workspaces?instances=false');
-        if (!response.ok) return { error: `HTTP ${response.status}`, workspaces: null };
-        const data = await response.json();
-
-        const aliasesFor = (entries) =>
-          (Array.isArray(entries) ? entries : [])
-            .filter((entry) => entry && String(entry.dataSourceId) === String(datasetId))
-            .map((entry) => entry.alias);
-
-        const matches = [];
-        for (const workspace of data?.workspaces || []) {
-          const inputAliases = aliasesFor(workspace?.inputConfiguration);
-          if (inputAliases.length === 0) continue;
-          matches.push({
-            id: workspace.id,
-            inputAliases,
-            name: workspace.name || workspace.id,
-            outputAliases: aliasesFor(workspace?.outputConfiguration),
-            owner: workspace.owner ?? null
-          });
-        }
-        return { error: null, workspaces: matches };
-      } catch (error) {
-        return { error: error.message, workspaces: null };
-      }
-    },
-    [datasetId],
-    tabId
-  );
-  // A swallowed failure would read as "no workspace uses this dataset", which is
-  // indistinguishable from the normal empty answer, so surface it instead.
-  if (!result?.workspaces) {
-    throw new Error(result?.error ? `Could not load Jupyter Workspaces: ${result.error}` : 'Could not load Jupyter Workspaces');
-  }
-  return result.workspaces;
+  const workspaces = await getJupyterWorkspacesForDataset(datasetId, tabId);
+  return workspaces.filter((workspace) => workspace.inputAliases.length > 0);
 }
 
 /**
@@ -126,6 +83,64 @@ export async function getJupyterWorkspaceDatasets({ entries, tabId = null }) {
     [entries],
     tabId
   );
+}
+
+/**
+ * Find every Jupyter Workspace that references a dataset on either side, each
+ * carrying the aliases it reads it by (`inputAliases`) and writes it by
+ * (`outputAliases`), so a caller can tell a reader from a writer.
+ *
+ * The unpaginated list endpoint is the only source: workspace search never
+ * returns the input/output configuration and silently ignores a DATASOURCE_ID
+ * filter. `instances=false` keeps Domo from enumerating every running
+ * JupyterHub server, which is slow and fails when JupyterHub is unreachable.
+ * Domo returns every workspace to a notebook admin and only readable ones to
+ * everyone else, so a non-admin's answer is incomplete.
+ *
+ * @param {string} datasetId - The dataset's GUID
+ * @param {number|null} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<{id: string, inputAliases: string[], name: string, outputAliases: string[], owner: number|null}>>}
+ */
+export async function getJupyterWorkspacesForDataset(datasetId, tabId = null) {
+  const result = await executeInPage(
+    async (datasetId) => {
+      try {
+        const response = await fetch('/api/datascience/v1/workspaces?instances=false');
+        if (!response.ok) return { error: `HTTP ${response.status}`, workspaces: null };
+        const data = await response.json();
+
+        const aliasesFor = (entries) =>
+          (Array.isArray(entries) ? entries : [])
+            .filter((entry) => entry && String(entry.dataSourceId) === String(datasetId))
+            .map((entry) => entry.alias);
+
+        const matches = [];
+        for (const workspace of data?.workspaces || []) {
+          const inputAliases = aliasesFor(workspace?.inputConfiguration);
+          const outputAliases = aliasesFor(workspace?.outputConfiguration);
+          if (inputAliases.length === 0 && outputAliases.length === 0) continue;
+          matches.push({
+            id: workspace.id,
+            inputAliases,
+            name: workspace.name || workspace.id,
+            outputAliases,
+            owner: workspace.owner ?? null
+          });
+        }
+        return { error: null, workspaces: matches };
+      } catch (error) {
+        return { error: error.message, workspaces: null };
+      }
+    },
+    [datasetId],
+    tabId
+  );
+  // A swallowed failure would read as "no workspace uses this dataset", which is
+  // indistinguishable from the normal empty answer, so surface it instead.
+  if (!result?.workspaces) {
+    throw new Error(result?.error ? `Could not load Jupyter Workspaces: ${result.error}` : 'Could not load Jupyter Workspaces');
+  }
+  return result.workspaces;
 }
 
 /**

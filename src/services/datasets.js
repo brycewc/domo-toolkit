@@ -120,8 +120,8 @@ export async function getColorRules(datasetId, tabId = null) {
 /**
  * Get a dataset's Beast Mode (calculated column) definitions.
  * Each value is keyed by its `calculation_<uuid>` id and includes at least a
- * `name`. Used by the Copy Color Rules view to remap rule references between
- * datasets — beast mode ids are not stable across datasets, but names usually are.
+ * `name`. Used by the color-rules duplicator to remap rule references between
+ * datasets: beast mode ids are not stable across datasets, but names usually are.
  * @param {string} datasetId - The dataset UUID
  * @param {number|null} [tabId] - Optional Chrome tab ID
  * @returns {Promise<Object>} Map of `calculation_<uuid>` to `{name, ...}` (empty if none)
@@ -987,13 +987,15 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
 /**
  * Replace a dataset's conditional-format ("color") rules with the supplied list.
  * Each rule's `dataSourceId` (top level and inside `condition`) is rewritten to
- * the destination dataset id before sending — source rules carry references to
- * their original dataset that would otherwise persist on the destination.
+ * the destination dataset id before sending, since source rules carry references
+ * to their original dataset that would otherwise persist on the destination.
  *
  * @param {string} datasetId - The destination dataset UUID
  * @param {Array<Object>} rules - Rule objects shaped like `{condition, format, dataSourceId}`
  * @param {number|null} [tabId] - Optional Chrome tab ID
- * @returns {Promise<Object|null>}
+ * @returns {Promise<void>}
+ * @throws {Error} Carrying the server's own rejection message (it caps a dataset at 100 rules and
+ *   validates condition values and colors) plus a `status` field holding the HTTP status
  */
 export async function setColorRules(datasetId, rules, tabId = null) {
   const rewritten = rules.map((rule) => ({
@@ -1011,15 +1013,29 @@ export async function setColorRules(datasetId, rules, tabId = null) {
         headers: { 'Content-Type': 'application/json' },
         method: 'PUT'
       });
-      if (!response.ok) {
-        return { error: `Failed to save color rules. HTTP status: ${response.status}`, ok: false };
+      if (response.ok) return { ok: true };
+      let detail;
+      try {
+        const text = await response.text();
+        const parsed = text.trim().startsWith('{') ? JSON.parse(text) : null;
+        detail = (parsed?.message || parsed?.error || text || '').trim().slice(0, 200);
+      } catch {
+        detail = '';
       }
-      return { ok: true };
+      return {
+        error: detail || `Failed to save color rules. HTTP status: ${response.status}`,
+        ok: false,
+        status: response.status
+      };
     },
     [datasetId, JSON.stringify(rewritten)],
     tabId
   );
-  if (!result?.ok) throw new Error(result?.error || 'Failed to save color rules');
+  if (!result?.ok) {
+    const error = new Error(result?.error || 'Failed to save color rules');
+    error.status = result?.status ?? null;
+    throw error;
+  }
 }
 
 export async function setStreamScheduleToManual({ streamId, tabId }) {

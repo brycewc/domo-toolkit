@@ -125,7 +125,7 @@ export class DomoContext {
    * budget is stored without `details` at all.
    *
    * NOTE: only for the background backup. The sidepanel's getSidepanelData record
-   * keeps the heavy fields (CopyColorRules needs properties, Ownership needs
+   * keeps the heavy fields (the color-rules duplicator needs properties, Ownership needs
    * user), so that path uses toJSON, not this.
    *
    * @returns {Object}

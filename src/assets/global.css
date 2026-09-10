@@ -354,4 +354,16 @@
   .toast__title > .toast__indicator {
     padding-left: 0;
   }
+
+  /* Give the indicator the height of one title line (HeroUI's own line-heights:
+     24px for alerts, 20px for toasts) so its centered icon sits inline with that
+     line's text instead of riding above it. Covers the column layout too, where
+     the indicator sits beside the content rather than inside the title. */
+  .alert__indicator {
+    @apply h-6;
+  }
+
+  .toast__indicator {
+    @apply h-5;
+  }
 }

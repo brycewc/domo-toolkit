@@ -6,7 +6,7 @@ import { formatTimestamp } from '@/utils/general';
 import { compareSemver } from '@/utils/semver';
 import { collectDefinitionReferences } from '@/utils/workflowReferences';
 
-import { getDownstreamAlertsForDatasets } from './alerts';
+import { getDownstreamAlertsForDatasets, getRowPdpPolicies } from './alerts';
 import { getAppInstanceCollections, getCollectionConnectedApps } from './appDb';
 import { getTemplateApprovalCount } from './approvals';
 import { getBeastModeUsageForObject } from './beastModes';
@@ -22,6 +22,8 @@ import {
   isTransformDataset,
   searchDatasets
 } from './datasets';
+import { getDatasetFunctions } from './functions';
+import { getDownstreamCardsRaw, getDownstreamLineage } from './migrateDownstreamContent';
 import { resolveObjectSummaries, summaryKey } from './objectSummaries';
 import { getChildPages, getOnlyHereCardIds } from './pages';
 import { getTaskCenterQueueName } from './taskCenter';
@@ -210,6 +212,20 @@ function buildWorkflowReferenceRows({ entries, origin, summaries }) {
 }
 
 /**
+ * Why a connector input dataset can't be deleted alongside its dataflow, or null
+ * when it can. A dataset we couldn't check comes first, since its counts aren't
+ * trustworthy enough to report.
+ * @param {{cards: number, dataflows: number, unverified: boolean, views: number}} [dependents]
+ * @returns {string|null}
+ */
+/**
+ * Drop the groups with nothing in them and tally what is left. Shared by the
+ * normalizer and by `withExtraDependencyGroups`, so an opt-in check's groups are
+ * counted exactly the way a fetcher's own are.
+ * @param {Array<Object>} allGroups - Groups to filter and count
+ * @returns {{blockingCount: number, blockingReason: string|null, groups: Array<Object>, totalCount: number}}
+ */
+/**
  * Build the `count` + `countLabel` pair that renders an "(N label)" badge on a
  * dependency row. A null or undefined count (a lookup that failed) yields no
  * badge at all, so an unknown number never reads as a safe zero.
@@ -221,6 +237,26 @@ function buildWorkflowReferenceRows({ entries, origin, summaries }) {
 function countBadge(count, singular, plural) {
   if (count == null) return {};
   return { count, countLabel: count === 1 ? singular : plural };
+}
+
+function countDependencyGroups(allGroups) {
+  const groups = allGroups.filter((g) => g.items.length > 0 || (g.count ?? 0) > 0);
+
+  let totalCount = 0;
+  let blockingCount = 0;
+  let blockingReason = null;
+  for (const g of groups) {
+    totalCount += g.items.length || (g.count ?? 0);
+    if (g.blocking) {
+      // Counted the same way as totalCount above: a count-only group would
+      // otherwise set a blocking reason while leaving blockingCount at 0, which
+      // the view reads as not blocked.
+      blockingCount += g.items.length || (g.count ?? 0);
+      blockingReason = blockingReason || g.blockingReason || null;
+    }
+  }
+
+  return { blockingCount, blockingReason, groups, totalCount };
 }
 
 /**
@@ -322,13 +358,6 @@ async function fetchAppPageDependencies({ id, origin, parentId, typeId }, tabId)
   return { appSummary, groups, onlyHereCardIds };
 }
 
-/**
- * Why a connector input dataset can't be deleted alongside its dataflow, or null
- * when it can. A dataset we couldn't check comes first, since its counts aren't
- * trustworthy enough to report.
- * @param {{cards: number, dataflows: number, unverified: boolean, views: number}} [dependents]
- * @returns {string|null}
- */
 function inputExclusionReason(dependents) {
   if (!dependents || dependents.unverified) return 'Its other uses could not be checked.';
   const parts = [];
@@ -357,32 +386,13 @@ function normalizeDependencyResult(fetched) {
   const onlyHereCardIds = Array.isArray(fetched) ? null : (fetched.onlyHereCardIds ?? null);
   const otherNote = Array.isArray(fetched) ? null : (fetched.otherNote ?? null);
 
-  const groups = allGroups.filter((g) => g.items.length > 0 || (g.count ?? 0) > 0);
-
-  let totalCount = 0;
-  let blockingCount = 0;
-  let blockingReason = null;
-  for (const g of groups) {
-    totalCount += g.items.length || (g.count ?? 0);
-    if (g.blocking) {
-      // Counted the same way as totalCount above: a count-only group would
-      // otherwise set a blocking reason while leaving blockingCount at 0, which
-      // the view reads as not blocked.
-      blockingCount += g.items.length || (g.count ?? 0);
-      blockingReason = blockingReason || g.blockingReason || null;
-    }
-  }
-
   return {
     appSummary,
-    blockingCount,
-    blockingReason,
     clearNote,
-    groups,
     onlyHereCardCount: onlyHereCardIds == null ? null : onlyHereCardIds.length,
     otherNote,
     supported: true,
-    totalCount
+    ...countDependencyGroups(allGroups)
   };
 }
 
@@ -658,6 +668,184 @@ const FETCHERS = {
     };
   },
   DATA_APP_VIEW: fetchAppPageDependencies,
+  // Only a view built on the dataset blocks, since that is the one case Domo
+  // itself rejects. Everything else either goes with the dataset or survives it
+  // and breaks, which is listed rather than gated.
+  DATA_SOURCE: async ({ id, metadata, origin, parentId }, tabId) => {
+    const [rawCards, alerts, functions, pdpPolicies, downstream, lineage] = await Promise.all([
+      getDownstreamCardsRaw(id, tabId).catch(() => []),
+      getDownstreamAlertsForDatasets([id], tabId).catch(() => []),
+      getDatasetFunctions(id, tabId).catch(() => []),
+      getRowPdpPolicies(id, tabId).catch(() => []),
+      // Neither is caught. The views lookup gates the delete, so a swallowed
+      // rejection would read as "nothing blocks" and let through a delete Domo
+      // refuses; the lineage read would silently report no dataflow reads this.
+      getDownstreamViewsForDatasets([id], tabId),
+      getDownstreamLineage(id, tabId)
+    ]);
+
+    // Ten seconds per dataset on a large instance, and it only decorates each
+    // view row with a badge, so it is handed back as `deferred`.
+    const viewIds = downstream.views.map((v) => String(v.id));
+    const impacts = getDatasetImpactCounts({ datasetIds: viewIds, tabId }).catch(() => ({}));
+
+    const readingDataflows = lineage.dataflows || [];
+    const producer =
+      metadata?.details?.type?.toLowerCase() === 'dataflow' && parentId
+        ? { id: parentId, name: metadata.parent?.name || `DataFlow ${parentId}` }
+        : null;
+
+    // A view is the only hard stop: Domo refuses to delete a DataSet one is
+    // built on. An output whose views couldn't be read blocks too, so an
+    // unreadable lineage never lets through a delete that then fails.
+    const blockingParts = [];
+    if (downstream.views.length > 0) {
+      blockingParts.push(
+        `${downstream.views.length} dataset view${downstream.views.length !== 1 ? 's' : ''} ${downstream.views.length === 1 ? 'is' : 'are'} built on this DataSet`
+      );
+    }
+    if (downstream.unverifiedOutputIds.length > 0) {
+      blockingParts.push('its downstream views could not be checked');
+    }
+    const blockingReason =
+      blockingParts.length > 0
+        ? `${blockingParts.join(', and ')}. Domo blocks deleting a DataSet a view is built on, so delete or repoint ${downstream.views.length === 1 && downstream.unverifiedOutputIds.length === 0 ? 'it' : 'them'} first.`
+        : null;
+
+    // Every dataset carries an implicit "All Rows" open policy whether or not
+    // anyone set PDP up, so counting it would report a policy on every delete.
+    const realPdpCount = pdpPolicies.filter((policy) => policy?.type !== 'open').length;
+
+    // Every kind of card is deleted the same way, custom app cards included, so
+    // they form one list. A drill is part of the card it drills from rather than
+    // a dependency of its own, so drills are left out entirely.
+    const cardItems = [];
+    const seenCardIds = new Set();
+    for (const card of Array.isArray(rawCards) ? rawCards : []) {
+      if (String(card?.datasourceId) !== String(id)) continue;
+      const cardId =
+        card.id || card.kpiId || (typeof card.urn === 'string' ? parseInt(card.urn.split(':').pop(), 10) : null);
+      if (!Number.isFinite(cardId) || seenCardIds.has(String(cardId))) continue;
+      seenCardIds.add(String(cardId));
+      cardItems.push({
+        id: cardId,
+        label: card.title || card.name || `Card ${cardId}`,
+        typeId: 'CARD',
+        url: `${origin}/kpis/details/${cardId}`
+      });
+    }
+
+    const buildGroups = (viewImpacts) => {
+      const groups = [
+        {
+          blocking: false,
+          deleted: true,
+          items: cardItems,
+          label: 'Cards'
+        },
+        {
+          blocking: false,
+          deleted: true,
+          items: alerts.map((a) => ({
+            id: a.id,
+            label: a.name || `Alert ${a.id}`,
+            typeId: 'ALERT',
+            url: `${origin}/alerts/${a.id}`
+          })),
+          label: 'Alerts'
+        },
+        {
+          blocking: false,
+          deleted: true,
+          items: functions.map((f) => ({
+            id: f.id,
+            label: f.name || `Beast Mode ${f.id}`,
+            typeId: 'BEAST_MODE_FORMULA',
+            url: `${origin}/datacenter/beastmode?id=${f.id}`
+          })),
+          label: 'Beast Modes'
+        },
+        {
+          blocking: false,
+          count: realPdpCount,
+          countLabel: realPdpCount === 1 ? 'policy' : 'policies',
+          deleted: true,
+          items: [],
+          label: 'PDP Policies',
+          summaryTypeId: 'ADC_POLICY'
+        }
+      ];
+
+      if (downstream.views.length > 0 || downstream.unverifiedOutputIds.length > 0) {
+        const viewItems = downstream.views.map((v) => ({
+          ...countBadge(viewImpacts[String(v.id)], 'dependency', 'dependencies'),
+          id: v.id,
+          label: v.name || `DataSet ${v.id}`,
+          typeId: 'DATA_SOURCE',
+          url: `${origin}/datasources/${v.id}/details/overview`
+        }));
+        const unverifiedItems = downstream.unverifiedOutputIds.map((oid) => ({
+          id: oid,
+          label: 'Downstream views could not be verified',
+          typeId: 'DATA_SOURCE',
+          url: `${origin}/datasources/${oid}/details/overview`
+        }));
+        groups.push({
+          blocking: true,
+          blockingReason,
+          deleted: false,
+          items: [...viewItems, ...unverifiedItems],
+          key: 'downstreamViews',
+          label: 'Child DataSet Views'
+        });
+      }
+
+      if (readingDataflows.length > 0) {
+        groups.push({
+          blocking: false,
+          deleted: false,
+          items: readingDataflows.map((df) => ({
+            id: df.id,
+            label: df.name || `DataFlow ${df.id}`,
+            typeId: 'DATAFLOW_TYPE',
+            url: `${origin}/datacenter/dataflows/${df.id}/details`
+          })),
+          key: 'readingDataflows',
+          label: 'Child DataFlows'
+        });
+      }
+
+      if (producer) {
+        groups.push({
+          annotation: 'Parent dataflows break when an output dataset is deleted.',
+          blocking: false,
+          deleted: false,
+          flat: true,
+          items: [
+            {
+              id: producer.id,
+              label: producer.name,
+              typeId: 'DATAFLOW_TYPE',
+              url: `${origin}/datacenter/dataflows/${producer.id}/details`
+            }
+          ],
+          key: 'producingDataflow',
+          label: 'Parent DataFlow'
+        });
+      }
+
+      return groups;
+    };
+
+    return {
+      deferred: impacts.then((viewImpacts) => ({
+        groups: buildGroups(viewImpacts),
+        otherNote: OTHER_SURVIVES_NOTE
+      })),
+      groups: buildGroups({}),
+      otherNote: OTHER_SURVIVES_NOTE
+    };
+  },
   DATAFLOW_TYPE: async ({ id, metadata, origin }, tabId) => {
     const outputs = metadata?.details?.outputs || [];
     const outputIds = outputs.map((o) => o.dataSourceId).filter(Boolean);
@@ -821,7 +1009,7 @@ const FETCHERS = {
           blockingReason: `${reasonParts.join(' and ')}. Domo blocks deleting a dataset that a view is built on, so delete or repoint ${items.length === 1 ? 'it' : 'them'} first.`,
           deleted: false,
           items,
-          label: 'Downstream DataSet Views'
+          label: 'Child DataSet Views'
         });
       }
 
@@ -1194,6 +1382,8 @@ const FETCHERS = {
   WORKSHEET_VIEW: fetchAppPageDependencies
 };
 
+const OTHER_SURVIVES_NOTE = 'These are not deleted with the DataSet, but they stop working without it.';
+
 // One group per type, so each list header keeps that type's icon. An empty group
 // is dropped before rendering.
 const WORKFLOW_USE_GROUPS = [
@@ -1266,5 +1456,25 @@ export async function getDependenciesForDelete({ object, origin, tabId = null })
   return {
     ...normalizeDependencyResult(fetched),
     deferred: deferred ? deferred.then(normalizeDependencyResult) : null
+  };
+}
+
+/**
+ * Fold an opt-in check's groups into an already-loaded result, re-tallying the
+ * counts so a group the check turned up blocks and counts like any other. Every
+ * field the original result carried is preserved, `deferred` included, so
+ * merging is safe before and after a deferred pass lands.
+ * @param {Object} result - A result from `getDependenciesForDelete`
+ * @param {Array<Object>} groups - Groups to add
+ * @returns {Object} The merged result
+ */
+export function withExtraDependencyGroups(result, groups) {
+  // An opt-in check can finish before the automatic one, since it is a single
+  // lookup. Its groups are dropped rather than merged into nothing; the caller
+  // re-derives once the result lands, so they reappear then.
+  if (!result || !groups || groups.length === 0) return result;
+  return {
+    ...result,
+    ...countDependencyGroups([...(result.groups || []), ...groups])
   };
 }

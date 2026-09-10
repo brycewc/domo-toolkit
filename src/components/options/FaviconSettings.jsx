@@ -22,11 +22,13 @@ import { toast } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
 import { DisabledTooltip } from '@/components/DisabledTooltip';
+import { DomoRainbow } from '@/components/icons/DomoRainbow';
+import { INTERNAL_FAVICON_EFFECTS } from '@/utils/faviconRules';
+import { hasInternalAccess } from '@/utils/internalInstance';
 import IconArrowsShuffle from '@icons/arrows-shuffle.svg?react';
 import IconBottomNavFill from '@icons/bottom-nav-fill.svg?react';
 import IconCheck from '@icons/check.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
-import IconDomoRainbow from '@icons/domo-rainbow.svg?react';
 import IconDomo from '@icons/domo.svg?react';
 import IconDragDotsVertical from '@icons/drag-dots-vertical.svg?react';
 import IconLeftNavFill from '@icons/left-nav-fill.svg?react';
@@ -40,6 +42,13 @@ export function FaviconSettings() {
   const [originalRules, setOriginalRules] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [draggedIndex, setDraggedIndex] = useState(null);
+  // The internal-instance effects are only offered to a developer who opted into
+  // those hosts. It is a browser permission rather than a stored setting, so it is
+  // read from chrome.permissions and tracked live.
+  const [hasInternalDevAccess, setHasInternalDevAccess] = useState(false);
+  // The storage listener below is registered once, so it reads state through refs.
+  const rulesRef = useRef([]);
+  const originalRulesRef = useRef([]);
   const colorPresets = ['#F43F5EFF', '#D946EFFF', '#8B5CF6FF', '#3B82F6FF', '#06B6D4FF', '#10B981FF', '#84CC16FF'];
   const nextPresetIndex = useRef(0);
   const shuffleColor = (ruleId) => {
@@ -56,15 +65,7 @@ export function FaviconSettings() {
     setIsLoading(true);
     chrome.storage.sync.get(['faviconRules'], (result) => {
       if (result.faviconRules && result.faviconRules.length > 0) {
-        // Migrate old format if necessary
-        const migratedRules = result.faviconRules.map((rule) => {
-          if (rule.useInstanceLogo) {
-            const { useInstanceLogo: _, ...rest } = rule;
-            return { ...rest, effect: 'instance-logo' };
-          }
-          const { useInstanceLogo: _, ...rest } = rule;
-          return rest;
-        });
+        const migratedRules = migrateRules(result.faviconRules);
         setRules(migratedRules);
         setOriginalRules(migratedRules);
       } else {
@@ -82,10 +83,43 @@ export function FaviconSettings() {
       }
       setIsLoading(false);
     });
+
+    // The rules can change under an open options page: granting or revoking internal
+    // access seeds or deletes rules from the background. Adopting them keeps a later
+    // Save, which writes the whole array, from silently reverting that.
+    const handleStorageChange = (changes, areaName) => {
+      if (areaName !== 'sync' || !changes.faviconRules) return;
+      const incoming = migrateRules(changes.faviconRules.newValue || []);
+      if (incoming.length === 0) return;
+      if (JSON.stringify(rulesRef.current) !== JSON.stringify(originalRulesRef.current)) {
+        showStatus('Rules changed elsewhere', 'Your unsaved edits were kept. Reload to see the new rules.', 'warning');
+        return;
+      }
+      setRules(incoming);
+      setOriginalRules(incoming);
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+
+    hasInternalAccess().then(setHasInternalDevAccess);
+    const syncInternalAccess = () => hasInternalAccess().then(setHasInternalDevAccess);
+    chrome.permissions.onAdded.addListener(syncInternalAccess);
+    chrome.permissions.onRemoved.addListener(syncInternalAccess);
+
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChange);
+      chrome.permissions.onAdded.removeListener(syncInternalAccess);
+      chrome.permissions.onRemoved.removeListener(syncInternalAccess);
+    };
   }, []);
 
   // Check if rules have changed from original
   const hasChanges = JSON.stringify(rules) !== JSON.stringify(originalRules);
+
+  useEffect(() => {
+    rulesRef.current = rules;
+    originalRulesRef.current = originalRules;
+  }, [rules, originalRules]);
 
   // Guard against closing the tab with unsaved rule edits. Browsers ignore any
   // custom message and show their own generic "unsaved changes" confirmation, so
@@ -174,6 +208,11 @@ export function FaviconSettings() {
     setDraggedIndex(null);
   };
 
+  // Revoking access deletes the seeded rules, so the second clause only covers the
+  // moment before that write lands, or rules arriving by sync from a device that has
+  // the permission. Without it such a rule would render a blank effect.
+  const showInternalEffects = hasInternalDevAccess || rules.some((rule) => INTERNAL_FAVICON_EFFECTS.includes(rule.effect));
+
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col pt-4'>
       <Form className='flex min-h-0 w-full flex-1 flex-col gap-2' onSubmit={onSave}>
@@ -222,7 +261,7 @@ export function FaviconSettings() {
                         variant='secondary'
                         onChange={(value) => updateRule(rule.id, 'pattern', value)}
                       >
-                        <Label>Subdomain Pattern</Label>
+                        <Label>Subdomain pattern</Label>
                         <Input />
                       </TextField>
                     </div>
@@ -256,7 +295,7 @@ export function FaviconSettings() {
                             </ListBox.Item>
                             <ListBox.Item id='domo-logo-colored' textValue='domo-logo-colored'>
                               <span className='flex flex-row items-center gap-2'>
-                                <IconDomoRainbow className='h-4 w-4' />
+                                <DomoRainbow className='h-4 w-4' />
                                 domo-logo-colored
                               </span>
                               <ListBox.ItemIndicator>
@@ -267,15 +306,6 @@ export function FaviconSettings() {
                               <span className='flex flex-row items-center gap-2'>
                                 <IconTopNavFill className='h-4 w-4' />
                                 top
-                              </span>
-                              <ListBox.ItemIndicator>
-                                {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
-                              </ListBox.ItemIndicator>
-                            </ListBox.Item>
-                            <ListBox.Item id='right' textValue='right'>
-                              <span className='flex flex-row items-center gap-2'>
-                                <IconRightRailFill className='h-4 w-4' />
-                                right
                               </span>
                               <ListBox.ItemIndicator>
                                 {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
@@ -299,6 +329,37 @@ export function FaviconSettings() {
                                 {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
                               </ListBox.ItemIndicator>
                             </ListBox.Item>
+                            <ListBox.Item id='right' textValue='right'>
+                              <span className='flex flex-row items-center gap-2'>
+                                <IconRightRailFill className='h-4 w-4' />
+                                right
+                              </span>
+                              <ListBox.ItemIndicator>
+                                {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
+                              </ListBox.ItemIndicator>
+                            </ListBox.Item>
+                            {showInternalEffects ? (
+                              <ListBox.Item id='bottom-local' textValue='bottom-local'>
+                                <span className='flex flex-row items-center gap-2'>
+                                  <IconBottomNavFill className='h-4 w-4' />
+                                  bottom-local
+                                </span>
+                                <ListBox.ItemIndicator>
+                                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
+                                </ListBox.ItemIndicator>
+                              </ListBox.Item>
+                            ) : null}
+                            {showInternalEffects ? (
+                              <ListBox.Item id='bottom-rig' textValue='bottom-rig'>
+                                <span className='flex flex-row items-center gap-2'>
+                                  <IconBottomNavFill className='h-4 w-4' />
+                                  bottom-rig
+                                </span>
+                                <ListBox.ItemIndicator>
+                                  {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
+                                </ListBox.ItemIndicator>
+                              </ListBox.Item>
+                            ) : null}
                           </ListBox>
                         </Select.Popover>
                       </Select>
@@ -459,17 +520,13 @@ export function FaviconSettings() {
                   one)
                 </li>
                 <li>
-                  <IconDomoRainbow className='mr-1 inline size-4 align-text-bottom' />
+                  <DomoRainbow className='mr-1 inline size-4 align-text-bottom' />
                   <strong>domo-logo-colored:</strong> Domo logo with colored background (color picker selects background
                   color)
                 </li>
                 <li>
                   <IconTopNavFill className='mr-1 inline size-4 align-text-bottom' />
                   <strong>top:</strong> puts a colored stripe over the top quarter
-                </li>
-                <li>
-                  <IconRightRailFill className='mr-1 inline size-4 align-text-bottom' />
-                  <strong>right:</strong> puts a colored stripe over the right quarter
                 </li>
                 <li>
                   <IconBottomNavFill className='mr-1 inline size-4 align-text-bottom' />
@@ -479,6 +536,22 @@ export function FaviconSettings() {
                   <IconLeftNavFill className='mr-1 inline size-4 align-text-bottom' />
                   <strong>left:</strong> puts a colored stripe over the left quarter
                 </li>
+                <li>
+                  <IconRightRailFill className='mr-1 inline size-4 align-text-bottom' />
+                  <strong>right:</strong> puts a colored stripe over the right quarter
+                </li>
+                {showInternalEffects ? (
+                  <li>
+                    <IconBottomNavFill className='mr-1 inline size-4 align-text-bottom' />
+                    <strong>bottom-local:</strong> puts a colored band across the bottom third with LOCAL in it
+                  </li>
+                ) : null}
+                {showInternalEffects ? (
+                  <li>
+                    <IconBottomNavFill className='mr-1 inline size-4 align-text-bottom' />
+                    <strong>bottom-rig:</strong> puts a colored band across the bottom third with RIG in it
+                  </li>
+                ) : null}
               </ul>
             </Accordion.Body>
           </Accordion.Panel>
@@ -548,4 +621,20 @@ async function clearFaviconCache() {
   } catch (error) {
     console.error('Error clearing favicon cache:', error);
   }
+}
+
+/**
+ * Bring stored rules onto the current shape, dropping the pre-effect flag
+ * @param {Array<Object>} storedRules - Rules as they came out of storage
+ * @returns {Array<Object>} Rules safe to render
+ */
+function migrateRules(storedRules) {
+  return storedRules.map((rule) => {
+    if (rule.useInstanceLogo) {
+      const { useInstanceLogo: _, ...rest } = rule;
+      return { ...rest, effect: 'instance-logo' };
+    }
+    const { useInstanceLogo: _, ...rest } = rule;
+    return rest;
+  });
 }

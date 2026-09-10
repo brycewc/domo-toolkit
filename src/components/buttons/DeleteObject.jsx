@@ -14,6 +14,7 @@ const SUPPORTED_TYPES = [
   'CODEENGINE_PACKAGE',
   'CODEENGINE_PACKAGE_VERSION',
   'DATA_APP_VIEW',
+  'DATA_SOURCE',
   'DATAFLOW_TYPE',
   'HOPPER_TASK',
   'MAGNUM_COLLECTION',
@@ -58,6 +59,9 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
     }
     if (typeId === 'DATAFLOW_TYPE') {
       return !isOwner && !userRights.includes('dataflow.admin');
+    }
+    if (typeId === 'DATA_SOURCE') {
+      return !isOwner && !userRights.includes('dataset.admin');
     }
     if (typeId === 'WORKFLOW_MODEL') {
       const permValues = currentContext?.domoObject?.metadata?.permission?.values || [];
