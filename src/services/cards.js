@@ -186,7 +186,10 @@ export async function getCardDatasets({ cardId, tabId = null }) {
 
 export async function getCardDefinition({ cardId, tabId = null }) {
   try {
-    return await executeInPage(
+    // Domo's own reason rides back in the result rather than a throw: a throw
+    // inside the injected function reaches the caller as a null definition,
+    // which then surfaced as a "reading 'columns' of null" further down.
+    const result = await executeInPage(
       async (cardId) => {
         const response = await fetch('/api/content/v3/cards/kpi/definition', {
           body: JSON.stringify({
@@ -200,14 +203,25 @@ export async function getCardDefinition({ cardId, tabId = null }) {
           },
           method: 'PUT'
         });
+        const body = await response.text().catch(() => '');
         if (!response.ok) {
-          throw new Error(`Failed to fetch card definition for ${cardId}. HTTP status: ${response.status}`);
+          let reason = '';
+          try {
+            reason = JSON.parse(body)?.message || '';
+          } catch {
+            // Not JSON, so fall back to the status below.
+          }
+          return { error: reason || `HTTP ${response.status}`, ok: false };
         }
-        return response.json();
+        return { definition: JSON.parse(body), ok: true };
       },
       [cardId],
       tabId
     );
+    if (!result?.ok) {
+      throw new Error(`Could not read the definition of card ${cardId}: ${result?.error || 'no result from the page'}`);
+    }
+    return result.definition;
   } catch (error) {
     console.error('Error fetching card definition:', error);
     throw error;

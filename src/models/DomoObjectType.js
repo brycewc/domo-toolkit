@@ -1545,8 +1545,10 @@ export const ObjectTypeRegistry = {
   }),
   WORKFLOW_INSTANCE: new DomoObjectType('WORKFLOW_INSTANCE', 'Workflow Execution', {
     api: {
+      displayName: 'Run of {parent.name} - {name}',
       endpoint: '/workflow/v2/executions/{id}',
-      paths: { name: 'modelName' }
+      nameFormat: 'timestamp',
+      paths: { name: ['startedAt', 'createdAt'] }
     },
     copyConfigs: [{ label: 'Workflow ID', source: 'parentId' }],
     extractConfig: {
@@ -1780,27 +1782,31 @@ export async function fetchObjectDetailsInPage(params) {
         if (field === 'details') continue;
         resolved[field] = resolveField(paths[field]);
       }
-      // Inline epoch->locale formatter, kept self-contained because this function is serialized and
-      // run in the page via executeInPage (no imports/closures). Mirrors formatEpochTimestamp in
+      // Inline timestamp->locale formatter, kept self-contained because this function is serialized
+      // and run in the page via executeInPage (no imports/closures). Mirrors formatTimestamp in
       // utils/general.js; falls back to the object id when the value is not a usable timestamp.
-      const formatEpochName = (value) => {
+      const formatTimestampName = (value) => {
+        if (value == null || value === '') return String(objectId);
         const num = Number(value);
-        if (!Number.isFinite(num) || num <= 0) return String(objectId);
-        let ms;
-        if (num >= 1e12 && num < 1e14) {
-          ms = num;
-        } else if (num >= 1e9 && num < 1e11) {
-          ms = num * 1000;
-        } else {
-          return String(objectId);
+        let ms = null;
+        if (Number.isFinite(num) && num > 0) {
+          if (num >= 1e12 && num < 1e14) {
+            ms = num;
+          } else if (num >= 1e9 && num < 1e11) {
+            ms = num * 1000;
+          }
+        } else if (typeof value === 'string') {
+          const parsed = new Date(value.trim()).getTime();
+          if (!isNaN(parsed)) ms = parsed;
         }
+        if (ms === null) return String(objectId);
         const date = new Date(ms);
         return isNaN(date.getTime()) ? String(objectId) : date.toLocaleString();
       };
       const rawName = nameTemplate
         ? nameTemplate.replace(/{([^}]+)}/g, (_, path) => (path === 'id' ? objectId : (resolvePath(path) ?? '')))
         : resolved.name;
-      resolved.name = nameFormat === 'timestamp' ? formatEpochName(rawName) : rawName;
+      resolved.name = nameFormat === 'timestamp' ? formatTimestampName(rawName) : rawName;
       // Created date: prefer the declared path (resolved above); otherwise scan the resolved details
       // for a common creation field so every type gets best-effort coverage. Top-level keys only, so
       // a nested unrelated timestamp is never mistaken for the object's creation date.

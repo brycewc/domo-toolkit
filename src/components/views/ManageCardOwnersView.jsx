@@ -290,6 +290,7 @@ export function ManageCardOwnersView({ instance = null, onBackToDefault = null, 
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
             <Button
+              fullWidth
               isPending={isRetrying}
               size='sm'
               onPress={async () => {

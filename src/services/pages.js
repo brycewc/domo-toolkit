@@ -1,3 +1,4 @@
+import { DEPENDENCY_FETCH_CONCURRENCY } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
 import { storeSidepanelData } from '@/utils/sidepanel';
 
@@ -679,6 +680,8 @@ export async function getSubpageIds({ pageId, tabId = null }) {
   );
 }
 
+// A failed grant fails every page in the batch; a failed visibility PUT only its own.
+/** @returns {Promise<{failures: Array<{error: string, id: number}>}>} */
 export async function sharePages({ pageIds, tabId, userId }) {
   const validPageIds = pageIds.filter((id) => id >= 0);
   if (validPageIds.length === 0) {
@@ -691,7 +694,7 @@ export async function sharePages({ pageIds, tabId, userId }) {
     // promise from an async injected function (null result, no error), which would
     // make a failed share report success. See executeInPage.
     const result = await executeInPage(
-      async (pageIds, userId) => {
+      async (pageIds, userId, concurrency) => {
         // Build request body
         const body = {
           recipients: [
@@ -714,13 +717,19 @@ export async function sharePages({ pageIds, tabId, userId }) {
         });
 
         if (!response.ok) {
-          return { error: `Failed to share pages (HTTP ${response.status})`, ok: false };
+          const error = `Failed to share pages (HTTP ${response.status})`;
+          return { failures: pageIds.map((id) => ({ error, id })) };
         }
 
         // Sharing only grants access; the page stays hidden from the recipient's
-        // navigation until it is explicitly marked visible.
-        const visibilityResults = await Promise.all(
-          pageIds.map(async (id) => {
+        // navigation until it is explicitly marked visible. There is no bulk
+        // form of this, so the PUTs run through a small pool: a batch can carry
+        // a hundred pages, and firing them all at once floods the instance.
+        const failures = [];
+        let next = 0;
+        const workers = Array.from({ length: Math.min(concurrency, pageIds.length) }, async () => {
+          while (next < pageIds.length) {
+            const id = pageIds[next++];
             const visibilityResponse = await fetch(`/api/content/v1/pages/${id}`, {
               body: JSON.stringify({ pageVisible: true }),
               headers: {
@@ -731,20 +740,19 @@ export async function sharePages({ pageIds, tabId, userId }) {
             });
 
             if (!visibilityResponse.ok) {
-              return { error: `Failed to make page ${id} visible (HTTP ${visibilityResponse.status})`, ok: false };
+              failures.push({ error: `Failed to make page ${id} visible (HTTP ${visibilityResponse.status})`, id });
             }
-            return { ok: true };
-          })
-        );
-        const failure = visibilityResults.find((r) => !r.ok);
-        if (failure) return failure;
+          }
+        });
+        await Promise.all(workers);
 
-        return { ok: true };
+        return { failures };
       },
-      [validPageIds, userId],
+      [validPageIds, userId, DEPENDENCY_FETCH_CONCURRENCY],
       tabId
     );
-    if (!result?.ok) throw new Error(result?.error || 'Failed to share pages');
+    if (!result) throw new Error('Failed to share pages');
+    return { failures: result.failures ?? [] };
   } catch (error) {
     console.error('Error sharing pages:', error);
     throw error;

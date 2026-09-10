@@ -8,6 +8,7 @@ import { ReleaseNotes } from '@/components/options/ReleaseNotes';
 import { Welcome } from '@/components/options/Welcome';
 import { ToastProvider } from '@/components/ToastProvider';
 import { useTheme } from '@/hooks/useTheme';
+import { activityLogCountLabel } from '@/utils/activityLog';
 import IconAiSparkle from '@icons/ai-sparkle.svg?react';
 import IconBug from '@icons/bug.svg?react';
 
@@ -225,12 +226,8 @@ async function getActivityLogTitle() {
       label = objects[0].name || `${objects[0].type} ${objects[0].id}`;
     } else if (logType === 'object-and-parent' && objects[0]) {
       label = objects[0].name || `${objects[0].type} ${objects[0].id}`;
-    } else if (logType === 'child-cards') {
-      label = `${objects.length} ${objects.length === 1 ? 'Card' : 'Cards'}`;
-    } else if (logType === 'child-pages') {
-      label = `${objects.length} ${objects.length === 1 ? 'Page' : 'Pages'}`;
     } else {
-      label = `${objects.length} ${objects.length === 1 ? 'Object' : 'Objects'}`;
+      label = activityLogCountLabel({ count: objects.length, type: logType });
     }
 
     return `Activity Log: ${label}`;

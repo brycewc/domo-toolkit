@@ -42,7 +42,7 @@ Handles Domo's "Request Header Fields Too Large" errors with three independent c
 - **Share With Self** - Grant yourself access to pages, studio apps, and custom app designs.
 - **Activity Log** - View activity log records for the current object. On app studio pages and worksheet views, the log combines the view's records with those of its parent Studio App or Worksheet. Long-press for advanced options: activity for all cards on the current object, all pages containing those cards, all child pages, or just the parent Studio App / Worksheet. Supports multi-user filtering with an include/exclude toggle, and can pull from a DomoStats Activity Log dataset to bypass the audit API's \~1-year retention limit (the dataset is auto-discovered and cached per instance; a per-instance toggle makes it the default).
 - **Clipboard Navigation** - Click this button to read your clipboard, identify the Domo object only by its ID on your clipboard, and navigate directly to it. Works with any Domo object ID copied from anywhere - a card, dataset, spreadsheet, Slack message, etc. For objects that don't support navigation, detailed information is displayed in the side panel instead.
-- **Delete Current Object** - Delete beast modes, appdb collections, workflows, pages/app studio pages and all their cards, dataflows and all their outputs, and approval templates (optionally including their backing dataset). Lists every dependency (child pages, output datasets, downstream cards) before you confirm, split into "Will be deleted" and "Other dependencies". Pages with child pages are hard-blocked from deletion.
+- **Delete Current Object** - Delete beast modes, appdb collections, workflows, pages/app studio pages and all their cards, dataflows and all their outputs, and approval templates (optionally including their backing dataset). Lists every dependency (child pages, output datasets, downstream cards) before you confirm, split into "Will be deleted" and "Other dependencies". Pages with child pages are hard-blocked from deletion. On a Task Center task the action becomes Void, the platform's equivalent of deleting one, and lists the task's queue and the workflow that created it.
 
 ### Data Discovery
 
@@ -119,7 +119,8 @@ Pages, cards, datasets, dataflows, app studio apps (and their pages), worksheets
 ## Privacy
 
 - Only runs on `.domo.com` domains. Domo developers can additionally opt in, from the options page, to running on a Domo
-  instance hosted on their own machine; nothing on localhost is touched unless that is turned on.
+  instance hosted on their own machine or on an internal test rig; nothing on localhost or `domorig.io` is touched
+  unless that is turned on.
 - Uses Domo's existing authenticated session - no additional login required.
 - No data leaves the browser; no external servers are contacted.
 - Settings sync via Chrome's built-in storage.

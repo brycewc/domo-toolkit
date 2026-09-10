@@ -4,10 +4,12 @@ import { useCallback } from 'react';
 import { parseMarkdownBold } from '@/utils/markdown';
 
 export function useStatusBar() {
-  const showStatus = useCallback((title, description, status = 'accent', timeout) => {
+  const showStatus = useCallback((title, description, status = 'accent', timeout, { actionProps, onClose } = {}) => {
     const resolvedTimeout = timeout ?? defaultTimeoutFor(status);
-    toast(title, {
+    return toast(title, {
+      actionProps,
       description: parseMarkdownBold(description),
+      onClose,
       timeout: resolvedTimeout || 0,
       variant: status
     });

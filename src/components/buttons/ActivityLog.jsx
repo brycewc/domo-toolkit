@@ -5,7 +5,7 @@ import { DisabledTooltip } from '@/components/DisabledTooltip';
 import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { useLongPress } from '@/hooks/useLongPress';
 import { getObjectType } from '@/models/DomoObjectType';
-import { getCardsForObject } from '@/services/cards';
+import { getCardsForObject, getOwnedCards } from '@/services/cards';
 import { getPagesForCards, getSubpageIds } from '@/services/pages';
 import { launchActivityLog } from '@/utils/activityLog';
 import { waitForChildPages } from '@/utils/pageHelpers';
@@ -28,8 +28,10 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
       ? 'You need the Audit permission to view activity logs'
       : null;
   const typeId = currentContext?.domoObject?.typeId;
-  const longPressEnabled =
-    !isDisabled && ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
+  const hasCards = ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
+  const ownsCards = ['GROUP', 'USER'].includes(typeId);
+  const longPressEnabled = !isDisabled && (hasCards || ownsCards);
+  const typeLabel = currentContext?.domoObject?.typeName?.toLowerCase() || 'object';
   const hasChildPages = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
   // App pages and worksheet views hang off a parent Studio App / Worksheet, whose
   // activity log is frequently what the user actually wants. Detection already
@@ -44,6 +46,18 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
   const usesParentLog = typeId === 'CODEENGINE_PACKAGE_VERSION';
   const parentTypeId = hasParent || usesParentLog ? getObjectType(typeId)?.parents?.[0] : null;
   const parentTypeName = parentTypeId ? getObjectType(parentTypeId)?.name : null;
+
+  // getCardsForObject only knows how to read cards off an object that contains
+  // them, so owner types resolve through the owned-by search instead.
+  const fetchCards = () =>
+    ownsCards
+      ? getOwnedCards(currentContext?.domoObject.id, currentContext?.tabId, typeId)
+      : getCardsForObject({
+          metadata: currentContext?.domoObject.metadata,
+          objectId: currentContext?.domoObject.id,
+          objectType: typeId,
+          tabId: currentContext?.tabId
+        });
 
   const handleClick = async (key = null) => {
     if (!currentContext?.domoObject || !currentContext?.domoObject.id || !currentContext?.domoObject.objectType) {
@@ -61,6 +75,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
     const objectName =
       currentContext?.domoObject.metadata?.name ??
       `${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}**`;
+    const cardsPhrase = ownsCards ? `Cards owned by ${objectName}` : `Cards on ${objectName}`;
 
     try {
       // A Code Engine package version isn't recorded in the activity log, so a plain
@@ -73,15 +88,14 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           let pages = currentContext?.domoObject?.metadata?.context?.cardPages;
 
           if (!pages) {
-            const cards = await getCardsForObject({
-              metadata: currentContext?.domoObject.metadata,
-              objectId: currentContext?.domoObject.id,
-              objectType: currentContext?.domoObject.typeId,
-              tabId: currentContext?.tabId
-            });
+            const cards = await fetchCards();
 
             if (!cards || cards.length === 0) {
-              onStatusUpdate?.('No Cards Found', `No cards found on ${objectName}`, 'warning');
+              onStatusUpdate?.(
+                'No Cards Found',
+                ownsCards ? `No cards owned by ${objectName}` : `No cards found on ${objectName}`,
+                'warning'
+              );
               setIsLoading(false);
               return;
             }
@@ -97,16 +111,11 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
 
           if (validPages.length === 0) {
             if (pages.length === 0) {
-              onStatusUpdate?.(
-                `No Pages Found on ${currentContext?.domoObject?.typeName}`,
-                `Cards on ${objectName} are not used on any pages`,
-                'warning',
-                5000
-              );
+              onStatusUpdate?.('No Pages Found', `${cardsPhrase} are not used on any pages`, 'warning', 5000);
             } else {
               onStatusUpdate?.(
-                `No Valid Pages Found on ${currentContext?.domoObject?.typeName}`,
-                `Cards on ${objectName} are only used on Overview, Favorites, or Shared pages`,
+                'No Valid Pages Found',
+                `${cardsPhrase} are only used on Overview, Favorites, or Shared pages`,
                 'warning',
                 5000
               );
@@ -116,19 +125,19 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           }
 
           activityLogObjects = validPages;
-          message = `Navigating to activity log for ${validPages.length} pages containing cards from ${objectName}`;
+          message = `Navigating to activity log for ${validPages.length} ${validPages.length === 1 ? 'page' : 'pages'} containing cards ${ownsCards ? 'owned by' : 'from'} ${objectName}`;
           break;
         }
         case 'cards': {
-          const cards = await getCardsForObject({
-            metadata: currentContext?.domoObject.metadata,
-            objectId: currentContext?.domoObject.id,
-            objectType: currentContext?.domoObject.typeId,
-            tabId: currentContext?.tabId
-          });
+          const cards = await fetchCards();
 
           if (!cards || cards.length === 0) {
-            onStatusUpdate?.('No Cards Found', `No cards found on ${objectName}`, 'warning', 5000);
+            onStatusUpdate?.(
+              'No Cards Found',
+              ownsCards ? `No cards owned by ${objectName}` : `No cards found on ${objectName}`,
+              'warning',
+              5000
+            );
             setIsLoading(false);
             return;
           }
@@ -138,7 +147,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
             type: 'CARD'
           }));
           activityLogType = 'cards';
-          message = `Navigating to activity log for ${cards.length} cards on ${objectName}`;
+          message = `Navigating to activity log for ${cards.length} ${cards.length === 1 ? 'card' : 'cards'} ${ownsCards ? 'owned by' : 'on'} ${objectName}`;
           break;
         }
         case 'child-pages': {
@@ -313,7 +322,9 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
                 <Label>Cards</Label>
               </div>
               <Description className='ml-6 text-xs'>
-                View activity log for all cards on this {currentContext?.domoObject?.typeName?.toLowerCase() || 'object'}
+                {ownsCards
+                  ? `View activity log for every card this ${typeLabel} owns`
+                  : `View activity log for all cards on this ${typeLabel}`}
               </Description>
             </div>
           </Dropdown.Item>
@@ -324,8 +335,9 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
                 <Label>Card Pages</Label>
               </div>
               <Description className='ml-6 text-xs'>
-                View activity log for pages where cards from this{' '}
-                {currentContext?.domoObject?.typeName?.toLowerCase() || 'object'} appear
+                {ownsCards
+                  ? `View activity log for pages where cards owned by this ${typeLabel} appear`
+                  : `View activity log for pages where cards from this ${typeLabel} appear`}
               </Description>
             </div>
           </Dropdown.Item>

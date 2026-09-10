@@ -40,10 +40,12 @@ import { remapDatasetColumns } from '@/services/remapDatasetColumns';
 import { detectBrokenViewColumns, repairViewColumns } from '@/services/repairViewColumns';
 import { describeViewOutputDrop, isColumnDroppable } from '@/utils/columnDrops';
 import { suggestReplacement } from '@/utils/columnMatching';
-import { isBrokenColumnReference } from '@/utils/columnOrphans';
+import { indexColumnNames, isBrokenColumnReference, resolveColumnName } from '@/utils/columnOrphans';
 import { pathnameOf } from '@/utils/general';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
+import IconArrowLeft from '@icons/arrow-left.svg?react';
+import IconArrowRight from '@icons/arrow-right.svg?react';
 import IconCheck from '@icons/check.svg?react';
 import IconColumnEdit from '@icons/column-edit.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
@@ -288,7 +290,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     };
   }, [allItemsByType, datasetId, isFullyLoaded, tabId, totalAvailable]);
 
-  const schemaColumnNames = useMemo(() => new Set(schemaColumns.map((c) => c.name)), [schemaColumns]);
+  const schemaColumnIndex = useMemo(() => indexColumnNames(schemaColumns.map((c) => c.name)), [schemaColumns]);
 
   // Columns referenced by downstream content that are no longer on the dataset:
   // the broken references a direct rename leaves behind, and the prime candidates
@@ -298,12 +300,12 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     const out = [];
     for (const [name, usages] of scanResult.byColumn.entries()) {
       // Still on the dataset, so not a broken reference.
-      if (schemaColumnNames.has(name)) continue;
+      if (resolveColumnName(name, schemaColumnIndex)) continue;
       if (!isBrokenColumnReference(name, usages)) continue;
       out.push(name);
     }
     return out;
-  }, [scanResult, schemaColumnNames]);
+  }, [scanResult, schemaColumnIndex]);
 
   // The single source of truth for the map page: every broken column that needs a
   // decision, in one shape regardless of where the break is. View-input breaks
@@ -314,7 +316,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   const brokenColumns = useMemo(() => {
     const out = [];
     for (const broken of brokenViewColumns) {
-      const realOutputs = broken.outputColumns.filter((name) => schemaColumnNames.has(name));
+      const realOutputs = broken.outputColumns.filter((name) => resolveColumnName(name, schemaColumnIndex));
       // Downstream usages of the output column(s) this reference feeds, deduped.
       const usages = [];
       const seen = new Set();
@@ -362,7 +364,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     }
     out.sort((a, b) => a.name.localeCompare(b.name));
     return out;
-  }, [brokenViewColumns, cardsById, orphanCandidates, schemaColumns, schemaColumnNames, scanResult]);
+  }, [brokenViewColumns, cardsById, orphanCandidates, schemaColumnIndex, schemaColumns, scanResult]);
 
   // The broken columns grouped by the dataset they belong to, so the source name
   // is stated once as a section header instead of on every row. A view-input
@@ -1117,7 +1119,8 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
                         : `${appColumnCollisions.length} pro-code apps would lose fields`}
                     </Alert.Title>
                     <Alert.Description>
-                      {appColumnCollisions.map((a) => a.name).join(', ')} rename two or more fields to the same column (
+                      {appColumnCollisions.map((a) => a.name).join(', ')}{' '}
+                      {appColumnCollisions.length === 1 ? 'renames' : 'rename'} two or more fields to the same column (
                       {appColumnCollisions.flatMap((a) => a.collisions.map((c) => c.columnName)).join(', ')}). The app reads
                       each column only once, so only one of those fields keeps its data and the rest show up blank.
                     </Alert.Description>
@@ -1131,6 +1134,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
             {canAdvance ? (
               <Button fullWidth size='sm' variant='primary' onPress={() => setPage('select')}>
                 Next
+                <IconArrowRight />
               </Button>
             ) : hasViewWork ? (
               <Button
@@ -1146,6 +1150,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
             ) : (
               <Button fullWidth isDisabled size='sm' variant='primary'>
                 Next
+                <IconArrowRight />
               </Button>
             )}
           </Card.Footer>
@@ -1187,6 +1192,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
         footer={
           <div className='flex gap-2'>
             <Button isDisabled={isTransferring} size='sm' variant='tertiary' onPress={() => setPage('map')}>
+              <IconArrowLeft />
               Back
             </Button>
             <Button

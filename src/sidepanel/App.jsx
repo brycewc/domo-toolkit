@@ -23,6 +23,7 @@ import { LinkPreview } from '@/components/views/LinkPreview';
 import { ManageCardLocksView } from '@/components/views/ManageCardLocksView';
 import { ManageCardOwnersView } from '@/components/views/ManageCardOwnersView';
 import { ManageTagsView } from '@/components/views/ManageTagsView';
+import { MigrateBeastModeUsageView } from '@/components/views/MigrateBeastModeUsageView';
 import { MigrateDownstreamContentView } from '@/components/views/MigrateDownstreamContentView';
 import { ObjectDetailsView } from '@/components/views/ObjectDetailsView';
 import { OwnershipView } from '@/components/views/OwnershipView';
@@ -48,7 +49,7 @@ export default function App() {
   const [instanceViews, setInstanceViews] = useState({});
   // Sticky: only a Domo page can change it, so non-Domo tabs keep the current view.
   const [activeInstance, setActiveInstance] = useState(null);
-  const [blockedLocalInstance, setBlockedLocalInstance] = useState(null);
+  const [blockedInternalInstance, setBlockedInternalInstance] = useState(null);
   const [currentContext, setCurrentContext] = useState(null);
   const [currentTabId, setCurrentTabId] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
@@ -175,7 +176,7 @@ export default function App() {
           // Reconstruct DomoContext from plain object to get class instance with
           // methods; always pass the tab ID so we receive updates for this tab
           const context = response.context ? DomoContext.fromJSON(response.context) : null;
-          setBlockedLocalInstance(response.blockedLocalInstance || null);
+          setBlockedInternalInstance(response.blockedInternalInstance || null);
           applyContext(context, response.tabId);
         } else {
           applyContext(null, null);
@@ -195,7 +196,7 @@ export default function App() {
       if (message.type === 'TAB_CONTEXT_UPDATED') {
         if (message.tabId === currentTabId) {
           const context = message.context ? DomoContext.fromJSON(message.context) : null;
-          setBlockedLocalInstance(message.blockedLocalInstance || null);
+          setBlockedInternalInstance(message.blockedInternalInstance || null);
           applyContext(context);
         }
         sendResponse({ received: true });
@@ -521,6 +522,17 @@ export default function App() {
           />
         )}
 
+        {slot.type === 'migrateBeastModeUsage' && (
+          <MigrateBeastModeUsageView
+            currentContext={currentContext}
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
         {slot.type === 'migrateDownstreamContent' && (
           <MigrateDownstreamContentView
             currentContext={currentContext}
@@ -577,7 +589,7 @@ export default function App() {
         />
 
         <ContextFooter
-          blockedLocalInstance={blockedLocalInstance}
+          blockedInternalInstance={blockedInternalInstance}
           currentContext={currentContext}
           isLoading={isLoadingCurrentContext}
           onStatusUpdate={showStatus}

@@ -2,6 +2,7 @@ import { toast } from '@heroui/react';
 import { useEffect } from 'react';
 
 import { releases } from '@/data/releases';
+import IconArrowSquareOut from '@icons/arrow-square-out.svg?react';
 
 export function showReleaseToast() {
   const currentVersion = chrome.runtime.getManifest().version;
@@ -16,7 +17,12 @@ export function showReleaseToast() {
 
   toastKey = toast.info(`New Version ${currentVersion}`, {
     actionProps: {
-      children: 'View Details',
+      children: (
+        <>
+          <IconArrowSquareOut />
+          View Details
+        </>
+      ),
       onPress: async () => {
         const currentWindow = await chrome.windows.getCurrent();
         const [activeTab] = await chrome.tabs.query({

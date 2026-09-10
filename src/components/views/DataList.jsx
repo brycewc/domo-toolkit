@@ -22,7 +22,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { getObjectType } from '@/models/DomoObjectType';
-import { shareWithSelf } from '@/services/share';
+import { shareObjectsWithSelf, shareWithSelf } from '@/services/share';
 import { launchActivityLog } from '@/utils/activityLog';
 import { MAX_OPEN_ALL_TABS } from '@/utils/constants';
 import { copyToClipboard } from '@/utils/copyToClipboard';
@@ -230,9 +230,9 @@ export function DataList({
   );
 
   // Share every shareable object in a subtree with the current user. Used by the
-  // header "Share all" and a row's "Share all" (which passes [item]). Runs the
-  // shares serially behind one batch toast that resolves to a success/partial
-  // summary, or rejects (surfacing the failure toast) when nothing shared.
+  // header "Share all" and a row's "Share all" (which passes [item]). Runs behind
+  // one batch toast that resolves to a success/partial summary, or rejects
+  // (surfacing the failure toast) when nothing shared.
   // Returns the batch promise, or undefined when there is nothing to share.
   const shareItemsWithSelf = useCallback(
     (nodes) => {
@@ -240,17 +240,12 @@ export function DataList({
       if (!objects.length) return undefined;
       const total = objects.length;
       const promise = (async () => {
-        let shared = 0;
-        let firstError = null;
-        for (const object of objects) {
-          try {
-            await shareWithSelf({ object, tabId: currentContext?.tabId, userId: currentContext?.user?.id });
-            shared++;
-          } catch (err) {
-            if (!firstError) firstError = err.message;
-          }
-        }
-        if (shared === 0) throw new Error(firstError || 'Failed to share');
+        const { errors, shared } = await shareObjectsWithSelf({
+          objects,
+          tabId: currentContext?.tabId,
+          userId: currentContext?.user?.id
+        });
+        if (shared === 0) throw new Error(errors[0]?.error || 'Failed to share');
         return { shared, total };
       })();
       showPromiseStatus(promise, {
@@ -1405,34 +1400,34 @@ function DataListItemImpl({
     return actions;
   }, [hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, shareEnabled, showActions]);
 
-  // Optional info-icon marker leading the whole label, ahead of the object's
-  // type icon. On a normal row it carries no tooltip of its own: the marker sits
+  // Optional info-icon marker for a row carrying an annotation. On a normal row
+  // it leads the label, ahead of the object's type icon, where the label's
+  // `truncate` can't clip it, and it carries no tooltip of its own: it sits
   // inside the label's Tooltip trigger, so hovering it already opens the row's
   // tooltip, which states the annotation (see labelTooltipContent). A trigger of
   // its own would nest one focusable element inside another and fire both
-  // tooltips at once. Virtual parents render their label as plain text with no
-  // tooltip of any kind, so there the marker owns the annotation and needs its
-  // own trigger to show it.
-  // Sitting at the START of the label, it survives the label's `truncate`.
+  // tooltips at once.
   // Match the marker icon to the adjacent ObjectTypeIcon's 16px box so the two
   // icons share an identical bottom-line; a smaller icon bottom-aligned next to
   // a 16px one reads as vertically staggered (its optical center sits higher).
   const annotationIcon = <IconInfoCircle className='size-4 shrink-0' />;
-  const annotationMarker = !item.annotation ? null : item.isVirtualParent ? (
-    <Tooltip>
-      {/* Renders a span, not the default div: a virtual parent's label sits in a
-          <p>, and a div inside it is invalid HTML that React flags. */}
-      <Tooltip.Trigger
-        className='mr-1 inline-flex cursor-help align-text-bottom text-accent'
-        render={(props) => <span {...props} />}
-      >
-        {annotationIcon}
-      </Tooltip.Trigger>
-      <Tooltip.Content className='max-w-60'>{item.annotation}</Tooltip.Content>
-    </Tooltip>
-  ) : (
-    <span className='mr-1 inline-flex cursor-help align-text-bottom text-accent'>{annotationIcon}</span>
-  );
+  const annotationMarker =
+    item.annotation && !item.isVirtualParent ? (
+      <span className='mr-1 inline-flex cursor-help align-text-bottom text-accent'>{annotationIcon}</span>
+    ) : null;
+
+  // Sits between the header's name and its count. A group header's label carries
+  // no tooltip, so this needs a trigger of its own, rendered as a span because
+  // it sits inside the Disclosure.Trigger <button>.
+  const virtualAnnotationMarker =
+    item.annotation && item.isVirtualParent ? (
+      <Tooltip>
+        <Tooltip.Trigger className='inline-flex shrink-0 cursor-help text-accent' render={(props) => <span {...props} />}>
+          {annotationIcon}
+        </Tooltip.Trigger>
+        <Tooltip.Content className='max-w-60'>{item.annotation}</Tooltip.Content>
+      </Tooltip>
+    ) : null;
 
   // Pages with a negative ID are Domo's system pseudo-pages (Overview,
   // Favorites, Shared) rather than real, user-created pages, so they get a
@@ -1516,10 +1511,13 @@ function DataListItemImpl({
   // object's id. An annotation is a sentence rather than a name, so it gets a
   // width to wrap in; rows without one keep their content-sized tooltip.
   //
-  // The id line never wraps: a dataset UUID lands right on HeroUI's default
+  // The id itself never wraps: a UUID lands right on HeroUI's default
   // `max-w-xs`, so it broke across two lines or not depending on the name beside
   // it. `min-w-min` is what lets it hold: min-width beats max-width, so the
-  // tooltip widens to the unbreakable id while prose keeps wrapping.
+  // tooltip widens to the unbreakable id while prose keeps wrapping. Keep
+  // `whitespace-nowrap` off the type name ahead of it, or the tooltip's minimum
+  // width grows to the whole line, which a long type name ("Jupyter Workspace
+  // ID: <uuid>") pushes past the panel, scrollbarring the extension.
   const labelTooltipContent = (
     <Tooltip.Content
       className={`flex min-w-min flex-col flex-wrap items-start gap-1 text-left${item.annotation ? ' max-w-60' : ''}`}
@@ -1527,9 +1525,9 @@ function DataListItemImpl({
       placement='top left'
     >
       {labelTitle}
-      <span className='whitespace-nowrap'>
+      <span>
         {typeLabel ? `${typeLabel} ID: ` : 'ID: '}
-        {item.originalId ?? item.id}
+        <span className='whitespace-nowrap'>{item.originalId ?? item.id}</span>
       </span>
       {item.annotation ? <span className='text-muted'>{item.annotation}</span> : null}
     </Tooltip.Content>
@@ -1681,6 +1679,7 @@ function DataListItemImpl({
           )}
           <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
             {itemLabel}
+            {virtualAnnotationMarker}
             {flatCount}
           </div>
           {chipCluster}
@@ -1831,6 +1830,7 @@ function DataListItemImpl({
               // selects.
               <div className='flex w-full min-w-0 flex-1 basis-4/5 items-center gap-2'>
                 {itemLabel}
+                {virtualAnnotationMarker}
                 <Disclosure.Trigger
                   aria-label='Toggle'
                   className='flex flex-1 flex-row items-center gap-2 self-stretch'
@@ -1866,6 +1866,7 @@ function DataListItemImpl({
                 variant='tertiary'
               >
                 {itemLabel}
+                {virtualAnnotationMarker}
                 {statusIndicator
                   ? statusIndicator
                   : showCounts &&
@@ -1901,6 +1902,7 @@ function DataListItemImpl({
               <p className={`min-w-0 truncate text-left text-sm ${virtualHeaderWeightClass}${labelMutedClass}`}>
                 {labelInner}
               </p>
+              {virtualAnnotationMarker}
               {statusIndicator
                 ? statusIndicator
                 : showCounts &&

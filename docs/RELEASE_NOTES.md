@@ -26,6 +26,8 @@
 - Beast Modes now support Manage Card Owners and Manage Card Locks across the cards that use them.
 - The Current Context footer on a Beast Mode now shows its DataSet and the cards using it.
 - The Copy button on a Beast Mode now offers to copy its DataSet ID.
+- Beast Modes now support Migrate Content, repointing the cards, drills, and Beast Modes that use one onto a different Beast Mode on the same DataSet.
+- Migrate Content on a Beast Mode deletes the original once nothing uses it.
 - Code Engine Packages now support Get Usage, listing the workflows and custom apps that use them.
 - Get Usage marks each workflow version Active or Inactive.
 - Get Usage can show only the active workflow versions.
@@ -37,26 +39,63 @@
 - Deleting a DataFlow and its inputs now lets you pick which inputs go.
 - An input DataSet that can't be deleted with its DataFlow now says why.
 - Deleting a DataFlow now names the places the dependency check doesn't look, such as Jupyter Workspaces, Workflows, and Code Engine Packages.
+- Deleting a Workflow now lists the DataSets, forms, Task Center queues, Code Engine Packages, subflows, pages, and Jupyter Workspaces it uses, instead of reporting that dependencies can't be checked.
+- Deleting a Workflow now names anything the check couldn't read, such as an object the workflow picks while it runs.
 - The dependency list for deleting a DataFlow now appears right away.
 - An output DataSet's dependency count now fills in as it arrives.
 - A DataFlow's cards now load faster when it has several output DataSets.
 - Open All now warns when a list has more than 50 items and opens only the first 50.
+- People and Groups now support an activity log across every card they own.
+- People and Groups now support an activity log across the pages their owned cards appear on.
+- Domo development test rigs on domorig.io are now supported, under the same setting that enables locally run Domo instances.
+- Anyone who already had locally run Domo instances enabled has to switch the setting on once more, since it now asks for localhost and domorig.io access together.
+- Share All is now much faster on a long list of pages, App Studio Apps, or Worksheets.
+- Task Center Tasks can now be voided.
+- Voiding a Task Center Task lists its queue and the Workflow that created it.
+- Voiding a Task Center Task warns that the Workflow waiting on it fails with it.
+- Voiding a Task Center Task can now cancel the Workflow execution waiting on it first, instead of leaving that run failed.
+- A Task Center Task opened from a Workflow's user task response page is now named and shows its queue.
+- Task Center Queues can now be shared with yourself, granting you admin on the queue.
+- Share with Self on a Task Center Task shares the task's queue.
+- Task Center Queues listed in a view can now be shared from the row itself.
+- The API Errors list now includes Magic ETL preview failures.
+- Migrate Content now moves the Jupyter Workspaces that read a DataSet onto the new DataSet.
+- Migrate Content searches for Jupyter Workspaces only when you press Check Jupyter Workspaces.
+- Migrate Content now warns that a migrated Jupyter Workspace's notebook code still names the old columns.
 
 ## UI Improvements
 
 - Delete Unused Beast Modes now shows its delete progress on the Delete button instead of above the list.
+- Delete Unused Beast Modes now lists its results directly instead of under a "Beast Modes" or "Variables" header when only one of the two was found.
 - Migrate Content's progress now reads "Migrating… 2/5 Types", labeling what its count is counting.
 - The "System" chip on a system page now sits at the right of the row next to its actions instead of beside the name.
 - A report's page is now labeled "Report Page" wherever it is listed.
+- A Workflow Execution is now named for when it started, like "Run of My Workflow - 12/15/2025, 8:11:59 AM", instead of repeating the Workflow's name.
+- The "Enable on locally run Domo instances" setting is now "Enable on internal Domo instances".
+- Migrate Content now collapses its warnings into one block and lists each decision you still need to make with a count.
+- Migrate Content no longer pre-picks how to resolve a Beast Mode conflict.
+- Migrate Content's confirm dialog now spells out what any choices you left unmade will do.
+- The sync icon is now mirrored to match Domo's own, and the refresh button spins it clockwise.
+- The Migrate Content button's description now names everything it migrates.
+- A toast with a button now puts it below the message instead of beside it.
+- A toast's message now starts at the icon instead of indenting past it.
+- The icon on an alert or toast whose title wraps now stays on the first line instead of centering against the whole title.
+- Buttons in an alert or a toast now carry an icon and stretch to fill the width.
 
 ## Bug Fixes
 
+- Hovering a Jupyter Workspace in a list no longer puts scrollbars on the whole panel.
+
+- Going back a step in Migrate Content no longer discards the Beast Mode conflict choices you already made.
+- Migrate Content no longer asks you to map PDP policies before you have picked a target DataSet.
 - The Activity Log on a report's page now shows that page's events instead of coming back empty.
+- The Cards and Card Pages activity logs now say how many cards or pages they cover instead of how many objects.
 - Deleting a DataFlow's inputs no longer removes an input that other content still uses or that another DataFlow produces.
 - Open All on a group now reports the number of items it actually opened.
 - Deleting a Scheduled Report now sends you to the Scheduled Reports list if you are still on the deleted report's page.
 - Deleting an Approval Template now sends you to the Request Forms list if you are still on the deleted template's page.
 - A checkbox you can't tick, such as one in Manage Card Locks or Manage Card Owners, now explains why when you hover it.
+- Task Center tasks and queues on an internal Domo instance now open at the right address.
 - Lists now order names containing numbers by value, so Card 9 comes before Card 10 instead of after it.
 - Remap Columns no longer offers to drop a broken view column that the view also filters, groups, or sorts on.
 - A Beast Mode whose formula can't be read no longer fails every content type in Migrate Content; it is now reported on its own and the rest still migrate.
@@ -87,3 +126,17 @@
 - A custom app card no longer shows a Definition tab that fails to load.
 - Choosing Overwrite for a Beast Mode conflict in Migrate Content now replaces the target's Beast Mode instead of failing every one of them.
 - The card counts shown for both DataSets in the Data Center and on their overview pages now update after Migrate Content runs.
+- Migrate Content and Remap Columns no longer warn that a pro-code app would lose fields when the app already maps two of its fields to the same column.
+- Migrate Content and Remap Columns no longer ask you to remap a column because a formula spells its name in a different capitalization than the DataSet does.
+- Migrate Content and Remap Columns now update a dataset view instead of failing it with "Unknown error".
+- Migrate Content now repoints a Text card instead of failing it with a "Cannot read properties of null" message.
+- A card that spells a column name with different capitalization than the DataSet does now migrates instead of being rejected.
+- A card carrying a filter that has no values now migrates, and that filter is removed.
+- An alert whose Personalized Data Permissions are set to Contextual now migrates and stays Contextual, instead of being rebound to whichever PDP policies you have access to.
+- Migrate Content no longer asks you to map PDP policies for an alert set to Contextual.
+- An alert carrying both the "All Rows" policy and named PDP policies now migrates, leaving off the "All Rows" policy Domo won't accept alongside them.
+- Migrating an alert no longer leaves you subscribed to it, unless you were subscribed to the original.
+- Migrating an alert no longer signs you up for a daily or weekly digest that belonged to one of its subscribers.
+- An alert Domo refuses to move now reports Domo's reason and trace ID instead of a raw error body.
+- An alert whose columns the target DataSet isn't exposing yet, such as while it finishes indexing after an update, now says so instead of failing with "Bad Request".
+- The tab title on an alert now shows the alert's name instead of "Alerts Management" or the DataSet's name.

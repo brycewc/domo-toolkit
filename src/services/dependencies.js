@@ -1,5 +1,10 @@
+import { getObjectType } from '@/models/DomoObjectType';
 import { DRILL_ONLY_NOTE, groupBeastModeUsageByCard } from '@/utils/beastModeLinks';
 import { ACTIVE_CHIP, INACTIVE_CHIP } from '@/utils/codeEngineUsage';
+import { DEPENDENCY_FETCH_CONCURRENCY } from '@/utils/constants';
+import { formatTimestamp } from '@/utils/general';
+import { compareSemver } from '@/utils/semver';
+import { collectDefinitionReferences } from '@/utils/workflowReferences';
 
 import { getDownstreamAlertsForDatasets } from './alerts';
 import { getAppInstanceCollections, getCollectionConnectedApps } from './appDb';
@@ -17,7 +22,10 @@ import {
   isTransformDataset,
   searchDatasets
 } from './datasets';
+import { resolveObjectSummaries, summaryKey } from './objectSummaries';
 import { getChildPages, getOnlyHereCardIds } from './pages';
+import { getTaskCenterQueueName } from './taskCenter';
+import { getVersionDefinition, getWorkflowExecution, getWorkflowModelName, getWorkflowVersions } from './workflows';
 
 /**
  * Per-type dependency fetchers. Each returns an array of group objects:
@@ -52,6 +60,11 @@ import { getChildPages, getOnlyHereCardIds } from './pages';
  *   `selectionGroupKey` on the delete config, these become checkboxes: only
  *   `deletableIds` can be checked, and the others carry their reason on the
  *   checkbox itself. Omit both for a group with no picker.
+ *
+ * A fetcher returning the object form may also set `otherNote`: one sentence
+ * about the "Other dependencies" section as a whole, shown on that section's
+ * header. Use it for something true of every group in there, rather than
+ * repeating the same `annotation` on each one.
  *
  * A fetcher returning the object form may also set `clearNote`: the sentence the
  * view shows in an all-clear banner. The generic "No dependencies found" banner
@@ -151,6 +164,49 @@ function buildPackageWorkflowRows({ activeByModel, origin, usage }) {
   });
 
   return { activeCount, rows };
+}
+
+/**
+ * Turn the deduped references a workflow's definitions named into dependency
+ * rows, keyed by type so each one lands in its own group. A package or subflow
+ * carries the versions the workflow pinned as child rows, matching how a Code
+ * Engine package presents the workflows using it.
+ * @param {Object} params
+ * @param {Array<{id: string, typeId: string, versions: Set<string>}>} params.entries - Deduped references
+ * @param {string} params.origin - The instance origin
+ * @param {Map<string, {name: string|null, url: string|null}>} params.summaries - Resolved names and links
+ * @returns {Map<string, Array<Object>>}
+ */
+function buildWorkflowReferenceRows({ entries, origin, summaries }) {
+  const rows = new Map();
+  for (const entry of entries) {
+    const summary = summaries.get(summaryKey(entry));
+    const typeName = getObjectType(entry.typeId)?.name || entry.typeId;
+    const versionTypeId = WORKFLOW_VERSION_TYPES[entry.typeId] ?? null;
+    // A workflow version has a page of its own; a package version does not, so
+    // it reads as a plain row rather than a dead link.
+    const children = versionTypeId
+      ? [...entry.versions].map((version) => ({
+          id: version,
+          label: version,
+          parentId: entry.id,
+          typeId: versionTypeId,
+          url:
+            versionTypeId === 'WORKFLOW_MODEL_VERSION' ? `${origin}/workflows/models/${entry.id}/${version}?_wfv=view` : null
+        }))
+      : [];
+    const row = {
+      children: children.length > 0 ? children : undefined,
+      ...countBadge(children.length > 0 ? children.length : null, 'version', 'versions'),
+      id: entry.id,
+      label: summary?.name || `${typeName} ${entry.id}`,
+      typeId: entry.typeId,
+      url: summary?.url ?? null
+    };
+    if (!rows.has(entry.typeId)) rows.set(entry.typeId, []);
+    rows.get(entry.typeId).push(row);
+  }
+  return rows;
 }
 
 /**
@@ -293,12 +349,13 @@ function normalizeDependencyResult(fetched) {
   // Fetchers return either a bare groups array or an object carrying extra data
   // the view reads: `appSummary` (app-wide page/card totals for the cascade
   // delete), `onlyHereCardIds` (cards that live only on this page, for the
-  // alternate delete's card-count preview), and `clearNote` (the all-clear
-  // banner's sentence).
+  // alternate delete's card-count preview), `clearNote` (the all-clear banner's
+  // sentence), and `otherNote` (the note on the Other Dependencies header).
   const allGroups = Array.isArray(fetched) ? fetched : fetched.groups;
   const appSummary = Array.isArray(fetched) ? null : (fetched.appSummary ?? null);
   const clearNote = Array.isArray(fetched) ? null : (fetched.clearNote ?? null);
   const onlyHereCardIds = Array.isArray(fetched) ? null : (fetched.onlyHereCardIds ?? null);
+  const otherNote = Array.isArray(fetched) ? null : (fetched.otherNote ?? null);
 
   const groups = allGroups.filter((g) => g.items.length > 0 || (g.count ?? 0) > 0);
 
@@ -323,6 +380,7 @@ function normalizeDependencyResult(fetched) {
     clearNote,
     groups,
     onlyHereCardCount: onlyHereCardIds == null ? null : onlyHereCardIds.length,
+    otherNote,
     supported: true,
     totalCount
   };
@@ -336,6 +394,30 @@ function normalizeDependencyResult(fetched) {
 function otherDependentTotal(dependents) {
   if (!dependents || dependents.unverified) return null;
   return dependents.cards + dependents.dataflows + dependents.views;
+}
+
+/**
+ * Read the definition of each version to be inspected, in the order given. A
+ * version whose definition can't be read comes back as null so the caller
+ * reports it rather than treating that version as referencing nothing.
+ * @param {Object} params
+ * @param {string} params.modelId - The workflow model
+ * @param {number|null} params.tabId - Tab to run the lookups in
+ * @param {Array<{version: string}>} params.versions - Versions to read
+ * @returns {Promise<Array<Object|null>>}
+ */
+async function readWorkflowVersionDefinitions({ modelId, tabId, versions }) {
+  const definitions = new Array(versions.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(DEPENDENCY_FETCH_CONCURRENCY, versions.length) }, async () => {
+      while (next < versions.length) {
+        const index = next++;
+        definitions[index] = await getVersionDefinition(modelId, versions[index].version, tabId).catch(() => null);
+      }
+    })
+  );
+  return definitions;
 }
 
 const DEPLOYED_CHIP = { color: 'warning', label: 'Deployed' };
@@ -751,6 +833,87 @@ const FETCHERS = {
       groups: buildGroups({})
     };
   },
+  // Nothing here blocks: voiding a task removes no other object. The rows are
+  // context for the person deciding, above all the workflow that is waiting on it.
+  HOPPER_TASK: async ({ metadata, origin, parentId }, tabId) => {
+    const details = metadata?.details ?? null;
+    const queueId = parentId || details?.queueId || null;
+    const source = details?.sourceSystem === 'ODYSSEY' ? (details?.sourceInfo ?? null) : null;
+    const modelId = source?.modelId ?? null;
+
+    const instanceId = source?.instanceId ?? null;
+    const [queueName, workflowName, execution] = await Promise.all([
+      queueId ? getTaskCenterQueueName(queueId, tabId).catch(() => null) : Promise.resolve(null),
+      modelId ? getWorkflowModelName(modelId, tabId).catch(() => null) : Promise.resolve(null),
+      instanceId ? getWorkflowExecution(instanceId, tabId).catch(() => null) : Promise.resolve(null)
+    ]);
+    const startedAt = execution?.startedAt ?? null;
+
+    const groups = [];
+    if (queueId) {
+      groups.push({
+        blocking: false,
+        deleted: false,
+        flat: true,
+        items: [
+          {
+            id: queueId,
+            label: queueName || `Queue ${queueId}`,
+            typeId: 'HOPPER_QUEUE',
+            url: `${origin}/queues/tasks?queueId=${queueId}&status=OPEN`
+          }
+        ],
+        key: 'queue',
+        label: 'Queue'
+      });
+    }
+    if (modelId) {
+      groups.push({
+        blocking: false,
+        deleted: false,
+        flat: true,
+        items: [
+          {
+            id: modelId,
+            label: workflowName || `Workflow ${modelId}`,
+            typeId: 'WORKFLOW_MODEL',
+            url: `${origin}/workflows/${modelId}`
+          }
+        ],
+        key: 'sourceWorkflow',
+        label: 'Created By'
+      });
+    }
+    // Linked explicitly because a row's DomoObject carries no version, which
+    // WORKFLOW_INSTANCE's urlPath needs.
+    if (modelId && instanceId && source?.modelVersion) {
+      // Matches WORKFLOW_INSTANCE's own `Run of {parent.name} - {name}` naming,
+      // which only the current object gets composed for it.
+      const startedLabel = formatTimestamp(startedAt);
+      const executionLabel =
+        workflowName && startedLabel ? `Run of ${workflowName} - ${startedLabel}` : startedLabel || instanceId;
+      groups.push({
+        blocking: false,
+        deleted: false,
+        // Read by the cascade that cancels the run before voiding, which only
+        // applies while the run is still going.
+        executionStatus: execution?.status ?? null,
+        flat: true,
+        items: [
+          {
+            id: instanceId,
+            label: executionLabel,
+            typeId: 'WORKFLOW_INSTANCE',
+            url: `${origin}/workflows/instances/${modelId}/${source.modelVersion}/${instanceId}`
+          }
+        ],
+        key: 'sourceExecution',
+        label: 'Workflow Execution'
+      });
+    }
+    return groups;
+  },
+
   MAGNUM_COLLECTION: async ({ id, metadata, origin, parentId }, tabId) => {
     // The parent datastore ID is enriched onto the collection as parentId, and
     // doubles as the connected app's instance ID. The synced dataset's ID is
@@ -930,7 +1093,123 @@ const FETCHERS = {
 
     return groups;
   },
+  WORKFLOW_MODEL: async ({ id, metadata, origin }, tabId) => {
+    const declared = Array.isArray(metadata?.details?.versions) ? metadata.details.versions : null;
+    const versions = declared ?? (await getWorkflowVersions(id, tabId).catch(() => []));
+    // Only a live version can break anything, so that is what gets read. A
+    // workflow with none is still worth describing, so its newest version stands
+    // in and the group says so.
+    const active = versions.filter((v) => v.active);
+    const newest = versions
+      .filter((v) => typeof v.version === 'string')
+      .sort((a, b) => compareSemver(b.version, a.version))
+      .slice(0, 1);
+    const inspected = active.length > 0 ? active : newest;
+
+    const definitions = await readWorkflowVersionDefinitions({ modelId: id, tabId, versions: inspected });
+    const references = new Map();
+    const notes = [];
+    definitions.forEach((definition, index) => {
+      const version = inspected[index].version;
+      if (!definition) {
+        notes.push(`Version ${version} could not be read`);
+        return;
+      }
+      const collected = collectDefinitionReferences(definition);
+      for (const ref of collected.references) {
+        const key = summaryKey(ref);
+        let entry = references.get(key);
+        if (!entry) {
+          entry = { id: ref.id, typeId: ref.typeId, versions: new Set() };
+          references.set(key, entry);
+        }
+        if (ref.version) entry.versions.add(ref.version);
+      }
+      for (const item of collected.unresolved) {
+        notes.push(`${item.elementTitle}: ${item.kind} chosen at run time`);
+      }
+    });
+
+    const entries = [...references.values()];
+    const summaries = await resolveObjectSummaries({ baseUrl: origin, refs: entries, tabId });
+    const rows = buildWorkflowReferenceRows({ entries, origin, summaries });
+
+    const activeCount = active.length;
+    const groups = [
+      {
+        annotation:
+          activeCount > 0
+            ? `Every version goes with the workflow. What it uses was read from its ${activeCount} active version${activeCount !== 1 ? 's' : ''}.`
+            : `Every version goes with the workflow. It has no active version, so what it uses was read from ${inspected[0]?.version ?? 'none'}.`,
+        blocking: false,
+        count: versions.length,
+        countLabel: `version${versions.length !== 1 ? 's' : ''}${activeCount > 0 ? `, ${activeCount} active` : ''}`,
+        deleted: true,
+        items: versions.map((v) => ({
+          chip: v.active ? ACTIVE_CHIP : INACTIVE_CHIP,
+          id: v.version,
+          label: v.version,
+          muted: !v.active,
+          parentId: id,
+          typeId: 'WORKFLOW_MODEL_VERSION',
+          url: `${origin}/workflows/models/${id}/${v.version}?_wfv=view`
+        })),
+        key: 'workflowVersions',
+        label: 'Versions',
+        sortChildrenDescending: true
+      }
+    ];
+    for (const spec of WORKFLOW_USE_GROUPS) {
+      groups.push({
+        blocking: false,
+        deleted: false,
+        items: rows.get(spec.typeId) || [],
+        key: spec.key,
+        label: spec.label
+      });
+    }
+    if (notes.length > 0) {
+      groups.push({
+        annotation: notes.join('; '),
+        blocking: false,
+        count: notes.length,
+        countLabel: notes.length === 1 ? 'reference' : 'references',
+        deleted: false,
+        items: [],
+        key: 'unresolvedReferences',
+        label: 'References That Could Not Be Read',
+        summaryTypeId: null
+      });
+    }
+
+    return {
+      // The versions group always has rows, so the generic "nothing found"
+      // banner can never fire and the reader would not know a usage check ran.
+      clearNote:
+        entries.length === 0 && notes.length === 0 ? 'This workflow does not reference any other Domo objects.' : null,
+      groups,
+      otherNote: 'Referenced by this workflow. Deleting the workflow does not delete these.'
+    };
+  },
   WORKSHEET_VIEW: fetchAppPageDependencies
+};
+
+// One group per type, so each list header keeps that type's icon. An empty group
+// is dropped before rendering.
+const WORKFLOW_USE_GROUPS = [
+  { key: 'usedDatasets', label: 'DataSets Used', typeId: 'DATA_SOURCE' },
+  { key: 'usedForms', label: 'Forms Used', typeId: 'ENIGMA_FORM' },
+  { key: 'usedQueues', label: 'Task Center Queues Used', typeId: 'HOPPER_QUEUE' },
+  { key: 'usedPackages', label: 'Code Engine Packages Used', typeId: 'CODEENGINE_PACKAGE' },
+  { key: 'usedSubflows', label: 'Subflows Used', typeId: 'WORKFLOW_MODEL' },
+  { key: 'usedPages', label: 'Pages Exported', typeId: 'PAGE' },
+  { key: 'usedFiles', label: 'Documents Used', typeId: 'FILE' },
+  { key: 'usedWorkspaces', label: 'Jupyter Workspaces Used', typeId: 'DATA_SCIENCE_NOTEBOOK' }
+];
+
+const WORKFLOW_VERSION_TYPES = {
+  CODEENGINE_PACKAGE: 'CODEENGINE_PACKAGE_VERSION',
+  WORKFLOW_MODEL: 'WORKFLOW_MODEL_VERSION'
 };
 
 /**
@@ -950,6 +1229,7 @@ const FETCHERS = {
  *   supported: boolean,
  *   appSummary: {cardCount: number, cardIds: number[], pageCount: number}|null,
  *   onlyHereCardCount: number|null,
+ *   otherNote: string|null,
  *   deferred: Promise<Object>|null
  * }>}
  */
@@ -964,6 +1244,7 @@ export async function getDependenciesForDelete({ object, origin, tabId = null })
       deferred: null,
       groups: [],
       onlyHereCardCount: null,
+      otherNote: null,
       supported: false,
       totalCount: 0
     };

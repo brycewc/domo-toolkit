@@ -598,6 +598,8 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
       // view (see `collectViewDroppableColumns`), so the map doubles as the
       // per-view drop eligibility the remap UI gates the Drop choice on.
       let dropOutputsByColumn = null;
+      // Lets the orphan policy trust a view's ref: no other input can supply it.
+      let originScopedColumns = null;
       if (typeKey === 'alerts') {
         // An alert's rule references columns by name; on a cross-schema move any
         // name missing from the target dataset makes Domo's create endpoint reject
@@ -634,9 +636,13 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
             viewFusionWarnings.push({ id: item.id, name: item.name || String(item.id) });
           }
           dropOutputsByColumn = collectFusionDroppableColumns(definition, originId);
+          // A fusion scan collects origin-sourced leaves only.
+          originScopedColumns = new Set(used);
         } else {
           used = extractDatasetViewColumnRefs(definition);
-          dropOutputsByColumn = collectViewDroppableColumns(definition, findOriginAliases(definition, originId), originId);
+          const originAliases = findOriginAliases(definition, originId);
+          dropOutputsByColumn = collectViewDroppableColumns(definition, originAliases, originId);
+          originScopedColumns = new Set(collectViewColumnRefsForSource(definition, originAliases, originId).keys());
         }
       } else if (typeKey === 'dataflows') {
         definition = await fetchDataflowDefinition(item.id, tabId);
@@ -671,7 +677,10 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
       byItem.set(itemKey, { definition, usedColumns: used });
       for (const colName of used) {
         const dropOutputs = dropOutputsByColumn?.get(colName) || null;
-        addRef(typeKey, item, colName, dropOutputs ? { dropOutputs } : null);
+        const extra = {};
+        if (dropOutputs) extra.dropOutputs = dropOutputs;
+        if (originScopedColumns?.has(colName)) extra.originColumn = true;
+        addRef(typeKey, item, colName, Object.keys(extra).length > 0 ? extra : null);
       }
     } catch (error) {
       const itemKey = makeItemKey(typeKey, item.id);
@@ -1062,7 +1071,10 @@ function walkViewSourceRefs(node, sourceAliases, sourceId, onRef) {
         if (!isLedgerEntry && stripBackticks(node.referenceDataSourceId) === sourceId) {
           onRef(stripBackticks(value), null);
         }
-      } else if (value.indexOf('`') !== -1) {
+      } else if (key !== 'name' && value.indexOf('`') !== -1) {
+        // `name` holds an identifier (an output alias, a table alias), not a
+        // column ref: reading a select item's own alias as an unreachable
+        // reference blocked the drop for every column projected under its name.
         collectPossibleSourceBacktickRefs(value, sourceAliases, (col) => onRef(col, null));
       }
       continue;

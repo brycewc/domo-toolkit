@@ -7,6 +7,8 @@
  * the UI via an optional `onStepProgress` callback.
  */
 
+import { SHARE_BATCH_SIZE } from '@/utils/constants';
+
 import { addUsersToGroups } from './groups';
 import { shareContent } from './share';
 import { getIndividualSharesForUser } from './userIndividualShares';
@@ -23,8 +25,6 @@ const USER_PROFILE_FIELDS = [
   'timeZone',
   'title'
 ];
-
-const SHARE_BATCH_SIZE = 100;
 
 // Only these group types accept manual member additions via the groups/access
 // endpoint. Dynamic groups are managed by rules; system groups are managed by

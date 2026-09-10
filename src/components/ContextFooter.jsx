@@ -21,8 +21,9 @@ import { copyJsonNode } from '@/utils/copyToClipboard';
 import { executeInPage } from '@/utils/executeInPage';
 import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import { instanceLabel } from '@/utils/instance';
-import { requestLocalAccess } from '@/utils/localInstance';
+import { requestInternalAccess } from '@/utils/internalInstance';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
+import IconLockOpen from '@icons/lock-open.svg?react';
 
 // Maps relatedData[].fetcher key → (params) => Promise<Array>. Lives here
 // (not in DomoObjectType.js) so the type model stays import-free of services.
@@ -106,7 +107,7 @@ const RELATED_CACHE_TTL_MS = 300 * 1000; // 300 seconds
 const relatedDataCache = new Map(); // chromeTabId -> { objectId, entries: Map<tabKey, { data, timestamp }> }
 
 export function ContextFooter({
-  blockedLocalInstance = null,
+  blockedInternalInstance = null,
   currentContext,
   isLoading,
   onStatusUpdate: _onStatusUpdate,
@@ -114,7 +115,7 @@ export function ContextFooter({
 }) {
   const [developerMode, setDeveloperMode] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isEnablingLocal, setIsEnablingLocal] = useState(false);
+  const [isEnablingInternal, setIsEnablingInternal] = useState(false);
   const [scrollMaxHeight, setScrollMaxHeight] = useState(undefined);
   const scrollWrapperRef = useRef(null);
   // The scroll viewport for the JSON area. Handed to JsonView's scrollRef so the
@@ -563,14 +564,14 @@ export function ContextFooter({
   // the popup before the promise settles; that is fine, because the background's
   // permissions.onAdded listener does the registration and re-detection either way,
   // so reopening the popup shows the instance.
-  const handleEnableLocalAccess = async () => {
-    setIsEnablingLocal(true);
+  const handleEnableInternalAccess = async () => {
+    setIsEnablingInternal(true);
     try {
-      await requestLocalAccess();
+      await requestInternalAccess();
     } catch (error) {
-      console.error('[ContextFooter] Could not request local instance access:', error);
+      console.error('[ContextFooter] Could not request internal instance access:', error);
     } finally {
-      setIsEnablingLocal(false);
+      setIsEnablingInternal(false);
     }
   };
 
@@ -633,16 +634,16 @@ export function ContextFooter({
                     </Tooltip.Content>
                   </Tooltip>
                 </div>
-              ) : blockedLocalInstance ? (
+              ) : blockedInternalInstance ? (
                 <div className='flex min-w-0 flex-1 items-center gap-x-1'>
-                  <span className='shrink-0'>Local Instance</span>
+                  <span className='shrink-0'>Internal Instance</span>
                   <Tooltip>
                     <Tooltip.Trigger className='flex min-w-0 items-center'>
                       <Chip className='min-w-0 shrink lowercase' color='warning' size='sm' variant='soft'>
-                        <Chip.Label className='min-w-0 truncate'>{blockedLocalInstance}</Chip.Label>
+                        <Chip.Label className='min-w-0 truncate'>{blockedInternalInstance}</Chip.Label>
                       </Chip>
                     </Tooltip.Trigger>
-                    <Tooltip.Content className='max-w-60'>Instance: {blockedLocalInstance}</Tooltip.Content>
+                    <Tooltip.Content className='max-w-60'>Instance: {blockedInternalInstance}</Tooltip.Content>
                   </Tooltip>
                 </div>
               ) : (
@@ -675,12 +676,18 @@ export function ContextFooter({
                     </span>
                   </>
                 )
-              ) : blockedLocalInstance ? (
+              ) : blockedInternalInstance ? (
                 <div className='flex w-full min-w-0 flex-col items-start gap-1'>
                   <span className='w-full text-left font-medium'>The toolkit needs your permission to run here</span>
-                  <Button isDisabled={isEnablingLocal} size='sm' variant='primary' onPress={handleEnableLocalAccess}>
-                    {isEnablingLocal ? <Spinner size='sm' /> : null}
-                    Enable Local Instances
+                  <Button
+                    fullWidth
+                    isDisabled={isEnablingInternal}
+                    size='sm'
+                    variant='primary'
+                    onPress={handleEnableInternalAccess}
+                  >
+                    {isEnablingInternal ? <Spinner size='sm' /> : <IconLockOpen />}
+                    Enable Internal Instances
                   </Button>
                 </div>
               ) : (

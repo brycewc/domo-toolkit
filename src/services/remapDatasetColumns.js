@@ -1,7 +1,13 @@
 import { isFusionView, makeItemKey } from './columnReferences';
 import { hasEffectiveMapping, rewriteBeastModeColumns } from './columnRewriter';
 import { getFunctionTemplate, updateDatasetFunctions } from './functions';
-import { swapCardInput, swapDataflowInput, swapDatasetViewInput, swapFusionInput } from './migrateDownstreamContent';
+import {
+  describeSwapFailure,
+  swapCardInput,
+  swapDataflowInput,
+  swapDatasetViewInput,
+  swapFusionInput
+} from './migrateDownstreamContent';
 import { swapAppColumns } from './proCodeApps';
 
 /**
@@ -99,7 +105,7 @@ export async function remapDatasetColumns({
             manualReview.push({ id: item.id, name: item.name || String(item.id) });
           }
         } else {
-          errors.push({ error: resp?.error || 'Unknown error', id: item.id });
+          errors.push({ error: describeSwapFailure(resp), id: item.id });
         }
       }
 
@@ -163,6 +169,7 @@ async function dispatchRemap(
       droppedColumns,
       originId: datasetId,
       tabId,
+      targetColumnTypes,
       targetId: datasetId,
       urn: item.urn
     });

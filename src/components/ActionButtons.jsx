@@ -282,7 +282,8 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('migrateDownstreamContent') && (
+                {(availableActions.has('migrateBeastModeUsage') ||
+                  availableActions.has('migrateDownstreamContent')) && (
                   <MigrateDownstreamContent currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('remapColumns') && (

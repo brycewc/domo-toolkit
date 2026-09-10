@@ -21,7 +21,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
     if (!isSupportedForShare(currentContext.domoObject)) {
       onStatusUpdate?.(
         'Unsupported Object Type',
-        `Share with Self is not supported for ${currentContext.domoObject.typeName}. Supported types: DataSet, Page, Studio App, App Studio Page, Custom App Design, DomoApp Card.`,
+        `Share with Self is not supported for ${currentContext.domoObject.typeName}. Supported types: DataSet, Page, Studio App, App Studio Page, Custom App Design, DomoApp Card, Task Center Queue, Task Center Task.`,
         'danger'
       );
       return;
@@ -45,6 +45,8 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
       const accountIds = getAccountIdsForDomoObject(currentContext.domoObject);
       label =
         accountIds.length > 1 ? `${accountIds.length} accounts (${accountIds.join(', ')})` : `Account ${accountIds[0]}`;
+    } else if (queueIdForShare(currentContext.domoObject)) {
+      label = `Queue ${queueIdForShare(currentContext.domoObject)}`;
     } else {
       label = `${currentContext.domoObject?.typeName} ${currentContext.domoObject?.id}`;
     }
@@ -103,6 +105,11 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
   const needsAccountAdmin = currentContext?.domoObject?.typeId === 'DATA_SOURCE' && !userRights.includes('account.admin');
   const needsAppAdmin =
     ['APP', 'RYUU_APP'].includes(currentContext?.domoObject?.typeId) && !userRights.includes('app.admin');
+  const taskCenterTypes = ['HOPPER_QUEUE', 'HOPPER_TASK'];
+  const isTaskCenter = taskCenterTypes.includes(currentContext?.domoObject?.typeId);
+  const needsTasksAdmin = isTaskCenter && !userRights.includes('tasks.admin');
+  const isTaskWithoutQueue =
+    currentContext?.domoObject?.typeId === 'HOPPER_TASK' && !queueIdForShare(currentContext.domoObject);
   const typeName = currentContext?.domoObject?.typeName;
   const isDataSource = currentContext?.domoObject?.typeId === 'DATA_SOURCE';
   const hasAccounts = isDataSource && getAccountIdsForDomoObject(currentContext.domoObject).length > 0;
@@ -113,15 +120,19 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
       ? 'Navigate to a Domo object use share with self'
       : isDataSource && !hasAccounts
         ? 'This dataset has no connected account to share'
-        : !isSupportedType
-          ? `Share with self isn't supported for ${typeName?.toLowerCase()}s`
-          : needsContentAdmin
-            ? `You need the Content Admin permission to share this ${typeName?.toLowerCase()}`
-            : needsAccountAdmin
-              ? "You need the Account Admin permission to share this dataset's account(s)"
-              : needsAppAdmin
-                ? 'You need the App Admin permission to share this app'
-                : null;
+        : isTaskWithoutQueue
+          ? "This task's queue could not be found, so there is nothing to share"
+          : !isSupportedType
+            ? `Share with self isn't supported for ${typeName?.toLowerCase()}s`
+            : needsContentAdmin
+              ? `You need the Content Admin permission to share this ${typeName?.toLowerCase()}`
+              : needsAccountAdmin
+                ? "You need the Account Admin permission to share this dataset's account(s)"
+                : needsAppAdmin
+                  ? 'You need the App Admin permission to share this app'
+                  : needsTasksAdmin
+                    ? 'You need the Task Center Admin permission to share this queue'
+                    : null;
 
   if (disabledReason) {
     return (
@@ -139,7 +150,13 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
         <IconPersonPlus />
       </Button>
       <Tooltip.Content className='max-w-60' offset={4}>
-        {isDataSource ? <>Share dataset account(s) with yourself</> : <>Share {typeName?.toLowerCase()} with yourself</>}
+        {isDataSource ? (
+          <>Share dataset account(s) with yourself</>
+        ) : currentContext?.domoObject?.typeId === 'HOPPER_TASK' ? (
+          <>Share this task&rsquo;s queue with yourself</>
+        ) : (
+          <>Share {typeName?.toLowerCase()} with yourself</>
+        )}
       </Tooltip.Content>
     </Tooltip>
   );
@@ -152,6 +169,8 @@ function isSupportedForShare(domoObject) {
     'DATA_APP',
     'DATA_APP_VIEW',
     'DATA_SOURCE',
+    'HOPPER_QUEUE',
+    'HOPPER_TASK',
     'PAGE',
     'RYUU_APP',
     'WORKSHEET',
@@ -165,5 +184,14 @@ function isSupportedForShare(domoObject) {
   if (domoObject.typeId === 'DATA_SOURCE') {
     return getAccountIdsForDomoObject(domoObject).length > 0;
   }
+  if (domoObject.typeId === 'HOPPER_TASK') {
+    return !!queueIdForShare(domoObject);
+  }
   return true;
+}
+
+function queueIdForShare(domoObject) {
+  if (domoObject?.typeId === 'HOPPER_QUEUE') return domoObject.id ?? null;
+  if (domoObject?.typeId !== 'HOPPER_TASK') return null;
+  return domoObject.parentId || domoObject.metadata?.details?.queueId || null;
 }

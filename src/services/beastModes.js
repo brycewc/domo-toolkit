@@ -1,5 +1,5 @@
 import { refineTypeFromMetadata } from '@/models/DomoObjectType';
-import { parseBeastModeLinks, rootCardIdsFor } from '@/utils/beastModeLinks';
+import { beastModeSaveTarget, parseBeastModeLinks, rootCardIdsFor } from '@/utils/beastModeLinks';
 import { executeInPage } from '@/utils/executeInPage';
 
 import { getCardsByIds } from './cards';
@@ -20,6 +20,48 @@ import { getFunctionTemplate, hydrateFunctionTemplates } from './functions';
 export async function getBeastModeCards({ id, metadata, tabId = null }) {
   const links = await resolveBeastModeLinks({ id, metadata, tabId });
   return getCardsByIds({ cardIds: rootCardIdsFor(parseBeastModeLinks(links)), tabId });
+}
+
+/**
+ * The Beast Modes that nest this one, each with the template a repoint has to
+ * rewrite and where that template is saved. `getBeastModeUsage` names the same
+ * parents but throws their templates away; repointing one needs the expression
+ * (to rewrite its `DOMO_BEAST_MODE(<id>)` reference) and the save target, which
+ * decides whether the fix is a template update or a card save.
+ *
+ * @param {Object} params
+ * @param {string|number} params.id - The Beast Mode (function template) ID
+ * @param {Object} [params.metadata] - The detected object's metadata
+ * @param {number|null} [params.tabId]
+ * @returns {Promise<Array<{
+ *   id: string,
+ *   name: string|null,
+ *   saveTarget: {id: string, parentId: string|null, typeId: 'CARD'|'DRILL_VIEW'}|null,
+ *   template: Object|null
+ * }>>} Sorted by name. One whose template wouldn't load keeps its id with a null
+ *   template, so it still shows as usage rather than vanishing; `saveTarget` is
+ *   only meaningful when `template` is present.
+ */
+export async function getBeastModeNestingParents({ id, metadata, tabId = null }) {
+  const links = await resolveBeastModeLinks({ id, metadata, tabId });
+  const { nestedByIds } = parseBeastModeLinks(links);
+  if (nestedByIds.length === 0) return [];
+
+  const templates = await hydrateFunctionTemplates(
+    nestedByIds.map((templateId) => ({ id: templateId })),
+    tabId
+  );
+  return nestedByIds
+    .map((templateId) => {
+      const template = templates.get(templateId) || null;
+      return {
+        id: templateId,
+        name: template?.name || null,
+        saveTarget: template ? beastModeSaveTarget(template.links) : null,
+        template
+      };
+    })
+    .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
 }
 
 /**

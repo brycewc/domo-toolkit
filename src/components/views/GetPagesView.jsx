@@ -562,7 +562,7 @@ export function GetPagesView({
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
-            <Button isPending={isRetrying} size='sm' onPress={handleRetry}>
+            <Button fullWidth isPending={isRetrying} size='sm' onPress={handleRetry}>
               {isRetrying ? <Spinner color='currentColor' size='sm' /> : <IconSync />}
               Retry
             </Button>

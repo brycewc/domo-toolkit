@@ -39,6 +39,9 @@ import { executeInPage } from '@/utils/executeInPage';
  * `columnMap` is the same map the swap applies. Beast-Mode-mapped fields are
  * excluded (they bind by `beastModeName`, not `columnName`).
  *
+ * Only a collision the map CREATES is reported: aliases that already share one
+ * column blank each other out with or without the swap.
+ *
  * @param {Array<Array<{alias: string, columnName: string|null, beastModeName: string|null}>>} fieldGroups - One group per dataset binding for the migrated dataset.
  * @param {Record<string, string|null>} [columnMap] - Origin → target column name; null/no-op entries leave the column name unchanged.
  * @returns {Array<{columnName: string, aliases: string[]}>}
@@ -55,11 +58,13 @@ export function findAppColumnCollisions(fieldGroups, columnMap) {
       // The resulting column is the remapped name when the map renames it, else
       // the field's existing column. Mirrors how swapAppColumns rewrites columnName.
       const to = map[from] != null && map[from] !== from ? map[from] : from;
-      if (!byColumn.has(to)) byColumn.set(to, []);
-      byColumn.get(to).push(field.alias);
+      if (!byColumn.has(to)) byColumn.set(to, { aliases: [], sources: new Set() });
+      const landing = byColumn.get(to);
+      landing.aliases.push(field.alias);
+      landing.sources.add(from);
     }
-    for (const [columnName, aliases] of byColumn) {
-      if (aliases.length > 1) collisions.push({ aliases, columnName });
+    for (const [columnName, { aliases, sources }] of byColumn) {
+      if (aliases.length > 1 && sources.size > 1) collisions.push({ aliases, columnName });
     }
   }
   return collisions;

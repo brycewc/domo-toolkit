@@ -121,9 +121,6 @@
 
   /* Animations */
   --animate-spin: spin 1s linear infinite;
-  /* Counter-clockwise spin for the refresh (sync) icon, matching the direction
-     Domo's own sync icon arrows travel. */
-  --animate-spin-reverse: spin-reverse 1s linear infinite;
 
   @keyframes spin {
     from {
@@ -133,25 +130,16 @@
       transform: rotate(360deg);
     }
   }
-
-  @keyframes spin-reverse {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(-360deg);
-    }
-  }
 }
 
 @layer components {
   /* Toast customizations on top of HeroUI's desktop layout (now always
-     active via the breakpoint override above). self-center and
-     rounded-full/border/bg-overlay are extension-specific tweaks, not
-     HeroUI defaults. The custom ToastProvider still handles Toast's
-     JS-based viewport check for action-button placement. */
+     active via the breakpoint override above). rounded-full/border/bg-overlay
+     are extension-specific tweaks, not HeroUI defaults. The action button is
+     rendered inside the content column (see ToastProvider), so it stacks under
+     the description instead of taking width from it. */
   .toast__action {
-    @apply mt-0 self-center;
+    @apply mt-2 w-full;
   }
 
   .toast__close-button {
@@ -341,5 +329,16 @@
      within the shared `components` layer wins the conflicting bg/shadow. */
   .alert--transparent {
     @apply border bg-transparent text-foreground shadow-none;
+  }
+
+  /* Alerts and toasts nest their indicator inside the title, laid out by the
+     call site as `flex items-center gap-1`. Centering only reads right while
+     the title fits on one line; once it wraps, the icon drifts to the middle
+     of the text block. Pin it to the first line instead. `align-self` on the
+     icon does it without fighting the call site's `items-center`, which sets
+     `align-items` on the container and so loses to any `align-self` here. */
+  .alert__title > .alert__indicator,
+  .toast__title > .toast__indicator {
+    align-self: flex-start;
   }
 }

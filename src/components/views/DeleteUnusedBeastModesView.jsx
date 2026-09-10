@@ -14,6 +14,7 @@ import { getValidTabForInstance } from '@/utils/currentObject';
 import { parseMarkdownBold } from '@/utils/markdown';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconBeastMode from '@icons/beast-mode.svg?react';
+import IconSync from '@icons/sync.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 import IconX from '@icons/x.svg?react';
 
@@ -86,11 +87,12 @@ export function DeleteUnusedBeastModesView({
       // "delete everything unused" is one click; locked ones stay unchecked as
       // an explicit opt-in. Include a group id whenever all of its leaves start
       // selected so the group checkbox reads as fully checked.
-      const beastIds = found.filter((c) => !c.variable && !c.locked).map((c) => String(c.id));
-      const variableIds = found.filter((c) => c.variable && !c.locked).map((c) => String(c.id));
-      const initial = new Set([...beastIds, ...variableIds]);
-      if (beastIds.length) initial.add('group-beastModes');
-      if (variableIds.length) initial.add('group-variables');
+      const { beast, useTypeGroups, variables } = partitionCandidates(found);
+      const initial = new Set([...beast, ...variables].map((c) => String(c.id)));
+      if (useTypeGroups) {
+        initial.add('group-beastModes');
+        initial.add('group-variables');
+      }
       setSelectedIds(initial);
 
       setError(null);
@@ -110,20 +112,16 @@ export function DeleteUnusedBeastModesView({
   };
 
   const { allLeafIds, groupsById, leafToGroup } = useMemo(() => {
-    const beast = [];
-    const locked = [];
-    const variables = [];
-    for (const c of candidates) {
-      const sid = String(c.id);
-      if (c.locked) locked.push(sid);
-      else if (c.variable) variables.push(sid);
-      else beast.push(sid);
+    const partition = partitionCandidates(candidates);
+    const toIds = (list) => list.map((c) => String(c.id));
+    const beast = toIds(partition.beast);
+    const locked = toIds(partition.locked);
+    const variables = toIds(partition.variables);
+    const groups = new Map([['group-locked', locked]]);
+    if (partition.useTypeGroups) {
+      groups.set('group-beastModes', beast);
+      groups.set('group-variables', variables);
     }
-    const groups = new Map([
-      ['group-beastModes', beast],
-      ['group-locked', locked],
-      ['group-variables', variables]
-    ]);
     const leafGroup = new Map();
     for (const [gid, ids] of groups) {
       for (const id of ids) leafGroup.set(id, gid);
@@ -329,7 +327,8 @@ export function DeleteUnusedBeastModesView({
           <Alert.Title>Error</Alert.Title>
           <div className='flex flex-col items-start gap-2'>
             <Alert.Description>{error}</Alert.Description>
-            <Button size='sm' onPress={handleRefresh}>
+            <Button fullWidth size='sm' onPress={handleRefresh}>
+              <IconSync />
               Retry
             </Button>
           </div>
@@ -404,19 +403,10 @@ export function DeleteUnusedBeastModesView({
   );
 }
 
-// Build the grouped item tree: unlocked Beast Modes and unlocked Variables each
-// get their own group; anything locked (either type) goes in a separate "Locked"
-// group that starts unchecked, so deleting a locked template is an explicit
-// opt-in. Only non-empty groups are returned.
+// Anything locked (either type) goes in its own group that starts unchecked, so
+// deleting a locked template is an explicit opt-in.
 function buildItems(candidates, origin) {
-  const beast = [];
-  const locked = [];
-  const variables = [];
-  for (const c of candidates) {
-    if (c.locked) locked.push(c);
-    else if (c.variable) variables.push(c);
-    else beast.push(c);
-  }
+  const { beast, locked, useTypeGroups, variables } = partitionCandidates(candidates);
 
   const makeLeaf = (c) => {
     const typeId = c.variable ? 'VARIABLE' : 'BEAST_MODE_FORMULA';
@@ -427,19 +417,15 @@ function buildItems(candidates, origin) {
   };
   const byName = (a, b) => (a.name || '').localeCompare(b.name || '');
 
-  const groups = [];
-  if (beast.length) {
-    groups.push(
+  const rows = [];
+  if (useTypeGroups) {
+    rows.push(
       DataListItem.createGroup({
         children: beast.slice().sort(byName).map(makeLeaf),
         childTypeId: 'BEAST_MODE_FORMULA',
         id: 'group-beastModes',
         label: 'Beast Modes'
-      })
-    );
-  }
-  if (variables.length) {
-    groups.push(
+      }),
       DataListItem.createGroup({
         children: variables.slice().sort(byName).map(makeLeaf),
         childTypeId: 'VARIABLE',
@@ -447,6 +433,8 @@ function buildItems(candidates, origin) {
         label: 'Variables'
       })
     );
+  } else {
+    rows.push(...[...beast, ...variables].sort(byName).map(makeLeaf));
   }
   if (locked.length) {
     const children = locked
@@ -454,12 +442,12 @@ function buildItems(candidates, origin) {
       .sort(byName)
       .map((c) => {
         const item = makeLeaf(c);
-        item.annotation = { tooltip: 'Locked — select it to include it in the delete' };
+        item.annotation = { tooltip: 'Locked: select it to include it in the delete' };
         return item;
       });
-    groups.push(DataListItem.createGroup({ children, id: 'group-locked', label: 'Locked (not selected by default)' }));
+    rows.push(DataListItem.createGroup({ children, id: 'group-locked', label: 'Locked (not selected by default)' }));
   }
-  return groups;
+  return rows;
 }
 
 function describeSelection({ beastModes, variables }) {
@@ -467,4 +455,19 @@ function describeSelection({ beastModes, variables }) {
   if (beastModes > 0) parts.push(`**${beastModes}** Beast Mode${beastModes === 1 ? '' : 's'}`);
   if (variables > 0) parts.push(`**${variables}** Variable${variables === 1 ? '' : 's'}`);
   return parts.join(' and ');
+}
+
+// `useTypeGroups` is false when only one of the two types is present: a dataset
+// can only ever return Beast Modes, so a "Beast Modes" header there would just
+// repeat the view title above it.
+function partitionCandidates(candidates) {
+  const beast = [];
+  const locked = [];
+  const variables = [];
+  for (const c of candidates) {
+    if (c.locked) locked.push(c);
+    else if (c.variable) variables.push(c);
+    else beast.push(c);
+  }
+  return { beast, locked, useTypeGroups: beast.length > 0 && variables.length > 0, variables };
 }

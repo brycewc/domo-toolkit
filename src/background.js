@@ -19,13 +19,13 @@ import {
   rootCardIdsFor
 } from '@/utils/beastModeLinks';
 import { clearCookies } from '@/utils/clearCookies';
-import { DOMO_MATCH_PATTERNS, EXCLUDED_HOSTNAMES, LOCAL_MATCH_PATTERN, SECTION_TITLES } from '@/utils/constants';
+import { DOMO_MATCH_PATTERNS, EXCLUDED_HOSTNAMES, INTERNAL_MATCH_PATTERNS, SECTION_TITLES } from '@/utils/constants';
 import { copyToClipboard } from '@/utils/copyToClipboard';
 import { detectCurrentObject, isDomoUrl } from '@/utils/currentObject';
 import { executeInPage } from '@/utils/executeInPage';
 import { pathnameOf } from '@/utils/general';
-import { instanceKeyFromUrl, isLocalDomoHostname, isLocalInstanceKey } from '@/utils/instance';
-import { hasLocalAccess, registerLocalContentScript, unregisterLocalContentScript } from '@/utils/localInstance';
+import { instanceKeyFromUrl, isInternalDomoHostname, isInternalInstanceKey, isLocalDomoHostname } from '@/utils/instance';
+import { hasInternalAccess, registerInternalContentScript, unregisterInternalContentScript } from '@/utils/internalInstance';
 import { sidepanelStorageKeyPrefix } from '@/utils/sidepanel';
 
 // Generic titles the toolkit applies to list/index pages, in both the bare and
@@ -239,24 +239,24 @@ const verifiedLocalOrigins = new Set();
 // Cached setting: omit the " - Domo" suffix when renaming Domo tabs (synced from storage)
 let removeDomoTitleSuffix = false;
 
-// Mirror of the optional localhost permission, so the synchronous tab-handling
+// Mirror of the optional internal-host permission, so the synchronous tab-handling
 // paths (title management, content-script injection) can gate on it without an
 // await. Only a fast pre-filter: confirmDomoTab and canActOnHost re-check the
 // real permission, so a stale `true` here cannot grant access. A stale `false`
 // merely skips work until the next tab event.
-let localAccessGranted = false;
+let internalAccessGranted = false;
 
 /**
- * The instance key for a tab we are deliberately not acting on because it looks
- * like a locally run Domo instance the user has not opted in to. Lets the popup
- * offer the opt-in instead of claiming the tab is not Domo at all.
+ * The instance key for a tab we are deliberately not acting on because it is a
+ * Domo-internal host the user has not opted in to. Lets the popup offer the
+ * opt-in instead of claiming the tab is not Domo at all.
  * @param {string} url - A full URL string
- * @returns {string|null} The local instance key, or null if this is not that case
+ * @returns {string|null} The internal instance key, or null if this is not that case
  */
-function blockedLocalInstance(url) {
+function blockedInternalInstance(url) {
   try {
     const { host, hostname } = new URL(url);
-    return isLocalDomoHostname(hostname) && !localAccessGranted ? host : null;
+    return isInternalDomoHostname(hostname) && !internalAccessGranted ? host : null;
   } catch {
     return null;
   }
@@ -265,16 +265,17 @@ function blockedLocalInstance(url) {
 /**
  * Confirm a tab really is a Domo page.
  *
- * Hosted instances are settled by their hostname alone. A `*.localhost` host has
- * to clear two separate bars:
+ * Hosted instances are settled by their hostname alone. An internal host has to
+ * clear two separate bars:
  *
- *   1. The user has opted in to local instances. This must be checked, not just
+ *   1. The user has opted in to internal instances. This must be checked, not just
  *      left to the browser: `activeTab` grants host access to whatever tab the
- *      user opened the popup on, so scripting a local page succeeds even with the
- *      optional permission never granted. Without this check, local support turns
- *      itself on the moment the popup is opened on a local tab.
+ *      user opened the popup on, so scripting an internal page succeeds even with
+ *      the optional permission never granted. Without this check, internal support
+ *      turns itself on the moment the popup is opened on such a tab.
  *   2. The page is actually running Domo, since any local dev server can sit on a
- *      `*.localhost` host. Probed in the page for Domo's `window.bootstrap`.
+ *      `*.localhost` host. Probed in the page for Domo's `window.bootstrap`. A rig
+ *      host skips this: `domorig.io` is Domo's own domain and hosts nothing else.
  *
  * Positive verdicts are cached per origin; negative ones are not, so a page that
  * had not assigned `bootstrap` yet (or an unauthenticated login page, which never
@@ -283,19 +284,24 @@ function blockedLocalInstance(url) {
  * @returns {Promise<boolean>}
  */
 async function confirmDomoTab(tab) {
-  let origin;
+  let hostname, origin;
   try {
     const url = new URL(tab.url);
-    if (!isLocalDomoHostname(url.hostname)) {
+    if (!isInternalDomoHostname(url.hostname)) {
       return true;
     }
+    hostname = url.hostname;
     origin = url.origin;
   } catch {
     return false;
   }
 
-  if (!(await hasLocalAccess())) {
+  if (!(await hasInternalAccess())) {
     return false;
+  }
+
+  if (!isLocalDomoHostname(hostname)) {
+    return true;
   }
 
   if (verifiedLocalOrigins.has(origin)) {
@@ -393,7 +399,7 @@ function invalidateInstanceUser(instance) {
 
 /**
  * Whether the extension should act on a tab at all: a Domo URL that is either
- * hosted, or local with the opt-in permission granted.
+ * hosted, or internal with the opt-in permission granted.
  * @param {string} url - A full URL string
  * @returns {boolean}
  */
@@ -402,7 +408,7 @@ function isActionableDomoUrl(url) {
     return false;
   }
   try {
-    return !isLocalDomoHostname(new URL(url).hostname) || localAccessGranted;
+    return !isInternalDomoHostname(new URL(url).hostname) || internalAccessGranted;
   } catch {
     return false;
   }
@@ -410,6 +416,7 @@ function isActionableDomoUrl(url) {
 
 // Per-tab API error storage
 const tabApiErrors = new Map();
+const tabAppliedTitles = new Map();
 const tabLastContext = new Map();
 const MAX_ERRORS_PER_TAB = 50;
 
@@ -777,24 +784,40 @@ function setTabContext(tabId, context) {
 }
 
 function setTabTitle(tabId, objectName, allowedTitles = [], force = false, allowedPrefixes = []) {
+  const ourTitle = tabAppliedTitles.get(tabId);
+  // An in-place navigation to another object (a DataSet's Alerts tab, say)
+  // leaves our last title standing, and Domo never rewrites it, so a title we
+  // wrote ourselves counts as free to replace.
+  const allowed = ourTitle && !allowedTitles.includes(ourTitle) ? [...allowedTitles, ourTitle] : allowedTitles;
+  const newTitle = removeDomoTitleSuffix ? objectName : `${objectName} - Domo`;
   try {
-    chrome.scripting.executeScript({
-      args: [objectName, allowedTitles, allowedPrefixes, SECTION_TITLE_STRINGS, removeDomoTitleSuffix, force],
-      func: (objectName, allowedTitles, allowedPrefixes, sectionTitles, removeSuffix, force) => {
-        const currentTitle = document.title.trim();
-        const isManagedTitle =
-          currentTitle === 'Domo' ||
-          sectionTitles.includes(currentTitle) ||
-          allowedTitles.includes(currentTitle) ||
-          allowedPrefixes.some((prefix) => prefix && currentTitle.startsWith(prefix));
-        if (!force && !isManagedTitle) {
-          return;
+    chrome.scripting
+      .executeScript({
+        args: [objectName, allowed, allowedPrefixes, SECTION_TITLE_STRINGS, removeDomoTitleSuffix, force],
+        func: (objectName, allowedTitles, allowedPrefixes, sectionTitles, removeSuffix, force) => {
+          const currentTitle = document.title.trim();
+          const isManagedTitle =
+            currentTitle === 'Domo' ||
+            sectionTitles.includes(currentTitle) ||
+            allowedTitles.includes(currentTitle) ||
+            allowedPrefixes.some((prefix) => prefix && currentTitle.startsWith(prefix));
+          if (!force && !isManagedTitle) {
+            return false;
+          }
+          document.title = removeSuffix ? objectName : `${objectName} - Domo`;
+          return true;
+        },
+        target: { tabId },
+        world: 'MAIN'
+      })
+      .then((results) => {
+        if (results?.[0]?.result) {
+          tabAppliedTitles.set(tabId, newTitle);
         }
-        document.title = removeSuffix ? objectName : `${objectName} - Domo`;
-      },
-      target: { tabId },
-      world: 'MAIN'
-    });
+      })
+      .catch((error) => {
+        console.error(`[Background] Error updating title for tab ${tabId}:`, error);
+      });
   } catch (error) {
     console.error(`[Background] Error updating title for tab ${tabId}:`, error);
   }
@@ -892,18 +915,19 @@ chrome.runtime.onInstalled.addListener((details) => {
   });
 });
 
-// Keep the dynamically registered local-instance content script in step with the
-// optional host permission, including when it is granted or revoked from Chrome's
-// own extension settings rather than from our options page.
+// Keep the dynamically registered internal-instance content script in step with
+// the optional host permission, including when it is granted or revoked from
+// Chrome's own extension settings rather than from our options page.
 chrome.permissions.onAdded.addListener(async (permissions) => {
-  if (permissions.origins?.includes(LOCAL_MATCH_PATTERN)) {
-    localAccessGranted = true;
-    await registerLocalContentScript();
-    // Detect the local tabs that were being skipped, so the popup fills in as soon
-    // as the user opts in rather than waiting for the next navigation.
+  if (permissions.origins?.some((origin) => INTERNAL_MATCH_PATTERNS.includes(origin))) {
+    internalAccessGranted = await hasInternalAccess();
+    if (!internalAccessGranted) return;
+    await registerInternalContentScript();
+    // Detect the internal tabs that were being skipped, so the popup fills in as
+    // soon as the user opts in rather than waiting for the next navigation.
     const tabs = await chrome.tabs.query({ url: DOMO_MATCH_PATTERNS });
     for (const tab of tabs) {
-      if (tab.url && isActionableDomoUrl(tab.url) && isLocalInstanceKey(instanceKeyFromUrl(tab.url) || '')) {
+      if (tab.url && isActionableDomoUrl(tab.url) && isInternalInstanceKey(instanceKeyFromUrl(tab.url) || '')) {
         await detectAndStoreContext(tab.id);
       }
     }
@@ -911,18 +935,18 @@ chrome.permissions.onAdded.addListener(async (permissions) => {
 });
 
 chrome.permissions.onRemoved.addListener(async (permissions) => {
-  if (permissions.origins?.includes(LOCAL_MATCH_PATTERN)) {
-    localAccessGranted = false;
-    await unregisterLocalContentScript();
+  if (permissions.origins?.some((origin) => INTERNAL_MATCH_PATTERNS.includes(origin))) {
+    internalAccessGranted = false;
+    await unregisterInternalContentScript();
     // Drop confirmed origins too. confirmDomoTab checks the permission before the
     // cache, so a stale entry cannot grant access, but clearing means re-granting
     // after repointing a dev server re-probes instead of trusting an old verdict.
     verifiedLocalOrigins.clear();
     await chrome.storage.session.remove(VERIFIED_LOCAL_ORIGINS_KEY);
-    // Any context already detected for a local tab has to go, or the popup keeps
-    // rendering it as a live instance after the user opted out.
+    // Any context already detected for an internal tab has to go, or the popup
+    // keeps rendering it as a live instance after the user opted out.
     for (const [tabId, context] of tabContexts) {
-      if (context?.instance && isLocalInstanceKey(context.instance)) {
+      if (context?.instance && isInternalInstanceKey(context.instance)) {
         tabContexts.delete(tabId);
         tabAccessTimes.delete(tabId);
         chrome.runtime.sendMessage({ context: null, tabId, type: 'TAB_CONTEXT_UPDATED' }).catch(() => {
@@ -939,10 +963,10 @@ restoreFromSession();
 applyIconFromStorage();
 // Hydrate the cached permission flag, and re-assert the content-script
 // registration: it does not survive an extension reload in dev, and a granted
-// permission with no registered script means local instances silently stop working.
-hasLocalAccess().then((granted) => {
-  localAccessGranted = granted;
-  if (granted) registerLocalContentScript();
+// permission with no registered script means internal instances silently stop working.
+hasInternalAccess().then((granted) => {
+  internalAccessGranted = granted;
+  if (granted) registerInternalContentScript();
 });
 
 chrome.runtime.onStartup.addListener(applyIconFromStorage);
@@ -1072,6 +1096,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabDetectionGen.delete(tabId);
   tabDetectionInFlight.delete(tabId);
   tabApiErrors.delete(tabId);
+  tabAppliedTitles.delete(tabId);
   tabLastContext.delete(tabId);
   persistToSession();
 });
@@ -1285,13 +1310,13 @@ async function detectAndStoreContext(tabId) {
       persistToSession();
 
       // Broadcast null context to extension pages so they update their UI. A
-      // blocked local instance rides along so the UI can offer the opt-in rather
+      // blocked internal instance rides along so the UI can offer the opt-in rather
       // than reporting the tab as not being Domo at all.
-      const blocked = tab?.url ? blockedLocalInstance(tab.url) : null;
+      const blocked = tab?.url ? blockedInternalInstance(tab.url) : null;
       if (hadContext || blocked) {
         chrome.runtime
           .sendMessage({
-            blockedLocalInstance: blocked,
+            blockedInternalInstance: blocked,
             context: null,
             tabId: tabId,
             type: 'TAB_CONTEXT_UPDATED'
@@ -1753,11 +1778,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               let blocked = null;
               if (!detected) {
                 const tab = await chrome.tabs.get(tabId).catch(() => null);
-                blocked = tab?.url ? blockedLocalInstance(tab.url) : null;
+                blocked = tab?.url ? blockedInternalInstance(tab.url) : null;
               }
-              sendResponse({ blockedLocalInstance: blocked, context: detected?.toJSON(), success: true });
+              sendResponse({ blockedInternalInstance: blocked, context: detected?.toJSON(), success: true });
             } else {
-              sendResponse({ blockedLocalInstance: null, context: context?.toJSON(), success: true });
+              sendResponse({ blockedInternalInstance: null, context: context?.toJSON(), success: true });
             }
             return;
           }
@@ -1782,7 +1807,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
 
           sendResponse({
-            blockedLocalInstance: context ? null : blockedLocalInstance(tabs[0].url),
+            blockedInternalInstance: context ? null : blockedInternalInstance(tabs[0].url),
             context: context?.toJSON(),
             success: true,
             tabId: activeTabId

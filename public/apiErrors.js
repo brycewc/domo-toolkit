@@ -17,12 +17,95 @@
     }
   }
 
-  var KPI_RENDER_PATTERN = /\/api\/content\/v3\/cards\/kpi\/render\/preview/;
+  // Endpoints that report a failure inside an otherwise successful response.
+  // Each extract() takes the parsed body and returns null when it reports no
+  // error. Matching on the URL first keeps every other 2xx body untouched.
+  var SOFT_ERROR_CHECKS = [
+    {
+      extract: extractDataflowPreviewError,
+      pattern: /\/api\/dataprocessing\/v\d+\/dataflows\/previews/
+    },
+    {
+      extract: extractKpiRenderError,
+      pattern: /\/api\/content\/v3\/cards\/kpi\/render\/preview/
+    }
+  ];
 
   // ---- Error emission ----
 
   function emitApiError(errorData) {
     window.postMessage({ error: errorData, source: 'domo-toolkit-api-error' }, '*');
+  }
+
+  function emitSoftError(method, url, soft) {
+    emitApiError({
+      method: method,
+      response: soft.response,
+      status: soft.status,
+      statusText: soft.statusText,
+      time: Date.now(),
+      timestamp: new Date().toLocaleTimeString(),
+      url: url
+    });
+  }
+
+  // ---- Embedded error extraction ----
+
+  function extractDataflowPreviewError(data) {
+    if (!data) return null;
+    var errors = Array.isArray(data.errors) ? data.errors : [];
+    if (data.failed !== true && !errors.length) return null;
+
+    // Domo repeats the same entry, and its own UI collapses the repeats.
+    var seen = new Set();
+    var deduped = [];
+    for (var i = 0; i < errors.length; i++) {
+      var error = errors[i] || {};
+      var key = [error.code, error.actionId, error.message].join('|');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(errors[i]);
+    }
+
+    return {
+      response: JSON.stringify({ errors: deduped, previewId: data.previewId, state: data.state }, null, 2),
+      status: 'Failed',
+      statusText: 'DataFlow Preview'
+    };
+  }
+
+  function extractKpiRenderError(data) {
+    if (!data || !data.exceptions) return null;
+    var details = data.exceptions.main && data.exceptions.main.details;
+    return {
+      response: JSON.stringify(data.exceptions, null, 2),
+      status: (details && details.status) || 'Exception',
+      statusText: (details && details.statusReason) || ''
+    };
+  }
+
+  function matchSoftErrorCheck(url) {
+    for (var i = 0; i < SOFT_ERROR_CHECKS.length; i++) {
+      if (SOFT_ERROR_CHECKS[i].pattern.test(url)) return SOFT_ERROR_CHECKS[i];
+    }
+    return null;
+  }
+
+  // responseText throws outright when responseType is not '' or 'text'.
+  function responseTextOf(xhr) {
+    try {
+      return xhr.responseText;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function softErrorFrom(check, text) {
+    try {
+      return check.extract(JSON.parse(text));
+    } catch (e) {
+      return null;
+    }
   }
 
   // ---- Fetch interception ----
@@ -41,13 +124,14 @@
     }
 
     var method = (args[1] && args[1].method) || (isRequestObject && args[0].method) || 'GET';
+    var softCheck = matchSoftErrorCheck(url);
 
     return originalFetch
       .apply(window, args)
       .then((response) => {
         if (!response.ok) {
-          var cloned = response.clone();
-          cloned
+          response
+            .clone()
             .text()
             .then((text) => {
               emitApiError({
@@ -61,25 +145,13 @@
               });
             })
             .catch(() => {});
-        } else if (KPI_RENDER_PATTERN.test(url)) {
-          // KPI render can return 200 with embedded exceptions
-          var cloned = response.clone();
-          cloned
-            .json()
-            .then((data) => {
-              if (data && data.exceptions) {
-                var details = data.exceptions.main && data.exceptions.main.details;
-                var innerStatus = details && details.status;
-                emitApiError({
-                  method: method,
-                  response: JSON.stringify(data.exceptions, null, 2),
-                  status: innerStatus || 'Exception',
-                  statusText: (details && details.statusReason) || '',
-                  time: Date.now(),
-                  timestamp: new Date().toLocaleTimeString(),
-                  url: url
-                });
-              }
+        } else if (softCheck) {
+          response
+            .clone()
+            .text()
+            .then((text) => {
+              var soft = softErrorFrom(softCheck, text);
+              if (soft) emitSoftError(method, url, soft);
             })
             .catch(() => {});
         }
@@ -127,30 +199,17 @@
       if (xhr.status >= 400) {
         emitApiError({
           method: monitor.method,
-          response: xhr.responseText,
+          response: responseTextOf(xhr),
           status: xhr.status,
           statusText: xhr.statusText,
           time: Date.now(),
           timestamp: new Date().toLocaleTimeString(),
           url: monitor.url
         });
-      } else if (xhr.status >= 200 && xhr.status < 300 && KPI_RENDER_PATTERN.test(monitor.url)) {
-        try {
-          var data = JSON.parse(xhr.responseText);
-          if (data && data.exceptions) {
-            var details = data.exceptions.main && data.exceptions.main.details;
-            var innerStatus = details && details.status;
-            emitApiError({
-              method: monitor.method,
-              response: JSON.stringify(data.exceptions, null, 2),
-              status: innerStatus || 'Exception',
-              statusText: (details && details.statusReason) || '',
-              time: Date.now(),
-              timestamp: new Date().toLocaleTimeString(),
-              url: monitor.url
-            });
-          }
-        } catch (e) {}
+      } else if (xhr.status >= 200 && xhr.status < 300) {
+        var softCheck = matchSoftErrorCheck(monitor.url);
+        var soft = softCheck && softErrorFrom(softCheck, responseTextOf(xhr));
+        if (soft) emitSoftError(monitor.method, monitor.url, soft);
       }
     });
 

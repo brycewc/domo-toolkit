@@ -1,6 +1,6 @@
 import { defineManifest } from '@crxjs/vite-plugin';
 import pkg from './package.json';
-import { EXCLUDED_HOSTNAMES, LOCAL_MATCH_PATTERN } from './src/utils/constants.js';
+import { EXCLUDED_HOSTNAMES, INTERNAL_MATCH_PATTERNS } from './src/utils/constants.js';
 
 // Excluded Domo hosts (support, developer, marketing, embed, etc.) as content-script
 // exclude_matches patterns, so the content script never injects there at all. Derived
@@ -38,11 +38,12 @@ export default defineManifest({
     'webRequest'
   ],
   host_permissions: ['*://*.domo.com/*'],
-  // Locally run Domo instances (Domo's own web developers) are off by default so
-  // regular users never see a broader install warning. The options page requests
-  // this from a user gesture and registers the content script dynamically, since
-  // a static content_scripts entry would reintroduce the warning.
-  optional_host_permissions: [LOCAL_MATCH_PATTERN],
+  // Domo-internal instances (a locally run Domo, or a development test rig) are
+  // off by default so regular users never see a broader install warning. The
+  // options page requests these from a user gesture and registers the content
+  // script dynamically, since a static content_scripts entry would reintroduce
+  // the warning.
+  optional_host_permissions: INTERNAL_MATCH_PATTERNS,
   content_security_policy: {
     extension_pages: "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
   },
@@ -100,9 +101,9 @@ export default defineManifest({
     {
       resources: ['public/apiErrors.js', 'public/domo-logo-no-background.png', 'public/domo-logo.png'],
       // The content script injects apiErrors.js into the page via <script src>,
-      // which requires the page's origin to be listed here. Declaring localhost
-      // is safe: web_accessible_resources grants no host access on its own.
-      matches: ['*://*.domo.com/*', LOCAL_MATCH_PATTERN]
+      // which requires the page's origin to be listed here. Declaring the internal
+      // hosts is safe: web_accessible_resources grants no host access on its own.
+      matches: ['*://*.domo.com/*', ...INTERNAL_MATCH_PATTERNS]
     }
   ]
 });

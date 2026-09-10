@@ -25,15 +25,15 @@ export const EXCLUDED_INSTANCES = EXCLUDED_HOSTNAMES.map((hostname) =>
   hostname.endsWith('.domo.com') ? hostname.replace('.domo.com', '') : hostname
 );
 
-// Chrome match patterns for every host the extension may act on: hosted Domo
-// instances plus locally run ones. Match patterns cannot contain a port, so
-// `*.localhost` covers every local dev port, and local hosts of the form
-// `<customer>.localhost.domo.com` already fall inside the domo.com pattern.
-// Access to the localhost pattern is an optional permission, so queries and
-// listeners using these simply return nothing for local hosts until the
-// developer opts in.
+// Match patterns cannot contain a port, so `*.localhost` covers every local dev
+// port, and `<customer>.localhost.domo.com` already falls inside the domo.com
+// pattern. The internal patterns are one optional permission granted as a unit,
+// so queries and listeners using these return nothing for those hosts until a
+// Domo developer opts in.
 export const LOCAL_MATCH_PATTERN = '*://*.localhost/*';
-export const DOMO_MATCH_PATTERNS = ['*://*.domo.com/*', LOCAL_MATCH_PATTERN];
+export const RIG_MATCH_PATTERN = '*://*.domorig.io/*';
+export const INTERNAL_MATCH_PATTERNS = [LOCAL_MATCH_PATTERN, RIG_MATCH_PATTERN];
+export const DOMO_MATCH_PATTERNS = ['*://*.domo.com/*', ...INTERNAL_MATCH_PATTERNS];
 
 // Partial match patterns for action colors
 // Checked after exact matches, uses .includes() for matching
@@ -69,6 +69,7 @@ export const ACTION_COLOR_PATTERNS = {
 export const SECTION_TITLES = {
   '/admin/people': 'People',
   '/ai-services/jupyter': 'Jupyter Workspaces',
+  '/alerts': 'Alerts Management',
   '/app-studio': 'App Studio Apps',
   '/appDb': 'AppDB Admin',
   '/approval': 'Approvals',
@@ -86,6 +87,10 @@ export const DEPENDENCY_FETCH_CONCURRENCY = 6;
 
 // Lists here run to thousands of rows, and a tab per row locks up the browser.
 export const MAX_OPEN_ALL_TABS = 50;
+
+// Domo's share endpoints take a list of resources, so a bulk share goes out in
+// chunks rather than one request per object. Caps how many ride along per call.
+export const SHARE_BATCH_SIZE = 100;
 
 export const EXPORT_FORMATS = {
   csv: {

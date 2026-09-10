@@ -94,7 +94,7 @@ export function ClearCookies({ currentContext, isDisabled }) {
 }
 
 async function getDomainsToPreserve() {
-  // Includes locally run instances: leaving them out meant a lone local tab fell
+  // Includes internal instances: leaving them out meant a lone internal tab fell
   // through to the clear-everything branch and logged the developer out.
   const allTabs = await chrome.tabs.query({ url: DOMO_MATCH_PATTERNS });
   const domoTabs = allTabs.filter((tab) => {

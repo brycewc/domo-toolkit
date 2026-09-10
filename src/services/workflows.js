@@ -1,6 +1,38 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
+ * Cancel an in-progress workflow execution. Zeebe terminates the run's elements,
+ * which makes Domo void any open Task Center task the run was waiting on, so a
+ * caller voiding that task afterward has to tolerate it already being voided.
+ * @param {Object} params
+ * @param {string} params.executionId - The workflow execution (instance) ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function cancelWorkflowExecution({ executionId, tabId = null }) {
+  const result = await executeInPage(
+    async (executionId) => {
+      const response = await fetch(`/api/workflow/v1/instances/${executionId}/cancel`, { method: 'POST' });
+      if (response.ok) return { ok: true };
+      if (response.status === 403) {
+        return { error: 'You need admin or edit permission on the Workflow to cancel its execution', ok: false };
+      }
+      const body = await response.text().catch(() => '');
+      let detail = '';
+      try {
+        detail = JSON.parse(body)?.message || '';
+      } catch {
+        // A non-JSON error body leaves the HTTP status as the only detail.
+      }
+      return { error: detail || `HTTP ${response.status}`, ok: false };
+    },
+    [executionId],
+    tabId
+  );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to cancel workflow execution');
+}
+
+/**
  * Delete a Workflow Model. Internally lists the model's versions and
  * deactivates any that are still active before issuing the DELETE, because
  * the delete endpoint rejects models with active versions.
@@ -164,6 +196,30 @@ export async function getVersionDefinition(modelId, versionNumber, tabId = null)
       return response.json();
     },
     [modelId, versionNumber],
+    tabId
+  );
+}
+
+/**
+ * Fetch a workflow execution's start time and status. `startedAt` is the value
+ * WORKFLOW_INSTANCE names itself by (`api.paths.name` on the type, newest field
+ * first); `status` is one of NOT_STARTED, IN_PROGRESS, COMPLETED, FAILED, CANCELLED.
+ * @param {string} executionId - The workflow execution (instance) ID.
+ * @param {number|null} tabId - Optional Chrome tab ID.
+ * @returns {Promise<{startedAt: string|number|null, status: string|null}|null>} Null if unavailable.
+ */
+export async function getWorkflowExecution(executionId, tabId = null) {
+  return executeInPage(
+    async (executionId) => {
+      const response = await fetch(`/api/workflow/v2/executions/${executionId}`);
+      if (!response.ok) return null;
+      const execution = await response.json();
+      return {
+        startedAt: execution?.startedAt ?? execution?.createdAt ?? null,
+        status: execution?.status ?? null
+      };
+    },
+    [executionId],
     tabId
   );
 }

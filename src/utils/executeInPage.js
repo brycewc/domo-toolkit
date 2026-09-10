@@ -1,5 +1,5 @@
 import { isDomoUrl } from './currentObject';
-import { canActOnHost } from './localInstance';
+import { canActOnHost } from './internalInstance';
 
 /**
  * Execute a function in ALL frames in the page context (MAIN world)

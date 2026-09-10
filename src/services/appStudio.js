@@ -163,25 +163,25 @@ export async function getQueuesForPage({ queueWidgetIds, tabId = null }) {
 }
 
 /**
- * Share an App Studio app or Worksheet with a user. Both types share the same
- * `/api/content/v1/dataapps/share` endpoint — callers pass the app ID for
- * `DATA_APP` and `WORKSHEET`, or the parent app ID for `DATA_APP_VIEW` and
- * `WORKSHEET_VIEW`.
+ * Share App Studio apps or Worksheets with a user. Callers pass app IDs for
+ * `DATA_APP`/`WORKSHEET`, or parent app IDs for their views. A failed request
+ * fails every app in the batch.
  * @param {Object} params
- * @param {string|number} params.appId - The app ID to share
+ * @param {Array<string|number>} params.appIds - The app IDs to share
  * @param {number} params.userId - The user ID to share with
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ * @returns {Promise<{failures: Array<{error: string, id: string|number}>}>}
  */
-export async function shareStudioApp({ appId, tabId = null, userId }) {
+export async function shareStudioApps({ appIds, tabId = null, userId }) {
+  if (!appIds.length) return { failures: [] };
   // Return a structured result rather than throwing: Chrome swallows a rejected
   // promise from an async injected function (null result, no error), which would
   // make a failed share report success. See executeInPage.
   const result = await executeInPage(
-    async (appId, userId) => {
+    async (appIds, userId) => {
       const response = await fetch('/api/content/v1/dataapps/share?sendEmail=false', {
         body: JSON.stringify({
-          dataAppIds: [appId],
+          dataAppIds: appIds,
           message: 'I thought you might find this interesting.',
           recipients: [{ id: userId, type: 'user' }]
         }),
@@ -191,10 +191,14 @@ export async function shareStudioApp({ appId, tabId = null, userId }) {
       if (!response.ok) return { error: `HTTP ${response.status}`, ok: false };
       return { ok: true };
     },
-    [appId, userId],
+    [appIds, userId],
     tabId
   );
-  if (!result?.ok) throw new Error(result?.error || 'Failed to share app');
+  if (!result?.ok) {
+    const error = result?.error || 'Failed to share app';
+    return { failures: appIds.map((id) => ({ error, id })) };
+  }
+  return { failures: [] };
 }
 
 /**

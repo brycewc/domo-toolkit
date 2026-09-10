@@ -313,11 +313,12 @@ onStatusUpdate('Copied', 'Object ID copied to clipboard', 'success', 3000);
 
 Host permission: `*://*.domo.com/*`
 
-Optional host permission: `*://*.localhost/*`, off by default. Granted from the options page ("Enable on locally run Domo
-instances") for Domo's own developers, who run Domo on `<customer>.localhost:<port>`. Since it is optional, the content
+Optional host permissions: `*://*.localhost/*` and `*://*.domorig.io/*`, off by default and granted as a unit. Granted
+from the options page ("Enable on internal Domo instances") for Domo's own developers, who run Domo on
+`<customer>.localhost:<port>` or on a development test rig at `<rig>.domorig.io`. Since they are optional, the content
 script for those hosts is registered at runtime rather than declared in the manifest, and a `*.localhost` host is only
-treated as an instance once an in-page probe finds Domo's `window.bootstrap`. See `src/utils/instance.js` and
-`src/utils/localInstance.js`.
+treated as an instance once an in-page probe finds Domo's `window.bootstrap` (a rig needs no probe, since `domorig.io`
+is Domo's own domain). See `src/utils/instance.js` and `src/utils/internalInstance.js`.
 
 ### Configuration Files
 

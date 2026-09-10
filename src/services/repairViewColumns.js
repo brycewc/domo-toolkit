@@ -13,6 +13,7 @@
  * drops the column from the view entirely.
  */
 
+import { indexColumnNames, resolveColumnName } from '@/utils/columnOrphans';
 import { executeInPage } from '@/utils/executeInPage';
 
 import {
@@ -26,7 +27,7 @@ import {
   findOriginAliases,
   isFusionView
 } from './columnReferences';
-import { swapDatasetViewInput, swapFusionInput } from './migrateDownstreamContent';
+import { describeSwapFailure, swapDatasetViewInput, swapFusionInput } from './migrateDownstreamContent';
 
 /**
  * Detect the open view's own broken input column references: columns its
@@ -72,7 +73,7 @@ export async function detectBrokenViewColumns({ tabId = null, viewDefinition = n
         // reference from a valid one, so skip this source rather than guess.
         return;
       }
-      const liveNames = new Set((liveColumns || []).map((c) => c.name));
+      const liveNameIndex = indexColumnNames((liveColumns || []).map((c) => c.name));
       // Fusion refs come out already alias-scoped as a flat Set (no output-column
       // association); template views expose the output column each ref feeds.
       const aliases = fusion ? null : findOriginAliases(def, sourceId);
@@ -86,7 +87,7 @@ export async function detectBrokenViewColumns({ tabId = null, viewDefinition = n
         ? collectFusionDroppableColumns(def, sourceId)
         : collectViewDroppableColumns(def, aliases, sourceId);
       for (const [column, outputs] of refs) {
-        if (liveNames.has(column)) continue;
+        if (resolveColumnName(column, liveNameIndex)) continue;
         broken.push({
           candidates: liveColumns || [],
           column,
@@ -188,7 +189,7 @@ export async function repairViewColumns({
       dropped += droppedColumns.length;
       remapped += Object.keys(columnMap).length;
     } else {
-      errors.push({ error: result?.error || 'Failed to repair columns', scope: sourceId });
+      errors.push({ error: describeSwapFailure(result, 'Failed to repair columns'), scope: sourceId });
     }
     onProgress?.({ result, sourceId, status: 'done' });
   }

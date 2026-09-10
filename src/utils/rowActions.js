@@ -19,6 +19,9 @@ const ROW_ACTION_CAPABILITIES = {
   DATA_APP_VIEW: ['copy'],
   DATA_SOURCE: ['copy', 'lineage', 'viewsExplorer'],
   DATAFLOW_TYPE: ['copy', 'lineage'],
+  // Tasks are deliberately absent: a task row's share would act on its queue,
+  // which reads wrong next to rows that share themselves.
+  HOPPER_QUEUE: ['copy', 'share'],
   PAGE: ['copy', 'share'],
   WORKSHEET: ['copy', 'share']
 };

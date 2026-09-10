@@ -1,5 +1,5 @@
 import { isDomoUrl } from './currentObject';
-import { canActOnHost } from './localInstance';
+import { canActOnHost } from './internalInstance';
 
 /**
  * customizeCopy handler for react18-json-view. Routes the JSON viewer's own

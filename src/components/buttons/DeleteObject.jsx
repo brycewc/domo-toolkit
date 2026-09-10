@@ -3,6 +3,7 @@ import { Button, Tooltip } from '@heroui/react';
 import { DisabledTooltip } from '@/components/DisabledTooltip';
 import { useLaunchView } from '@/hooks/useLaunchView';
 import { isCodeEngineInWorkflow } from '@/utils/availableActions';
+import IconCancel from '@icons/cancel.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 
 const CODE_ENGINE_TYPES = ['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'];
@@ -14,6 +15,7 @@ const SUPPORTED_TYPES = [
   'CODEENGINE_PACKAGE_VERSION',
   'DATA_APP_VIEW',
   'DATAFLOW_TYPE',
+  'HOPPER_TASK',
   'MAGNUM_COLLECTION',
   'PAGE',
   'REPORT_SCHEDULE',
@@ -31,6 +33,17 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
   const typeName = currentContext?.domoObject?.typeName?.toLowerCase() || 'object';
 
   const isInWorkflow = isCodeEngineInWorkflow(currentContext);
+  const isVoid = typeId === 'HOPPER_TASK';
+
+  // A task's status is only known once its details load, and the workflow
+  // user-task-response page carries no queue to load them with, so an unknown
+  // status leaves the action open rather than blocking it.
+  const closedTaskReason = (() => {
+    if (!isVoid) return null;
+    const status = currentContext?.domoObject?.metadata?.details?.status;
+    if (!status || status === 'OPEN') return null;
+    return status === 'VOIDED' ? 'This task is already voided' : 'Only an open task can be voided';
+  })();
 
   const isDeleteForbidden = (() => {
     const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
@@ -77,6 +90,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
     !SUPPORTED_TYPES.includes(typeId) ||
     (typeId === 'DATAFLOW_TYPE' && currentContext?.domoObject?.metadata?.details?.deleted === true) ||
     isInWorkflow ||
+    !!closedTaskReason ||
     isDeleteForbidden;
 
   // Persistent reasons the action is unavailable (the pending state is transient
@@ -90,15 +104,19 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
           ? 'This dataflow is already deleted'
           : isInWorkflow
             ? 'Open the Code Engine package itself to delete it'
-            : isDeleteForbidden
-              ? `You don't have permission to delete this ${typeName}`
-              : null;
+            : closedTaskReason
+              ? closedTaskReason
+              : isDeleteForbidden
+                ? `You don't have permission to delete this ${typeName}`
+                : null;
+
+  const ActionIcon = isVoid ? IconCancel : IconTrash;
 
   if (disabledReason) {
     return (
       <DisabledTooltip content={disabledReason}>
         <Button fullWidth isIconOnly variant='tertiary'>
-          <IconTrash />
+          <ActionIcon />
         </Button>
       </DisabledTooltip>
     );
@@ -120,10 +138,10 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
           })
         }
       >
-        {({ isDisabled: btnDisabled }) => <IconTrash className={btnDisabled ? '' : 'text-danger'} />}
+        {({ isDisabled: btnDisabled }) => <ActionIcon className={btnDisabled ? '' : 'text-danger'} />}
       </Button>
       <Tooltip.Content className='max-w-60' offset={4}>
-        List dependencies and confirm delete
+        {isVoid ? 'List related objects and confirm void' : 'List dependencies and confirm delete'}
       </Tooltip.Content>
     </Tooltip>
   );

@@ -29,6 +29,7 @@ import { useResolveTabId } from '@/hooks/useResolveTabId';
 import { DomoObject } from '@/models/DomoObject';
 import { getDatasetDetailsForList } from '@/services/datasets';
 import { fetchUserDisplayNames, getCustomAvatarUserIds, getInactiveUserIds } from '@/services/users';
+import { activityLogCountLabel } from '@/utils/activityLog';
 import { ACTION_COLOR_PATTERNS } from '@/utils/constants';
 import { formatRelativeTime, formatTimestamp, getInitials } from '@/utils/general';
 import { instanceOriginFromKey } from '@/utils/instance';
@@ -1217,19 +1218,7 @@ export function ActivityLogTable() {
                 <span className='text-accent'>{objects[1]?.name}</span>
               </>
             ) : (
-              ` ${objects.length} ${
-                activityLogType === 'child-cards'
-                  ? objects.length === 1
-                    ? 'card'
-                    : 'cards'
-                  : activityLogType === 'child-pages'
-                    ? objects.length === 1
-                      ? 'page'
-                      : 'pages'
-                    : objects.length === 1
-                      ? 'object'
-                      : 'objects'
-              }`
+              activityLogCountLabel({ count: objects.length, type: activityLogType }).toLowerCase()
             )}
           </span>
           {total > 0 && (

@@ -21,20 +21,34 @@ export function ToastProvider(props) {
       {({ toast: toastItem }) => {
         const { actionProps, description, indicator, isLoading, title, variant } = toastItem.content ?? {};
 
+        const indicatorNode =
+          indicator === null ? null : (
+            <ToastIndicator variant={variant}>
+              {isLoading ? <Spinner color='current' size='sm' /> : (indicator ?? defaultIndicatorFor(variant))}
+            </ToastIndicator>
+          );
+
         return (
           <Toast toast={toastItem} variant={variant}>
-            {indicator === null ? null : (
-              <ToastIndicator variant={variant}>
-                {isLoading ? <Spinner color='current' size='sm' /> : (indicator ?? defaultIndicatorFor(variant))}
-              </ToastIndicator>
-            )}
+            {/* The indicator rides inside the title, and the description and
+                action button sit under it in the same column, so both start at
+                the icon's edge rather than indenting to the title's. This is
+                the Alert layout (see any `<Alert>` in the views), and it also
+                buys the text the full width of a ~320px popup/sidepanel toast.
+                A toast with no title keeps the icon as its own column. */}
+            {!title && indicatorNode}
             <ToastContent>
-              {!!title && <ToastTitle>{title}</ToastTitle>}
+              {!!title && (
+                <ToastTitle className='flex items-center gap-1'>
+                  {indicatorNode}
+                  {title}
+                </ToastTitle>
+              )}
               {!!description && (
                 <ToastDescription className='line-clamp-4 max-h-25 overflow-hidden'>{description}</ToastDescription>
               )}
+              {actionProps?.children && <ToastActionButton {...actionProps}>{actionProps.children}</ToastActionButton>}
             </ToastContent>
-            {actionProps?.children && <ToastActionButton {...actionProps}>{actionProps.children}</ToastActionButton>}
             <ToastCloseButton>
               <IconX />
             </ToastCloseButton>

@@ -1,3 +1,18 @@
+const NOUN_BY_ACTIVITY_LOG_TYPE = {
+  'card-pages': 'Page',
+  'cards': 'Card',
+  'child-pages': 'Page'
+};
+
+/**
+ * Title Case count phrase for a multi-object log, e.g. `12 Cards`. Shared by the
+ * viewer's header and the options tab title so the two can't drift apart.
+ */
+export function activityLogCountLabel({ count, type }) {
+  const noun = NOUN_BY_ACTIVITY_LOG_TYPE[type] ?? 'Object';
+  return `${count} ${count === 1 ? noun : `${noun}s`}`;
+}
+
 /**
  * Opens the Activity Log viewer in a new options-page tab, scoped to the given
  * objects. Writes the session keys the viewer reads on mount

@@ -5,6 +5,7 @@ import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 
 export function MigrateDownstreamContent({ currentContext, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
+  const isBeastMode = currentContext?.domoObject?.typeId === 'BEAST_MODE_FORMULA';
 
   return (
     <Tooltip>
@@ -17,7 +18,7 @@ export function MigrateDownstreamContent({ currentContext, onStatusUpdate }) {
           launch({
             currentContext,
             onStatusUpdate,
-            type: 'migrateDownstreamContent'
+            type: isBeastMode ? 'migrateBeastModeUsage' : 'migrateDownstreamContent'
           })
         }
       >
@@ -25,7 +26,9 @@ export function MigrateDownstreamContent({ currentContext, onStatusUpdate }) {
         Migrate Content
       </Button>
       <Tooltip.Content className='max-w-60'>
-        Migrate cards, dataset views, and dataflows that use this dataset to a new dataset
+        {isBeastMode
+          ? 'Repoint the cards, drills, and Beast Modes that use this Beast Mode to a different Beast Mode'
+          : 'Migrate the cards, Beast Modes, dataset views, dataflows, alerts, pro-code apps, and Jupyter Workspaces that use this dataset to a new dataset'}
       </Tooltip.Content>
     </Tooltip>
   );

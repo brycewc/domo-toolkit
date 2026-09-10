@@ -358,6 +358,7 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
             <Button
+              fullWidth
               isPending={isRetrying}
               size='sm'
               onPress={async () => {

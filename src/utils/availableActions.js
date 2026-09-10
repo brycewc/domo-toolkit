@@ -85,6 +85,10 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     actions.add('getWorkspaces');
   }
 
+  if (typeId === 'BEAST_MODE_FORMULA') {
+    actions.add('migrateBeastModeUsage');
+  }
+
   if (typeId === 'DATA_SOURCE') {
     actions.add('copyColorRules');
     actions.add('getViewInputs');
@@ -237,7 +241,8 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
 
   // Routing key for the Delete view's reload action (not consumed by any button;
   // the Delete control lives outside getAvailableActions). Mirrors the object
-  // types DeleteObjectView's `deletersByType` knows how to delete.
+  // types DeleteObjectView's `deletersByType` knows how to remove, including the
+  // ones it voids rather than deletes.
   if (
     [
       'APP',
@@ -246,6 +251,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
       'CODEENGINE_PACKAGE_VERSION',
       'DATA_APP_VIEW',
       'DATAFLOW_TYPE',
+      'HOPPER_TASK',
       'MAGNUM_COLLECTION',
       'PAGE',
       'REPORT_SCHEDULE',

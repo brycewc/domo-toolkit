@@ -17,10 +17,13 @@ import { deleteDataset } from '@/services/datasets';
 import { deleteObject } from '@/services/deleteObject';
 import { getDependenciesForDelete } from '@/services/dependencies';
 import { deletePageAndAllCards } from '@/services/pages';
+import { voidTaskCenterTask } from '@/services/taskCenter';
+import { cancelWorkflowExecution } from '@/services/workflows';
 import { redirectTabIfViewingObject } from '@/utils/currentObject';
 import { parseMarkdownBold } from '@/utils/markdown';
 import { collectShareableObjects } from '@/utils/rowActions';
 import { getSidepanelData } from '@/utils/sidepanel';
+import IconCancel from '@icons/cancel.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 import IconX from '@icons/x.svg?react';
@@ -41,7 +44,17 @@ import { DataList } from './DataList';
  * its hooks receive, so what it deletes is whatever the user left checked.
  *
  * An optional `caveat` is a standing note about what the dependency check can't
- * see for that type, shown above the list whatever the check turns up.
+ * see for that type, shown above the list whatever the check turns up. It may be
+ * a function of `{ context, deps }` returning the note, or null to drop it for
+ * this object. `caveatTitle` retitles it for a type whose note is a consequence
+ * rather than a gap in the check.
+ *
+ * A type whose removal isn't a deletion overrides the view's verb with `feature`
+ * (the header), `actionIcon` (header and buttons), `confirmActionLabel` (the
+ * dialog's confirm button, which also supplies the verb in the failure toast),
+ * `confirmText` (the dialog body, built from `{ id, name, typeName }` and
+ * rendered through `parseMarkdownBold`), `dismissLabel` (the dialog's cancel
+ * button), and `loadingMessage`.
  */
 const deletersByType = {
   APP: {
@@ -256,6 +269,98 @@ const deletersByType = {
       `**${name}** and ${outputCount} output dataset${outputCount !== 1 ? 's' : ''} deleted`,
     typeName: 'DataFlow'
   },
+  HOPPER_TASK: {
+    actionIcon: <IconCancel />,
+    cascadeButtons: [
+      {
+        available: ({ deps }) => !!findSourceExecution(deps),
+        blockedReason: ({ executionStatus }) =>
+          executionStatus === 'IN_PROGRESS'
+            ? 'Resolve the blocking dependencies before voiding.'
+            : `This Workflow execution is already ${(executionStatus || 'finished').toLowerCase().replace(/_/g, ' ')}, so there is nothing to cancel. Use Void Task instead.`,
+        buildContext: ({ context, deps }) => {
+          const group = findSourceExecution(deps);
+          return {
+            executionId: group?.items?.[0]?.id ?? null,
+            executionLabel: group?.items?.[0]?.label ?? group?.items?.[0]?.id ?? 'the Workflow execution',
+            executionStatus: group?.executionStatus ?? null,
+            taskName: context.domoObject.metadata?.name || context.domoObject.id
+          };
+        },
+        confirmText: ({ executionLabel, taskName }) =>
+          `Cancel **${executionLabel}** and then void the task **${taskName}**? Cancelling stops the run instead of leaving it failed, and neither can be undone.`,
+        isBlocked: ({ executionStatus }) => executionStatus !== 'IN_PROGRESS',
+        label: () => 'Cancel Workflow and Void Task',
+        loadingMessage: ({ taskName }) => `Cancelling the Workflow execution and voiding **${taskName}**…`,
+        run: async ({ cascadeContext, context }) => {
+          await cancelWorkflowExecution({ executionId: cascadeContext.executionId, tabId: context.tabId });
+          // Cancelling terminates the run's elements, which makes Domo void this
+          // task on its own, so the void below can find it already voided. That
+          // is the outcome asked for, and the service reports it as success.
+          let result;
+          try {
+            result = await voidTaskCenterTask({
+              queueId: context.domoObject.parentId,
+              tabId: context.tabId,
+              taskId: context.domoObject.id,
+              userId: context.user?.id
+            });
+          } catch (error) {
+            throw new Error(
+              `The Workflow execution was cancelled, but the task could not be voided (${error.message}). Void it on its own.`,
+              { cause: error }
+            );
+          }
+          await chrome.tabs.reload(context.tabId);
+          return result;
+        },
+        successMessage: ({ taskName }, result) => {
+          const base = result?.alreadyVoided
+            ? `Workflow execution cancelled, which voided **${taskName}**`
+            : `Workflow execution cancelled and **${taskName}** voided`;
+          return result?.permissionRevertError
+            ? `${base}, but the Void Tasks permission granted to do it could not be removed again`
+            : base;
+        },
+        tooltip: () => 'Stops the Workflow run instead of leaving it failed, then voids the task'
+      }
+    ],
+    // A task reports `ODYSSEY` only when a Workflow created it, and `UNKNOWN`
+    // otherwise, so a missing status is the one case worth warning about anyway.
+    caveat: ({ context }) => {
+      const details = context.domoObject.metadata?.details;
+      const base = 'A voided task stays in its queue and can never be reopened or completed.';
+      if (details && details.sourceSystem !== 'ODYSSEY') return base;
+      return `${base} Voiding this one also fails the Workflow execution that created it, and any Workflow waiting on that one as a subflow fails with it.`;
+    },
+    caveatTitle: 'Voiding cannot be undone',
+    confirmActionLabel: 'Void',
+    confirmSuffix: '',
+    confirmText: ({ id, name }) =>
+      `Void the task **${name} (ID: ${id})**? It stays in its queue marked Voided and can no longer be completed.`,
+    // "Cancel" would read as cancelling the Workflow next to the cascade action.
+    dismissLabel: 'Go Back',
+    feature: 'Void',
+    loadingMessage: ({ name }) => `Voiding **${name}**…`,
+    primaryLabel: 'Void Task',
+    run: async ({ context }) => {
+      const result = await voidTaskCenterTask({
+        queueId: context.domoObject.parentId,
+        tabId: context.tabId,
+        taskId: context.domoObject.id,
+        userId: context.user?.id
+      });
+      // The task keeps its page, so there is nothing to redirect away from; a
+      // reload is what re-renders an open task drawer as voided.
+      await chrome.tabs.reload(context.tabId);
+      return result;
+    },
+    successMessage: ({ name }, result) =>
+      result?.permissionRevertError
+        ? `**${name}** voided, but the Void Tasks permission granted to do it could not be removed again`
+        : `**${name}** voided`,
+    typeName: 'Task'
+  },
   MAGNUM_COLLECTION: {
     cascadeButtons: [
       {
@@ -404,6 +509,8 @@ const deletersByType = {
     typeName: 'Variable'
   },
   WORKFLOW_MODEL: {
+    caveat:
+      'This check lists what the workflow uses, read from its active versions. It does not show what uses this workflow (triggers, Alerts, Approvals, App Studio forms, or other Workflows that call it as a subflow), and it cannot resolve an object the workflow picks at run time from a variable. Verify those manually before deleting.',
     confirmSuffix: '',
     primaryLabel: 'Delete Workflow',
     run: async ({ context }) => {
@@ -610,11 +717,14 @@ export function DeleteObjectView({
         )
       : Promise.resolve().then(() => config.run({ context: currentContext }));
 
+    const verb = (config.confirmActionLabel ?? 'Delete').toLowerCase();
+
     showPromiseStatus(promise, {
-      error: (err) => err.message || `Failed to delete ${config.typeName.toLowerCase()}`,
+      error: (err) => err.message || `Failed to ${verb} ${config.typeName.toLowerCase()}`,
       loading: isCascade
         ? cascade.loadingMessage(cascadeCtx)
-        : `Deleting **${objectName}**${resolveSuffix(config, currentContext)}…`,
+        : (config.loadingMessage?.({ name: objectName }) ??
+          `Deleting **${objectName}**${resolveSuffix(config, currentContext)}…`),
       success: (result) => {
         if (isCascade) {
           return cascade.successMessage(cascadeCtx, result);
@@ -670,6 +780,7 @@ export function DeleteObjectView({
 
   const primaryLabel =
     typeof config.primaryLabel === 'function' ? config.primaryLabel({ outputCount }) : config.primaryLabel;
+  const actionIcon = config.actionIcon ?? <IconTrash />;
 
   const availableCascades = (config.cascadeButtons || []).filter((c) => c.available({ context: currentContext, deps }));
   const primaryUnavailableReason = unavailableReason({
@@ -702,6 +813,9 @@ export function DeleteObjectView({
   if (otherGroups.length > 0) {
     dependencyItems.push(
       DataListItem.createGroup({
+        // Something true of every group in this section belongs here rather than
+        // repeated as an identical note on each one.
+        annotation: deps?.otherNote ?? null,
         children: buildDependencyItems(otherGroups, 'other-group', baseUrl),
         id: 'other-dependencies',
         label: 'Other Dependencies'
@@ -759,22 +873,26 @@ export function DeleteObjectView({
     isLoading: isLoadingDeps,
     onRetry: () => loadDependencies(currentContext)
   });
-  const caveatAlert = config.caveat ? (
+  const caveatText = typeof config.caveat === 'function' ? config.caveat({ context: currentContext, deps }) : config.caveat;
+  const caveatAlert = caveatText ? (
     <Alert className='w-full' status='accent' variant='transparent'>
       <Alert.Content>
         <Alert.Title className='flex items-center gap-1'>
           <AlertStatusIcon />
-          Some usage is not checked
+          {config.caveatTitle ?? 'Some usage is not checked'}
         </Alert.Title>
-        <Alert.Description>{config.caveat}</Alert.Description>
+        <Alert.Description>{caveatText}</Alert.Description>
       </Alert.Content>
     </Alert>
   ) : null;
+  // The caveat is a standing note for the type, so it sits above the dependency
+  // banner, which comes and goes as the check runs. The other way round, the
+  // caveat slides down and back up as the spinner is replaced.
   const banner =
     dependencyBanner || caveatAlert ? (
       <div className='flex w-full flex-col gap-2'>
-        {dependencyBanner}
         {caveatAlert}
+        {dependencyBanner}
       </div>
     ) : null;
 
@@ -787,8 +905,8 @@ export function DeleteObjectView({
         banner={banner}
         currentContext={liveContext}
         defaultExpandedIds={expandedGroupIds}
-        feature='Delete'
-        featureIcon={<IconTrash />}
+        feature={config.feature ?? 'Delete'}
+        featureIcon={actionIcon}
         headerActions={hasShareableDeps ? ['shareAll', 'reload', 'refresh'] : ['reload', 'refresh']}
         isRefreshing={isRefreshing}
         itemLabel='dependency'
@@ -822,7 +940,7 @@ export function DeleteObjectView({
                 return (
                   <DisabledTooltip content={reason} key={idx}>
                     <Button fullWidth variant='danger-soft'>
-                      <IconTrash />
+                      {actionIcon}
                       {cascadeLabel}
                     </Button>
                   </DisabledTooltip>
@@ -842,7 +960,7 @@ export function DeleteObjectView({
                       })
                     }
                   >
-                    <IconTrash />
+                    {actionIcon}
                     {cascadeLabel}
                   </Button>
                   <Tooltip.Content className='max-w-60'>{cascade.tooltip(ctx)}</Tooltip.Content>
@@ -852,7 +970,7 @@ export function DeleteObjectView({
             {primaryUnavailableReason ? (
               <DisabledTooltip content={primaryUnavailableReason}>
                 <Button fullWidth variant='danger'>
-                  <IconTrash />
+                  {actionIcon}
                   {primaryLabel}
                 </Button>
               </DisabledTooltip>
@@ -864,7 +982,7 @@ export function DeleteObjectView({
                 variant='danger'
                 onPress={() => setPendingAction({ kind: 'primary', label: primaryLabel })}
               >
-                <IconTrash />
+                {actionIcon}
                 {primaryLabel}
               </Button>
             )}
@@ -897,14 +1015,20 @@ export function DeleteObjectView({
                   )
                 ) : (
                   <>
-                    Are you sure you want to delete the <span className='lowercase'>{typeName}</span>{' '}
-                    <span className='font-bold'>
-                      {objectName} (ID: {domoObject.id})
-                    </span>
-                    {resolveSuffix(config, currentContext) ? (
-                      <span className='italic'> {resolveSuffix(config, currentContext)}</span>
-                    ) : null}{' '}
-                    permanently?
+                    {config.confirmText ? (
+                      parseMarkdownBold(config.confirmText({ id: domoObject.id, name: objectName, typeName }))
+                    ) : (
+                      <>
+                        Are you sure you want to delete the <span className='lowercase'>{typeName}</span>{' '}
+                        <span className='font-bold'>
+                          {objectName} (ID: {domoObject.id})
+                        </span>
+                        {resolveSuffix(config, currentContext) ? (
+                          <span className='italic'> {resolveSuffix(config, currentContext)}</span>
+                        ) : null}{' '}
+                        permanently?
+                      </>
+                    )}
                     {deletedCount > 0 && (
                       <div className='mt-2 text-xs text-muted'>
                         {deletedCount} dependenc{deletedCount === 1 ? 'y' : 'ies'} shown will be deleted with it.
@@ -915,10 +1039,10 @@ export function DeleteObjectView({
               </AlertDialog.Body>
               <AlertDialog.Footer>
                 <Button isDisabled={isDeleting} size='sm' slot='close' variant='tertiary'>
-                  Cancel
+                  {config.dismissLabel ?? 'Cancel'}
                 </Button>
                 <Button isDisabled={isDeleting} size='sm' variant='danger' onPress={() => performDelete(pendingAction)}>
-                  Delete
+                  {config.confirmActionLabel ?? 'Delete'}
                 </Button>
               </AlertDialog.Footer>
             </AlertDialog.Dialog>
@@ -1083,6 +1207,10 @@ function findDataflowInputs(deps) {
 
 function findRelatedDataset(deps) {
   return deps?.groups?.find((g) => g.key === 'relatedDataset') || null;
+}
+
+function findSourceExecution(deps) {
+  return deps?.groups?.find((g) => g.key === 'sourceExecution') || null;
 }
 
 // The dependency-check status shown above the affected-objects list: a loading

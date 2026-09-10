@@ -38,15 +38,18 @@ Content Script (detects page context via URL/DOM)
 
 **Key message types:** `DETECT_CONTEXT`, `GET_TAB_CONTEXT`, `RELEASE_NOTES_SEEN`, `TAB_CONTEXT_UPDATED`
 
-## Instance Identity (hosted vs local)
+## Instance Identity (hosted vs internal)
 
 An instance is identified by one string, the **instance key**, which doubles as a storage key
 (`perInstance` settings, `sidepanelData_{windowId}_{instance}`, the background's per-instance user cache):
 
-|        | key                  | label                |
-| ------ | -------------------- | -------------------- |
-| hosted | `acme`               | `acme.domo.com`      |
-| local  | `dev.localhost:9128` | `dev.localhost:9128` |
+|        | key                    | label                  |
+| ------ | ---------------------- | ---------------------- |
+| hosted | `acme`                 | `acme.domo.com`        |
+| local  | `dev.localhost:9128`   | `dev.localhost:9128`   |
+| rig    | `bcindrich.domorig.io` | `bcindrich.domorig.io` |
+
+Local and rig hosts are the two **internal** families: Domo-only, and behind one optional permission.
 
 `src/utils/instance.js` is the only place that classifies a host or converts between key, label, and origin.
 Nothing else should test hostnames with its own regex. `detectCurrentObject` is the one exception: it is
@@ -56,23 +59,24 @@ stringified and injected, so it carries an inlined copy of the host check.
 (`PORT` env var), so use the exact `DomoContext.origin` or `DomoObject.baseUrl` that detection captured.
 `instanceOriginFromKey()` exists only for the few paths where a bare key round-trips through storage.
 
-Local support is an **optional** host permission (`*://*.localhost/*`), off by default so the install-time
-warning is unchanged for store users. See `src/utils/localInstance.js`: because it is optional, the content
-script for those hosts is registered at runtime instead of declared in the manifest. A `*.localhost` host also
-only _looks_ like Domo, so `confirmDomoTab()` in `background.js` probes the page for `window.bootstrap` and
-caches positive verdicts per origin in `chrome.storage.session`.
+Internal support is an **optional** host permission (`*://*.localhost/*` plus `*://*.domorig.io/*`, requested
+and revoked as a unit), off by default so the install-time warning is unchanged for store users. See
+`src/utils/internalInstance.js`: because it is optional, the content script for those hosts is registered at
+runtime instead of declared in the manifest. A `*.localhost` host also only _looks_ like Domo, so
+`confirmDomoTab()` in `background.js` probes the page for `window.bootstrap` and caches positive verdicts per
+origin in `chrome.storage.session`. A rig host skips the probe: `domorig.io` is Domo's own domain.
 
-**Never assume the browser will keep the extension off a local host.** `activeTab` grants host access,
+**Never assume the browser will keep the extension off an internal host.** `activeTab` grants host access,
 `chrome.scripting` included, to whatever tab the user invokes the extension on, and invoking a keyboard command
 counts as invoking it. The permission must therefore be checked in code. Three places do it, and new code
 touching a page needs to respect one of them:
 
-- `canActOnHost()` (`utils/localInstance.js`) gates `executeInPage()` / `executeInAllFrames()`, which covers
+- `canActOnHost()` (`utils/internalInstance.js`) gates `executeInPage()` / `executeInAllFrames()`, which covers
   every service and action. Anything reaching a page through `executeInPage` is already safe.
 - `confirmDomoTab()` checks it before the probe **and** before the verified-origin cache, so revoking takes
   effect at once and a cached verdict can never grant access.
 - `isActionableDomoUrl()` in `background.js` gates the synchronous tab handling (title management,
-  content-script injection, the tab-iteration loops) on `localAccessGranted`, a cached mirror of the
+  content-script injection, the tab-iteration loops) on `internalAccessGranted`, a cached mirror of the
   permission. That flag is only a fast pre-filter; the two checks above re-read the real permission, so a stale
   `true` cannot grant access.
 

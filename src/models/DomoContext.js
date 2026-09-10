@@ -27,9 +27,9 @@ export class DomoContext {
       // the instance key alone.
       this.origin = origin;
 
-      // A local host only looks like Domo from its URL, so isDomoPage stays false
-      // until the background's window.bootstrap probe confirms it and overrides
-      // this via fromJSON. Hosted instances are decided from the URL alone.
+      // A `*.localhost` host only looks like Domo from its URL, so isDomoPage stays
+      // false until the background's window.bootstrap probe confirms it and overrides
+      // this via fromJSON. Hosted and rig instances are decided from the URL alone.
       this.isDomoPage = this.instance !== null && !EXCLUDED_HOSTNAMES.includes(hostname) && !isLocalDomoHostname(hostname);
     } catch (error) {
       console.error('Error extracting instance from URL:', error);

@@ -53,7 +53,9 @@ export const DROPPABLE_CARD_CHART_TYPES = new Set(['badge_basic_table', 'badge_f
  *   - every UNION branch (`SET_OPERATION_LIST.selects[]`) at the SAME position,
  *     so the branches stay position-aligned (a UNION requires equal column
  *     counts across branches);
- *   - every plain projection's `selectItems` (matched by `alias.name`);
+ *   - every plain projection's `selectItems`, matched by output name: the item's
+ *     `alias.name`, or its own column name where there is no alias, which is how
+ *     `viewTemplate.select` projects the whole projection step;
  *   - the output ledger `tables[].columns[]` (matched by `name`);
  *   - the `viewTemplate.fromItemInfo[*].columnInfo` palette (matched by key).
  * Both the compiled `select` tree and its `viewTemplate.select` mirror are
@@ -427,8 +429,7 @@ function finalizeBeastModeFormulaRefs(cardDefinition, beastModeNumericByLegacyId
  */
 function isBeastModeLegacyId(value) {
   return (
-    typeof value === 'string' &&
-    /^calculation_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    typeof value === 'string' && /^calculation_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
   );
 }
 
@@ -657,6 +658,16 @@ function rewriteScopedExpressionString(expr, columnMap, originAliases) {
   });
 }
 
+function selectItemOutputName(item) {
+  const alias = stripBackticks(item?.alias?.name);
+  if (alias) return alias;
+  const expression = item?.expression;
+  if (expression?.['@type'] === 'COLUMN' && typeof expression.columnName === 'string') {
+    return stripBackticks(expression.columnName);
+  }
+  return null;
+}
+
 /**
  * Splice the given positions (must be sorted descending) out of every branch's
  * `selectItems`, keeping all UNION branches the same length.
@@ -869,7 +880,10 @@ function walkDatasetViewConservative(node, columnMap, originAliases) {
         }
       } else if (key === 'referencedColumnName') {
         node[key] = rewriteColumnName(value, columnMap);
-      } else if (value.indexOf('`') !== -1) {
+      } else if (key !== 'name' && value.indexOf('`') !== -1) {
+        // `name` is an identifier here (an output alias, a table alias, a
+        // function name), never a column ref, and renaming one retitles the
+        // view's own output away from what selects it.
         node[key] = rewriteScopedExpressionString(value, columnMap, originAliases);
       }
       continue;
@@ -894,8 +908,8 @@ function walkDropColumns(node, drop, branchSelectItems) {
   }
   if (Array.isArray(node.selectItems) && !branchSelectItems.has(node.selectItems)) {
     node.selectItems = node.selectItems.filter((item) => {
-      const alias = stripBackticks(item?.alias?.name);
-      return !(alias && drop.has(alias));
+      const output = selectItemOutputName(item);
+      return !(output && drop.has(output));
     });
   }
   if (Array.isArray(node.columns)) {

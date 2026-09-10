@@ -13,8 +13,28 @@ const OBJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 // Content bound to exactly one dataset, so every column it names belongs to that
 // dataset. A dataflow or a dataset view joins other datasets, so a name missing
 // from this one may simply be another input's column rather than a broken
-// reference.
+// reference, unless the scan attributed the reference to this dataset itself
+// (`originColumn`).
 const SINGLE_DATASET_TYPES = new Set(['apps', 'beastModes', 'cards']);
+
+/**
+ * Index a schema's column names by their lowercased form, for the
+ * case-insensitive lookup Domo itself does: a Beast Mode formula reading
+ * `` `next step date` `` against a `Next Step Date` column is valid, so an
+ * exact comparison reports working content as broken.
+ *
+ * @param {Array<string>} names
+ * @returns {Map<string, string>} Lowercased name -> the schema's spelling
+ */
+export function indexColumnNames(names) {
+  const index = new Map();
+  for (const name of names || []) {
+    if (typeof name !== 'string') continue;
+    const key = name.toLowerCase();
+    if (!index.has(key)) index.set(key, name);
+  }
+  return index;
+}
 
 /**
  * Whether a name a scan found, and that the dataset's schema doesn't have, is a
@@ -26,11 +46,14 @@ const SINGLE_DATASET_TYPES = new Set(['apps', 'beastModes', 'cards']);
  * against the target). This applies the two conservative filters on top.
  *
  * @param {string} name - The referenced name, a `byColumn` key from `scanContentForColumns`.
- * @param {Array<{type: string}>} usages - That key's `byColumn` entries.
+ * @param {Array<{originColumn?: boolean, type: string}>} usages - That key's `byColumn` entries.
  * @returns {boolean}
  */
 export function isBrokenColumnReference(name, usages) {
-  return isPlausibleColumnName(name) && (usages || []).some((usage) => SINGLE_DATASET_TYPES.has(usage?.type));
+  return (
+    isPlausibleColumnName(name) &&
+    (usages || []).some((usage) => usage?.originColumn === true || SINGLE_DATASET_TYPES.has(usage?.type))
+  );
 }
 
 /**
@@ -49,4 +72,17 @@ export function isPlausibleColumnName(name) {
   if (DOMO_SYSTEM_COLUMN.test(name)) return false;
   if (DOMO_BATCH_COLUMN.test(name)) return false;
   return true;
+}
+
+/**
+ * The schema's own spelling of a referenced column name, or null when the schema
+ * has no column by that name in any case.
+ *
+ * @param {string} name
+ * @param {Map<string, string>} index - From `indexColumnNames`.
+ * @returns {string|null}
+ */
+export function resolveColumnName(name, index) {
+  if (typeof name !== 'string' || !index) return null;
+  return index.get(name.toLowerCase()) ?? null;
 }

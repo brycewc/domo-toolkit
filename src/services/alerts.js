@@ -2,15 +2,22 @@ import { DEPENDENCY_FETCH_CONCURRENCY } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
- * Pull the distinct row PDP policies (filter groups) an alert references, from
+ * Pull the distinct row PDP policies (filter groups) an alert is bound to, from
  * its definition's `filterGroups`. Returns each group's `filterGroupId`, `name`,
  * and `type` (`'open'` is the universal "All Rows" group; `'user'` is a named
  * PDP policy). Used by the migration UI to decide which policies need remapping
  * onto the target dataset.
+ *
+ * A contextual alert is bound to none of them: it evaluates against whatever
+ * each subscriber can see, and Domo keeps no groups for it. Reading one back
+ * still fills `filterGroups` in, with the policies the CURRENT USER can access
+ * on the dataset, so a contextual alert reports no policies here rather than
+ * letting someone's own access be mistaken for the alert's configuration.
  * @param {Object} alertDefinition - An alert object (from the list or a GET)
  * @returns {Array<{filterGroupId: any, name: string, type: string}>}
  */
 export function extractAlertPdpPolicies(alertDefinition) {
+  if (alertDefinition?.contextual === true) return [];
   const groups = Array.isArray(alertDefinition?.filterGroups) ? alertDefinition.filterGroups : [];
   const seen = new Set();
   const out = [];
@@ -125,6 +132,7 @@ export async function getDownstreamAlerts(datasetId, tabId = null) {
       }
 
       return all.map((a) => ({
+        contextual: a.contextual === true,
         filterGroups: Array.isArray(a.filterGroups) ? a.filterGroups : [],
         id: a.id,
         name: a.name || String(a.id)
@@ -286,8 +294,9 @@ export async function getRowPdpPolicies(datasetId, tabId = null) {
  *      its action no longer does anything). If any action fails to recreate, the
  *      half-built copy is deleted and the original is kept, so the move rolls back
  *      cleanly with no orphan on the target.
- *   3. Copy the custom message template and the subscribers, and restore the name
- *      and owner. These are non-critical: a failure is recorded in `unhandled`
+ *   3. Copy the custom message template and the subscribers, drop the caller's
+ *      own auto-subscription unless they subscribed to the original, and restore
+ *      the name and owner. These are non-critical: a failure is recorded in `unhandled`
  *      (which the orchestrator surfaces as a manual-review flag) but does not roll
  *      back the move.
  *   4. Delete the original only once the new alert is fully in place.
@@ -331,6 +340,23 @@ export async function moveAlertToTarget({ alertId, columnMap, droppedColumns, or
           .map((s) => remapColumn(s))
           .join(',');
 
+      // The alerts service discards the real reason for a 400 and returns the
+      // status phrase, so a bare "Bad Request" says nothing about which check
+      // rejected the alert, leaving the trace id the only way to find out.
+      const describeHttpError = (status, text) => {
+        let reason = (text || '').trim();
+        let toe = '';
+        try {
+          const parsed = JSON.parse(text);
+          reason = parsed?.message || '';
+          toe = parsed?.toe || '';
+        } catch {
+          // Not JSON, so keep the raw text as the reason.
+        }
+        if (!reason || reason === 'Bad Request') reason = 'Domo reported no reason';
+        return `HTTP ${status}: ${reason}${toe ? ` (Domo trace ${toe})` : ''}`;
+      };
+
       const getRes = await fetch(`/api/social/v4/alerts/${alertId}?fields=all`);
       if (!getRes.ok) return { error: `Failed to load alert ${alertId}: HTTP ${getRes.status}`, success: false };
       const alert = await getRes.json();
@@ -341,15 +367,27 @@ export async function moveAlertToTarget({ alertId, columnMap, droppedColumns, or
       // policy. A 'remove' resolution drops the group (the alert widens to all
       // rows); a group with no resolution is skipped rather than sent with an
       // origin id the target would reject.
-      const srcGroups = Array.isArray(alert.filterGroups) ? alert.filterGroups : [];
-      const filterGroups = [];
+      // A contextual alert keeps no policies of its own, and the GET fills the
+      // field with the policies the CURRENT USER can access, so carrying those
+      // over would rebind the alert to specific policies. Sending none leaves
+      // Domo to mark it contextual on the target, as it was on the origin.
+      const srcGroups = alert.contextual === true || !Array.isArray(alert.filterGroups) ? [] : alert.filterGroups;
+      const resolvedGroups = [];
       for (const g of srcGroups) {
         const resolution = pdpMap ? pdpMap[g.filterGroupId] : null;
         if (!resolution || resolution.action === 'remove') continue;
         if (resolution.action === 'map' && resolution.target && resolution.target.filterGroupId != null) {
-          filterGroups.push({ filterGroupId: resolution.target.filterGroupId });
+          resolvedGroups.push({ filterGroupId: resolution.target.filterGroupId, type: resolution.target.type });
         }
       }
+      // Domo refuses an alert naming both the "All Rows" (open) policy and a
+      // named one on the same dataset, though an alert can already hold that pair,
+      // so the open one is left behind rather than failing the whole create.
+      const openPolicyDropped =
+        resolvedGroups.some((g) => g.type === 'user') && resolvedGroups.some((g) => g.type === 'open');
+      const filterGroups = resolvedGroups
+        .filter((g) => !(openPolicyDropped && g.type === 'open'))
+        .map((g) => ({ filterGroupId: g.filterGroupId }));
 
       // Carry the rule configurations verbatim (Domo stores NOTIFY_* and OPERATION
       // as-is and fills missing defaults server-side), rewriting only the column
@@ -398,47 +436,66 @@ export async function moveAlertToTarget({ alertId, columnMap, droppedColumns, or
         };
       }
 
-      // Guard: an alert's rule names its columns, and Domo's create endpoint
-      // rejects the whole alert with an opaque HTTP 400 if any named column is
-      // missing from the target dataset. Collect the rule's column references
-      // (post-remap) and check them against the target schema so an unmappable
-      // column fails with a legible message instead. COLUMN_ID is one column;
-      // ANY_ROW_PRIMARY_KEYS / ANY_ROW_METADATA_COLUMNS are comma-joined lists;
-      // threshold filters carry `column`.
+      // Guard: Domo's create rejects the whole alert with a bare HTTP 400 when a
+      // column the rule names is missing, so check them here to fail legibly.
+      // Two details of its check are mirrored, or this guard disagrees with the
+      // endpoint it stands in for: it reads the target's INDEXED schema (cached
+      // about a minute), not the latest one, so a column that hasn't finished
+      // indexing counts as missing; and its primary-key check compares exactly
+      // while its row-filter lookup ignores case. Metadata and monitor columns
+      // are left out, since Domo recomputes both.
+      const keyColumns = new Set();
       const ruleColumns = new Set();
       for (const c of configurations) {
         if (!c || typeof c.value !== 'string') continue;
         if (c.name === 'COLUMN_ID') {
           ruleColumns.add(c.value);
-        } else if (c.name === 'ANY_ROW_PRIMARY_KEYS' || c.name === 'ANY_ROW_METADATA_COLUMNS') {
+        } else if (c.name === 'ANY_ROW_PRIMARY_KEYS') {
           for (const part of c.value.split(',')) {
             const name = part.trim();
-            if (name) ruleColumns.add(name);
+            if (name) keyColumns.add(name);
           }
         }
       }
       for (const f of createBody.filters || []) {
         if (f && typeof f.column === 'string' && f.column) ruleColumns.add(f.column);
       }
-      if (ruleColumns.size > 0) {
-        let targetColumns = null;
+      if (keyColumns.size > 0 || ruleColumns.size > 0) {
+        let indexedIds = null;
         try {
-          const schemaRes = await fetch(`/api/data/v2/datasources/${targetId}/schemas/latest`, { credentials: 'include' });
+          const schemaRes = await fetch(`/api/query/v1/datasources/${targetId}/schema/indexed`, {
+            credentials: 'include'
+          });
           if (schemaRes.ok) {
             const schema = await schemaRes.json();
-            targetColumns = new Set((schema?.schema?.columns || []).map((col) => col.name));
+            const columns = schema?.tables?.[0]?.columns || [];
+            indexedIds = new Set(columns.map((col) => col?.id ?? col?.name).filter((id) => typeof id === 'string'));
           }
         } catch {
-          targetColumns = null;
+          indexedIds = null;
         }
-        // Only enforce when the target schema actually resolved; if the fetch
-        // failed, fall through and let the create attempt surface any error.
-        if (targetColumns) {
-          const missing = [...ruleColumns].filter((name) => !targetColumns.has(name));
+        // A schema with no columns at all is a dataset that hasn't finished
+        // indexing rather than one that lost its columns, and every column check
+        // below would fail on it, so say that instead of naming them all.
+        if (indexedIds && indexedIds.size === 0) {
+          return {
+            error:
+              "The target dataset isn't reporting any columns yet, so Domo would reject the alert. It is most likely still indexing after an update; retry once it finishes.",
+            success: false
+          };
+        }
+        // Only enforce when the schema actually resolved; if the fetch failed,
+        // fall through and let the create attempt surface any error.
+        if (indexedIds) {
+          const lowercased = new Set([...indexedIds].map((id) => id.toLowerCase()));
+          const missing = [
+            ...[...keyColumns].filter((name) => !indexedIds.has(name)),
+            ...[...ruleColumns].filter((name) => !lowercased.has(name.toLowerCase()))
+          ];
           if (missing.length > 0) {
             const plural = missing.length > 1;
             return {
-              error: `Alert references column${plural ? 's' : ''} not on the target dataset: ${missing.join(', ')}. Map ${plural ? 'them' : 'it'} on the remap step, or remove the reference before migrating.`,
+              error: `The target dataset isn't exposing ${plural ? 'columns' : 'a column'} the alert reads: ${missing.join(', ')}. If it just updated, let it finish indexing and retry; otherwise map ${plural ? 'them' : 'it'} on the remap step, or remove the reference before migrating.`,
               success: false
             };
           }
@@ -497,7 +554,7 @@ export async function moveAlertToTarget({ alertId, columnMap, droppedColumns, or
       });
       if (!createRes.ok) {
         const text = await createRes.text().catch(() => '');
-        return { error: `Create failed: HTTP ${createRes.status}${text ? ` ${text}` : ''}`, success: false };
+        return { error: `Create failed: ${describeHttpError(createRes.status, text)}`, success: false };
       }
       const created = await createRes.json().catch(() => null);
       const newId = created?.id ?? null;
@@ -545,6 +602,9 @@ export async function moveAlertToTarget({ alertId, columnMap, droppedColumns, or
       }
 
       const unhandled = [];
+      if (openPolicyDropped) {
+        unhandled.push('the "All Rows" policy was left off, since Domo won\'t take it alongside named policies');
+      }
 
       // Step 3a: copy the custom message template, if the original has one. The GET
       // returns an empty body when there is no custom template.
@@ -578,24 +638,60 @@ export async function moveAlertToTarget({ alertId, columnMap, droppedColumns, or
         const existing = existingRes.ok ? await existingRes.json().catch(() => []) : [];
         const existingIds = new Set((Array.isArray(existing) ? existing : []).map((s) => String(s.subscriberId)));
         const srcSubs = Array.isArray(alert.subscriptions) ? alert.subscriptions : [];
+        let digestsSkipped = 0;
         for (const s of srcSubs) {
-          if (!s || s.subscriberId == null || existingIds.has(String(s.subscriberId))) continue;
+          if (!s || s.subscriberId == null) continue;
+          const type = s.type || 'USER';
+          // A DAILY/WEEKLY row is the subscriber's own digest schedule, not a
+          // subscription held on the alert, and Domo ignores the subscriber id on
+          // one: it puts the digest on the CALLER's schedule. Copying one would
+          // subscribe whoever ran the migration in place of the person who set it.
+          if (type === 'DAILY' || type === 'WEEKLY') {
+            digestsSkipped++;
+            continue;
+          }
+          if (existingIds.has(String(s.subscriberId))) continue;
           const subRes = await fetch(`/api/social/v4/alerts/${newId}/subscriptions`, {
             body: JSON.stringify({
               subscribedBy: s.subscribedBy,
               subscriberId: String(s.subscriberId),
-              type: s.type || 'USER'
+              type
             }),
             headers: { 'Content-Type': 'application/json' },
             method: 'POST'
           });
           if (!subRes.ok) unhandled.push(`subscriber ${s.subscriberId} not copied`);
         }
+        if (digestsSkipped > 0) {
+          unhandled.push(
+            `${digestsSkipped} daily/weekly digest subscription${digestsSkipped === 1 ? '' : 's'} not moved, since Domo ties those to each person's own schedule`
+          );
+        }
       } catch {
         unhandled.push('subscribers not copied');
       }
 
-      // Step 3c: restore name and owner (the create defaults the name to the rule's
+      // Step 3c: drop the auto-subscription Domo gives whoever creates an alert,
+      // unless that person subscribed to the original too. Runs before the owner
+      // is handed back, while the caller still owns the new alert and can manage
+      // its subscriptions.
+      const currentUserId = window.bootstrap?.currentUser?.USER_ID ?? created?.owner ?? null;
+      const alreadySubscribed = (Array.isArray(alert.subscriptions) ? alert.subscriptions : []).some(
+        (sub) => sub && (sub.type || 'USER') === 'USER' && String(sub.subscriberId) === String(currentUserId)
+      );
+      if (currentUserId != null && !alreadySubscribed) {
+        try {
+          const unsubRes = await fetch(
+            `/api/social/v4/alerts/${newId}/subscriptions?type=USER&subscriberId=${encodeURIComponent(currentUserId)}`,
+            { method: 'DELETE' }
+          );
+          if (!unsubRes.ok) unhandled.push('your own subscription to the new alert was not removed');
+        } catch {
+          unhandled.push('your own subscription to the new alert was not removed');
+        }
+      }
+
+      // Step 3d: restore name and owner (the create defaults the name to the rule's
       // auto-name and sets owner to the caller).
       try {
         const patchBody = { id: newId };

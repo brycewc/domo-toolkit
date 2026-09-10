@@ -1,5 +1,5 @@
 import { DOMO_MATCH_PATTERNS, EXCLUDED_HOSTNAMES } from './constants';
-import { instanceKeyFromUrl, instanceLabel, isDomoHostname, isLocalInstanceKey } from './instance';
+import { instanceKeyFromUrl, instanceLabel, isDomoHostname, isInternalInstanceKey } from './instance';
 
 /**
  * Main detection function that runs in page context
@@ -13,8 +13,8 @@ export async function detectCurrentObject() {
   // Inlined copy of isDomoHostname from utils/instance.js: this function is
   // stringified and injected, so it cannot import. Keep the two in sync.
   const labels = location.hostname.split('.');
-  const isLocalCandidate = labels.length > 1 && labels.includes('localhost');
-  if (!isLocalCandidate && location.hostname !== 'domo.com' && !location.hostname.endsWith('.domo.com')) {
+  const isInternalHost = (labels.length > 1 && labels.includes('localhost')) || location.hostname.endsWith('.domorig.io');
+  if (!isInternalHost && location.hostname !== 'domo.com' && !location.hostname.endsWith('.domo.com')) {
     return null;
   }
 
@@ -268,10 +268,27 @@ export async function detectCurrentObject() {
       objectType = 'ROLE';
       break;
 
-    case url.includes('workflows/user-task-response') && parts.includes('id'):
-      objectType = 'HOPPER_TASK';
-      id = parts[parts.indexOf('id') + 1];
-      break;
+    case url.includes('workflows/user-task-response') && parts.includes('id'): {
+      // Read the id from location.search rather than the lowercased `url`, which
+      // would corrupt a case-sensitive task reference (e.g. "15AUG25_TS551E").
+      const taskId = new URLSearchParams(location.search).get('id');
+      // This page's URL carries no queue, and every task API call needs one, so
+      // resolve it here; without it the task has no name and no queue anywhere.
+      let queueId = null;
+      try {
+        const lookup = await fetch(`/api/queues/v2/tasks/lookup?taskId=${encodeURIComponent(taskId)}`);
+        if (lookup.ok) queueId = (await lookup.json())?.queueId ?? null;
+      } catch {
+        queueId = null;
+      }
+      return {
+        baseUrl: location.origin,
+        id: taskId,
+        parentId: queueId,
+        typeId: 'HOPPER_TASK',
+        url
+      };
+    }
 
     case url.includes('workflows/instances/') && !!parts[parts.indexOf('instances') + 3]:
       objectType = 'WORKFLOW_INSTANCE';
@@ -325,7 +342,7 @@ export async function detectCurrentObject() {
               // A user task that posts to a Task Center queue carries the queue id here
               if (element?.data?.selectedQueue) {
                 return {
-                  baseUrl: `${location.protocol}//${location.hostname}`,
+                  baseUrl: location.origin,
                   id: element.data.selectedQueue,
                   typeId: 'HOPPER_QUEUE',
                   url,
@@ -528,7 +545,7 @@ export async function detectCurrentObject() {
       // above would corrupt the id and make the task fetch fail.
       const search = new URLSearchParams(location.search);
       return {
-        baseUrl: `${location.protocol}//${location.hostname}`,
+        baseUrl: location.origin,
         id: search.get('id'),
         parentId: search.get('queueId'),
         typeId: 'HOPPER_TASK',
@@ -709,7 +726,7 @@ export async function detectCurrentObject() {
  * Chrome match patterns cannot express a port, so a local instance on :9128 has
  * to be filtered client-side, and comparing authorities also means a local
  * instance served over https (HTTPS=true) still matches.
- * @param {string} instance - The instance key (e.g. 'mycompany' or 'dev.localhost:9128')
+ * @param {string} instance - The instance key (e.g. 'mycompany', 'dev.localhost:9128')
  * @returns {Promise<number>} The tab ID to use for API calls
  * @throws {Error} If no valid tab is found on the correct instance
  */
@@ -734,7 +751,7 @@ export async function getValidTabForInstance(instance) {
 
   // If active tab isn't on the right instance, search for any tab on that instance
   const candidateTabs = await chrome.tabs.query(
-    isLocalInstanceKey(instance) ? { url: DOMO_MATCH_PATTERNS } : { url: `https://${instance}.domo.com/*` }
+    isInternalInstanceKey(instance) ? { url: DOMO_MATCH_PATTERNS } : { url: `https://${instance}.domo.com/*` }
   );
   const matchingTab = candidateTabs.find((tab) => tab.url && isOnInstance(tab.url));
 
@@ -749,17 +766,17 @@ export async function getValidTabForInstance(instance) {
 
 /**
  * Check if a URL is an actionable Domo page: a domo.com domain (exact or any
- * subdomain), or a local dev candidate, that is NOT one of the excluded hosts
+ * subdomain), or a Domo-internal host, that is NOT one of the excluded hosts
  * (support, developer, marketing, embed, etc.). Excluded hosts are treated as
  * non-Domo so that no extension behavior (detection, title rewriting, in-page
  * execution) ever runs on them. This is the single gate the background and
  * executeInPage rely on, so folding the exclusion in here keeps every call site
  * consistent.
  *
- * Deliberately structural: a `*.localhost` host passes here so the background is
- * allowed to inject the window.bootstrap probe that decides whether it is really
- * running Domo. Whether a local origin is *confirmed* is a separate question,
- * answered by isVerifiedDomoOrigin in the background.
+ * Deliberately structural: an internal host passes here so the background is
+ * allowed to inject the window.bootstrap probe that decides whether a `*.localhost`
+ * host is really running Domo. Whether a local origin is *confirmed* is a separate
+ * question, answered by isVerifiedDomoOrigin in the background.
  * @param {string} url - A full URL string
  * @returns {boolean}
  */

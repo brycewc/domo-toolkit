@@ -1,10 +1,12 @@
+import { SHARE_BATCH_SIZE } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
 
 import { getAccountIdsForDomoObject, shareAccount } from './accounts';
 import { getAppInstanceCollections, shareAppDbCollection } from './appDb';
-import { shareStudioApp } from './appStudio';
+import { shareStudioApps } from './appStudio';
 import { getAppInstance, shareCustomAppDesign } from './customApps';
 import { sharePages } from './pages';
+import { shareTaskCenterQueue } from './taskCenter';
 
 /**
  * Full permission bundle granted to AppDB collections when sharing a DomoApp
@@ -41,6 +43,87 @@ export async function shareContent({ message = '', recipients, resources, sendEm
     [resources, recipients, message, sendEmail],
     tabId
   );
+}
+
+// Pages, apps and worksheets share through endpoints that take a list of resources,
+// so they go out in batches; every other type still shares one request at a time.
+/** @returns {Promise<{errors: Array<{error: string, id: string|number}>, shared: number, total: number}>} */
+export async function shareObjectsWithSelf({ objects, tabId = null, userId }) {
+  const errors = [];
+  const failed = new Set();
+  const objectsByAppId = new Map();
+  const objectsByPageId = new Map();
+  const individual = [];
+
+  const track = (map, id, object) => {
+    const key = String(id);
+    if (!map.has(key)) map.set(key, { id, objects: [] });
+    map.get(key).objects.push(object);
+  };
+
+  const fail = (object, error) => {
+    if (failed.has(object)) return;
+    failed.add(object);
+    errors.push({ error, id: object.id });
+  };
+
+  for (const object of objects) {
+    switch (object?.typeId) {
+      case 'DATA_APP':
+      case 'WORKSHEET':
+        track(objectsByAppId, object.id, object);
+        break;
+
+      case 'DATA_APP_VIEW':
+      case 'WORKSHEET_VIEW': {
+        const parentId = object.metadata?.parent?.id;
+        if (!parentId) {
+          fail(object, 'Parent app ID not found, cannot share app page');
+          break;
+        }
+        track(objectsByAppId, parentId, object);
+        break;
+      }
+
+      case 'PAGE':
+        track(objectsByPageId, object.id, object);
+        break;
+
+      default:
+        individual.push(object);
+    }
+  }
+
+  const shareBatched = async (map, shareChunk) => {
+    const entries = [...map.values()];
+    for (let i = 0; i < entries.length; i += SHARE_BATCH_SIZE) {
+      const chunk = entries.slice(i, i + SHARE_BATCH_SIZE);
+      const byId = new Map(chunk.map((entry) => [String(entry.id), entry.objects]));
+      try {
+        const { failures } = await shareChunk(chunk.map((entry) => entry.id));
+        for (const failure of failures) {
+          for (const object of byId.get(String(failure.id)) ?? []) fail(object, failure.error);
+        }
+      } catch (error) {
+        for (const entry of chunk) {
+          for (const object of entry.objects) fail(object, error.message);
+        }
+      }
+    }
+  };
+
+  await shareBatched(objectsByPageId, (pageIds) => sharePages({ pageIds, tabId, userId }));
+  await shareBatched(objectsByAppId, (appIds) => shareStudioApps({ appIds, tabId, userId }));
+
+  for (const object of individual) {
+    try {
+      await shareWithSelf({ object, tabId, userId });
+    } catch (error) {
+      fail(object, error.message);
+    }
+  }
+
+  return { errors, shared: objects.length - failed.size, total: objects.length };
 }
 
 /**
@@ -117,16 +200,16 @@ async function shareForType({ object, tabId, userId }) {
 
     case 'DATA_APP':
     case 'WORKSHEET':
-      await shareStudioApp({ appId: object.id, tabId, userId });
+      throwFirstFailure(await shareStudioApps({ appIds: [object.id], tabId, userId }));
       return `${object.typeName || 'App'} ${object.id} shared successfully`;
 
     case 'DATA_APP_VIEW':
     case 'WORKSHEET_VIEW': {
       const parentId = object.metadata?.parent?.id;
       if (!parentId) {
-        throw new Error('Parent app ID not found — cannot share app page');
+        throw new Error('Parent app ID not found, cannot share app page');
       }
-      await shareStudioApp({ appId: parentId, tabId, userId });
+      throwFirstFailure(await shareStudioApps({ appIds: [parentId], tabId, userId }));
       return `App ${parentId} shared successfully`;
     }
 
@@ -145,11 +228,29 @@ async function shareForType({ object, tabId, userId }) {
       return `${accountIds.length} accounts shared successfully (${accountIds.join(', ')})`;
     }
 
+    case 'HOPPER_QUEUE':
+      await shareTaskCenterQueue({ queueId: object.id, tabId, userId });
+      return `Task Center Queue ${object.id} shared successfully`;
+
+    // A task holds no permissions of its own; access to one comes from its queue.
+    case 'HOPPER_TASK': {
+      const queueId = object.parentId || object.metadata?.details?.queueId;
+      if (!queueId) {
+        throw new Error("Could not find the task's queue, so there is nothing to share");
+      }
+      await shareTaskCenterQueue({ queueId, tabId, userId });
+      return `Task Center Queue ${queueId} shared successfully`;
+    }
+
     case 'PAGE':
-      await sharePages({ pageIds: [object.id], tabId, userId });
+      throwFirstFailure(await sharePages({ pageIds: [object.id], tabId, userId }));
       return `Page ${object.id} shared successfully`;
 
     default:
       throw new Error(`Sharing not supported for object type: ${object.typeId}`);
   }
+}
+
+function throwFirstFailure({ failures }) {
+  if (failures.length) throw new Error(failures[0].error);
 }

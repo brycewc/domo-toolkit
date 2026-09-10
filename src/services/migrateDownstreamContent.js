@@ -6,6 +6,7 @@
  * formattedExpression rewrites in dataset-view definitions.
  */
 
+import { indexColumnNames, resolveColumnName } from '@/utils/columnOrphans';
 import { executeInPage } from '@/utils/executeInPage';
 
 import { moveAlertToTarget } from './alerts';
@@ -13,6 +14,7 @@ import { getCardDefinition } from './cards';
 import {
   collectViewDroppableColumns,
   enumerateViewSourceIds,
+  extractCardColumnRefs,
   extractDataflowColumnRefs,
   findOriginAliases,
   isFusionView,
@@ -30,6 +32,7 @@ import {
 } from './columnRewriter';
 import { getDataflowDetail } from './dataflows';
 import { createDatasetFunctions, getDatasetFunctions, getFunctionTemplate, updateDatasetFunctions } from './functions';
+import { swapJupyterWorkspaceInput } from './jupyterWorkspaces';
 import { swapAppColumns } from './proCodeApps';
 import { findScriptColumnConflicts } from './scriptColumns';
 import { extractDataflowSqlColumnRefs, getDataflowEngine, rewriteDataflowSqlColumns } from './sqlColumns';
@@ -107,7 +110,12 @@ export async function getDownstreamCards(datasetId, tabId = null, rawCards = nul
     // Parent migrates only when it uses this dataset directly; otherwise it's
     // here purely as the container for a drill that does.
     if (matchesDataset(card.datasourceId) && Number.isFinite(cardId)) {
-      out.push({ chartType: card.chartType || null, id: cardId, name: card.title || card.name || `Card ${cardId}` });
+      out.push({
+        chartType: card.chartType || null,
+        id: cardId,
+        name: card.title || card.name || `Card ${cardId}`,
+        type: card.type || null
+      });
     }
     for (const drill of Array.isArray(card.drills) ? card.drills : []) {
       if (!matchesDataset(drill?.datasourceId)) continue;
@@ -441,6 +449,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
  * @param {Record<string, string>} [params.beastModeNumericRemap] - Origin → target Beast Mode numeric ids, for nested DOMO_BEAST_MODE(id) references.
  * @param {Record<string, string|null>} [params.columnMap]
  * @param {Object} [params.cachedDefinition]
+ * @param {Record<string, string>} [params.targetColumnTypes] - Target column name → type. Supplies the schema's exact spellings, which the write is validated against.
  * @param {boolean} [params.useFullPath] - Force the full-PUT path even with no remap. Set when the schema check found mismatches; the lightweight endpoint can't reconcile mismatched column names server-side and would error.
  * @param {number|null} [params.tabId]
  * @returns {Promise<{success: boolean, error?: string}>}
@@ -456,6 +465,7 @@ export async function swapCardInput({
   droppedColumns,
   originId,
   tabId = null,
+  targetColumnTypes,
   targetId,
   urn,
   useFullPath = false
@@ -530,6 +540,12 @@ export async function swapCardInput({
     if (hasDroppedColumns) {
       rewritten = removeCardColumns(rewritten, droppedColumns);
     }
+    const caseMap = buildCanonicalCaseMap(extractCardColumnRefs(rewritten), targetColumnTypes);
+    if (hasEffectiveMapping(caseMap)) {
+      rewritten = rewriteCardColumns(rewritten, caseMap);
+    }
+    matchLabelsToColumns(rewritten);
+    const droppedFilters = dropValuelessCardFilters(rewritten);
     // Filter unused columns: some chart types list every column even when not
     // used. Keep only columns with a 'mapping' key (the presence of the key
     // signals the column is actually referenced by the chart).
@@ -538,7 +554,8 @@ export async function swapCardInput({
         (col) => col && Object.prototype.hasOwnProperty.call(col, 'mapping')
       );
     }
-    return await putCardForMigration(cardId, rewritten, tabId, { isDrill, urn });
+    const putResult = await putCardForMigration(cardId, rewritten, tabId, { isDrill, urn });
+    return droppedFilters > 0 ? { ...putResult, droppedFilters } : putResult;
   } catch (err) {
     console.error('[swapCardInput] full-path failed:', err);
     return { error: err?.message || String(err), success: false };
@@ -1144,7 +1161,7 @@ async function putDatasetViewInPage(viewId, viewDefinition, originId, targetId, 
             case 'COLUMN': {
               const t = cleanId(node.table?.name);
               const c = cleanId(node.columnName);
-              const out = srcToOut[`${t} ${c}`];
+              const out = srcToOut[`${t}\u0000${c}`];
               return out != null ? `\`${out}\`` : `\`${t}\`.\`${c}\``;
             }
             case 'DOUBLE_VALUE':
@@ -1181,11 +1198,14 @@ async function putDatasetViewInPage(viewId, viewDefinition, originId, targetId, 
           const colType = {};
           for (const c of schema.tables?.[0]?.columns || []) colType[cleanId(c.name)] = c.type;
           // Map each source column ref -> the output name that selects it (for calcs).
+          // The NUL separator must stay an escape: a literal NUL byte anywhere in an
+          // injected function's source makes chrome.scripting.executeScript fail
+          // silently, returning a null result with no error.
           const srcToOut = {};
           for (const it of topItems) {
             const e = it.expression;
             if (e?.['@type'] === 'COLUMN')
-              srcToOut[`${cleanId(e.table?.name)} ${cleanId(e.columnName)}`] = cleanId(it.alias?.name);
+              srcToOut[`${cleanId(e.table?.name)}\u0000${cleanId(e.columnName)}`] = cleanId(it.alias?.name);
           }
           const rebuilt = {};
           for (const it of topItems) {
@@ -1403,15 +1423,31 @@ async function swapCardInputFast(cardId, originId, targetId, tabId) {
  * Type registry for the migration view, in render order. Display labels are
  * derived from the object type model (see `typeGroupLabel` in the view), not
  * stored here, so they stay correct (e.g. "DataFlow"/"DataSet" casing).
+ *
+ * `onDemand` marks a type the view only searches when asked, because finding it
+ * means listing every object of that type in the instance and filtering here.
  */
+// A Text card names its datasets in its markup, so Domo's own move repoints it
+// server-side instead, with its column references left as they are.
+const DEFINITION_CARD_TYPES = new Set(['drill_view', 'kpi']);
+
 export const MIGRATE_TYPES = [
   { key: 'beastModes' },
   { key: 'cards' },
   { key: 'dataflows' },
   { key: 'datasets' },
   { key: 'apps' },
-  { key: 'alerts' }
+  { key: 'alerts' },
+  { key: 'jupyterWorkspaces', onDemand: true }
 ];
+
+// A missing result is its own failure: `executeInPage` returns null when the
+// injected function hands back nothing (a rejected promise, or an injection that
+// never ran), so the item may never have been touched.
+export function describeSwapFailure(resp, fallback = 'Failed without reporting a reason.') {
+  if (resp == null) return 'No result came back from the Domo page, so the change may not have been applied.';
+  return resp.error || fallback;
+}
 
 /**
  * Migrate every selected item from `originId` to `targetId`. Calls
@@ -1427,7 +1463,7 @@ export const MIGRATE_TYPES = [
  * @param {string} [params.originName] - Origin dataset name, for the dataflow version-history comment.
  * @param {string} params.targetId
  * @param {string} [params.targetName] - Target dataset name, for the dataflow version-history comment.
- * @param {{ beastModes?: Array<{id: any, name?: string, legacyId?: string}>, cards: Array<{id: any, name?: string}>, datasets: Array<{id: string, name?: string}>, dataflows: Array<{id: any, name?: string}> }} params.selectedItems
+ * @param {{ beastModes?: Array<{id: any, name?: string, legacyId?: string}>, cards: Array<{id: any, name?: string}>, datasets: Array<{id: string, name?: string}>, dataflows: Array<{id: any, name?: string}>, jupyterWorkspaces?: Array<{id: string, name?: string}> }} params.selectedItems
  * @param {Record<string, {disposition: 'create'|'rename'|'keep'|'overwrite', newName?: string}>} [params.beastModeChoices] - Per origin Beast Mode id, the conflict resolution chosen on the target.
  * @param {Array<{id: any, name: string, legacyId?: string}>} [params.originBeastModes] - Every Beast Mode saved to the origin dataset, selected or not, so a nested reference to one that isn't migrating is told apart from a reference to a Variable or another dataset's Beast Mode.
  * @param {Array<{id: any, name: string, legacyId?: string}>} [params.targetBeastModes] - The target dataset's existing Beast Modes (for keep/overwrite).
@@ -1520,6 +1556,7 @@ export async function migrateAllDownstreamContent({
         const result = {
           attempted: [],
           count: 0,
+          droppedFilters: [],
           errors: [],
           failed: 0,
           manualReview: [],
@@ -1533,6 +1570,7 @@ export async function migrateAllDownstreamContent({
 
       onProgress?.({ count: items.length, status: 'transferring', typeKey: type.key });
 
+      const droppedFilters = [];
       const errors = [];
       const manualReview = [];
       const mergedInputs = [];
@@ -1575,14 +1613,18 @@ export async function migrateAllDownstreamContent({
           if (resp.mergedInput) {
             mergedInputs.push({ id: item.id, name: item.name || String(item.id) });
           }
+          if (resp.droppedFilters > 0) {
+            droppedFilters.push({ count: resp.droppedFilters, id: item.id, name: item.name || String(item.id) });
+          }
         } else {
-          errors.push({ error: resp?.error || 'Unknown error', id: item.id });
+          errors.push({ error: describeSwapFailure(resp), id: item.id });
         }
       }
 
       const result = {
         attempted,
         count: items.length,
+        droppedFilters,
         errors,
         failed: errors.length,
         manualReview,
@@ -1683,6 +1725,23 @@ function buildBeastModeEntry(template, { currentUserId, name, numericRemap, orig
   entry.owner = currentUserId;
   entry.links = [{ resource: { id: targetId, type: 'DATA_SOURCE' }, visible: true }];
   return entry;
+}
+
+/**
+ * Respell each referenced name that differs from the target schema's spelling
+ * only by capitalization. Domo reads a column ref case-insensitively but
+ * validates a card write against the exact spelling, so a card saying
+ * `forecast owner` where the dataset says `Forecast Owner` is rejected.
+ */
+function buildCanonicalCaseMap(referencedNames, targetColumnTypes) {
+  const schemaIndex = indexColumnNames(Object.keys(targetColumnTypes || {}));
+  if (schemaIndex.size === 0) return {};
+  const map = {};
+  for (const name of referencedNames || []) {
+    const canonical = resolveColumnName(name, schemaIndex);
+    if (canonical && canonical !== name) map[name] = canonical;
+  }
+  return map;
 }
 
 /**
@@ -1865,6 +1924,9 @@ async function dispatchSwap(typeKey, item, options) {
     });
   }
   if (typeKey === 'cards') {
+    if (item.type && !DEFINITION_CARD_TYPES.has(item.type)) {
+      return swapCardInputFast(item.id, options.originId, options.targetId, options.tabId);
+    }
     return swapCardInput({
       beastModeIdRemap: options.beastModeIdRemap,
       beastModeNumericByLegacyId: options.beastModeNumericByLegacyId,
@@ -1876,6 +1938,7 @@ async function dispatchSwap(typeKey, item, options) {
       droppedColumns: options.droppedColumns,
       originId: options.originId,
       tabId: options.tabId,
+      targetColumnTypes: options.targetColumnTypes,
       targetId: options.targetId,
       urn: item.urn,
       useFullPath: options.useFullPath
@@ -1902,7 +1965,56 @@ async function dispatchSwap(typeKey, item, options) {
       targetName: options.targetName
     });
   }
+  if (typeKey === 'jupyterWorkspaces') {
+    // A notebook binds whole datasets by alias and reads their columns in
+    // freeform code, so only the binding is repointed; a rename or a drop comes
+    // back as manual review instead.
+    return swapJupyterWorkspaceInput({
+      columnMap: options.columnMap,
+      droppedColumns: options.droppedColumns,
+      originId: options.originId,
+      tabId: options.tabId,
+      targetId: options.targetId,
+      workspace: item
+    });
+  }
   return { error: `Unknown migrate type ${typeKey}`, success: false };
+}
+
+/**
+ * Remove a card's value-less IN filters, which filter nothing and which Domo
+ * rejects on any write ("INVALID_FILTER" / "INVALID_VALUES"), so a card carrying
+ * one from before can never be saved. A quick filter is never one of these:
+ * Domo keeps those in the card's `controls`, where selecting nothing is the
+ * resting state, so a filter on a column that has one is left alone, as is one
+ * fed by another card (`sourceCardURN`) and any other operand.
+ *
+ * @returns {number} How many filters were removed.
+ */
+function dropValuelessCardFilters(definition) {
+  const subscriptions = definition?.definition?.subscriptions;
+  if (!subscriptions || typeof subscriptions !== 'object') return 0;
+  const controlColumns = new Set(
+    (Array.isArray(definition?.definition?.controls) ? definition.definition.controls : [])
+      .map((control) => control?.column)
+      .filter((column) => typeof column === 'string')
+  );
+  let removed = 0;
+  for (const subscription of Object.values(subscriptions)) {
+    if (!Array.isArray(subscription?.filters)) continue;
+    subscription.filters = subscription.filters.filter((filter) => {
+      const dead =
+        filter?.filterType === 'LEGACY' &&
+        (filter.operand === 'IN' || filter.operand === 'NOT_IN') &&
+        Array.isArray(filter.values) &&
+        filter.values.length === 0 &&
+        !filter.sourceCardURN &&
+        !controlColumns.has(filter.column);
+      if (dead) removed++;
+      return !dead;
+    });
+  }
+  return removed;
 }
 
 /**
@@ -1918,6 +2030,30 @@ function extractCreatedFunctions(response) {
     if (Array.isArray(response[key])) return response[key];
   }
   return [];
+}
+
+/**
+ * Respell a label that is its own node's column name in different
+ * capitalization, such as a quick filter's `name` beside its `column`. The
+ * column rewriter leaves a label alone, so one left saying `forecast owner` next
+ * to a `Forecast Owner` column can still fail Domo's schema check on write.
+ */
+function matchLabelsToColumns(node) {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) {
+    for (const item of node) matchLabelsToColumns(item);
+    return;
+  }
+  const { column, name } = node;
+  if (
+    typeof name === 'string' &&
+    typeof column === 'string' &&
+    name !== column &&
+    name.toLowerCase() === column.toLowerCase()
+  ) {
+    node.name = column;
+  }
+  for (const value of Object.values(node)) matchLabelsToColumns(value);
 }
 
 /**

@@ -1,36 +1,8 @@
-import {
-  AlertDialog,
-  Autocomplete,
-  Button,
-  Card,
-  Collection,
-  Description,
-  Dropdown,
-  EmptyState,
-  Header,
-  Input,
-  Label,
-  Link,
-  ListBox,
-  ListLayout,
-  Modal,
-  Popover,
-  ScrollShadow,
-  SearchField,
-  Select,
-  Separator,
-  Spinner,
-  TextField,
-  Tooltip,
-  useFilter,
-  Virtualizer
-} from '@heroui/react';
+import { AlertDialog, Button, Card, DisclosureGroup, ScrollShadow, Separator, Spinner, toast } from '@heroui/react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
 import { DatasetComboBox } from '@/components/DatasetComboBox';
-import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
-import { ColumnUsagesModal } from '@/components/views/ColumnUsagesModal';
 import { DataList } from '@/components/views/DataList';
 import { ViewHeader } from '@/components/views/ViewHeader';
 import { useParallelFetches } from '@/hooks/useParallelFetches';
@@ -50,6 +22,7 @@ import {
   getDatasetFunctions,
   getNestingBeastModeIds
 } from '@/services/functions';
+import { getDownstreamJupyterWorkspaces } from '@/services/jupyterWorkspaces';
 import {
   compareDatasetSchemas,
   findDataflowInputConflicts,
@@ -61,53 +34,38 @@ import {
   migrateAllDownstreamContent
 } from '@/services/migrateDownstreamContent';
 import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
-import { describeViewOutputDrop, isColumnDroppable } from '@/utils/columnDrops';
+import { isColumnDroppable } from '@/utils/columnDrops';
 import { suggestReplacement } from '@/utils/columnMatching';
-import { isBrokenColumnReference } from '@/utils/columnOrphans';
+import { indexColumnNames, isBrokenColumnReference, resolveColumnName } from '@/utils/columnOrphans';
 import { buildRefreshAction } from '@/utils/headerActions';
-import { getSidepanelData } from '@/utils/sidepanel';
+import { getSidepanelData, launchView } from '@/utils/sidepanel';
+import IconArrowLeft from '@icons/arrow-left.svg?react';
+import IconArrowRight from '@icons/arrow-right.svg?react';
 import IconCheckCircle from '@icons/check-circle.svg?react';
 import IconCheck from '@icons/check.svg?react';
-import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconExclamationPointCircle from '@icons/exclamation-point-circle.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
+import IconSync from '@icons/sync.svg?react';
 import IconWand from '@icons/wand.svg?react';
 import IconX from '@icons/x.svg?react';
 
 import { AlertStatusIcon } from '../AlertStatusIcon';
+import { BeastModeConflictsSection, CardBeastModeConflictsSection } from './migrateDownstream/BeastModeConflictsSection';
+import { ColumnRemapSection } from './migrateDownstream/ColumnRemapSection';
+import { buildObjectUrl, DROP, TYPE_KEY_TO_DOMO_TYPE, UNMAPPED } from './migrateDownstream/contentTypes';
+import { PdpMappingSection } from './migrateDownstream/PdpMappingSection';
+import { ReconciliationWarnings } from './migrateDownstream/ReconciliationWarnings';
 
-const TYPE_KEY_TO_DOMO_TYPE = {
-  alerts: 'ALERT',
-  apps: 'RYUU_APP',
-  beastModes: 'BEAST_MODE_FORMULA',
-  cards: 'CARD',
-  dataflows: 'DATAFLOW_TYPE',
-  datasets: 'DATA_SOURCE'
-};
+// An opt-in type never joins these, so "all searches finished" counts only these.
+const AUTO_MIGRATE_TYPES = MIGRATE_TYPES.filter((t) => !t.onDemand);
 
-const UNMAPPED = '__unmapped__';
-// Sentinel for the "drop column" remap choice: remove the column's references
-// from the content that uses it (badge_table cards/drills, alert rules, and the
-// output of a dataset view that only selects it) instead of mapping it to a
-// target column.
-const DROP = '__drop__';
-// Sentinel for the PDP-policy mapping select's explicit "remove this policy so
-// the alert watches all rows" choice. The unresolved state is a null value (no
-// selection), which keeps the migration blocked until the user picks.
-const PDP_REMOVE = '__pdp_remove__';
+const JUPYTER_VISIBILITY_NOTE = 'Only Jupyter Workspaces you have access to are listed';
 
-const BEAST_MODE_DISPOSITIONS = [
-  { id: 'keep', label: 'Keep existing' },
-  { id: 'overwrite', label: 'Overwrite' },
-  { id: 'rename', label: 'Rename new' }
-];
+const NEEDS_NAME_CHIP = { color: 'danger', label: 'Needs a Name' };
 
-const CARD_BEAST_MODE_DISPOSITIONS = [
-  { id: 'useTarget', label: "Use target's" },
-  { id: 'rename', label: "Rename card's" }
-];
+const RESOLVED_CHIP = { color: 'success', label: 'Resolved' };
 
 export function MigrateDownstreamContentView({
   currentContext = null,
@@ -124,6 +82,9 @@ export function MigrateDownstreamContentView({
 
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [pendingSelectAll, setPendingSelectAll] = useState(true);
+  // Jupyter Workspaces are only searched when the user asks, so the row stays
+  // out of the list until then.
+  const [jupyterCheckStarted, setJupyterCheckStarted] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   // 'select' = pick what content to migrate; 'target' = pick the target dataset, remap, migrate.
   const [page, setPage] = useState('select');
@@ -180,12 +141,18 @@ export function MigrateDownstreamContentView({
   // target (keyed by the origin filterGroupId): either map it to a target policy
   // or remove it (widening the alert to all rows). `pdpLoaded` gates the UI/gating
   // so the unmatched list doesn't flash while the target's policies are loading.
-  const [targetPdpPolicies, setTargetPdpPolicies] = useState([]);
+  // null = not compared yet; an empty array is the real answer "target has no
+  // row policies". Collapsing the two reports every referenced policy as
+  // unmatched before a target is even picked.
+  const [targetPdpPolicies, setTargetPdpPolicies] = useState(null);
   const [pdpChoices, setPdpChoices] = useState({});
   const [pdpLoaded, setPdpLoaded] = useState(false);
 
   const [targetRefreshKey, setTargetRefreshKey] = useState(0);
   const [targetFetchCount, setTargetFetchCount] = useState(0);
+
+  const [expandedSections, setExpandedSections] = useState(() => new Set());
+  const seededExpansionRef = useRef(false);
 
   const mountedRef = useRef(true);
   const bailedRef = useRef(false);
@@ -221,6 +188,7 @@ export function MigrateDownstreamContentView({
       );
       setOrigin(context.domoObject?.baseUrl || '');
       setTabId(context.tabId);
+      if (data.checkJupyterWorkspaces) setJupyterCheckStarted(true);
     } catch (error) {
       console.error('[MigrateDownstreamContentView] Error loading data:', error);
       onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
@@ -286,8 +254,36 @@ export function MigrateDownstreamContentView({
     loadedCount,
     loadingCount,
     refresh: refreshFetches,
-    results
+    results: autoResults
   } = useParallelFetches(specs);
+
+  // Its own hook instance: `useParallelFetches` fetches and refreshes a whole
+  // spec set at once, and this search is deferred until the user asks for it.
+  const jupyterSpecs = useMemo(() => {
+    if (!datasetId) return [];
+    return [
+      {
+        fetch: async () => ({ items: await getDownstreamJupyterWorkspaces(datasetId, tabId) }),
+        key: 'jupyterWorkspaces'
+      }
+    ];
+  }, [datasetId, tabId]);
+
+  const { refresh: runJupyterCheck, results: jupyterResults } = useParallelFetches(jupyterSpecs, { autoFetch: false });
+
+  // 'idle' until the check is asked for: the hook seeds every key as 'loading',
+  // which would otherwise paint a spinner on a row that isn't searching.
+  const jupyterStatus = jupyterCheckStarted ? (jupyterResults.jupyterWorkspaces?.status ?? 'loading') : 'idle';
+
+  const results = useMemo(
+    () => (jupyterCheckStarted ? { ...autoResults, ...jupyterResults } : autoResults),
+    [autoResults, jupyterCheckStarted, jupyterResults]
+  );
+
+  useEffect(() => {
+    if (!jupyterCheckStarted || !datasetId) return;
+    runJupyterCheck();
+  }, [datasetId, jupyterCheckStarted, runJupyterCheck]);
 
   // Pre-select every loaded item once all fetches settle. We hold pending in
   // a flag so a partial early result doesn't snapshot empty children.
@@ -298,6 +294,20 @@ export function MigrateDownstreamContentView({
     setSelectedIds(buildFullSelection(results));
     setPendingSelectAll(false);
   }, [pendingSelectAll, isFullyLoaded, results]);
+
+  // The Jupyter search settles long after that one-shot pre-select, so its
+  // results select themselves: the user asked for them by running the check.
+  useEffect(() => {
+    if (jupyterStatus !== 'loaded') return;
+    const items = jupyterResults.jupyterWorkspaces?.items?.items || [];
+    if (items.length === 0) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.add('jupyterWorkspaces');
+      for (const item of items) next.add(leafSelectionId('jupyterWorkspaces', item.id));
+      return next;
+    });
+  }, [jupyterResults, jupyterStatus]);
 
   const totalsByType = useMemo(() => {
     const totals = {};
@@ -318,7 +328,12 @@ export function MigrateDownstreamContentView({
   // when specs is empty. Skips when any fetch errored (loadedCount < total) so
   // the user can still see the failure and retry via refresh; a 0 total there
   // may just mean a fetch never returned.
-  const nothingToMigrate = !isLoading && !isTransferring && loadedCount === MIGRATE_TYPES.length && totalAvailable === 0;
+  // An unrun Jupyter search can still turn something up, so an idle one doesn't
+  // hold the bail-out back; the toast offers to run it instead. A running one
+  // does hold it back, and an errored one keeps the view open to show the error.
+  const jupyterSettled = jupyterStatus === 'idle' || jupyterStatus === 'loaded';
+  const nothingToMigrate =
+    !isLoading && !isTransferring && loadedCount === AUTO_MIGRATE_TYPES.length && totalAvailable === 0 && jupyterSettled;
   const holdContent = useViewReady(!isLoading && !nothingToMigrate);
 
   // The render path short-circuits to the spinner on `nothingToMigrate` to
@@ -329,12 +344,40 @@ export function MigrateDownstreamContentView({
     if (bailedRef.current) return;
     if (!nothingToMigrate) return;
     bailedRef.current = true;
-    onStatusUpdate?.('Nothing to migrate', `**${datasetName}** has no downstream content to migrate`, 'warning');
+    // The view is closing, so an unrun Jupyter search would be unreachable from
+    // here. The toast carries it instead, reopening the view with it running.
+    if (jupyterStatus === 'idle') {
+      let toastKey;
+      toastKey = showStatus(
+        'Nothing to migrate',
+        `**${datasetName}** has no downstream content to migrate, but Jupyter Workspaces haven't been searched`,
+        'warning',
+        15000,
+        {
+          actionProps: {
+            children: (
+              <>
+                <IconSync />
+                Check Jupyter Workspaces
+              </>
+            ),
+            onPress: () => {
+              launchView({ checkJupyterWorkspaces: true, currentContext, type: 'migrateDownstreamContent' });
+              toast.close(toastKey);
+            },
+            size: 'sm',
+            variant: 'secondary'
+          }
+        }
+      );
+    } else {
+      onStatusUpdate?.('Nothing to migrate', `**${datasetName}** has no downstream content to migrate`, 'warning');
+    }
     onBackToDefault?.();
-  }, [nothingToMigrate, datasetName, onStatusUpdate, onBackToDefault]);
+  }, [nothingToMigrate, currentContext, datasetName, jupyterStatus, onStatusUpdate, onBackToDefault, showStatus]);
 
   const selectedCounts = useMemo(() => {
-    const counts = { alerts: 0, apps: 0, beastModes: 0, cards: 0, dataflows: 0, datasets: 0 };
+    const counts = { alerts: 0, apps: 0, beastModes: 0, cards: 0, dataflows: 0, datasets: 0, jupyterWorkspaces: 0 };
     for (const t of MIGRATE_TYPES) {
       const r = results[t.key];
       const items = r?.status === 'loaded' ? r.items?.items || [] : [];
@@ -368,7 +411,7 @@ export function MigrateDownstreamContentView({
   // for column references when a schema mismatch is detected. Distinct from
   // `selectedCounts` (numbers) and `selectedIds` (flat key Set).
   const selectedItemsByType = useMemo(() => {
-    const acc = { alerts: [], apps: [], beastModes: [], cards: [], dataflows: [], datasets: [] };
+    const acc = { alerts: [], apps: [], beastModes: [], cards: [], dataflows: [], datasets: [], jupyterWorkspaces: [] };
     for (const t of MIGRATE_TYPES) {
       const r = results[t.key];
       const items = r?.status === 'loaded' ? r.items?.items || [] : [];
@@ -684,21 +727,6 @@ export function MigrateDownstreamContentView({
 
   const targetBeastModeNames = useMemo(() => new Set(targetBeastModes.map((b) => b.name)), [targetBeastModes]);
 
-  // Default every conflict to "keep" (reuse the target's existing Beast Mode)
-  // and drop choices for Beast Modes that are no longer in conflict.
-  useEffect(() => {
-    setBeastModeChoices((prev) => {
-      const next = {};
-      let changed = false;
-      for (const bm of beastModeConflicts) {
-        next[bm.id] = prev[bm.id] || { disposition: 'keep' };
-        if (!prev[bm.id]) changed = true;
-      }
-      if (!changed && Object.keys(prev).length === Object.keys(next).length) return prev;
-      return next;
-    });
-  }, [beastModeConflicts]);
-
   const handleBeastModeChoice = useCallback((bmId, disposition, newName) => {
     setBeastModeChoices((prev) => ({
       ...prev,
@@ -754,21 +782,6 @@ export function MigrateDownstreamContentView({
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [cardBeastModes, selectedCardIdSet, targetBeastModes]);
 
-  // Default every card-level collision to "use the target's Beast Mode" and drop
-  // choices for ones no longer in conflict.
-  useEffect(() => {
-    setCardBeastModeChoices((prev) => {
-      const next = {};
-      let changed = false;
-      for (const bm of cardBeastModeConflicts) {
-        next[bm.id] = prev[bm.id] || { disposition: 'useTarget' };
-        if (!prev[bm.id]) changed = true;
-      }
-      if (!changed && Object.keys(prev).length === Object.keys(next).length) return prev;
-      return next;
-    });
-  }, [cardBeastModeConflicts]);
-
   const handleCardBeastModeChoice = useCallback((bmId, disposition, newName) => {
     setCardBeastModeChoices((prev) => ({
       ...prev,
@@ -790,6 +803,38 @@ export function MigrateDownstreamContentView({
   );
 
   const targetBeastModeByName = useMemo(() => new Map(targetBeastModes.map((b) => [b.name, b])), [targetBeastModes]);
+
+  // Rows start undecided, so this is the one place an absent choice resolves to
+  // what the migration will actually do, shared by the depth check, the submit
+  // payload, and the confirm dialog.
+  const beastModeDispositionFor = useCallback(
+    (bm) => beastModeChoices[bm.id]?.disposition || (targetBeastModeByName.has(bm.name) ? 'keep' : 'create'),
+    [beastModeChoices, targetBeastModeByName]
+  );
+
+  const plannedBeastModeChoices = useMemo(() => {
+    // A leftover entry for a Beast Mode no longer in conflict would reach the
+    // service as a keep/overwrite with nothing on the target to match.
+    const planned = {};
+    for (const bm of beastModeConflicts) {
+      const choice = beastModeChoices[bm.id];
+      const disposition = beastModeDispositionFor(bm);
+      planned[bm.id] = disposition === 'rename' ? { disposition, newName: choice?.newName ?? '' } : { disposition };
+    }
+    return planned;
+  }, [beastModeChoices, beastModeConflicts, beastModeDispositionFor]);
+
+  // Conflicts the user hasn't answered, so the UI can say how many decisions are
+  // outstanding and the confirm dialog can name what the defaults will do.
+  const undecidedBeastModeCount = useMemo(
+    () => beastModeConflicts.filter((bm) => !beastModeChoices[bm.id]?.disposition).length,
+    [beastModeChoices, beastModeConflicts]
+  );
+
+  const undecidedCardBeastModeCount = useMemo(
+    () => cardBeastModeConflicts.filter((bm) => !cardBeastModeChoices[bm.id]?.disposition).length,
+    [cardBeastModeChoices, cardBeastModeConflicts]
+  );
 
   // Resolutions the card swap applies: per colliding card-level Beast Mode, either
   // rename it or repoint its references to the same-named target dataset Beast
@@ -852,17 +897,12 @@ export function MigrateDownstreamContentView({
   const depthBlockedBeastModes = useMemo(() => {
     if (nestingTargetBeastModeIds.size === 0) return [];
     const byId = new Map(beastModeItems.map((bm) => [String(bm.id), bm]));
-    // What the migration will do with a Beast Mode: the user's choice, else the
-    // defaults it applies (keep when the target already has that name, create
-    // when it doesn't).
-    const dispositionFor = (bm) =>
-      beastModeChoices[bm.id]?.disposition || (targetBeastModeByName.has(bm.name) ? 'keep' : 'create');
     const blocked = [];
     for (const bm of selectedItemsByType.beastModes) {
       // Only a create is checked: a kept Beast Mode is never written, so its
       // nesting is never re-validated, and an overwrite lands after every create,
       // which is Domo's to judge on that write.
-      const disposition = dispositionFor(bm);
+      const disposition = beastModeDispositionFor(bm);
       if (disposition !== 'create' && disposition !== 'rename') continue;
       const dependencies = [];
       for (const depId of bmRefGraph.get(String(bm.id)) || []) {
@@ -872,7 +912,7 @@ export function MigrateDownstreamContentView({
         // The dependency only arrives already nested when it reuses the target's
         // Beast Mode: keep leaves that definition alone, and overwrite replaces it
         // only after this create has already run.
-        const depDisposition = dep ? dispositionFor(dep) : 'keep';
+        const depDisposition = dep ? beastModeDispositionFor(dep) : 'keep';
         if (depDisposition !== 'keep' && depDisposition !== 'overwrite') continue;
         dependencies.push({ id: depId, name: dep?.name || depId });
       }
@@ -882,13 +922,12 @@ export function MigrateDownstreamContentView({
     }
     return blocked.sort((a, b) => a.name.localeCompare(b.name));
   }, [
-    beastModeChoices,
+    beastModeDispositionFor,
     beastModeItems,
     bmRefGraph,
     nestedDependencyTargets,
     nestingTargetBeastModeIds,
-    selectedItemsByType,
-    targetBeastModeByName
+    selectedItemsByType
   ]);
 
   // The depth warning as one sentence, assembled here rather than inline so the
@@ -932,12 +971,13 @@ export function MigrateDownstreamContentView({
 
   useEffect(() => {
     if (page !== 'target' || !selectedDatasetId || !selectedAlertsRefPdp) {
-      setTargetPdpPolicies([]);
+      setTargetPdpPolicies(null);
       setPdpLoaded(true);
       return;
     }
     let cancelled = false;
     setPdpLoaded(false);
+    setTargetPdpPolicies(null);
     getRowPdpPolicies(selectedDatasetId, tabId)
       .then((policies) => {
         if (cancelled) return;
@@ -971,7 +1011,7 @@ export function MigrateDownstreamContentView({
   // Named target policies indexed by name (first wins), for same-name auto-match.
   const targetPdpByName = useMemo(() => {
     const m = new Map();
-    for (const p of targetPdpPolicies) {
+    for (const p of targetPdpPolicies || []) {
       if (p.type !== 'open' && p.name && !m.has(p.name)) m.set(p.name, p);
     }
     return m;
@@ -980,14 +1020,17 @@ export function MigrateDownstreamContentView({
   // Referenced policies with no same-name policy on the target: the ones the user
   // must resolve (map to a target policy, or remove to widen the alert).
   const unmatchedPdpReferences = useMemo(
-    () => alertPdpReferences.filter((p) => !targetPdpByName.has(p.name)),
-    [alertPdpReferences, targetPdpByName]
+    () => (targetPdpPolicies === null ? [] : alertPdpReferences.filter((p) => !targetPdpByName.has(p.name))),
+    [alertPdpReferences, targetPdpByName, targetPdpPolicies]
   );
 
   // Prune choices for policies no longer unmatched (e.g. selection changed). No
   // default disposition is seeded, so each unmatched policy stays unresolved
   // until the user picks, which keeps the migration gated.
   useEffect(() => {
+    // Skip while no comparison has run: every reference reads as matched then,
+    // which would discard the user's choices mid-refresh.
+    if (targetPdpPolicies === null) return;
     setPdpChoices((prev) => {
       const validKeys = new Set(unmatchedPdpReferences.map((p) => String(p.filterGroupId)));
       const next = {};
@@ -999,7 +1042,7 @@ export function MigrateDownstreamContentView({
       if (!changed) return prev;
       return next;
     });
-  }, [unmatchedPdpReferences]);
+  }, [targetPdpPolicies, unmatchedPdpReferences]);
 
   const handlePdpChoice = useCallback((filterGroupId, disposition, targetFilterGroupId) => {
     setPdpChoices((prev) => ({
@@ -1014,7 +1057,7 @@ export function MigrateDownstreamContentView({
   // automatically; unmatched groups use the user's choice. Groups still
   // unresolved are omitted (the migrate button is gated until none remain).
   const pdpMap = useMemo(() => {
-    const targetOpen = targetPdpPolicies.find((p) => p.type === 'open');
+    const targetOpen = (targetPdpPolicies || []).find((p) => p.type === 'open');
     const map = {};
     const refsById = new Map();
     for (const alert of selectedItemsByType.alerts || []) {
@@ -1036,7 +1079,7 @@ export function MigrateDownstreamContentView({
       if (choice?.disposition === 'remove') {
         map[p.filterGroupId] = { action: 'remove' };
       } else if (choice?.disposition === 'map' && choice.targetFilterGroupId != null) {
-        const t = targetPdpPolicies.find((tp) => String(tp.filterGroupId) === String(choice.targetFilterGroupId));
+        const t = (targetPdpPolicies || []).find((tp) => String(tp.filterGroupId) === String(choice.targetFilterGroupId));
         if (t) map[p.filterGroupId] = { action: 'map', target: t };
       }
     }
@@ -1047,14 +1090,25 @@ export function MigrateDownstreamContentView({
   // or an unmatched policy the user hasn't mapped or removed yet. Gates migrate.
   const pdpChoiceInvalid = useMemo(() => {
     if (!selectedAlertsRefPdp) return false;
-    if (!pdpLoaded) return true;
+    // Unknown counts as unresolved: the migrate button is separately gated on a
+    // target being chosen, so this only ever holds while the fetch is in flight.
+    if (!pdpLoaded || targetPdpPolicies === null) return true;
     for (const p of unmatchedPdpReferences) {
       const choice = pdpChoices[String(p.filterGroupId)];
       if (!choice) return true;
       if (choice.disposition === 'map' && choice.targetFilterGroupId == null) return true;
     }
     return false;
-  }, [pdpChoices, pdpLoaded, selectedAlertsRefPdp, unmatchedPdpReferences]);
+  }, [pdpChoices, pdpLoaded, selectedAlertsRefPdp, targetPdpPolicies, unmatchedPdpReferences]);
+
+  const undecidedPdpCount = useMemo(
+    () =>
+      unmatchedPdpReferences.filter((p) => {
+        const choice = pdpChoices[String(p.filterGroupId)];
+        return !choice || (choice.disposition === 'map' && choice.targetFilterGroupId == null);
+      }).length,
+    [pdpChoices, unmatchedPdpReferences]
+  );
 
   const hasMismatches = comparison && !comparison.compatible;
 
@@ -1076,26 +1130,32 @@ export function MigrateDownstreamContentView({
   const usedUnmappedColumns = useMemo(() => {
     if (!hasMismatches || !scanResult) return [];
     const missing = comparison?.missing || [];
-    const mismatchedNames = new Set(missing.map((m) => m.name));
+    const mismatchedIndex = indexColumnNames(missing.map((m) => m.name));
     // expectedType is the origin column's own type, surfaced so the user knows
     // the existing type when choosing a target column to remap onto.
     const typeByName = new Map(missing.map((m) => [m.name, m.expectedType]));
-    const targetNames = new Set(targetColumns.map((c) => c.name));
+    const targetIndex = indexColumnNames(targetColumns.map((c) => c.name));
     const referenced = scanResult.byColumn || new Map();
     const out = [];
     for (const [colName, items] of referenced.entries()) {
-      if (mismatchedNames.has(colName)) {
-        out.push({ items, name: colName, type: typeByName.get(colName) ?? null });
+      const mismatched = resolveColumnName(colName, mismatchedIndex);
+      if (mismatched) {
+        out.push({ items, name: colName, type: typeByName.get(mismatched) ?? null });
         continue;
       }
       // Gated on the target columns having loaded, or an empty set flags them all.
-      if (targetNames.size > 0 && !targetNames.has(colName) && isBrokenColumnReference(colName, items)) {
+      if (targetIndex.size > 0 && !resolveColumnName(colName, targetIndex) && isBrokenColumnReference(colName, items)) {
         out.push({ items, name: colName, type: null });
       }
     }
     out.sort((a, b) => a.name.localeCompare(b.name));
     return out;
   }, [comparison, hasMismatches, scanResult, targetColumns]);
+
+  const unmappedColumnCount = useMemo(
+    () => usedUnmappedColumns.filter((c) => columnMap[c.name] == null).length,
+    [columnMap, usedUnmappedColumns]
+  );
 
   // Names of used-unmapped columns whose every usage is a card or drill (type
   // 'cards'). These are the columns whose references live only in card
@@ -1156,9 +1216,16 @@ export function MigrateDownstreamContentView({
     return out;
   }, [plannedRenameMap, selectedItemsByType]);
 
+  // A notebook names its columns in code, so a rename or a drop always needs a
+  // person; nothing in the scan can find or rewrite those references.
+  const jupyterColumnWarnings = useMemo(() => {
+    if (!hasEffectiveMapping(plannedRenameMap) && plannedDroppedColumns.length === 0) return [];
+    return (selectedItemsByType.jupyterWorkspaces || []).map((w) => ({ id: w.id, name: w.name || String(w.id) }));
+  }, [plannedDroppedColumns, plannedRenameMap, selectedItemsByType]);
+
   const dataListItems = useMemo(
     () =>
-      MIGRATE_TYPES.map((t) => {
+      MIGRATE_TYPES.filter((t) => !t.onDemand || jupyterCheckStarted).map((t) => {
         const result = results[t.key];
         const xfer = transferStatus[t.key];
         const status = xfer?.status ?? result?.status ?? 'loading';
@@ -1195,6 +1262,7 @@ export function MigrateDownstreamContentView({
         }
 
         return new DataListItem({
+          annotation: t.key === 'jupyterWorkspaces' ? JUPYTER_VISIBILITY_NOTE : null,
           children,
           count,
           countLabel,
@@ -1209,7 +1277,7 @@ export function MigrateDownstreamContentView({
           typeId: TYPE_KEY_TO_DOMO_TYPE[t.key]
         });
       }),
-    [results, transferStatus, origin]
+    [jupyterCheckStarted, results, transferStatus, origin]
   );
 
   // Both parents and leaves are selectable. Parents are only selectable when
@@ -1355,38 +1423,38 @@ export function MigrateDownstreamContentView({
       return `Migrating… **${done}**/${total} ${total === 1 ? 'Type' : 'Types'}`;
     }
     if (!isFullyLoaded) {
-      return `Searching downstream content… (${MIGRATE_TYPES.length - loadingCount}/${MIGRATE_TYPES.length})`;
+      return `Searching downstream content… (${AUTO_MIGRATE_TYPES.length - loadingCount}/${AUTO_MIGRATE_TYPES.length})`;
     }
+    if (jupyterStatus === 'loading') return 'Searching Jupyter Workspaces…';
     let text = `**${totalSelected}** of **${totalAvailable}** selected`;
     if (errorCount > 0) {
       text += ` (${errorCount} failed to load)`;
     }
     return text;
-  }, [isTransferring, transferStatus, isFullyLoaded, loadingCount, totalAvailable, totalSelected, errorCount]);
+  }, [
+    isTransferring,
+    transferStatus,
+    isFullyLoaded,
+    jupyterStatus,
+    loadingCount,
+    totalAvailable,
+    totalSelected,
+    errorCount
+  ]);
 
   // A rename choice with an empty or already-taken name can't be migrated.
-  const beastModeChoiceInvalid = useMemo(() => {
-    for (const bm of beastModeConflicts) {
-      const c = beastModeChoices[bm.id];
-      if (c?.disposition === 'rename') {
-        const trimmed = (c.newName || '').trim();
-        if (trimmed === '' || targetBeastModeNames.has(trimmed)) return true;
-      }
-    }
-    return false;
-  }, [beastModeConflicts, beastModeChoices, targetBeastModeNames]);
+  const invalidBeastModeRenameCount = useMemo(
+    () => countInvalidRenames(beastModeConflicts, beastModeChoices, targetBeastModeNames),
+    [beastModeConflicts, beastModeChoices, targetBeastModeNames]
+  );
 
-  // Same rename validity check for card-level Beast Mode collisions.
-  const cardBeastModeChoiceInvalid = useMemo(() => {
-    for (const bm of cardBeastModeConflicts) {
-      const c = cardBeastModeChoices[bm.id];
-      if (c?.disposition === 'rename') {
-        const trimmed = (c.newName || '').trim();
-        if (trimmed === '' || targetBeastModeNames.has(trimmed)) return true;
-      }
-    }
-    return false;
-  }, [cardBeastModeConflicts, cardBeastModeChoices, targetBeastModeNames]);
+  const invalidCardBeastModeRenameCount = useMemo(
+    () => countInvalidRenames(cardBeastModeConflicts, cardBeastModeChoices, targetBeastModeNames),
+    [cardBeastModeConflicts, cardBeastModeChoices, targetBeastModeNames]
+  );
+
+  const beastModeChoiceInvalid = invalidBeastModeRenameCount > 0;
+  const cardBeastModeChoiceInvalid = invalidCardBeastModeRenameCount > 0;
 
   // The footer Migrate button stays disabled until: every fetch settled, at
   // least one item is selected, a target is chosen, and the schema check +
@@ -1411,6 +1479,78 @@ export function MigrateDownstreamContentView({
     if (!hasMismatches) return 'Migrate';
     return hasEffectiveMapping(columnMap) ? 'Migrate with Remap' : 'Proceed Anyway';
   }, [columnMap, hasMismatches]);
+
+  // Spells out what the rows the user never answered are about to do, so a
+  // scrolled-past section can't decide anything silently.
+  const defaultedDecisionParts = useMemo(() => {
+    const parts = [];
+    if (undecidedBeastModeCount > 0) {
+      parts.push(
+        `${undecidedBeastModeCount} Beast ${undecidedBeastModeCount === 1 ? 'Mode' : 'Modes'} will keep the target's version`
+      );
+    }
+    if (undecidedCardBeastModeCount > 0) {
+      parts.push(
+        `${undecidedCardBeastModeCount} card Beast ${undecidedCardBeastModeCount === 1 ? 'Mode' : 'Modes'} will use the target's`
+      );
+    }
+    if (unmappedColumnCount > 0) {
+      parts.push(`${unmappedColumnCount} ${unmappedColumnCount === 1 ? 'column' : 'columns'} will be left unmapped`);
+    }
+    return parts;
+  }, [undecidedBeastModeCount, undecidedCardBeastModeCount, unmappedColumnCount]);
+
+  const columnRemapStatus = unmappedColumnCount > 0 ? countChip(unmappedColumnCount, 'unmapped') : RESOLVED_CHIP;
+
+  const beastModeStatus =
+    invalidBeastModeRenameCount > 0
+      ? NEEDS_NAME_CHIP
+      : undecidedBeastModeCount > 0
+        ? countChip(undecidedBeastModeCount, 'to resolve')
+        : RESOLVED_CHIP;
+
+  const cardBeastModeStatus =
+    invalidCardBeastModeRenameCount > 0
+      ? NEEDS_NAME_CHIP
+      : undecidedCardBeastModeCount > 0
+        ? countChip(undecidedCardBeastModeCount, 'to resolve')
+        : RESOLVED_CHIP;
+
+  const pdpStatus = undecidedPdpCount > 0 ? countChip(undecidedPdpCount, 'to resolve', 'danger') : RESOLVED_CHIP;
+
+  const firstUnresolvedSection = useMemo(() => {
+    if (unmappedColumnCount > 0) return 'columns';
+    if (invalidBeastModeRenameCount > 0 || undecidedBeastModeCount > 0) return 'beastModes';
+    if (invalidCardBeastModeRenameCount > 0 || undecidedCardBeastModeCount > 0) return 'cardBeastModes';
+    if (undecidedPdpCount > 0) return 'pdp';
+    return null;
+  }, [
+    invalidBeastModeRenameCount,
+    invalidCardBeastModeRenameCount,
+    undecidedBeastModeCount,
+    undecidedCardBeastModeCount,
+    undecidedPdpCount,
+    unmappedColumnCount
+  ]);
+
+  const targetFetchesPending = isComparing || isScanning || !pdpLoaded || targetFetchCount > 0;
+  const reconciliationSettled = Boolean(selectedDatasetId) && !targetFetchesPending;
+
+  // Waits for every fetch to settle before choosing, or whichever section resolves
+  // first wins the seed regardless of priority. Seeds once, so a later change can't
+  // reopen a section the user deliberately collapsed.
+  useEffect(() => {
+    if (seededExpansionRef.current || !reconciliationSettled) return;
+    seededExpansionRef.current = true;
+    if (firstUnresolvedSection) setExpandedSections(new Set([firstUnresolvedSection]));
+  }, [firstUnresolvedSection, reconciliationSettled]);
+
+  useEffect(() => {
+    seededExpansionRef.current = false;
+  }, [selectedDatasetId]);
+
+  const blockedDecisionCount = undecidedPdpCount + invalidBeastModeRenameCount + invalidCardBeastModeRenameCount;
+  const defaultedDecisionCount = undecidedBeastModeCount + undecidedCardBeastModeCount + unmappedColumnCount;
 
   // The dataset currently open in the browser tab, offered as a one-tap target
   // when the user navigates somewhere new after starting the migration (the
@@ -1537,7 +1677,7 @@ export function MigrateDownstreamContentView({
 
     try {
       const transferResults = await migrateAllDownstreamContent({
-        beastModeChoices,
+        beastModeChoices: plannedBeastModeChoices,
         cardBeastModeResolutions,
         columnMap: renameMap,
         definitionsByItemKey,
@@ -1583,30 +1723,39 @@ export function MigrateDownstreamContentView({
       let totalManualReview = 0;
       let totalSkipped = 0;
       let totalMerged = 0;
+      let totalFiltersDropped = 0;
       for (const [, r] of transferResults) {
         totalSucceeded += r.succeeded || 0;
         totalFailed += r.failed || 0;
         totalManualReview += r.manualReview?.length || 0;
         totalSkipped += r.skipped?.length || 0;
         totalMerged += r.mergedInputs?.length || 0;
+        totalFiltersDropped += (r.droppedFilters || []).reduce((sum, entry) => sum + (entry.count || 0), 0);
       }
 
-      // SQL dataflows whose input repointed but whose SQL we couldn't safely
-      // rewrite (origin SELECT *, etc.) still need a hand edit; call it out.
+      // Items that moved but need a hand afterwards: a SQL dataflow whose SQL
+      // couldn't be safely rewritten, an alert that lost a piece Domo wouldn't
+      // take. Each one's row says what it needs.
       const reviewNote =
         totalManualReview > 0
-          ? ` ${totalManualReview} SQL dataflow${totalManualReview !== 1 ? 's' : ''} flagged for manual review.`
+          ? ` ${totalManualReview} item${totalManualReview !== 1 ? 's' : ''} flagged for manual review.`
           : '';
       const skipNote =
-        totalSkipped > 0 ? ` ${totalSkipped} item${totalSkipped !== 1 ? 's' : ''} skipped, already reading the target.` : '';
+        totalSkipped > 0 ? ` ${totalSkipped} item${totalSkipped !== 1 ? 's' : ''} skipped, each row says why.` : '';
       const mergeNote =
         totalMerged > 0 ? ` ${totalMerged} dataflow${totalMerged !== 1 ? 's' : ''} had an input merged.` : '';
+      // A filter with no values filters nothing and blocks Domo's card write, so
+      // it comes out as part of the repoint; say so, since it edits the card.
+      const filterNote =
+        totalFiltersDropped > 0
+          ? ` Removed ${totalFiltersDropped} filter${totalFiltersDropped !== 1 ? 's' : ''} that had no values.`
+          : '';
 
       const targetLabel = targetName ? `**${targetName}**` : `**${targetId}**`;
       if (totalFailed > 0) {
         showStatus(
           'Migration Partially Complete',
-          `**${totalSucceeded}** succeeded, **${totalFailed}** failed migrating to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}`,
+          `**${totalSucceeded}** succeeded, **${totalFailed}** failed migrating to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}${filterNote}`,
           'warning',
           7000
         );
@@ -1616,7 +1765,7 @@ export function MigrateDownstreamContentView({
       } else if (totalManualReview > 0 || totalSkipped > 0) {
         showStatus(
           'Migration Complete',
-          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}`,
+          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}${filterNote}`,
           'warning',
           9000
         );
@@ -1627,7 +1776,7 @@ export function MigrateDownstreamContentView({
       } else {
         showStatus(
           'Migration Complete',
-          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}${mergeNote}`,
+          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}${mergeNote}${filterNote}`,
           'success',
           7000
         );
@@ -1658,7 +1807,6 @@ export function MigrateDownstreamContentView({
       if (mountedRef.current) setIsTransferring(false);
     }
   }, [
-    beastModeChoices,
     beastModeItems,
     cardBeastModeResolutions,
     datasetId,
@@ -1666,6 +1814,7 @@ export function MigrateDownstreamContentView({
     hasMismatches,
     onBackToDefault,
     pdpMap,
+    plannedBeastModeChoices,
     plannedDroppedColumns,
     plannedRenameMap,
     scanResult,
@@ -1695,10 +1844,33 @@ export function MigrateDownstreamContentView({
   const selectAllControl = {
     ariaLabel: 'Select all downstream content',
     count: totalSelected,
-    isDisabled: !isFullyLoaded || isTransferring,
+    isDisabled: !isFullyLoaded || jupyterStatus === 'loading' || isTransferring,
     onToggle: (checked) => setSelectedIds(checked ? buildFullSelection(results) : new Set()),
     total: totalAvailable
   };
+
+  // Domo can't be asked which workspaces read a dataset, so the only way to find
+  // them is to list every workspace in the instance and match here. Too heavy to
+  // run on open, so it's offered instead.
+  const jupyterPrompt = !jupyterCheckStarted ? (
+    <Alert className='w-full border border-border bg-transparent' status='accent'>
+      <Alert.Content>
+        <Alert.Title className='flex items-center gap-1'>
+          <Alert.Indicator>
+            <IconInfoCircle data-slot='alert-default-icon' />
+          </Alert.Indicator>
+          Jupyter Workspaces aren't searched automatically
+        </Alert.Title>
+        <Alert.Description>
+          Finding them means reading every Jupyter Workspace in the instance, so it only runs when you ask.
+        </Alert.Description>
+        <Button fullWidth className='mt-2' size='sm' variant='secondary' onPress={() => setJupyterCheckStarted(true)}>
+          <IconSync />
+          Check Jupyter Workspaces
+        </Button>
+      </Alert.Content>
+    </Alert>
+  ) : null;
 
   // Page 1: choose what downstream content to migrate. The type groups live in
   // the DataList; the only footer action is Next, which advances to page 2.
@@ -1706,13 +1878,14 @@ export function MigrateDownstreamContentView({
     return (
       <DataList
         beta
+        banner={jupyterPrompt}
         currentContext={currentContext}
         feature='Migrate Content of'
         featureIcon={<IconSwapHorizontal />}
         fillHeight={true}
         getItemLock={getItemLock}
         headerActions={['reload', 'refresh']}
-        isRefreshing={loadingCount > 0}
+        isRefreshing={loadingCount > 0 || jupyterStatus === 'loading'}
         isSelectable={isSelectable}
         itemActions={['copy']}
         itemLabel='item'
@@ -1728,18 +1901,22 @@ export function MigrateDownstreamContentView({
         subtext={subtextNode}
         viewType='migrateDownstreamContent'
         onClose={onBackToDefault}
-        onRefresh={refreshFetches}
+        onRefresh={() => {
+          refreshFetches();
+          if (jupyterCheckStarted) runJupyterCheck();
+        }}
         onSelectionChange={handleSelectionChange}
         onStatusUpdate={onStatusUpdate}
         footer={
           <Button
             fullWidth
-            isDisabled={!isFullyLoaded || isTransferring || totalSelected === 0}
+            isDisabled={!isFullyLoaded || jupyterStatus === 'loading' || isTransferring || totalSelected === 0}
             size='sm'
             variant='primary'
             onPress={() => setPage('target')}
           >
             Next
+            <IconArrowRight />
           </Button>
         }
       />
@@ -1755,7 +1932,7 @@ export function MigrateDownstreamContentView({
   ).length;
   const migratedTotal = Object.values(transferStatus).length;
 
-  const isRefreshingTarget = isComparing || isScanning || !pdpLoaded || targetFetchCount > 0;
+  const isRefreshingTarget = targetFetchesPending;
   const refreshDisabledReason = !selectedDatasetId
     ? 'Choose a To DataSet to refresh'
     : isTransferring
@@ -1808,11 +1985,13 @@ export function MigrateDownstreamContentView({
                     Use the dataset you're viewing?
                   </Alert.Title>
                   <Alert.Description className='break-all'>{suggestedTarget.name}</Alert.Description>
-                  <div className='mt-2 flex gap-2'>
-                    <Button size='sm' variant='primary' onPress={handleUseSuggestedTarget}>
-                      Use as target
+                  <div className='mt-2 flex w-full gap-2'>
+                    <Button className='flex-1' size='sm' variant='primary' onPress={handleUseSuggestedTarget}>
+                      <IconCheck />
+                      Use as Target
                     </Button>
-                    <Button size='sm' variant='ghost' onPress={handleDismissSuggestedTarget}>
+                    <Button className='flex-1' size='sm' variant='tertiary' onPress={handleDismissSuggestedTarget}>
+                      <IconX />
                       Dismiss
                     </Button>
                   </div>
@@ -1837,24 +2016,6 @@ export function MigrateDownstreamContentView({
                     Schema check failed
                   </Alert.Title>
                   <Alert.Description>{comparisonError}</Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-
-            {hasMismatches && !isScanning && scanResult && usedUnmappedColumns.length > 0 && (
-              <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Content>
-                  <Alert.Title className='flex items-center gap-1'>
-                    <AlertStatusIcon />
-                    {usedUnmappedColumns.length === 1
-                      ? "1 used column doesn't match"
-                      : `${usedUnmappedColumns.length} used columns don't match`}
-                  </Alert.Title>
-                  <Alert.Description>
-                    Best practice is to align schemas before migrating content. Proceeding here is your responsibility;
-                    broken column references can cause cards to render blank, dataflows to fail, and views to error. Validate
-                    every result.
-                  </Alert.Description>
                 </Alert.Content>
               </Alert>
             )}
@@ -1893,184 +2054,6 @@ export function MigrateDownstreamContentView({
               </Alert>
             )}
 
-            {hasMismatches && !isScanning && scanResult && usedUnmappedColumns.length > 0 && (
-              <div className='flex flex-col gap-1'>
-                <div className='flex items-center justify-between gap-2'>
-                  <Label className='text-sm font-medium'>Column Remap</Label>
-                  <Tooltip>
-                    <Button
-                      isPending={autoMapStatus === 'mapping'}
-                      size='sm'
-                      variant='secondary'
-                      onPress={handleAutoMapClick}
-                    >
-                      {autoMapStatus === 'mapping' ? (
-                        <Spinner color='currentColor' size='sm' />
-                      ) : autoMapStatus === 'done' ? (
-                        <IconCheck className='text-success' />
-                      ) : (
-                        <IconWand />
-                      )}
-                      {autoMapStatus === 'mapping' ? 'Mapping…' : autoMapStatus === 'done' ? 'Mapped' : 'Auto Map'}
-                    </Button>
-                    <Tooltip.Content className='max-w-80 text-wrap'>
-                      Fills each column with its closest match by name. Columns with no clear match are left unmapped. Review
-                      before migrating.
-                    </Tooltip.Content>
-                  </Tooltip>
-                </div>
-                <Description className='text-xs'>
-                  Map each origin column to a column on the target dataset, or leave it unmapped (you'll need to fix
-                  references manually). Only columns actually referenced by the selected content are shown.
-                </Description>
-                <div className='flex flex-col divide-y divide-border'>
-                  {usedUnmappedColumns.map(({ items, name, type }) => (
-                    <ColumnMapRow
-                      canDrop={droppableColumnNames.has(name)}
-                      canMapBeastMode={cardOnlyColumnNames.has(name)}
-                      cardsById={cardsById}
-                      collisions={scanResult?.dataflowCollisions?.get?.(name) || null}
-                      items={items}
-                      key={name}
-                      mappedTo={columnMap[name] ?? UNMAPPED}
-                      origin={origin}
-                      originName={name}
-                      originType={type}
-                      targetBeastModes={targetBeastModes}
-                      targetColumns={targetColumns}
-                      totalSelected={totalSelected}
-                      onChange={(choice) => handleColumnChoice(name, choice)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {hasMismatches && !isScanning && scanResult && sqlDataflowWarnings.length > 0 && (
-              <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Content>
-                  <Alert.Title className='flex items-center gap-1'>
-                    <AlertStatusIcon />
-                    {sqlDataflowWarnings.length === 1
-                      ? '1 SQL dataflow needs manual review'
-                      : `${sqlDataflowWarnings.length} SQL dataflows need manual review`}
-                  </Alert.Title>
-                  <Alert.Description>
-                    {sqlDataflowWarnings.map((w) => w.name).join(', ')} reference this dataset in SQL that can't be remapped
-                    automatically. The input is repointed on migrate, but you'll need to update the SQL by hand.
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-
-            {hasMismatches && !isScanning && scanResult && scriptDataflowWarnings.length > 0 && (
-              <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Content>
-                  <Alert.Title className='flex items-center gap-1'>
-                    <AlertStatusIcon />
-                    {scriptDataflowWarnings.length === 1
-                      ? '1 script dataflow needs manual review'
-                      : `${scriptDataflowWarnings.length} script dataflows need manual review`}
-                  </Alert.Title>
-                  <Alert.Description>
-                    {scriptDataflowWarnings.map((w) => w.name).join(', ')} reference this dataset's columns inside a Python
-                    or R script tile, which can't be renamed automatically. The input is repointed on migrate, but you'll
-                    need to update the script by hand.
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-
-            {hasMismatches && !isScanning && scanResult && viewFusionWarnings.length > 0 && (
-              <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Content>
-                  <Alert.Title className='flex items-center gap-1'>
-                    <AlertStatusIcon />
-                    {viewFusionWarnings.length === 1
-                      ? '1 fused view needs manual review'
-                      : `${viewFusionWarnings.length} fused views need manual review`}
-                  </Alert.Title>
-                  <Alert.Description>
-                    {viewFusionWarnings.map((w) => w.name).join(', ')} use this dataset's columns inside calculated columns.
-                    Those column references are remapped automatically, but double-check the calculations after migrating.
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-
-            {mergeableDataflows.length > 0 && (
-              <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Content>
-                  <Alert.Title className='flex items-center gap-1'>
-                    <AlertStatusIcon />
-                    {mergeableDataflows.length === 1
-                      ? '1 dataflow already reads the target'
-                      : `${mergeableDataflows.length} dataflows already read the target`}
-                  </Alert.Title>
-                  <Alert.Description>
-                    {mergeableDataflows.map((d) => d.name).join(', ')} already read{' '}
-                    {selectedDatasetName || selectedDatasetId}. Their input tile for {datasetName} will be merged into the
-                    one they already have, and every tile reading it will be repointed.
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-
-            {unrepointableDataflows.length > 0 && (
-              <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Content>
-                  <Alert.Title className='flex items-center gap-1'>
-                    <AlertStatusIcon />
-                    {unrepointableDataflows.length === 1
-                      ? "1 dataflow can't be repointed"
-                      : `${unrepointableDataflows.length} dataflows can't be repointed`}
-                  </Alert.Title>
-                  <Alert.Description>
-                    {unrepointableDataflows.map((d) => d.name).join(', ')} already read{' '}
-                    {selectedDatasetName || selectedDatasetId} and run on SQL, where merging the two inputs would mean
-                    rewriting their SQL. They'll be skipped, so repoint them in Domo.
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-
-            {unrepointableDatasets.length > 0 && (
-              <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Content>
-                  <Alert.Title className='flex items-center gap-1'>
-                    <AlertStatusIcon />
-                    {unrepointableDatasets.length === 1
-                      ? "1 view can't be repointed"
-                      : `${unrepointableDatasets.length} views can't be repointed`}
-                  </Alert.Title>
-                  <Alert.Description>
-                    {unrepointableDatasets.map((d) => d.name || d.id).join(', ')} already read{' '}
-                    {selectedDatasetName || selectedDatasetId}, so repointing would leave them reading it twice. They'll be
-                    skipped, so update them in Domo.
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-
-            {!isScanning && scanResult && appColumnCollisions.length > 0 && (
-              <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <Alert.Content>
-                  <Alert.Title className='flex items-center gap-1'>
-                    <AlertStatusIcon />
-                    {appColumnCollisions.length === 1
-                      ? '1 pro-code app would lose fields'
-                      : `${appColumnCollisions.length} pro-code apps would lose fields`}
-                  </Alert.Title>
-                  <Alert.Description>
-                    {appColumnCollisions.map((a) => a.name).join(', ')} map two or more fields to the same target column (
-                    {appColumnCollisions.flatMap((a) => a.collisions.map((c) => c.columnName)).join(', ')}). The app reads
-                    each column only once, so only one of those fields keeps its data and the rest show up blank. Map them to
-                    distinct columns to avoid losing data.
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-
             {hasMismatches &&
               !isScanning &&
               scanResult &&
@@ -2090,103 +2073,97 @@ export function MigrateDownstreamContentView({
                 </Alert>
               )}
 
-            {depthBlockedMessage && (
-              <Alert className='w-full border border-border bg-transparent' status='warning'>
-                <AlertStatusIcon />
-                <Alert.Content>
-                  <Alert.Description>{depthBlockedMessage}</Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
+            <DisclosureGroup
+              allowsMultipleExpanded
+              className='flex w-full flex-col divide-y divide-border'
+              expandedKeys={expandedSections}
+              onExpandedChange={setExpandedSections}
+            >
+              <ReconciliationWarnings
+                appColumnCollisions={appColumnCollisions}
+                hasMismatches={hasMismatches}
+                isScanning={isScanning}
+                jupyterColumnWarnings={jupyterColumnWarnings}
+                mergeableDataflows={mergeableDataflows}
+                originName={datasetName}
+                scanResult={scanResult}
+                scriptDataflowWarnings={scriptDataflowWarnings}
+                sqlDataflowWarnings={sqlDataflowWarnings}
+                targetLabel={selectedDatasetName || selectedDatasetId}
+                unrepointableDataflows={unrepointableDataflows}
+                unrepointableDatasets={unrepointableDatasets}
+                usedUnmappedColumns={usedUnmappedColumns}
+                viewFusionWarnings={viewFusionWarnings}
+              />
 
-            {beastModeConflicts.length > 0 && (
-              <div className='flex flex-col gap-1'>
-                <div className='flex items-center justify-between gap-2'>
-                  <Label className='text-sm font-medium'>Beast Mode Conflicts</Label>
-                  {beastModeConflicts.length > 1 && (
-                    <SetAllConflictsMenu
-                      items={BEAST_MODE_DISPOSITIONS}
-                      tooltip="Applies one choice to all of these Beast Modes. Adjust individual ones afterward. Rename new still needs each row's name."
-                      onApply={handleAllBeastModeChoices}
-                    />
-                  )}
-                </div>
-                <Description className='text-xs'>
-                  The target already has a Beast Mode with each of these names. Keep the target's, overwrite it with the
-                  incoming one, or rename the incoming so both exist. Cards that use it are repointed either way.
-                </Description>
-                <div className='flex flex-col divide-y divide-border'>
-                  {beastModeConflicts.map((bm) => (
-                    <BeastModeConflictRow
-                      choice={beastModeChoices[bm.id]}
-                      depthBlocks={depthBlockedByDependency.get(String(bm.id)) || null}
-                      key={bm.id}
-                      originName={bm.name}
-                      targetNames={targetBeastModeNames}
-                      onChange={(disposition, newName) => handleBeastModeChoice(bm.id, disposition, newName)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+              {hasMismatches && !isScanning && scanResult && (
+                <ColumnRemapSection
+                  autoMapStatus={autoMapStatus}
+                  cardOnlyColumnNames={cardOnlyColumnNames}
+                  cardsById={cardsById}
+                  columnMap={columnMap}
+                  dataflowCollisions={scanResult?.dataflowCollisions}
+                  droppableColumnNames={droppableColumnNames}
+                  origin={origin}
+                  rows={usedUnmappedColumns}
+                  status={columnRemapStatus}
+                  targetBeastModes={targetBeastModes}
+                  targetColumns={targetColumns}
+                  totalSelected={totalSelected}
+                  onAutoMap={handleAutoMapClick}
+                  onColumnChoice={handleColumnChoice}
+                />
+              )}
 
-            {cardBeastModeConflicts.length > 0 && (
-              <div className='flex flex-col gap-1'>
-                <div className='flex items-center justify-between gap-2'>
-                  <Label className='text-sm font-medium'>Card Beast Mode Conflicts</Label>
-                  {cardBeastModeConflicts.length > 1 && (
-                    <SetAllConflictsMenu
-                      items={CARD_BEAST_MODE_DISPOSITIONS}
-                      tooltip="Applies one choice to all of these Beast Modes. Adjust individual ones afterward. Rename card's still needs each row's name."
-                      onApply={handleAllCardBeastModeChoices}
-                    />
-                  )}
-                </div>
-                <Description className='text-xs'>
-                  A selected card has a Beast Mode whose name already exists as a Beast Mode on the target dataset, which
-                  Domo won't allow. Use the target's Beast Mode instead, or rename the card's so both can exist.
-                </Description>
-                <div className='flex flex-col divide-y divide-border'>
-                  {cardBeastModeConflicts.map((bm) => (
-                    <CardBeastModeConflictRow
-                      choice={cardBeastModeChoices[bm.id]}
-                      key={bm.id}
-                      originName={bm.name}
-                      targetNames={targetBeastModeNames}
-                      onChange={(disposition, newName) => handleCardBeastModeChoice(bm.id, disposition, newName)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+              <BeastModeConflictsSection
+                choices={beastModeChoices}
+                conflicts={beastModeConflicts}
+                depthBlockedByDependency={depthBlockedByDependency}
+                depthBlockedMessage={depthBlockedMessage}
+                status={beastModeStatus}
+                targetNames={targetBeastModeNames}
+                onApplyAll={handleAllBeastModeChoices}
+                onChoice={handleBeastModeChoice}
+              />
 
-            {pdpLoaded && unmatchedPdpReferences.length > 0 && (
-              <div className='flex flex-col gap-1'>
-                <Label className='text-sm font-medium'>PDP Policy Mapping</Label>
-                <Description className='text-xs'>
-                  These alerts are scoped by a PDP policy with no match on the target dataset. Map each to a target policy,
-                  or remove it so the moved alert watches all rows. Migration is blocked until each is resolved.
-                </Description>
-                <div className='flex flex-col divide-y divide-border'>
-                  {unmatchedPdpReferences.map((p) => (
-                    <PdpMapRow
-                      choice={pdpChoices[String(p.filterGroupId)]}
-                      key={String(p.filterGroupId)}
-                      originName={p.name}
-                      targetPolicies={targetPdpPolicies}
-                      onChange={(disposition, targetFilterGroupId) =>
-                        handlePdpChoice(p.filterGroupId, disposition, targetFilterGroupId)
-                      }
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+              <CardBeastModeConflictsSection
+                choices={cardBeastModeChoices}
+                conflicts={cardBeastModeConflicts}
+                status={cardBeastModeStatus}
+                targetNames={targetBeastModeNames}
+                onApplyAll={handleAllCardBeastModeChoices}
+                onChoice={handleCardBeastModeChoice}
+              />
+
+              <PdpMappingSection
+                choices={pdpChoices}
+                isLoaded={pdpLoaded}
+                references={unmatchedPdpReferences}
+                status={pdpStatus}
+                targetPolicies={targetPdpPolicies || []}
+                onChoice={handlePdpChoice}
+              />
+            </DisclosureGroup>
           </Card.Content>
         </ScrollShadow>
         <Separator className='mt-1.5' />
+        {!isTransferring && selectedDatasetId && (blockedDecisionCount > 0 || defaultedDecisionCount > 0) && (
+          <p className='shrink-0 pt-1.5 text-xs text-muted'>
+            {blockedDecisionCount > 0 ? (
+              <span className='text-warning'>
+                {blockedDecisionCount} {blockedDecisionCount === 1 ? 'decision' : 'decisions'} to resolve before migrating
+              </span>
+            ) : (
+              <>
+                {defaultedDecisionCount} {defaultedDecisionCount === 1 ? 'choice' : 'choices'} left unmade, so{' '}
+                {defaultedDecisionCount === 1 ? 'its default' : 'their defaults'} will apply
+              </>
+            )}
+          </p>
+        )}
         <div className='flex shrink-0 gap-2 pt-2'>
           <Button isDisabled={isTransferring} size='sm' variant='tertiary' onPress={() => setPage('select')}>
+            <IconArrowLeft />
             Back
           </Button>
           <Button
@@ -2253,6 +2230,24 @@ export function MigrateDownstreamContentView({
                     <span className='font-medium'>{unrepointableDataflows.length + unrepointableDatasets.length}</span>{' '}
                     {unrepointableDataflows.length + unrepointableDatasets.length === 1 ? 'item' : 'items'} will be skipped
                     because they already read {selectedDatasetName || selectedDatasetId}.
+                  </p>
+                )}
+                {defaultedDecisionParts.length > 0 && (
+                  <p className='text-warning'>
+                    You left some choices unmade, so{' '}
+                    {defaultedDecisionParts.map((part, i) => (
+                      <Fragment key={part}>
+                        {i === 0
+                          ? ''
+                          : i === defaultedDecisionParts.length - 1
+                            ? defaultedDecisionParts.length > 2
+                              ? ', and '
+                              : ' and '
+                            : ', '}
+                        <span className='font-medium'>{part}</span>
+                      </Fragment>
+                    ))}
+                    .
                   </p>
                 )}
                 {hasMismatches && (
@@ -2328,74 +2323,6 @@ export function MigrateDownstreamContentView({
         </AlertDialog.Backdrop>
       </AlertDialog>
     </>
-  );
-}
-
-// One row of the Beast Mode conflict resolver: the origin Beast Mode's name
-// plus a keep / overwrite / rename choice, with an inline name field (and
-// validation) when renaming.
-function BeastModeConflictRow({ choice, depthBlocks, onChange, originName, targetNames }) {
-  const disposition = choice?.disposition || 'keep';
-  const newName = choice?.newName ?? '';
-  const trimmed = newName.trim();
-  const renameEmpty = disposition === 'rename' && trimmed === '';
-  const renameCollides = disposition === 'rename' && trimmed !== '' && targetNames.has(trimmed);
-  return (
-    <div className='flex flex-col gap-1 py-1.5'>
-      <div className='flex items-center gap-2'>
-        <span className='min-w-0 flex-1 truncate font-mono text-xs' title={originName}>
-          {originName}
-        </span>
-        <Select
-          aria-label={`Resolve ${originName}`}
-          className='w-36'
-          value={disposition}
-          variant='secondary'
-          onChange={(value) => onChange(value, newName)}
-        >
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator>
-              <IconChevronDown />
-            </Select.Indicator>
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              <ListBox.Item id='keep'>
-                Keep existing
-                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-              </ListBox.Item>
-              <ListBox.Item id='overwrite'>
-                Overwrite
-                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-              </ListBox.Item>
-              <ListBox.Item id='rename'>
-                Rename new
-                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-              </ListBox.Item>
-            </ListBox>
-          </Select.Popover>
-        </Select>
-      </div>
-      {disposition === 'rename' && (
-        <TextField aria-label={`New name for ${originName}`} className='w-full' variant='secondary'>
-          <Input
-            className='h-8 font-mono text-xs'
-            placeholder='New Beast Mode name…'
-            value={newName}
-            onChange={(e) => onChange('rename', e.target.value)}
-          />
-        </TextField>
-      )}
-      {renameEmpty && <p className='text-xs text-warning'>Enter a name for the new Beast Mode.</p>}
-      {renameCollides && <p className='text-xs text-warning'>That name also exists on the target.</p>}
-      {depthBlocks?.length > 0 && (
-        <p className='text-xs text-warning'>
-          The target's copy is itself nested, so reusing it puts {depthBlocks.map((name) => `"${name}"`).join(', ')} a level
-          deeper than Domo allows. Choose Rename new to bring a copy along instead.
-        </p>
-      )}
-    </div>
   );
 }
 
@@ -2482,492 +2409,25 @@ function buildLeafItems(typeKey, items, origin) {
   );
 }
 
-// Best-effort Domo object URL for a scanned content item. Mirrors the leaf-row
-// link building so both the type groups and the usages modal point at the same
-// place. Returns null when the type/origin is unknown or the URL can't be built.
-function buildObjectUrl(typeKey, item, origin) {
-  const domoTypeId = TYPE_KEY_TO_DOMO_TYPE[typeKey];
-  if (!domoTypeId || !origin) return null;
-  try {
-    // Apps link to their asset-library overview, keyed by the design id, not the
-    // card id every other field of the row is keyed by.
-    const objectId = typeKey === 'apps' ? item.designId : item.id;
-    if (!objectId) return null;
-    return new DomoObject(domoTypeId, objectId, origin, { name: item.name }).url;
-  } catch {
-    return null;
-  }
-}
-
-// One row of the card-level Beast Mode collision resolver: a card's Beast Mode
-// whose name clashes with a target dataset Beast Mode. The user either uses the
-// target's Beast Mode (references repointed, card copy dropped) or renames the
-// card's copy so both can coexist.
-function CardBeastModeConflictRow({ choice, onChange, originName, targetNames }) {
-  const disposition = choice?.disposition || 'useTarget';
-  const newName = choice?.newName ?? '';
-  const trimmed = newName.trim();
-  const renameEmpty = disposition === 'rename' && trimmed === '';
-  const renameCollides = disposition === 'rename' && trimmed !== '' && targetNames.has(trimmed);
-  return (
-    <div className='flex flex-col gap-1 py-1.5'>
-      <div className='flex items-center gap-2'>
-        <span className='min-w-0 flex-1 truncate font-mono text-xs' title={originName}>
-          {originName}
-        </span>
-        <Select
-          aria-label={`Resolve card Beast Mode ${originName}`}
-          className='w-36'
-          value={disposition}
-          variant='secondary'
-          onChange={(value) => onChange(value, newName)}
-        >
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator>
-              <IconChevronDown />
-            </Select.Indicator>
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              <ListBox.Item id='useTarget'>
-                Use target's
-                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-              </ListBox.Item>
-              <ListBox.Item id='rename'>
-                Rename card's
-                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-              </ListBox.Item>
-            </ListBox>
-          </Select.Popover>
-        </Select>
-      </div>
-      {disposition === 'rename' && (
-        <TextField aria-label={`New name for ${originName}`} className='w-full' variant='secondary'>
-          <Input
-            className='h-8 font-mono text-xs'
-            placeholder='New Beast Mode name…'
-            value={newName}
-            onChange={(e) => onChange('rename', e.target.value)}
-          />
-        </TextField>
-      )}
-      {renameEmpty && <p className='text-xs text-warning'>Enter a name for the card's Beast Mode.</p>}
-      {renameCollides && <p className='text-xs text-warning'>That name also exists on the target.</p>}
-    </div>
-  );
-}
-
-function ColumnMapRow({
-  canDrop = false,
-  canMapBeastMode = false,
-  cardsById,
-  collisions,
-  items,
-  mappedTo,
-  onChange,
-  origin,
-  originName,
-  originType,
-  targetBeastModes,
-  targetColumns,
-  totalSelected
-}) {
-  // Case-insensitive "contains" match for the Autocomplete's local filter, so
-  // the user can type to narrow a long target-column list.
-  const { contains } = useFilter({ sensitivity: 'base' });
-  // Controlled search text. The option list is virtualized, so the collection
-  // must BE the filtered set (a dynamic `items` array) rather than static
-  // children auto-filtered by the Autocomplete.
-  const [query, setQuery] = useState('');
-
-  // Target Beast Modes offered as mapping targets: only those with a legacyId
-  // (the id a card references them by; without it we couldn't rewrite the ref).
-  // Shown only for card-only columns. Sorted by name to match the column list.
-  const mappableBeastModes = useMemo(() => {
-    if (!canMapBeastMode) return [];
-    return (targetBeastModes || [])
-      .filter((b) => b?.legacyId)
-      .slice()
-      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  }, [canMapBeastMode, targetBeastModes]);
-
-  // When the current choice is a Beast Mode (its legacyId), resolve it for the
-  // trigger so it shows the Beast Mode's name rather than the raw id.
-  const selectedBeastMode = useMemo(
-    () => mappableBeastModes.find((b) => b.legacyId === mappedTo) || null,
-    [mappableBeastModes, mappedTo]
-  );
-
-  // Options for the virtualized picker, filtered by the search box. Actions
-  // (Leave unmapped / Drop) come first; columns and Beast Modes split into
-  // labeled sections only when Beast Modes are offered, otherwise one flat list.
-  // The "Columns" header only appears alongside "Beast Modes"; on its own it
-  // would just hint at options that aren't there. Empty sections are dropped so
-  // no bare header shows when a search filters a group to nothing.
-  const optionSections = useMemo(() => {
-    const matches = (text) => !query || contains(text, query);
-    const sections = [];
-    const actions = [{ id: UNMAPPED, kind: 'unmapped', label: 'Leave unmapped' }];
-    if (canDrop) actions.push({ id: DROP, kind: 'drop', label: 'Drop column' });
-    const visibleActions = actions.filter((a) => matches(a.label));
-    if (visibleActions.length > 0)
-      sections.push({ header: null, id: '__actions__', items: visibleActions, label: 'Mapping options' });
-    const cols = targetColumns
-      .filter((c) => matches(c.name))
-      .map((c) => ({ id: c.name, kind: 'column', name: c.name, type: c.type || 'STRING' }));
-    const beastModes = mappableBeastModes
-      .filter((b) => matches(b.name))
-      .map((b) => ({ id: b.legacyId, kind: 'beastMode', name: b.name, type: b.dataType || 'STRING' }));
-    const showHeaders = mappableBeastModes.length > 0;
-    if (cols.length > 0)
-      sections.push({ header: showHeaders ? 'Columns' : null, id: '__columns__', items: cols, label: 'Columns' });
-    if (showHeaders && beastModes.length > 0)
-      sections.push({ header: 'Beast Modes', id: '__beastModes__', items: beastModes, label: 'Beast Modes' });
-    return sections;
-  }, [canDrop, contains, mappableBeastModes, query, targetColumns]);
-
-  // Render one option row for the virtualized collection, by kind.
-  const renderOption = (item) => {
-    if (item.kind === 'unmapped') {
-      return (
-        <ListBox.Item id={UNMAPPED} textValue='Leave unmapped'>
-          <span className='text-muted italic'>Leave unmapped</span>
-          <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-        </ListBox.Item>
-      );
-    }
-    if (item.kind === 'drop') {
-      return (
-        <ListBox.Item id={DROP} textValue='Drop column'>
-          <span className='text-danger italic'>Drop column</span>
-          <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-        </ListBox.Item>
-      );
-    }
-    if (item.kind === 'beastMode') {
-      return (
-        <ListBox.Item id={item.id} textValue={item.name}>
-          <span className='flex min-w-0 items-center gap-1'>
-            <ObjectTypeIcon className='size-3.5 shrink-0' typeId='BEAST_MODE_FORMULA' />
-            <div className='flex min-w-0 flex-col'>
-              <span className='truncate text-xs' title={item.name}>
-                {item.name}
-              </span>
-              <span className='text-[10px] text-muted'>{item.type}</span>
-            </div>
-          </span>
-          <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-        </ListBox.Item>
-      );
-    }
-    return (
-      <ListBox.Item id={item.id} textValue={item.name}>
-        <div className='flex min-w-0 flex-col'>
-          <span className='truncate font-mono text-xs' title={item.name}>
-            {item.name}
-          </span>
-          <span className='text-[10px] text-muted'>{item.type}</span>
-        </div>
-        <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-      </ListBox.Item>
-    );
-  };
-
-  // Aggregate collisions by dataflow. Many other-inputs may share the same
-  // column name; the user mostly cares which dataflows are affected.
-  const collisionByDataflow = useMemo(() => {
-    if (!collisions || collisions.length === 0) return [];
-    const m = new Map();
-    for (const c of collisions) {
-      if (!m.has(c.dataflowId)) {
-        m.set(c.dataflowId, { dataflowName: c.dataflowName, otherInputs: new Map() });
-      }
-      // Dedup each dataflow's other inputs by dataset id (the same input can
-      // surface for several colliding columns), keeping the input's name so it
-      // can render as a link to the dataset.
-      m.get(c.dataflowId).otherInputs.set(c.otherInputId, c.otherInputName);
-    }
-    return [...m.entries()].map(([id, v]) => ({
-      dataflowId: id,
-      dataflowName: v.dataflowName,
-      otherInputs: [...v.otherInputs].map(([inputId, name]) => ({ id: inputId, name }))
-    }));
-  }, [collisions]);
-
-  const singleCollision = collisionByDataflow.length === 1 ? collisionByDataflow[0] : null;
-  const singleCollisionUrl = singleCollision
-    ? buildObjectUrl('dataflows', { id: singleCollision.dataflowId, name: singleCollision.dataflowName }, origin)
-    : null;
-
-  // What dropping this column takes out of a dataset view, in the same words
-  // Remap Columns uses.
-  const viewDropWarning = useMemo(() => (mappedTo === DROP ? describeViewOutputDrop(items) : null), [items, mappedTo]);
-
-  // After a target is picked, flag when its data type differs from the origin
-  // column's. A silent type change can break a dataflow (e.g. an integer column
-  // dropped into a UNION of text values), so surface it on the row.
-  const selectedTargetType = mappedTo && mappedTo !== UNMAPPED ? targetColumns.find((c) => c.name === mappedTo)?.type : null;
-  const typeMismatch = Boolean(originType && selectedTargetType && originType !== selectedTargetType);
-
-  return (
-    <div className='flex flex-col gap-1 py-1.5'>
-      {collisionByDataflow.length > 0 && (
-        <Alert className='w-full border border-border bg-transparent' status='warning'>
-          <Alert.Content>
-            <Alert.Title className='flex items-start gap-1'>
-              <AlertStatusIcon />
-              <span>
-                Cross-input collision: <span className='font-mono font-bold'>{originName}</span> also exists on{' '}
-                {singleCollision ? (
-                  <>
-                    another input of{' '}
-                    <span>
-                      <ObjectTypeIcon className='mr-0.5 inline size-3.5 align-middle' typeId='DATAFLOW_TYPE' />
-                      {singleCollisionUrl ? (
-                        <Link
-                          className='inline! text-current no-underline decoration-accent hover:text-accent hover:underline'
-                          href={singleCollisionUrl}
-                          target='_blank'
-                          title={singleCollision.dataflowName}
-                        >
-                          {singleCollision.dataflowName}
-                        </Link>
-                      ) : (
-                        singleCollision.dataflowName
-                      )}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    other inputs of {collisionByDataflow.length} dataflows{' '}
-                    <span className='inline-flex align-middle'>
-                      <DataflowCollisionModal dataflows={collisionByDataflow} origin={origin} originName={originName} />
-                    </span>
-                  </>
-                )}
-              </span>
-            </Alert.Title>
-            <Alert.Description>
-              Remapping will rewrite every reference to <span className='font-mono font-medium'>{originName}</span> in the
-              affected dataflow
-              {collisionByDataflow.length === 1 ? '' : 's'}, including refs that came from{' '}
-              {collisionByDataflow.length === 1
-                ? collisionByDataflow[0].otherInputs.map((input, i) => {
-                    const inputUrl = buildObjectUrl('datasets', { id: input.id, name: input.name }, origin);
-                    return (
-                      <Fragment key={input.id}>
-                        {i > 0 ? ', ' : ''}
-                        <span>
-                          <ObjectTypeIcon className='mr-0.5 inline size-3.5 align-middle' typeId='DATA_SOURCE' />
-                          {inputUrl ? (
-                            <Link
-                              className='inline! font-medium text-current no-underline decoration-accent hover:text-accent hover:underline'
-                              href={inputUrl}
-                              target='_blank'
-                              title={input.name}
-                            >
-                              {input.name}
-                            </Link>
-                          ) : (
-                            <span className='font-medium'>{input.name}</span>
-                          )}
-                        </span>
-                      </Fragment>
-                    );
-                  })
-                : 'other inputs'}
-              . Consider leaving this unmapped and fixing the dataflow manually.
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
-      )}
-      <div className='flex items-center gap-2'>
-        <div className='flex min-w-0 flex-1 flex-col'>
-          <span className='truncate font-mono text-xs' title={originName}>
-            {originName}
-          </span>
-          <span className='flex items-center gap-1 text-[10px] text-muted'>
-            {originType && (
-              <>
-                <span className='font-mono'>{originType}</span>
-                <span aria-hidden='true'>·</span>
-              </>
-            )}
-            <span>
-              {items.length} use{items.length === 1 ? '' : 's'}
-            </span>
-            <ColumnUsagesModal
-              cardsById={cardsById}
-              columnName={originName}
-              items={items}
-              origin={origin}
-              total={totalSelected}
-            />
-          </span>
-        </div>
-        {typeMismatch && (
-          <Tooltip delay={300}>
-            <Button isIconOnly aria-label='Data type mismatch' className='shrink-0 text-warning' size='sm' variant='ghost'>
-              <IconExclamationTriangle />
-            </Button>
-            <Tooltip.Content className='w-fit max-w-60'>
-              Selected column's type <span className='font-mono text-muted'>{selectedTargetType}</span> doesn't match the
-              original <span className='font-mono text-muted'>{originType}</span>
-            </Tooltip.Content>
-          </Tooltip>
-        )}
-        <Autocomplete
-          allowsEmptyCollection
-          aria-label={`Map ${originName} to`}
-          className='w-44'
-          selectionMode='single'
-          value={mappedTo}
-          variant='secondary'
-          onChange={(key) => onChange(key)}
-        >
-          <Autocomplete.Trigger className='w-full'>
-            {/* Render only the name (not its type) so the value stays one line.
-                `flex-1 min-w-0` lets a long name truncate within the trigger
-                instead of growing it and pushing the clear/indicator controls. */}
-            <Autocomplete.Value className='flex min-w-0 flex-1 items-center gap-1'>
-              {() =>
-                mappedTo === UNMAPPED ? (
-                  <span className='min-w-0 truncate text-muted italic'>Leave unmapped</span>
-                ) : mappedTo === DROP ? (
-                  <span className='min-w-0 truncate text-danger italic'>Drop column</span>
-                ) : selectedBeastMode ? (
-                  <>
-                    <ObjectTypeIcon className='size-3.5 shrink-0' typeId='BEAST_MODE_FORMULA' />
-                    <span className='min-w-0 truncate text-xs'>{selectedBeastMode.name}</span>
-                  </>
-                ) : (
-                  <span className='min-w-0 truncate font-mono text-xs'>{mappedTo}</span>
-                )
-              }
-            </Autocomplete.Value>
-            <Autocomplete.ClearButton />
-            <Autocomplete.Indicator />
-          </Autocomplete.Trigger>
-          <Autocomplete.Popover className='w-fit max-w-9/10 min-w-72' placement='bottom end'>
-            {/* The Autocomplete popover renders an internal dialog; give it a
-                screen-reader title so it has an accessible name (React Aria warns
-                when a dialog has neither a title slot nor an aria-label). Visually
-                hidden, so the popover layout is unchanged. */}
-            <Popover.Heading className='sr-only'>Map {originName} to a column</Popover.Heading>
-            <Autocomplete.Filter inputValue={query} onInputChange={setQuery}>
-              <SearchField
-                autoFocus
-                aria-label={`Search columns for ${originName}`}
-                className='sticky top-0 z-10'
-                name='column-search'
-                variant='secondary'
-              >
-                <SearchField.Group>
-                  <SearchField.SearchIcon />
-                  <SearchField.Input placeholder='Search columns...' />
-                  <SearchField.ClearButton />
-                </SearchField.Group>
-              </SearchField>
-              {/* Virtualized so a dataset with hundreds of columns only renders
-                  the visible rows. Row/heading heights are estimated (rows are
-                  variable: one-line actions vs two-line columns) so React Aria
-                  measures actual heights and self-corrects. */}
-              <Virtualizer layout={ListLayout} layoutOptions={{ estimatedHeadingHeight: 28, estimatedRowHeight: 44 }}>
-                <ListBox
-                  aria-label={`Columns for ${originName}`}
-                  className='max-h-80 overflow-y-auto'
-                  items={optionSections}
-                  renderEmptyState={() => <EmptyState>No columns found</EmptyState>}
-                >
-                  {(section) => (
-                    <ListBox.Section aria-label={section.header ? undefined : section.label} id={section.id}>
-                      {section.header ? <Header>{section.header}</Header> : null}
-                      <Collection items={section.items}>{(item) => renderOption(item)}</Collection>
-                    </ListBox.Section>
-                  )}
-                </ListBox>
-              </Virtualizer>
-            </Autocomplete.Filter>
-          </Autocomplete.Popover>
-        </Autocomplete>
-      </div>
-      {viewDropWarning && <p className='text-xs text-warning'>{viewDropWarning}</p>}
-    </div>
-  );
-}
-
 // Info-icon modal listing the dataflows whose other inputs collide on the
 // origin column name, each linking to the dataflow. Mirrors ColumnUsagesModal,
 // shown when the collision spans more than one dataflow (a single one links
 // inline).
-function DataflowCollisionModal({ dataflows, origin, originName }) {
-  return (
-    <Modal>
-      <Tooltip delay={300}>
-        <Button
-          isIconOnly
-          aria-label={`Show dataflows where ${originName} collides`}
-          className='size-4 min-h-0 p-0 text-current hover:opacity-70'
-          size='sm'
-          variant='ghost'
-        >
-          <IconInfoCircle className='size-3.5' />
-        </Button>
-        <Tooltip.Content className='max-w-60'>Click to view dataflows with a column that has the same name</Tooltip.Content>
-      </Tooltip>
-      <Modal.Backdrop isDissmissable>
-        <Modal.Container className='p-1' placement='center' scroll='outside'>
-          <Modal.Dialog className='p-2 pt-3'>
-            <Modal.CloseTrigger className='absolute top-2 right-2' variant='ghost'>
-              <IconX />
-            </Modal.CloseTrigger>
-            <Modal.Header>
-              <Modal.Heading className='flex flex-col gap-1 truncate pr-6'>
-                <span className='font-mono'>{originName}</span>
-                <Description>
-                  Also on another input of {dataflows.length} dataflow{dataflows.length === 1 ? '' : 's'}.
-                </Description>
-              </Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className='flex max-h-[60vh] flex-col gap-3 overflow-y-auto text-foreground'>
-              <ul className='flex min-w-0 flex-col gap-1'>
-                {[...dataflows]
-                  .sort((a, b) => (a.dataflowName || '').localeCompare(b.dataflowName || ''))
-                  .map((df) => {
-                    const url = buildObjectUrl('dataflows', { id: df.dataflowId, name: df.dataflowName }, origin);
-                    return (
-                      <li className='flex min-w-0 items-center gap-1.5' key={df.dataflowId}>
-                        <ObjectTypeIcon className='size-4 shrink-0' typeId='DATAFLOW_TYPE' />
-                        {url ? (
-                          <Link
-                            className='min-w-0 truncate text-sm no-underline decoration-accent underline-offset-2 hover:text-accent hover:underline'
-                            href={url}
-                            target='_blank'
-                            title={df.dataflowName}
-                          >
-                            {df.dataflowName}
-                          </Link>
-                        ) : (
-                          <span className='min-w-0 truncate text-sm' title={df.dataflowName}>
-                            {df.dataflowName}
-                          </span>
-                        )}
-                      </li>
-                    );
-                  })}
-              </ul>
-            </Modal.Body>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
-  );
+function countChip(count, suffix, color = 'warning') {
+  return { color, label: `${count} ${suffix}` };
 }
 
-// Concise one-line title for the error Alert's header. The full per-item
-// breakdown rides along as structured `errorDetail` (rendered as JSON in the
-// Alert body), so this only has to summarize.
+function countInvalidRenames(conflicts, choices, targetNames) {
+  let count = 0;
+  for (const bm of conflicts) {
+    const choice = choices[bm.id];
+    if (choice?.disposition !== 'rename') continue;
+    const trimmed = (choice.newName || '').trim();
+    if (trimmed === '' || targetNames.has(trimmed)) count++;
+  }
+  return count;
+}
+
 function formatErrors(result) {
   if (!result?.errors?.length) return null;
   const n = result.errors.length;
@@ -2997,79 +2457,6 @@ function parseLeafTypeKey(id) {
   if (idx === -1) return null;
   const candidate = id.slice(0, idx);
   return MIGRATE_TYPES.some((t) => t.key === candidate) ? candidate : null;
-}
-
-// One row of the PDP policy mapping resolver: an origin policy with no same-name
-// match on the target. The user maps it to a target policy or removes it (the
-// alert then watches all rows). No default is selected, so the row stays
-// unresolved (gating the migrate button) until the user chooses.
-function PdpMapRow({ choice, onChange, originName, targetPolicies }) {
-  const namedTargets = targetPolicies.filter((p) => p.type !== 'open');
-  const value =
-    choice?.disposition === 'remove'
-      ? PDP_REMOVE
-      : choice?.disposition === 'map' && choice.targetFilterGroupId != null
-        ? String(choice.targetFilterGroupId)
-        : null;
-  return (
-    <div className='flex items-center gap-2 py-1.5'>
-      <span className='min-w-0 flex-1 truncate font-mono text-xs' title={originName}>
-        {originName}
-      </span>
-      <Select
-        aria-label={`Map PDP policy ${originName}`}
-        className='w-48'
-        placeholder='Choose…'
-        value={value}
-        variant='secondary'
-        onChange={(key) => (key === PDP_REMOVE ? onChange('remove') : onChange('map', key))}
-      >
-        <Select.Trigger>
-          <Select.Value />
-          <Select.Indicator>
-            <IconChevronDown />
-          </Select.Indicator>
-        </Select.Trigger>
-        <Select.Popover>
-          <ListBox>
-            {namedTargets.map((p) => (
-              <ListBox.Item id={String(p.filterGroupId)} key={String(p.filterGroupId)} textValue={p.name}>
-                {p.name}
-                <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-              </ListBox.Item>
-            ))}
-            <ListBox.Item id={PDP_REMOVE} textValue='Remove'>
-              <span className='text-danger italic'>Remove (watch all rows)</span>
-              <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
-            </ListBox.Item>
-          </ListBox>
-        </Select.Popover>
-      </Select>
-    </div>
-  );
-}
-
-function SetAllConflictsMenu({ items, onApply, tooltip }) {
-  return (
-    <Dropdown>
-      <Tooltip>
-        <Button size='sm' variant='secondary'>
-          Set All
-          <IconChevronDown />
-        </Button>
-        <Tooltip.Content className='max-w-80 text-wrap'>{tooltip}</Tooltip.Content>
-      </Tooltip>
-      <Dropdown.Popover className='w-fit min-w-40' placement='bottom right'>
-        <Dropdown.Menu onAction={(key) => onApply(String(key))}>
-          {items.map((item) => (
-            <Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-              <Label>{item.label}</Label>
-            </Dropdown.Item>
-          ))}
-        </Dropdown.Menu>
-      </Dropdown.Popover>
-    </Dropdown>
-  );
 }
 
 // Plural group label for a migrate type, taken from the object type model so the

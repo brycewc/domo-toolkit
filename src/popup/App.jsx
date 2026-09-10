@@ -12,7 +12,7 @@ export default function App() {
   useTheme();
   useReleaseNotification();
 
-  const [blockedLocalInstance, setBlockedLocalInstance] = useState(null);
+  const [blockedInternalInstance, setBlockedInternalInstance] = useState(null);
   const [currentContext, setCurrentContext] = useState(null);
   const [isLoadingCurrentContext, setIsLoadingCurrentContext] = useState(true);
   const [currentTabId, setCurrentTabId] = useState(null);
@@ -28,7 +28,7 @@ export default function App() {
           type: 'GET_TAB_CONTEXT',
           windowId: window.id
         });
-        setBlockedLocalInstance(response.blockedLocalInstance || null);
+        setBlockedInternalInstance(response.blockedInternalInstance || null);
         if (response.success && response.context) {
           // Reconstruct DomoContext from plain object to get class instance with methods
           const context = DomoContext.fromJSON(response.context);
@@ -55,7 +55,7 @@ export default function App() {
         if (message.tabId === currentTabId) {
           const context = DomoContext.fromJSON(message.context);
           setCurrentContext(context);
-          setBlockedLocalInstance(message.blockedLocalInstance || null);
+          setBlockedInternalInstance(message.blockedInternalInstance || null);
         }
         sendResponse({ received: true });
         return true;
@@ -78,7 +78,7 @@ export default function App() {
         onStatusUpdate={showStatus}
       />
       <ContextFooter
-        blockedLocalInstance={blockedLocalInstance}
+        blockedInternalInstance={blockedInternalInstance}
         currentContext={currentContext}
         isLoading={isLoadingCurrentContext}
         viewportHeightCap={600}
