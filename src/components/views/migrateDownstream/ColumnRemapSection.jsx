@@ -253,7 +253,7 @@ function ColumnMapRow({
   return (
     <div className='flex flex-col gap-1 py-1.5'>
       {collisionByDataflow.length > 0 && (
-        <Alert className='w-full border border-border bg-transparent' status='warning'>
+        <Alert className='w-full' status='warning' variant='transparent'>
           <Alert.Content>
             <Alert.Title className='flex items-start gap-1'>
               <AlertStatusIcon />

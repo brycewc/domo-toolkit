@@ -150,7 +150,7 @@ export function ReconciliationWarnings({
         <Disclosure.Body>
           <div className='flex flex-col gap-2'>
             {warnings.map((w) => (
-              <Alert className='w-full border border-border bg-transparent' key={w.key} status='warning'>
+              <Alert className='w-full' key={w.key} status='warning' variant='transparent'>
                 <Alert.Content>
                   <Alert.Title className='flex items-center gap-1'>
                     <AlertStatusIcon />

@@ -326,9 +326,15 @@
      matching a transparent Surface. Applied via the wrapper Alert's
      `variant="transparent"` prop (see components/Alert.jsx), which appends this
      class. Same specificity as base `.alert` (0,0,1,0), so our later source order
-     within the shared `components` layer wins the conflicting bg/shadow. */
+     within the shared `components` layer wins the conflicting bg/shadow.
+
+     `border-border` is spelled out because a bare `border` sets width only, and
+     Tailwind's preflight leaves the color at `currentColor`, which this rule's own
+     `text-foreground` then resolves to a near-black (light) or near-white (dark)
+     outline. The token keeps the hairline ~7-10 lightness points off the surface
+     it sits on in both themes. */
   .alert--transparent {
-    @apply border bg-transparent text-foreground shadow-none;
+    @apply border border-border bg-transparent text-foreground shadow-none;
   }
 
   /* Alerts and toasts nest their indicator inside the title, laid out by the
@@ -340,5 +346,12 @@
   .alert__title > .alert__indicator,
   .toast__title > .toast__indicator {
     align-self: flex-start;
+  }
+
+  /* That nested indicator shares its column with the description underneath,
+     so HeroUI's `p-1` on it pushes the icon out of line with that text. Drop
+     only the left padding; the rest still spaces the icon off the title. */
+  .toast__title > .toast__indicator {
+    padding-left: 0;
   }
 }

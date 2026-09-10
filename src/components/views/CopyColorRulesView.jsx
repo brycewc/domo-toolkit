@@ -206,7 +206,7 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
         )}
 
         {!isLoadingDestination && destinationHasRules && (
-          <Alert className='w-full border border-border bg-transparent' status='warning'>
+          <Alert className='w-full' status='warning' variant='transparent'>
             <Alert.Content>
               <Alert.Title className='flex items-center gap-1'>
                 <AlertStatusIcon />
@@ -221,7 +221,7 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
         )}
 
         {schemaResolved && (
-          <Alert className='w-full border border-border bg-transparent' status='success'>
+          <Alert className='w-full' status='success' variant='transparent'>
             <Alert.Content>
               <Alert.Title className='flex items-center gap-1'>
                 <AlertStatusIcon />
@@ -240,7 +240,7 @@ export function CopyColorRulesView({ instance = null, liveContext = null, onBack
         )}
 
         {!isLoadingDestination && missingColumns.length > 0 && (
-          <Alert className='w-full border border-border bg-transparent' status='warning'>
+          <Alert className='w-full' status='warning' variant='transparent'>
             <Alert.Content>
               <Alert.Title className='flex items-center gap-1'>
                 <AlertStatusIcon />

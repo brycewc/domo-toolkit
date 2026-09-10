@@ -1008,7 +1008,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
                 </div>
               )}
               {scanError && (
-                <Alert className='w-full border border-border bg-transparent' status='danger'>
+                <Alert className='w-full' status='danger' variant='transparent'>
                   <Alert.Content>
                     <Alert.Title className='flex items-center gap-1'>
                       <AlertStatusIcon />
@@ -1092,7 +1092,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
               )}
 
               {(sqlDataflowWarnings.length > 0 || viewFusionWarnings.length > 0) && (
-                <Alert className='w-full border border-border bg-transparent' status='warning'>
+                <Alert className='w-full' status='warning' variant='transparent'>
                   <Alert.Content>
                     <Alert.Title className='flex items-center gap-1'>
                       <AlertStatusIcon />
@@ -1110,7 +1110,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
               )}
 
               {appColumnCollisions.length > 0 && (
-                <Alert className='w-full border border-border bg-transparent' status='warning'>
+                <Alert className='w-full' status='warning' variant='transparent'>
                   <Alert.Content>
                     <Alert.Title className='flex items-center gap-1'>
                       <AlertStatusIcon />

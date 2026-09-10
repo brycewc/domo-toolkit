@@ -1853,7 +1853,7 @@ export function MigrateDownstreamContentView({
   // them is to list every workspace in the instance and match here. Too heavy to
   // run on open, so it's offered instead.
   const jupyterPrompt = !jupyterCheckStarted ? (
-    <Alert className='w-full border border-border bg-transparent' status='accent'>
+    <Alert className='w-full' status='accent' variant='transparent'>
       <Alert.Content>
         <Alert.Title className='flex items-center gap-1'>
           <Alert.Indicator>
@@ -1976,7 +1976,7 @@ export function MigrateDownstreamContentView({
             />
 
             {suggestedTarget && (
-              <Alert className='w-full border border-border bg-transparent' status='accent'>
+              <Alert className='w-full' status='accent' variant='transparent'>
                 <Alert.Content>
                   <Alert.Title className='flex items-center gap-1'>
                     <Alert.Indicator>
@@ -2007,7 +2007,7 @@ export function MigrateDownstreamContentView({
             )}
 
             {comparisonError && (
-              <Alert className='w-full border border-border bg-transparent' status='danger'>
+              <Alert className='w-full' status='danger' variant='transparent'>
                 <Alert.Content>
                   <Alert.Title className='flex items-center gap-1'>
                     <Alert.Indicator>
@@ -2021,7 +2021,7 @@ export function MigrateDownstreamContentView({
             )}
 
             {comparison?.compatible && (
-              <Alert className='w-full border border-border bg-transparent' status='success'>
+              <Alert className='w-full' status='success' variant='transparent'>
                 <Alert.Content>
                   <Alert.Title className='flex items-center gap-1'>
                     <Alert.Indicator>
@@ -2041,7 +2041,7 @@ export function MigrateDownstreamContentView({
             )}
 
             {hasMismatches && scanError && (
-              <Alert className='w-full border border-border bg-transparent' status='danger'>
+              <Alert className='w-full' status='danger' variant='transparent'>
                 <Alert.Content>
                   <Alert.Title className='flex items-center gap-1'>
                     <Alert.Indicator>
@@ -2062,7 +2062,7 @@ export function MigrateDownstreamContentView({
               scriptDataflowWarnings.length === 0 &&
               sqlDataflowWarnings.length === 0 &&
               viewFusionWarnings.length === 0 && (
-                <Alert className='w-full border border-border bg-transparent' status='default'>
+                <Alert className='w-full' status='default' variant='transparent'>
                   <AlertStatusIcon />
                   <Alert.Content>
                     <Alert.Description>

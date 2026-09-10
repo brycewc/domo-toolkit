@@ -47,7 +47,7 @@ export function BeastModeConflictsSection({
       }
     >
       {depthBlockedMessage && (
-        <Alert className='w-full border border-border bg-transparent' status='warning'>
+        <Alert className='w-full' status='warning' variant='transparent'>
           <AlertStatusIcon />
           <Alert.Content>
             <Alert.Description>{depthBlockedMessage}</Alert.Description>

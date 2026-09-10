@@ -1267,7 +1267,7 @@ export function ActivityLogTable() {
   if (error) {
     return (
       <div className='p-4'>
-        <Alert color='danger'>
+        <Alert status='danger'>
           <Alert.Content>
             <Alert.Title className='flex items-center gap-1'>
               <Alert.Indicator>

@@ -322,7 +322,7 @@ export function DataflowInspector({
       />
 
       {versionId && (
-        <Alert className='mb-2 w-full border border-border bg-transparent' status='warning'>
+        <Alert className='mb-2 w-full' status='warning' variant='transparent'>
           <Alert.Content>
             <Alert.Title className='flex items-center gap-1'>
               <AlertStatusIcon />

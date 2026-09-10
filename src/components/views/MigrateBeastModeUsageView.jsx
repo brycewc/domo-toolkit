@@ -813,7 +813,7 @@ export function MigrateBeastModeUsageView({
           onStatusUpdate={onStatusUpdate}
           banner={
             discoveryErrors.length > 0 ? (
-              <Alert className='w-full border border-border bg-transparent' status='danger'>
+              <Alert className='w-full' status='danger' variant='transparent'>
                 <Alert.Content>
                   <Alert.Title className='flex items-center gap-1'>
                     <AlertStatusIcon />
@@ -869,7 +869,7 @@ export function MigrateBeastModeUsageView({
             </div>
 
             {blockers.map((message) => (
-              <Alert className='w-full border border-border bg-transparent' key={message} status='warning'>
+              <Alert className='w-full' key={message} status='warning' variant='transparent'>
                 <Alert.Content>
                   <Alert.Title className='flex items-center gap-1'>
                     <AlertStatusIcon />
@@ -880,7 +880,7 @@ export function MigrateBeastModeUsageView({
               </Alert>
             ))}
             {warnings.map((warning) => (
-              <Alert className='w-full border border-border bg-transparent' key={warning.key} status='warning'>
+              <Alert className='w-full' key={warning.key} status='warning' variant='transparent'>
                 <Alert.Content>
                   {/* The trigger sits beside the <p>, not inside it: Alert.Description
                       renders a paragraph, which can't legally contain the modal's
