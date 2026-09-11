@@ -53,7 +53,7 @@ export function GetDatasets({ currentContext, isDisabled, onStatusUpdate }) {
       break;
     case 'DATA_SOURCE':
       buttonText = 'Get Child Views';
-      tooltipText = 'List dataset views built on this dataset';
+      tooltipText = 'List dataset views and fusions built on this dataset';
       break;
     case 'DATAFLOW_TYPE':
       buttonText = 'Get I/O DataSets';

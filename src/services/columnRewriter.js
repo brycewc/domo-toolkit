@@ -20,6 +20,7 @@ import {
   COLUMN_LIST_FIELDS,
   COLUMN_VALUE_FIELDS,
   EXPRESSION_FIELDS,
+  isBeastModeLegacyId,
   isCalculatedColumnEntry,
   isCalendarColumnEntry,
   isColumnListParent,
@@ -418,19 +419,6 @@ function finalizeBeastModeFormulaRefs(cardDefinition, beastModeNumericByLegacyId
       formula.formulaDependencies = [...deps];
     }
   }
-}
-
-/**
- * Whether a value is a dataset Beast Mode's legacyId (`calculation_<uuid>`) —
- * the id form a card references a Beast Mode by. Used to detect a column ->
- * Beast Mode remap so the card entry can be reshaped from a `column` ref to a
- * `formulaId` ref. The strict UUID tail avoids misfiring on a physical column
- * that merely happens to start with `calculation_`.
- */
-function isBeastModeLegacyId(value) {
-  return (
-    typeof value === 'string' && /^calculation_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
-  );
 }
 
 function isSimpleSqlIdentifier(name) {

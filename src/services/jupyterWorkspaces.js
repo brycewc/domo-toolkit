@@ -90,41 +90,72 @@ export async function getJupyterWorkspaceDatasets({ entries, tabId = null }) {
  * carrying the aliases it reads it by (`inputAliases`) and writes it by
  * (`outputAliases`), so a caller can tell a reader from a writer.
  *
- * The unpaginated list endpoint is the only source: workspace search never
- * returns the input/output configuration and silently ignores a DATASOURCE_ID
- * filter. `instances=false` keeps Domo from enumerating every running
- * JupyterHub server, which is slow and fails when JupyterHub is unreachable.
- * Domo returns every workspace to a notebook admin and only readable ones to
- * everyone else, so a non-admin's answer is incomplete.
- *
  * @param {string} datasetId - The dataset's GUID
  * @param {number|null} [tabId] - Optional Chrome tab ID
  * @returns {Promise<Array<{id: string, inputAliases: string[], name: string, outputAliases: string[], owner: number|null}>>}
  */
 export async function getJupyterWorkspacesForDataset(datasetId, tabId = null) {
+  const workspaces = await getJupyterWorkspacesForDatasets([datasetId], tabId);
+  return workspaces.map(({ datasetIds: _datasetIds, ...workspace }) => workspace);
+}
+
+/**
+ * Find every Jupyter Workspace that references any of several datasets, each
+ * carrying the aliases it reads them by (`inputAliases`), the aliases it writes
+ * them by (`outputAliases`), and which of the datasets it touches
+ * (`datasetIds`, in the order asked for). Aliases are pooled across the
+ * datasets, so a workspace reading one and writing another reports both.
+ *
+ * The unpaginated list endpoint is the only source: workspace search never
+ * returns the input/output configuration and silently ignores a DATASOURCE_ID
+ * filter. `instances=false` keeps Domo from enumerating every running
+ * JupyterHub server, which is slow and fails when JupyterHub is unreachable.
+ * Domo returns every workspace to a notebook admin and only readable ones to
+ * everyone else, so a non-admin's answer is incomplete. Reading that list is
+ * the whole cost of the lookup, so asking about many datasets at once costs no
+ * more than asking about one.
+ *
+ * @param {string[]} datasetIds - The datasets' GUIDs
+ * @param {number|null} [tabId] - Optional Chrome tab ID
+ * @param {Object} [options] - Options
+ * @param {boolean} [options.includeWorkspace] - Also return each match's whole workspace object as `workspace`
+ * @returns {Promise<Array<{datasetIds: string[], id: string, inputAliases: string[], name: string, outputAliases: string[], owner: number|null, workspace?: Object}>>}
+ */
+export async function getJupyterWorkspacesForDatasets(datasetIds, tabId = null, { includeWorkspace = false } = {}) {
+  const ids = (datasetIds || []).filter(Boolean).map(String);
+  if (ids.length === 0) return [];
+
   const result = await executeInPage(
-    async (datasetId) => {
+    async (ids, includeWorkspace) => {
       try {
         const response = await fetch('/api/datascience/v1/workspaces?instances=false');
         if (!response.ok) return { error: `HTTP ${response.status}`, workspaces: null };
         const data = await response.json();
 
-        const aliasesFor = (entries) =>
+        const wanted = new Set(ids);
+        const matchedIn = (entries, matched) =>
           (Array.isArray(entries) ? entries : [])
-            .filter((entry) => entry && String(entry.dataSourceId) === String(datasetId))
+            .filter((entry) => {
+              if (!entry || !wanted.has(String(entry.dataSourceId))) return false;
+              matched.add(String(entry.dataSourceId));
+              return true;
+            })
             .map((entry) => entry.alias);
 
         const matches = [];
         for (const workspace of data?.workspaces || []) {
-          const inputAliases = aliasesFor(workspace?.inputConfiguration);
-          const outputAliases = aliasesFor(workspace?.outputConfiguration);
+          const matched = new Set();
+          const inputAliases = matchedIn(workspace?.inputConfiguration, matched);
+          const outputAliases = matchedIn(workspace?.outputConfiguration, matched);
           if (inputAliases.length === 0 && outputAliases.length === 0) continue;
           matches.push({
+            datasetIds: ids.filter((id) => matched.has(id)),
             id: workspace.id,
             inputAliases,
             name: workspace.name || workspace.id,
             outputAliases,
-            owner: workspace.owner ?? null
+            owner: workspace.owner ?? null,
+            ...(includeWorkspace ? { workspace } : {})
           });
         }
         return { error: null, workspaces: matches };
@@ -132,15 +163,33 @@ export async function getJupyterWorkspacesForDataset(datasetId, tabId = null) {
         return { error: error.message, workspaces: null };
       }
     },
-    [datasetId],
+    [ids, includeWorkspace],
     tabId
   );
-  // A swallowed failure would read as "no workspace uses this dataset", which is
-  // indistinguishable from the normal empty answer, so surface it instead.
+  // A swallowed failure would read as "no workspace uses these datasets", which
+  // is indistinguishable from the normal empty answer, so surface it instead.
   if (!result?.workspaces) {
     throw new Error(result?.error ? `Could not load Jupyter Workspaces: ${result.error}` : 'Could not load Jupyter Workspaces');
   }
   return result.workspaces;
+}
+
+/**
+ * Find the Jupyter Workspaces that produce a dataset, matching on outputs only,
+ * and return each one whole. The mirror of `getDownstreamJupyterWorkspaces`.
+ *
+ * An empty result is not proof the producing workspace is gone: Domo returns
+ * every workspace to a holder of `datascience.notebooks.admin` and only
+ * readable ones to everyone else, so only an admin can read nothing as
+ * "deleted".
+ *
+ * @param {string} datasetId - The dataset's GUID
+ * @param {number|null} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<Object>>} The matching workspaces, as Domo returns them
+ */
+export async function getJupyterWorkspacesProducingDataset(datasetId, tabId = null) {
+  const matches = await getJupyterWorkspacesForDatasets([datasetId], tabId, { includeWorkspace: true });
+  return matches.filter((match) => match.outputAliases.length > 0).map((match) => match.workspace);
 }
 
 /**

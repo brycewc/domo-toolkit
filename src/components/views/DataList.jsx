@@ -2268,11 +2268,16 @@ function solePopulatedChildId(item) {
  *
  * A row can flip its own children with `sortChildrenDescending` (one level, not
  * the whole subtree), for lists whose newest entry is the interesting one.
+ *
+ * `sortWeight` outranks the label, and stays ascending under `descending` so an
+ * explicit order survives a reversed list.
  */
 function sortItemsByLabel(items, descending = false) {
   if (!Array.isArray(items)) return items;
   return [...items]
     .sort((a, b) => {
+      const weight = (a?.sortWeight ?? 0) - (b?.sortWeight ?? 0);
+      if (weight !== 0) return weight;
       const labelA = (a?.label ?? '').toString();
       const labelB = (b?.label ?? '').toString();
       const order = labelA.localeCompare(labelB, undefined, { numeric: true, sensitivity: 'base' });

@@ -165,6 +165,21 @@ export function eachExpressionRef(expr, pattern, onMatch) {
 }
 
 /**
+ * Whether a value is a Beast Mode's legacyId (`calculation_<uuid>`) — the id
+ * form a card references a Beast Mode by, and the token a card-bound filter
+ * carries in place of a column name. The strict UUID tail avoids misfiring on a
+ * physical column that merely happens to start with `calculation_`.
+ *
+ * @param {any} value
+ * @returns {boolean}
+ */
+export function isBeastModeLegacyId(value) {
+  return (
+    typeof value === 'string' && /^calculation_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  );
+}
+
+/**
  * Whether a column-list entry describes a CALCULATION (a card-level Beast Mode)
  * rather than a real dataset column. A card's `columns[]` carries both: real
  * columns as `{id, name, isCalculation: false}`, and card-level Beast Modes as

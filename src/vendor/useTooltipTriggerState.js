@@ -28,7 +28,7 @@ import { useOverlayTriggerState } from 'react-stately';
 // constants never apply: change the CSS variables in src/assets/global.css to
 // adjust hover timing. They are kept in sync with those variables so a raw
 // react-aria tooltip (no HeroUI wrapper) still behaves the same.
-const TOOLTIP_DELAY = 400;
+const TOOLTIP_DELAY = 500;
 const TOOLTIP_COOLDOWN = 100;
 
 // Shared across instances on purpose: ensures opening one tooltip closes any

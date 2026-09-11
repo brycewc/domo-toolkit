@@ -14,7 +14,11 @@ import { getCardDefinition, getNotebookCardText } from '@/services/cards';
 import { getCodeEngineUsage } from '@/services/codeEngine';
 import { getDesignCards, getDesignInstances } from '@/services/customApps';
 import { getDatasetColumns, getDatasetDetailsForList, getDatasetsForPage } from '@/services/datasets';
-import { getJupyterWorkspaceAccounts, getJupyterWorkspaceDatasets } from '@/services/jupyterWorkspaces';
+import {
+  getJupyterWorkspaceAccounts,
+  getJupyterWorkspaceDatasets,
+  getJupyterWorkspacesProducingDataset
+} from '@/services/jupyterWorkspaces';
 import { getReportsForApp, getSchedulesForReport } from '@/services/reportBuilder';
 import { getWorkflowTriggers } from '@/services/workflows';
 import { copyJsonNode } from '@/utils/copyToClipboard';
@@ -31,6 +35,9 @@ import IconLockOpen from '@icons/lock-open.svg?react';
 // the relatedData entry. Pair the entry with a `field` to gate the tab on (and
 // seed its count from) an array already present in the object's details, or in
 // its context when the entry sets `fieldSource: 'context'`.
+// A fetcher may resolve to `{ items, notice }` instead of a bare array; the
+// notice replaces the rendered JSON when `items` is empty, for a fetcher whose
+// empty answer needs explaining rather than showing as `[]`.
 const LAZY_ARRAY_FETCHERS = {
   alertActions: ({ details, objectId, tabId }) =>
     getAlertActions({ actions: details?.actions || [], alertId: objectId, tabId }),
@@ -56,6 +63,11 @@ const LAZY_ARRAY_FETCHERS = {
   designInstances: ({ objectId, tabId }) => getDesignInstances({ designId: objectId, tabId }),
   jupyterWorkspaceAccounts: ({ details, tabId }) =>
     getJupyterWorkspaceAccounts({ entries: details?.accountConfiguration, tabId }),
+  jupyterWorkspaceForDataset: ({ objectId, tabId, userRights }) =>
+    getJupyterWorkspacesProducingDataset(objectId, tabId).then((workspaces) => ({
+      items: workspaces,
+      notice: workspaces.length > 0 ? null : jupyterProducerNotice(userRights)
+    })),
   jupyterWorkspaceInputs: ({ details, tabId }) =>
     getJupyterWorkspaceDatasets({ entries: details?.inputConfiguration, tabId }),
   jupyterWorkspaceOutputs: ({ details, tabId }) =>
@@ -414,7 +426,8 @@ export function ContextFooter({
           // The current object's own parent, so a fetcher for a child type can ask
           // on its parent's behalf without the relatedData entry configuring it.
           objectParentId: currentContext?.domoObject?.parentId ?? null,
-          tabId: chromeTabId
+          tabId: chromeTabId,
+          userRights: currentContext?.user?.metadata?.USER_RIGHTS || []
         });
         const data = tab.isLazyObject ? (fetched ?? null) : (fetched ?? []);
         writeRelatedCache(chromeTabId, objectId, key, data);
@@ -482,7 +495,7 @@ export function ContextFooter({
     }
 
     if (activeTab.isArray) {
-      const arrayData = activeTab.fetcher ? relatedCache[activeTabId] : activeTab.data;
+      let arrayData = activeTab.data;
       if (activeTab.fetcher) {
         if (loadingTabs[activeTabId]) {
           return (
@@ -491,10 +504,15 @@ export function ContextFooter({
             </div>
           );
         }
-        if (arrayData?.error) {
-          return <p className='p-2 text-xs text-danger'>{arrayData.error}</p>;
+        const { error, items, notice } = readArrayTabResult(relatedCache[activeTabId]);
+        if (error) {
+          return <p className='p-2 text-xs text-danger'>{error}</p>;
         }
-        if (!Array.isArray(arrayData)) return null;
+        if (!items) return null;
+        if (items.length === 0 && notice) {
+          return <p className='py-2 text-center text-sm text-muted'>{notice}</p>;
+        }
+        arrayData = items;
       }
       const src = injectUrls(arrayData, {
         baseUrl,
@@ -732,11 +750,9 @@ export function ContextFooter({
                     the list in its own ScrollShadow. */}
                 <Tabs.List aria-label='Object details'>
                   {tabs.map((tab) => {
-                    const cached = relatedCache[tab.id];
+                    const cachedItems = readArrayTabResult(relatedCache[tab.id]).items;
                     const lazyCountSuffix =
-                      tab.fetcher && tab.isArray
-                        ? ` (${Array.isArray(cached) ? cached.length : (tab.knownCount ?? '...')})`
-                        : '';
+                      tab.fetcher && tab.isArray ? ` (${cachedItems ? cachedItems.length : (tab.knownCount ?? '...')})` : '';
                     const displayLabel = `${tab.label}${lazyCountSuffix}`;
                     // h-10! overrides HeroUI's fixed 32px tab height so a
                     // line-clamp-2 label that wraps to two lines fits inside
@@ -829,6 +845,14 @@ function injectUrls(
   return src;
 }
 
+// Without the notebook admin grant Domo hides workspaces the user can't read,
+// so an empty lookup can't be reported as the producing workspace being gone.
+function jupyterProducerNotice(userRights) {
+  return (userRights || []).includes('datascience.notebooks.admin')
+    ? 'The Jupyter Workspace that produced this DataSet no longer exists.'
+    : "No Jupyter Workspace you can see produces this DataSet. It was either deleted or you don't have access to it.";
+}
+
 function MetadataJsonView({ collapsed = 1, connectorLatestVersion = null, groupMap = {}, scrollRef, src, userMap = {} }) {
   // Remount when lookup maps change — react18-json-view's JsonNode calls
   // useContext before customizeNode's early return but useState after it, so
@@ -916,6 +940,15 @@ function MetadataJsonView({ collapsed = 1, connectorLatestVersion = null, groupM
       }}
     />
   );
+}
+
+// Three shapes reach here: a bare array, an { error } from a failed fetch, and
+// an { items, notice }. `items` stays null until the tab has loaded.
+function readArrayTabResult(value) {
+  if (Array.isArray(value)) return { error: null, items: value, notice: null };
+  if (value?.error) return { error: value.error, items: null, notice: null };
+  if (Array.isArray(value?.items)) return { error: null, items: value.items, notice: value.notice ?? null };
+  return { error: null, items: null, notice: null };
 }
 
 // Seed value for the reset effect: a plain { [tabKey]: data } of the Chrome

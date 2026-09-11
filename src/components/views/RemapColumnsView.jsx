@@ -32,7 +32,7 @@ import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { getObjectType } from '@/models/DomoObjectType';
 import { scanContentForColumns } from '@/services/columnReferences';
-import { getDatasetColumns, isViewType } from '@/services/datasets';
+import { getDatasetColumns, isViewOrFusionType } from '@/services/datasets';
 import { getDatasetFunctions } from '@/services/functions';
 import { getDownstreamCards, getDownstreamCardsRaw, getDownstreamLineage } from '@/services/migrateDownstreamContent';
 import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
@@ -145,7 +145,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       );
       setOrigin(context.domoObject?.baseUrl || '');
       setTabId(context.tabId);
-      setIsView(isViewType(context.domoObject?.metadata?.details));
+      setIsView(isViewOrFusionType(context.domoObject?.metadata?.details));
     } catch (error) {
       console.error('[RemapColumnsView] Error loading data:', error);
       onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');

@@ -41,7 +41,9 @@ export function ToastProvider(props) {
               {!!title && (
                 <ToastTitle className='flex items-center gap-1'>
                   {indicatorNode}
-                  {title}
+                  {/* A title parsed from markdown is a list of nodes, so it has
+                      to be one flex item or each run becomes its own column. */}
+                  <span className='min-w-0'>{title}</span>
                 </ToastTitle>
               )}
               {!!description && (

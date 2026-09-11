@@ -1,3 +1,4 @@
+import { DEPENDENCY_FETCH_CONCURRENCY } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
@@ -182,6 +183,77 @@ export async function findUnusedFunctions({ datasetIds = [], ownerIds = [], tabI
     [datasetIds, ownerIds],
     tabId
   );
+}
+
+/**
+ * Map every Beast Mode legacyId (`calculation_<uuid>`) on the given datasets to
+ * its display name.
+ *
+ * Unlike `getDatasetFunctions` and `getCardBeastModes`, which split the same
+ * search response by where a Beast Mode is saved, this keeps every result:
+ * dataset-saved Beast Modes, card-level ones, and Variables all back a filter
+ * the same way, and a legacyId is unique enough that the source doesn't matter.
+ *
+ * A dataset whose search fails contributes nothing rather than failing the batch,
+ * so a single inaccessible dataset still leaves the other names resolvable.
+ *
+ * @param {string[]} datasetIds
+ * @param {number|null} [tabId]
+ * @returns {Promise<Object<string, string>>} legacyId -> Beast Mode name
+ */
+export async function getBeastModeNamesByLegacyId(datasetIds, tabId = null) {
+  const ids = [...new Set((datasetIds || []).filter(Boolean).map(String))];
+  if (ids.length === 0) return {};
+
+  const result = await executeInPage(
+    async (datasetIds, concurrency) => {
+      const namesByLegacyId = {};
+
+      const readDataset = async (datasetId) => {
+        try {
+          const limit = 100;
+          let offset = 0;
+          let moreData = true;
+          while (moreData) {
+            const response = await fetch('/api/query/v1/functions/search', {
+              body: JSON.stringify({
+                filters: [{ field: 'dataset', idList: [datasetId] }],
+                limit,
+                offset,
+                sort: { ascending: true, field: 'name' }
+              }),
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const results = data?.results || [];
+            for (const f of results) {
+              if (f?.legacyId && f?.name) namesByLegacyId[f.legacyId] = f.name;
+            }
+            offset += limit;
+            moreData = Boolean(data?.hasMore) && results.length > 0;
+          }
+        } catch {
+          // A dataset we can't search just leaves its Beast Modes unresolved.
+        }
+      };
+
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: Math.min(concurrency, datasetIds.length) }, async () => {
+          while (next < datasetIds.length) await readDataset(datasetIds[next++]);
+        })
+      );
+
+      return namesByLegacyId;
+    },
+    [ids, DEPENDENCY_FETCH_CONCURRENCY],
+    tabId
+  );
+
+  return result || {};
 }
 
 /**

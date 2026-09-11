@@ -30,7 +30,7 @@ import { cloneElement } from 'react';
 //       <IconArrowSquareOut />
 //     </Button>
 //   </DisabledTooltip>
-export function DisabledTooltip({ children, className, content, contentClassName, delay = 200, offset = 4, placement }) {
+export function DisabledTooltip({ children, className, content, contentClassName, delay = 300, offset = 4, placement }) {
   const trigger = cloneElement(children, {
     'aria-disabled': true,
     'className': ['pointer-events-auto!', children.props.className, className].filter(Boolean).join(' '),

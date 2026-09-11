@@ -35,6 +35,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
 
       try {
         const { allFilters } = await getAllFilters({
+          cardId: typeId === 'CARD' ? currentContext.domoObject.id : null,
           pageId: typeId === 'CARD' ? null : currentContext.domoObject.id,
           tabId: currentContext.tabId
         });
@@ -62,6 +63,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       const currentUrl = resolveCurrentUrl(currentContext, typeId, objectId);
 
       const { allFilters } = await getAllFilters({
+        cardId: typeId === 'CARD' ? objectId : null,
         pageId: typeId === 'CARD' ? null : objectId,
         tabId: currentContext.tabId
       });
@@ -107,6 +109,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       const currentUrl = resolveCurrentUrl(currentContext, typeId, objectId);
 
       const { allFilters } = await getAllFilters({
+        cardId: typeId === 'CARD' ? objectId : null,
         pageId: typeId === 'CARD' ? null : objectId,
         tabId: currentContext.tabId
       });
@@ -142,6 +145,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       const currentUrl = resolveCurrentUrl(currentContext, typeId, objectId);
 
       const { allFilters } = await getAllFilters({
+        cardId: typeId === 'CARD' ? objectId : null,
         pageId: typeId === 'CARD' ? null : objectId,
         tabId: currentContext.tabId
       });

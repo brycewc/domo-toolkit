@@ -1,4 +1,4 @@
-import { AlertDialog, Button, Card, Spinner, Tooltip } from '@heroui/react';
+import { AlertDialog, Button, Card, Disclosure, Separator, Spinner, Tooltip } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
@@ -16,15 +16,16 @@ import { deleteDataflowAndOutputs, deleteDataflowWithInputsAndOutputs } from '@/
 import { deleteDataset } from '@/services/datasets';
 import { deleteObject } from '@/services/deleteObject';
 import { getDependenciesForDelete, withExtraDependencyGroups } from '@/services/dependencies';
-import { getJupyterWorkspacesForDataset } from '@/services/jupyterWorkspaces';
+import { getJupyterWorkspacesForDatasets } from '@/services/jupyterWorkspaces';
 import { deletePageAndAllCards } from '@/services/pages';
 import { voidTaskCenterTask } from '@/services/taskCenter';
 import { cancelWorkflowExecution } from '@/services/workflows';
-import { redirectTabIfViewingObject } from '@/utils/currentObject';
+import { redirectTabIfViewingObject, reloadTabIfViewingObject } from '@/utils/currentObject';
 import { parseMarkdownBold } from '@/utils/markdown';
 import { collectShareableObjects } from '@/utils/rowActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCancel from '@icons/cancel.svg?react';
+import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 import IconX from '@icons/x.svg?react';
@@ -46,9 +47,9 @@ import { DataList } from './DataList';
  *
  * An optional `caveat` is a standing note about what the dependency check can't
  * see for that type, shown above the list whatever the check turns up. It may be
- * a function of `{ context, deps }` returning the note, or null to drop it for
- * this object. `caveatTitle` retitles it for a type whose note is a consequence
- * rather than a gap in the check.
+ * a function of `{ checkResults, context, deps }` returning the note, or null to
+ * drop it for this object. `caveatTitle` retitles it for a type whose note is a
+ * consequence rather than a gap in the check.
  *
  * `onDemandChecks` declares lookups too expensive to run on open, each offered as
  * a prompt with a button instead. An entry needs a `key`, the `buttonLabel`,
@@ -56,7 +57,8 @@ import { DataList } from './DataList';
  * resolves to the found items, and a `toGroups({ context, items })` returning
  * dependency groups in the same shape a fetcher produces. A check's groups fold
  * into the loaded result once it finishes, so they list, count, and block exactly
- * like the automatic ones.
+ * like the automatic ones. An optional `available({ context })` withholds the
+ * prompt from an object the check could never find anything for.
  *
  * A type whose removal isn't a deletion overrides the view's verb with `feature`
  * (the header), `actionIcon` (header and buttons), `confirmActionLabel` (the
@@ -66,8 +68,15 @@ import { DataList } from './DataList';
  * button), and `loadingMessage`.
  */
 
-const datasetCaveat =
-  'This check does not cover Jupyter Workspaces, Workflows, Code Engine Packages, Workspaces, Governance Toolkit Jobs, Input DataSet Streams (e.g., DataSet Copy Connector), Domo Everywhere Publications, or Custom App Designs. Verify those manually before deleting.';
+const alwaysUncheckedForDatasets = [
+  'Workflows',
+  'Code Engine Packages',
+  'Workspaces',
+  'Governance Toolkit Jobs',
+  'Input DataSet Streams (e.g., DataSet Copy Connector)',
+  'Domo Everywhere Publications',
+  'Custom App Designs'
+];
 
 const deletersByType = {
   APP: {
@@ -175,30 +184,10 @@ const deletersByType = {
     caveat: datasetCaveat,
     confirmSuffix: '',
     onDemandChecks: [
-      {
-        buttonLabel: 'Check Jupyter Workspaces',
-        key: 'jupyterWorkspaces',
-        promptDescription:
-          'Finding them means reading every Jupyter Workspace in the instance, so it only runs when you ask.',
-        promptTitle: "Jupyter Workspaces aren't searched automatically",
-        run: ({ context }) => getJupyterWorkspacesForDataset(context.domoObject.id, context.tabId),
-        toGroups: ({ context, items }) => [
-          {
-            annotation: 'Only Jupyter Workspaces you have access to are listed.',
-            blocking: false,
-            deleted: false,
-            items: items.map((workspace) => ({
-              chip: jupyterUsageChip(workspace),
-              id: workspace.id,
-              label: workspace.name || `Jupyter Workspace ${workspace.id}`,
-              typeId: 'DATA_SCIENCE_NOTEBOOK',
-              url: `${context.origin}/jupyter-workspaces/${workspace.id}`
-            })),
-            key: 'jupyterWorkspaces',
-            label: 'Jupyter Workspaces Using This DataSet'
-          }
-        ]
-      }
+      jupyterWorkspacesCheck({
+        datasetsFor: (context) => [{ id: context.domoObject.id, name: context.domoObject.metadata?.name }],
+        groupLabel: () => 'Jupyter Workspaces'
+      })
     ],
     primaryLabel: 'Delete DataSet',
     run: async ({ context }) => {
@@ -290,6 +279,11 @@ const deletersByType = {
               `Dataflow and its output datasets deleted, but ${result.inputsFailed} of ${total} input dataset${total !== 1 ? 's' : ''} could not be deleted. They may still be in use by other content.`
             );
           }
+          await reloadTabIfViewingObject({
+            ids: [context.domoObject.id],
+            origin: context.origin,
+            tabId: context.tabId
+          });
           return result;
         },
         successMessage: ({ dataflowName }, result) =>
@@ -300,6 +294,18 @@ const deletersByType = {
     caveat: datasetCaveat,
     confirmSuffix: ({ outputCount }) =>
       outputCount > 0 ? ` and ${outputCount} output dataset${outputCount !== 1 ? 's' : ''}` : '',
+    onDemandChecks: [
+      {
+        ...jupyterWorkspacesCheck({
+          datasetsFor: (context) =>
+            (context.domoObject.metadata?.details?.outputs || [])
+              .filter((output) => output.dataSourceId)
+              .map((output) => ({ id: output.dataSourceId, name: output.dataSourceName || output.dataSourceId })),
+          groupLabel: () => 'Jupyter Workspaces'
+        }),
+        available: ({ context }) => (context.domoObject.metadata?.details?.outputs?.length || 0) > 0
+      }
+    ],
     primaryLabel: ({ outputCount }) => (outputCount > 0 ? 'Delete DataFlow and All Outputs' : 'Delete DataFlow'),
     run: async ({ context }) => {
       const outputs = context.domoObject.metadata?.details?.outputs || [];
@@ -316,6 +322,13 @@ const deletersByType = {
         }
         throw new Error(`Output datasets deleted, but dataflow deletion failed (HTTP ${result.statusCode}).`);
       }
+      // Domo keeps serving the dataflow's page, so a reload is what replaces it
+      // with Domo's deleted-dataflow banner.
+      await reloadTabIfViewingObject({
+        ids: [context.domoObject.id],
+        origin: context.origin,
+        tabId: context.tabId
+      });
       return result;
     },
     selectionGroupKey: 'dataflowInputs',
@@ -780,7 +793,9 @@ export function DeleteObjectView({
     }
   };
 
-  const onDemandChecks = config?.onDemandChecks || [];
+  const onDemandChecks = (config?.onDemandChecks || []).filter(
+    (check) => !check.available || (currentContext && check.available({ context: currentContext }))
+  );
   // What a finished opt-in check found joins the automatic result, so its groups
   // list, count, and block the same way every other group does.
   const deps = onDemandChecks.reduce(
@@ -899,7 +914,8 @@ export function DeleteObjectView({
       DataListItem.createGroup({
         children: buildDependencyItems(deletedGroups, 'deleted-group', baseUrl),
         id: 'will-also-be-deleted',
-        label: 'Will Also Be Deleted'
+        label: 'Will Also Be Deleted',
+        sortWeight: 0
       })
     );
   }
@@ -911,7 +927,8 @@ export function DeleteObjectView({
         annotation: deps?.otherNote ?? null,
         children: buildDependencyItems(otherGroups, 'other-group', baseUrl),
         id: 'other-dependencies',
-        label: 'Other Dependencies'
+        label: 'Other Dependencies',
+        sortWeight: 1
       })
     );
   }
@@ -969,7 +986,8 @@ export function DeleteObjectView({
       .filter((check) => !checkResults[check.key])
       .map((check) => check.buttonLabel.replace(/^Check /, ''))
   });
-  const caveatText = typeof config.caveat === 'function' ? config.caveat({ context: currentContext, deps }) : config.caveat;
+  const caveatText =
+    typeof config.caveat === 'function' ? config.caveat({ checkResults, context: currentContext, deps }) : config.caveat;
   const caveatAlert = caveatText ? (
     <Alert className='w-full' status='accent' variant='transparent'>
       <Alert.Content>
@@ -982,18 +1000,61 @@ export function DeleteObjectView({
     </Alert>
   ) : null;
   const checkBanners = onDemandChecks
-    .map((check) => renderCheckBanner({ check, onRun: () => runCheck(check), result: checkResults[check.key] }))
-    .filter(Boolean);
+    .map((check) => ({
+      isRunning: checkResults[check.key]?.status === 'loading',
+      node: renderCheckBanner({ check, onRun: () => runCheck(check), result: checkResults[check.key] })
+    }))
+    .filter((entry) => entry.node);
+  // A check still running is progress, not a notice, so its spinner stays out of
+  // the collapsible block; otherwise collapsing it would hide the only sign the
+  // view is still working.
+  const runningBanners = checkBanners.filter((entry) => entry.isRunning).map((entry) => entry.node);
+  const checkNotices = checkBanners.filter((entry) => !entry.isRunning).map((entry) => entry.node);
+  const depNotice = isLoadingDeps ? null : dependencyBanner;
+  const noticeCount = (caveatAlert ? 1 : 0) + checkNotices.length + (depNotice ? 1 : 0);
   // The caveat is a standing note for the type, so it sits above the dependency
   // banner, which comes and goes as the check runs. The other way round, the
   // caveat slides down and back up as the spinner is replaced. An opt-in check's
   // prompt stands until pressed, so it goes with the caveat rather than below.
   const banner =
-    dependencyBanner || caveatAlert || checkBanners.length > 0 ? (
+    noticeCount > 0 || runningBanners.length > 0 || isLoadingDeps ? (
       <div className='flex w-full flex-col gap-2'>
-        {caveatAlert}
-        {checkBanners}
-        {dependencyBanner}
+        {runningBanners}
+        {isLoadingDeps ? dependencyBanner : null}
+        {noticeCount > 0 ? (
+          // The row lines up with the dependency groups below only if it carries
+          // no spacing of its own, so `-mt-2` cancels the banner slot's top
+          // padding whenever nothing sits above it.
+          <div className={`flex flex-col ${runningBanners.length > 0 || isLoadingDeps ? '' : '-mt-2'}`}>
+            <Disclosure defaultExpanded className='space-0 w-full' id='delete-warnings'>
+              <Disclosure.Heading className='my-1 flex min-h-9 w-full flex-row items-center justify-between gap-2'>
+                <Disclosure.Trigger
+                  aria-label='Toggle'
+                  className='flex w-full min-w-0 flex-1 flex-row items-center gap-2 self-stretch'
+                  variant='tertiary'
+                >
+                  <p className='min-w-0 truncate text-sm font-medium'>Warnings</p>
+                  <span aria-hidden='true' className='flex-1' />
+                  <Disclosure.Indicator>
+                    <IconChevronDown />
+                  </Disclosure.Indicator>
+                </Disclosure.Trigger>
+              </Disclosure.Heading>
+              <Disclosure.Content>
+                <Disclosure.Body>
+                  {/* `pb-1` rides inside the collapsing panel, so the gap above the
+                      separator disappears with the rest of the content when closed. */}
+                  <div className='flex flex-col gap-2 pb-2'>
+                    {caveatAlert}
+                    {checkNotices}
+                    {depNotice}
+                  </div>
+                </Disclosure.Body>
+              </Disclosure.Content>
+            </Disclosure>
+            <Separator />
+          </div>
+        ) : null}
       </div>
     ) : null;
 
@@ -1231,14 +1292,18 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
 
 // What the delete view's checkboxes cover, or null when this type has no
 // picker: `allIds` is every row the picker spans, `eligibleIds` the subset a
-// cascade delete may actually remove.
+// cascade delete may actually remove. A group where nothing is eligible drops
+// the column entirely rather than showing a row of disabled checkboxes; the
+// cascade button stays visible and disabled, so the feature is still findable.
 function buildSelectionScope({ config, deps }) {
   if (!config?.selectionGroupKey) return null;
   const group = (deps?.groups || []).find((g) => g.key === config.selectionGroupKey);
   if (!group || group.items.length === 0) return null;
+  const eligibleIds = new Set((group.deletableIds || []).map(String));
+  if (eligibleIds.size === 0) return null;
   return {
     allIds: new Set(group.items.map((item) => String(item.id))),
-    eligibleIds: new Set((group.deletableIds || []).map(String)),
+    eligibleIds,
     reasons: group.unselectableReasons || {}
   };
 }
@@ -1296,6 +1361,16 @@ function collectScopedSectionIds(items, pickerAncestors) {
   return scoped;
 }
 
+// Jupyter Workspaces drop off the list once the opt-in check has found them, so
+// the note never claims they went unchecked right above the ones it turned up.
+function datasetCaveat({ checkResults }) {
+  const areas =
+    checkResults?.jupyterWorkspaces?.status === 'loaded'
+      ? alwaysUncheckedForDatasets
+      : ['Jupyter Workspaces', ...alwaysUncheckedForDatasets];
+  return `This check does not cover ${areas.slice(0, -1).join(', ')}, or ${areas.at(-1)}. Verify those manually before deleting.`;
+}
+
 function findDataflowInputGroup(deps) {
   return (deps?.groups || []).find((g) => g.key === 'dataflowInputs') || null;
 }
@@ -1323,6 +1398,54 @@ function jupyterUsageChip({ inputAliases, outputAliases }) {
   if (reads && writes) return { color: 'warning', label: 'Reads and Writes' };
   if (writes) return { color: 'warning', label: 'Writes' };
   return { color: 'default', label: 'Reads' };
+}
+
+/**
+ * The opt-in Jupyter Workspace search, over whichever DataSets the delete takes
+ * down: the object itself for a DataSet, every output for a DataFlow.
+ * @param {Object} params
+ * @param {Function} params.datasetsFor - `(context) => [{id, name}]`, the DataSets to search for
+ * @param {Function} params.groupLabel - `(datasets) => string`, the found group's heading
+ * @returns {Object} An `onDemandChecks` entry
+ */
+function jupyterWorkspacesCheck({ datasetsFor, groupLabel }) {
+  return {
+    buttonLabel: 'Check Jupyter Workspaces',
+    key: 'jupyterWorkspaces',
+    promptDescription: 'Finding them means reading every Jupyter Workspace in the instance, so it only runs when you ask.',
+    promptTitle: "Jupyter Workspaces aren't searched automatically",
+    run: ({ context }) =>
+      getJupyterWorkspacesForDatasets(
+        datasetsFor(context).map((dataset) => dataset.id),
+        context.tabId
+      ),
+    toGroups: ({ context, items }) => {
+      const datasets = datasetsFor(context);
+      const nameById = new Map(datasets.map((dataset) => [String(dataset.id), dataset.name]));
+      return [
+        {
+          annotation: 'Only Jupyter Workspaces you have access to are listed.',
+          blocking: false,
+          deleted: false,
+          items: items.map((workspace) => ({
+            // Which DataSet a workspace uses only needs saying when the delete
+            // takes down more than one, so a DataSet's own rows stay unannotated.
+            annotation:
+              datasets.length > 1
+                ? `Uses ${workspace.datasetIds.map((id) => nameById.get(String(id)) || id).join(', ')}`
+                : null,
+            chip: jupyterUsageChip(workspace),
+            id: workspace.id,
+            label: workspace.name || `Jupyter Workspace ${workspace.id}`,
+            typeId: 'DATA_SCIENCE_NOTEBOOK',
+            url: `${context.origin}/jupyter-workspaces/${workspace.id}`
+          })),
+          key: 'jupyterWorkspaces',
+          label: groupLabel(datasets)
+        }
+      ];
+    }
+  };
 }
 
 /**

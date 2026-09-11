@@ -961,7 +961,10 @@ const FETCHERS = {
           };
         });
         groups.push({
-          annotation: 'Only the alternate delete removes these, and only the ones you check.',
+          annotation:
+            deletableIds.length > 0
+              ? 'Only the alternate delete removes these, and only the ones you check.'
+              : 'All of these are used elsewhere, so nothing here can be deleted with the DataFlow.',
           blocking: false,
           deletableIds,
           deleted: false,

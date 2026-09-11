@@ -1,5 +1,10 @@
 import { executeInAllFrames, executeInPage } from '@/utils/executeInPage';
 
+import { getCardDatasets } from './cards';
+import { isBeastModeLegacyId } from './columnFields';
+import { getDatasetsForPage } from './datasets';
+import { getBeastModeNamesByLegacyId } from './functions';
+
 /**
  * Build a pfilter URL from base URL and filters
  * Works for pages, cards, and any Domo URL that supports pfilters
@@ -54,11 +59,12 @@ export function encodeFilters(filters) {
 /**
  * Get all filters for a page from multiple detection sources
  * @param {Object} params - Parameters
+ * @param {string} [params.cardId] - Card ID, when the filters come from a card rather than a page
  * @param {string} params.pageId - Page ID
  * @param {number} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<Object>} Object with pageFilters and merged filters
  */
-export async function getAllFilters({ pageId, tabId = null }) {
+export async function getAllFilters({ cardId = null, pageId, tabId = null }) {
   // Get page filter card filters (async) - tries client-side state first
   const pageFilters = await getPageFilters(pageId, tabId);
 
@@ -107,7 +113,7 @@ export async function getAllFilters({ pageId, tabId = null }) {
     }
   }
 
-  const allFilters = mergeFilters(
+  const mergedFilters = mergeFilters(
     pageFilters,
     variableControlFilters,
     angularFilters,
@@ -115,6 +121,13 @@ export async function getAllFilters({ pageId, tabId = null }) {
     iframeFilters,
     frameFilters
   );
+
+  const { filters: namedFilters, legacyColumnByFilter } = await resolveBeastModeFilterNames(mergedFilters, {
+    cardId,
+    pageId,
+    tabId
+  });
+  const allFilters = dedupeFiltersByName(namedFilters, legacyColumnByFilter);
 
   if (allFilters.length > 0) {
     console.log(`[Domo] Captured ${allFilters.length} filter(s):`, allFilters.map((f) => f.column).join(', '));
@@ -1185,6 +1198,52 @@ function dedupeFilters(filters) {
 }
 
 /**
+ * Collapse filters that Domo would apply as one. A filter binds by name to
+ * whatever the card's dataset has, a column on one and a Beast Mode on another,
+ * so once ids are resolved to names, same name + operand + values is one filter.
+ * Names compare exactly (trimmed): Domo reads `Owner Name` and `Owner name` as
+ * different fields.
+ *
+ * Same name with conflicting operands or values really is several filters, so
+ * those revert to the `calculation_<uuid>` ids they came from, keeping each one
+ * bound to its own Beast Mode.
+ *
+ * @param {Array} filters - Pfilter objects with Beast Mode names already resolved
+ * @param {Map<Object, string>} legacyColumnByFilter - Resolved filter -> its original legacyId
+ * @returns {Array} Filters with duplicates removed, original order preserved
+ */
+function dedupeFiltersByName(filters, legacyColumnByFilter) {
+  const seen = new Set();
+  const unique = filters.filter((filter) => {
+    const key = `${filterName(filter)}|${filter.operand}|${JSON.stringify(filter.values)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const countsByName = new Map();
+  unique.forEach((filter) => {
+    const name = filterName(filter);
+    countsByName.set(name, (countsByName.get(name) || 0) + 1);
+  });
+
+  return unique.map((filter) => {
+    const legacyColumn = legacyColumnByFilter.get(filter);
+    if (!legacyColumn || countsByName.get(filterName(filter)) === 1) return filter;
+    return { ...filter, column: legacyColumn };
+  });
+}
+
+/**
+ * A filter's comparable name
+ * @param {Object} filter - Pfilter object
+ * @returns {string} The column name, trimmed
+ */
+function filterName(filter) {
+  return typeof filter.column === 'string' ? filter.column.trim() : String(filter.column);
+}
+
+/**
  * Detect if current page is an App Studio page
  * App Studio pages have specific characteristics that distinguish them
  * @param {number} tabId - Optional Chrome tab ID
@@ -1312,6 +1371,63 @@ async function isAppStudioPage(tabId = null) {
   } catch (error) {
     console.warn('[Domo] App Studio detection failed:', error);
     return false;
+  }
+}
+
+/**
+ * Replace each `calculation_<uuid>` filter column with its Beast Mode name.
+ *
+ * A card whose dataset has no column by the filter's name binds the filter to a
+ * Beast Mode of that name and reports it by id, so one applied filter can come
+ * back once per dataset plus once by name. The name is what Domo matches on.
+ *
+ * An id that resolves to nothing keeps its raw token, which still filters the
+ * cards that reference that Beast Mode by id.
+ *
+ * @param {Array} filters - Merged pfilter objects
+ * @param {Object} params - Parameters
+ * @param {string|null} params.cardId - Card ID when the filters came from a card
+ * @param {string} params.pageId - Page ID when the filters came from a page
+ * @param {number|null} params.tabId - Optional Chrome tab ID
+ * @returns {Promise<{filters: Array, legacyColumnByFilter: Map<Object, string>}>}
+ */
+async function resolveBeastModeFilterNames(filters, { cardId, pageId, tabId }) {
+  const legacyColumnByFilter = new Map();
+  const unresolved = filters.filter((filter) => isBeastModeLegacyId(filter.column));
+  if (unresolved.length === 0) return { filters, legacyColumnByFilter };
+
+  try {
+    const searched = new Set();
+    let namesByLegacyId = {};
+
+    const scopedDatasetIds = [...new Set(unresolved.map((filter) => filter.dataSetId).filter(Boolean))];
+    if (scopedDatasetIds.length > 0) {
+      scopedDatasetIds.forEach((id) => searched.add(String(id)));
+      namesByLegacyId = await getBeastModeNamesByLegacyId(scopedDatasetIds, tabId);
+    }
+
+    if ((cardId || pageId) && unresolved.some((filter) => !namesByLegacyId[filter.column])) {
+      const objectDatasets = cardId ? await getCardDatasets({ cardId, tabId }) : await getDatasetsForPage({ pageId, tabId });
+      const widerIds = (objectDatasets || [])
+        .map((ds) => ds.id || ds.dataSourceId || ds.datasetId)
+        .filter((id) => id && !searched.has(String(id)));
+      if (widerIds.length > 0) {
+        namesByLegacyId = { ...namesByLegacyId, ...(await getBeastModeNamesByLegacyId(widerIds, tabId)) };
+      }
+    }
+
+    const named = filters.map((filter) => {
+      const name = isBeastModeLegacyId(filter.column) ? namesByLegacyId[filter.column] : null;
+      if (!name) return filter;
+      const renamed = { ...filter, column: name };
+      legacyColumnByFilter.set(renamed, filter.column);
+      return renamed;
+    });
+
+    return { filters: named, legacyColumnByFilter };
+  } catch (error) {
+    console.warn('Failed to resolve Beast Mode filter names:', error);
+    return { filters, legacyColumnByFilter };
   }
 }
 

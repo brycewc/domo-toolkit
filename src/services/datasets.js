@@ -858,6 +858,18 @@ export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
 }
 
 /**
+ * Check if a DATA_SOURCE is a data fusion
+ * @param {Object} details - The metadata.details object
+ * @returns {boolean}
+ */
+export function isFusionType(details) {
+  if (!details) return false;
+  return (
+    details.dataProviderType === 'datafusion' || details.displayType === 'datafusion' || details.type === 'datafusion'
+  );
+}
+
+/**
  * Whether a DATA_SOURCE is produced inside Domo by a transform (a dataflow's
  * output, a dataset view, or a fusion) rather than loaded from a source.
  *
@@ -870,7 +882,7 @@ export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
 export function isTransformDataset(details) {
   if (!details) return false;
   if (details.type?.toLowerCase() === 'dataflow') return true;
-  return isViewType(details);
+  return isViewOrFusionType(details);
 }
 
 /**
@@ -878,7 +890,7 @@ export function isTransformDataset(details) {
  * @param {Object} details - The metadata.details object
  * @returns {boolean}
  */
-export function isViewType(details) {
+export function isViewOrFusionType(details) {
   if (!details) return false;
   const viewTypes = ['dataset-view', 'datafusion'];
   return (

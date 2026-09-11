@@ -878,6 +878,15 @@ export const ObjectTypeRegistry = {
       // Fallback: legacy singular accountId on the datasource response.
       { field: 'accountId', label: 'Account', typeId: 'ACCOUNT' },
       { label: 'DataFlow', source: 'parent', typeId: 'DATAFLOW_TYPE' },
+      // No `field` to seed it: the tab has to appear before the lookup runs,
+      // because finding no workspace is itself the answer it reports.
+      {
+        fetcher: 'jupyterWorkspaceForDataset',
+        isArray: true,
+        itemTypeId: 'DATA_SCIENCE_NOTEBOOK',
+        label: 'Jupyter Workspace',
+        when: { field: 'metadata.details.type', matches: 'Jupyter' }
+      },
       { field: 'approvalTemplateId', fieldSource: 'context', label: 'Approval Template', typeId: 'TEMPLATE' },
       { fetcher: 'datasetColumns', isArray: true, label: 'Columns' }
     ],

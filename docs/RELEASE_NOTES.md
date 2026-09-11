@@ -25,6 +25,7 @@
 - Beast Modes now support Get Beast Modes, listing their nested Beast Modes and the ones they are nested in.
 - Beast Modes now support Manage Card Owners and Manage Card Locks across the cards that use them.
 - The Current Context footer on a Beast Mode now shows its DataSet and the cards using it.
+- The Current Context footer on a DataSet produced by a Jupyter Workspace now has a Jupyter Workspace tab naming the workspace that produced it.
 - The Copy button on a Beast Mode now offers to copy its DataSet ID.
 - Beast Modes now support Migrate Content, repointing the cards, drills, and Beast Modes that use one onto a different Beast Mode on the same DataSet.
 - Migrate Content on a Beast Mode deletes the original once nothing uses it.
@@ -38,7 +39,8 @@
 - Delete on a Code Engine Package version now deletes its whole package.
 - Deleting a DataFlow and its inputs now lets you pick which inputs go.
 - An input DataSet that can't be deleted with its DataFlow now says why.
-- Deleting a DataFlow now names the places the dependency check doesn't look, such as Jupyter Workspaces, Workflows, and Code Engine Packages.
+- Deleting a DataFlow now names the places the dependency check doesn't look, such as Workflows, Code Engine Packages, and Domo Everywhere Publications.
+- Deleting a DataFlow can now search for the Jupyter Workspaces that read or write its output DataSets when you press Check Jupyter Workspaces.
 - DataSets now support Delete.
 - Deleting a DataSet now lists the cards, Alerts, Beast Modes, and PDP policies that go with it.
 - Deleting a DataSet is blocked while a DataSet View is built on it.
@@ -93,8 +95,11 @@
 - A toast's message now starts at the icon instead of indenting past it.
 - The icon on an alert or toast whose title wraps now stays on the first line instead of centering against the whole title.
 - Buttons in an alert or a toast now carry an icon and stretch to fill the width.
+- Delete now gathers its warnings into a "Warnings" section you can collapse.
+- Delete now lists "Will Also Be Deleted" above "Other Dependencies".
 - The Activity Log Dataset ID in Per-Instance Settings is now a link that opens that DataSet in a new tab.
 - The side panel now closes when you open the extension settings from it.
+- Get View Inputs is now named Get Fusion Inputs on a Fusion.
 
 ## Bug Fixes
 
@@ -106,6 +111,7 @@
 - The Cards and Card Pages activity logs now say how many cards or pages they cover instead of how many objects.
 - Deleting a DataFlow's inputs no longer removes an input that other content still uses or that another DataFlow produces.
 - Open All on a group now reports the number of items it actually opened.
+- Deleting a DataFlow now reloads the DataFlow's page if you are still on it.
 - Deleting a Scheduled Report now sends you to the Scheduled Reports list if you are still on the deleted report's page.
 - Deleting an Approval Template now sends you to the Request Forms list if you are still on the deleted template's page.
 - A checkbox you can't tick, such as one in Manage Card Locks or Manage Card Owners, now explains why when you hover it.
@@ -154,3 +160,5 @@
 - An alert Domo refuses to move now reports Domo's reason and trace ID instead of a raw error body.
 - An alert whose columns the target DataSet isn't exposing yet, such as while it finishes indexing after an update, now says so instead of failing with "Bad Request".
 - The tab title on an alert now shows the alert's name instead of "Alerts Management" or the DataSet's name.
+- Copy Filters now names a Beast Mode filter instead of copying its ID.
+- Copy Filters no longer copies one filter several times when cards match it against a mix of columns and Beast Modes.

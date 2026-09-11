@@ -38,6 +38,8 @@ export class DataListItem {
    *   item's direct children, for rows whose newest entry is the interesting one
    *   (e.g. a workflow's versions). Applies to one level only; grandchildren use
    *   their own parent's flag.
+   * @param {number} [config.sortWeight] - Overrides alphabetical order among
+   *   siblings: lower weights sort first, equal weights fall back to the label.
    * @param {DomoObject} [config.domoObject] - Optional DomoObject instance for richer functionality
    * @param {'loading'|'loaded'|'transferring'|'transferred'|'error'|'failed'} [config.status]
    *   Async-state for virtual-parent groupings. When undefined, treated as 'loaded'.
@@ -77,6 +79,7 @@ export class DataListItem {
     muted = false,
     originalId = undefined,
     sortChildrenDescending = false,
+    sortWeight = 0,
     status = undefined,
     typeId = null,
     unshareable = false,
@@ -102,6 +105,7 @@ export class DataListItem {
     this.muted = muted;
     this.chip = chip;
     this.sortChildrenDescending = sortChildrenDescending;
+    this.sortWeight = sortWeight;
   }
 
   /**
@@ -127,6 +131,8 @@ export class DataListItem {
    * @param {string} [config.metadata] - Optional metadata (defaults to child count description)
    * @param {boolean} [config.sortChildrenDescending] - Reverses this group's rows,
    *   for a list whose newest entry is the interesting one (e.g. a package's versions).
+   * @param {number} [config.sortWeight] - Overrides alphabetical order among
+   *   sibling groups: lower weights sort first, equal weights fall back to the label.
    * @param {'loading'|'loaded'|'transferring'|'transferred'|'error'|'failed'} [config.status]
    *   Async state that DataList renders as a spinner or X icon in the count slot.
    * @param {string} [config.error] - Error message rendered inside the body when expanded (status='error'/'failed').
@@ -149,6 +155,7 @@ export class DataListItem {
     label,
     metadata,
     sortChildrenDescending = false,
+    sortWeight = 0,
     status,
     typeId = null
   }) {
@@ -167,6 +174,7 @@ export class DataListItem {
       label,
       metadata: metadata || `${childCount} item${childCount !== 1 ? 's' : ''}`,
       sortChildrenDescending,
+      sortWeight,
       status,
       typeId,
       url: null
@@ -225,6 +233,7 @@ export class DataListItem {
       muted: data.muted || false,
       originalId: data.originalId,
       sortChildrenDescending: data.sortChildrenDescending || false,
+      sortWeight: data.sortWeight || 0,
       status: data.status,
       typeId: data.typeId,
       unshareable: data.unshareable || false,
@@ -270,6 +279,7 @@ export class DataListItem {
       muted: this.muted,
       originalId: this.originalId,
       sortChildrenDescending: this.sortChildrenDescending,
+      sortWeight: this.sortWeight,
       status: this.status,
       typeId: this.typeId,
       unshareable: this.unshareable,

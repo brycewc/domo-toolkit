@@ -57,7 +57,7 @@ export function ViewHeader({
           <div className='flex min-w-0 items-center gap-2 pr-8'>
             {featureIcon && <span className='shrink-0 text-foreground [&_svg]:size-7'>{featureIcon}</span>}
             {(feature || subject) && (
-              <Tooltip>
+              <Tooltip delay={700}>
                 <Tooltip.Trigger className='min-w-0'>
                   <Card.Title className='line-clamp-1'>
                     {feature && <span className='font-normal'>{feature} </span>}
