@@ -817,7 +817,7 @@ export function MigrateBeastModeUsageView({
                 <Alert.Content>
                   <Alert.Title className='flex items-center gap-1'>
                     <AlertStatusIcon />
-                    Couldn't read everything that uses this Beast Mode
+                    Couldn't Read Everything That Uses This Beast Mode
                   </Alert.Title>
                   <Alert.Description>{discoveryErrors[0]}</Alert.Description>
                 </Alert.Content>
@@ -873,7 +873,7 @@ export function MigrateBeastModeUsageView({
                 <Alert.Content>
                   <Alert.Title className='flex items-center gap-1'>
                     <AlertStatusIcon />
-                    Can't migrate
+                    Can't Migrate
                   </Alert.Title>
                   <Alert.Description>{message}</Alert.Description>
                 </Alert.Content>

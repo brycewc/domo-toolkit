@@ -7,11 +7,9 @@ import { CancelStreamExecution } from '@/components/buttons/CancelStreamExecutio
 import { ClearCookies } from '@/components/buttons/ClearCookies';
 import { Copy } from '@/components/buttons/Copy';
 import { CopyFilteredUrl } from '@/components/buttons/CopyFilteredUrl';
-import { DataRepair } from '@/components/buttons/DataRepair';
 import { DeleteObject } from '@/components/buttons/DeleteObject';
 import { DeleteUnusedBeastModes } from '@/components/buttons/DeleteUnusedBeastModes';
 import { DevMenu } from '@/components/buttons/DevMenu';
-import { DirectSignOn } from '@/components/buttons/DirectSignOn';
 import { Duplicate } from '@/components/buttons/Duplicate';
 import { Export } from '@/components/buttons/Export';
 import { Generate } from '@/components/buttons/Generate';
@@ -29,6 +27,7 @@ import { ManageCardLocks } from '@/components/buttons/ManageCardLocks';
 import { ManageCardOwners } from '@/components/buttons/ManageCardOwners';
 import { ManageTags } from '@/components/buttons/ManageTags';
 import { MigrateDownstreamContent } from '@/components/buttons/MigrateDownstreamContent';
+import { Navigate } from '@/components/buttons/Navigate';
 import { NavigateToCopiedObject } from '@/components/buttons/NavigateToCopiedObject';
 import { RemapColumns } from '@/components/buttons/RemapColumns';
 import { RemoveEmptyStringsFromQuickFilters } from '@/components/buttons/RemoveEmptyStringsFromQuickFilters';
@@ -42,7 +41,6 @@ import { UpdateDetails } from '@/components/buttons/UpdateDetails';
 import { UpdateOwner } from '@/components/buttons/UpdateOwner';
 import { UpdateTriggerVersions } from '@/components/buttons/UpdateTriggerVersions';
 import { UpdateWorkflowActionVersions } from '@/components/buttons/UpdateWorkflowActionVersions';
-import { ViewInAdmin } from '@/components/buttons/ViewInAdmin';
 import { ViewLineage } from '@/components/buttons/ViewLineage';
 import { useSupportMode } from '@/hooks/useSupportMode';
 import { ACTION_BAR_COLLAPSED_EVENT } from '@/hooks/useViewReady';
@@ -221,9 +219,6 @@ export function ActionButtons({
                 {availableActions.has('getCards') && (
                   <GetCards currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
-                {availableActions.has('viewInAdmin') && (
-                  <ViewInAdmin currentContext={currentContext} isDisabled={!isDomoPage} />
-                )}
                 {availableActions.has('getDatasets') && (
                   <GetDatasets currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
@@ -255,9 +250,7 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {availableActions.has('dataRepair') && (
-                  <DataRepair currentContext={currentContext} isDisabled={!isDomoPage} />
-                )}
+                <Navigate availableActions={availableActions} currentContext={currentContext} isDisabled={!isDomoPage} />
                 {availableActions.has('updateOwner') && (
                   <UpdateOwner currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
@@ -281,8 +274,7 @@ export function ActionButtons({
                     onStatusUpdate={onStatusUpdate}
                   />
                 )}
-                {(availableActions.has('migrateBeastModeUsage') ||
-                  availableActions.has('migrateDownstreamContent')) && (
+                {(availableActions.has('migrateBeastModeUsage') || availableActions.has('migrateDownstreamContent')) && (
                   <MigrateDownstreamContent currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('remapColumns') && (
@@ -335,9 +327,6 @@ export function ActionButtons({
                 )}
                 {availableActions.has('removeEmptyStrings') && (
                   <RemoveEmptyStringsFromQuickFilters currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
-                )}
-                {availableActions.has('directSignOn') && (
-                  <DirectSignOn currentContext={currentContext} isDisabled={!isDomoPage} />
                 )}
                 {availableActions.has('manageCardLocks') && (
                   <ManageCardLocks

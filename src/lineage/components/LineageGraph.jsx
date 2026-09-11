@@ -62,11 +62,13 @@ const LineageNode = memo(function LineageNode({ data, id }) {
 
   const dataflowBadge = useMemo(() => {
     if (data.entityType !== 'DATAFLOW' || !meta?.lastExecution?.endTime) return null;
-    const formatted = new Date(meta.lastExecution.endTime).toLocaleDateString(undefined, {
+    const endTime = new Date(meta.lastExecution.endTime);
+    const formatted = endTime.toLocaleDateString(undefined, {
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
-      month: 'short'
+      month: 'short',
+      year: endTime.getFullYear() === new Date().getFullYear() ? undefined : 'numeric'
     });
     return `Last run ${formatted}`;
   }, [data.entityType, meta]);

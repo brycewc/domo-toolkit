@@ -24,13 +24,11 @@ export function useStatusBar() {
     promise.then(
       (data) => {
         toast.close(loadingId);
-        const msg = typeof success === 'function' ? success(data) : success;
-        toast.success(parseMarkdownBold(msg));
+        showResolved(toast.success, typeof success === 'function' ? success(data) : success);
       },
       (err) => {
         toast.close(loadingId);
-        const msg = typeof error === 'function' ? error(err) : error;
-        toast.danger(parseMarkdownBold(msg));
+        showResolved(toast.danger, typeof error === 'function' ? error(err) : error);
       }
     );
 
@@ -44,4 +42,12 @@ function defaultTimeoutFor(status) {
   if (status === 'danger') return 10000;
   if (status === 'warning') return 8000;
   return 3000;
+}
+
+function showResolved(show, message) {
+  if (message && typeof message === 'object') {
+    show(parseMarkdownBold(message.title), { description: parseMarkdownBold(message.description) });
+    return;
+  }
+  show(parseMarkdownBold(message));
 }

@@ -170,6 +170,12 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     actions.add('getUsage');
   }
 
+  // Domo offers no way back to the package from a workflow's tile. On the
+  // package's own page the jump would be a no-op, and that page isn't a match.
+  if (isCodeEngineInWorkflow(currentContext)) {
+    actions.add('openInCodeEngine');
+  }
+
   if (
     ['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(typeId) &&
     !metadata?.context?.workflowModelId &&

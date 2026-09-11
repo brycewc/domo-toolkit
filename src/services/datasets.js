@@ -194,7 +194,7 @@ export async function getDatasetDependentCount({ datasetId, tabId = null }) {
  * These reference lists arrive with only an id and name per entry, everything
  * else null. This pulls the complete records so a related-data tab can show
  * real owners, row counts, types, and the like instead of just id and name.
- * Datasets the user can't access are dropped by the bulk endpoint, so the
+ * DataSets the user can't access are dropped by the bulk endpoint, so the
  * result may be shorter than the input list.
  *
  * @param {Object} params - Parameters
@@ -380,12 +380,12 @@ export async function getDatasetsForApp({ appId, tabId }) {
 export function getDatasetsForDataflow({ details }) {
   const inputs = (details?.inputs || []).map((input) => ({
     id: input.dataSourceId,
-    name: input.dataSourceName || `Dataset ${input.dataSourceId}`
+    name: input.dataSourceName || `DataSet ${input.dataSourceId}`
   }));
 
   const outputs = (details?.outputs || []).map((output) => ({
     id: output.dataSourceId,
-    name: output.dataSourceName || `Dataset ${output.dataSourceId}`
+    name: output.dataSourceName || `DataSet ${output.dataSourceId}`
   }));
 
   return { inputs, outputs };
@@ -504,7 +504,7 @@ export async function getDatasetsForView({ datasetId, tabId }) {
     if (!bulkResponse.ok) {
       // If bulk fails, return IDs without names
       console.warn('Bulk datasource fetch failed, returning IDs only');
-      return datasetIds.map((id) => ({ id, name: `Dataset ${id}` }));
+      return datasetIds.map((id) => ({ id, name: `DataSet ${id}` }));
     }
 
     const namesResponse = await bulkResponse.json();
@@ -559,7 +559,7 @@ export async function getDependentDatasets({ datasetId, tabId }) {
 
     if (!bulkResponse.ok) {
       console.warn('Bulk datasource fetch failed, returning IDs only');
-      return datasetIds.map((id) => ({ id, name: `Dataset ${id}` }));
+      return datasetIds.map((id) => ({ id, name: `DataSet ${id}` }));
     }
 
     const bulkData = await bulkResponse.json();
@@ -666,7 +666,7 @@ export async function getDownstreamViewsForDatasets(datasetIds, tabId = null) {
  * `unverified: true` rather than a misleading zero.
  * @param {Object} params
  * @param {string[]} params.datasetIds - The datasource IDs to check
- * @param {string|null} [params.excludeDataflowId] - Dataflow to leave out of the counts
+ * @param {string|null} [params.excludeDataflowId] - DataFlow to leave out of the counts
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<Object<string, {cards: number, dataflows: number, unverified: boolean, views: number}>>}
  *   Keyed by dataset ID
@@ -864,9 +864,7 @@ export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
  */
 export function isFusionType(details) {
   if (!details) return false;
-  return (
-    details.dataProviderType === 'datafusion' || details.displayType === 'datafusion' || details.type === 'datafusion'
-  );
+  return details.dataProviderType === 'datafusion' || details.displayType === 'datafusion' || details.type === 'datafusion';
 }
 
 /**

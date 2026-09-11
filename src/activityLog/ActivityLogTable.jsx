@@ -84,7 +84,7 @@ export function ActivityLogTable() {
   });
   // Track pagination state per object: { "type:id": { offset, total, hasMore } }
   const [objectStates, setObjectStates] = useState({});
-  // Dataset-source pagination — single global offset/total since the dataset query
+  // DataSet-source pagination — single global offset/total since the dataset query
   // is one call regardless of how many objects/actions/users are filtered
   const [datasetState, setDatasetState] = useState({ hasMore: false, offset: 0, total: 0 });
   const [datasetLastUpdated, setDatasetLastUpdated] = useState(null);
@@ -1098,7 +1098,7 @@ export function ActivityLogTable() {
                 <Alert.Indicator>
                   <IconExclamationPointCircle data-slot='alert-default-icon' />
                 </Alert.Indicator>
-                Activity Log API only retains the past year
+                Activity Log API Only Retains the Past Year
               </Alert.Title>
               <Alert.Description>
                 For older history, switch to the DomoStats Activity Log dataset (preserves history from the day you connected
@@ -1132,11 +1132,11 @@ export function ActivityLogTable() {
                     rel='noopener noreferrer'
                     target='_blank'
                   >
-                    DomoStats Activity Log dataset
+                    DomoStats Activity Log DataSet
                     <Link.Icon />
                   </Link>
                 ) : (
-                  'DomoStats Activity Log dataset'
+                  'DomoStats Activity Log DataSet'
                 )}
               </Alert.Title>
               {datasetLastUpdated && (
@@ -1176,7 +1176,7 @@ export function ActivityLogTable() {
                 <Alert.Indicator>
                   <IconExclamationPointCircle data-slot='alert-default-icon' />
                 </Alert.Indicator>
-                Couldn&apos;t load from the DomoStats dataset
+                Couldn&apos;t Load from the DomoStats DataSet
               </Alert.Title>
               <Alert.Description>{datasetFetchError}</Alert.Description>
               <Alert.Description className='mt-1 text-xs'>

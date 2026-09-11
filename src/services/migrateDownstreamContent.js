@@ -210,7 +210,7 @@ export async function getDownstreamDatasetIds(datasetId, tabId = null) {
 /**
  * Walk the lineage graph downstream from this dataset. Returns separate
  * arrays for the derived datasets and dataflows that take this dataset as an
- * input. Dataset names aren't in the lineage payload, so we bulk-fetch their
+ * input. DataSet names aren't in the lineage payload, so we bulk-fetch their
  * metadata to label them.
  *
  * @param {string} datasetId
@@ -269,10 +269,10 @@ export async function getDownstreamLineage(datasetId, tabId = null) {
         });
         if (bulkResponse.ok) {
           const bulk = await bulkResponse.json();
-          datasets = (bulk.dataSources || []).map((ds) => ({ id: ds.id, name: ds.name || `Dataset ${ds.id}` }));
+          datasets = (bulk.dataSources || []).map((ds) => ({ id: ds.id, name: ds.name || `DataSet ${ds.id}` }));
         } else {
           // Bulk failed — fall back to id-based labels; the user can still pick.
-          datasets = datasetIds.map((id) => ({ id, name: `Dataset ${id}` }));
+          datasets = datasetIds.map((id) => ({ id, name: `DataSet ${id}` }));
         }
       }
 
@@ -296,10 +296,10 @@ export async function getDownstreamLineage(datasetId, tabId = null) {
           databaseType: detail?.databaseType,
           id: df.id,
           inputDatasetIds: (detail?.inputs || []).map((i) => i?.dataSourceId).filter(Boolean),
-          name: detail?.name || `Dataflow ${df.id}`
+          name: detail?.name || `DataFlow ${df.id}`
         };
       } catch {
-        return { databaseType: null, id: df.id, inputDatasetIds: [], name: `Dataflow ${df.id}` };
+        return { databaseType: null, id: df.id, inputDatasetIds: [], name: `DataFlow ${df.id}` };
       }
     })
   );
@@ -404,7 +404,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
         datasets.push({
           dataProviderType: b.dataProviderType || b.displayType || null,
           id,
-          name: b.title || b.name || b.displayName || `Dataset ${id}`,
+          name: b.title || b.name || b.displayName || `DataSet ${id}`,
           owner: b.ownerName || b.ownedByName || null
         });
       }
@@ -779,8 +779,8 @@ export async function swapFusionInput({
  * isn't unambiguous; the caller skips those rather than guess.
  *
  * @param {Object} definition - Hydrated dataflow definition.
- * @param {string} originId - Dataset being migrated away from.
- * @param {string} targetId - Dataset being migrated to.
+ * @param {string} originId - DataSet being migrated away from.
+ * @param {string} targetId - DataSet being migrated to.
  * @returns {{collapsed: boolean, definition: Object}}
  */
 function collapseDuplicateDataflowInput(definition, originId, targetId) {
@@ -947,7 +947,7 @@ async function putCardForMigration(cardId, definition, tabId, { isDrill = false,
   // Formulas the card references that its own dataset can't supply travel with
   // the card rather than being left out as dataset-persisted ones are.
   const orphanedFormulaIds = collectOrphanedFormulaIds(allFormulas, definition.definition, formulaSourceById, datasetId);
-  // Only card-level Beast Modes ride with the card. Dataset-persisted ones
+  // Only card-level Beast Modes ride with the card. DataSet-persisted ones
   // migrate as their own Beast Mode type, created on the target with their
   // column refs already rewritten; the card just references them by id, which
   // the Beast Mode id remap repoints during the card swap. Sending them in

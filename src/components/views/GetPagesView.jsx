@@ -110,6 +110,7 @@ export function GetPagesView({
       // Read initial data from the appropriate sidepanel data property
       let childPages = sidepanelType === 'getCardPages' ? data.cardPages : data.childPages;
       let cardsByPage = data.cardsByPage;
+      let noCards = false;
       let orphanedCards;
 
       if (!childPages && !forceRefresh) {
@@ -158,6 +159,7 @@ export function GetPagesView({
           });
           childPages = freshData.childPages;
           cardsByPage = freshData.cardsByPage;
+          noCards = Boolean(freshData.noCards);
           orphanedCards = freshData.orphanedCards;
         }
       }
@@ -173,6 +175,7 @@ export function GetPagesView({
         });
         childPages = freshData.childPages;
         cardsByPage = freshData.cardsByPage;
+        noCards = Boolean(freshData.noCards);
         orphanedCards = freshData.orphanedCards;
       }
 
@@ -204,21 +207,16 @@ export function GetPagesView({
       const noPages = !childPages || !childPages.length;
       if (noPages) {
         if (!mountedRef.current) return;
+        const isCardless = sidepanelType === 'getCardPages' && noCards;
         const message =
           sidepanelType === 'getCardPages'
-            ? objectType === 'CARD'
-              ? 'This card does not appear on any app studio apps, dashboards, report builder pages, or worksheets'
-              : objectType === 'BEAST_MODE_FORMULA'
-                ? `No pages found for cards using Beast Mode **${objectName}**`
-                : objectType === 'DATA_SOURCE'
-                  ? `No pages found for cards using dataset **${objectName}**`
-                  : objectType === 'USER'
-                    ? `No pages found for cards owned by **${objectName}**`
-                    : `Cards on ${objectName} are not used on any other pages`
+            ? isCardless
+              ? noCardsMessage(objectType, objectName)
+              : noCardPagesMessage(objectType, objectName)
             : objectType === 'DATA_APP_VIEW'
               ? `No views (pages) found for app studio app ${objectId}`
               : `No child pages found for page ${objectId}`;
-        onStatusUpdate?.('No Pages Found', message, 'warning');
+        onStatusUpdate?.(isCardless ? 'No Cards Found' : 'No Pages Found', message, 'warning');
         onBackToDefault?.();
         setIsLoading(false);
         return;
@@ -374,7 +372,7 @@ export function GetPagesView({
         cardIds = [objectId];
       } else if (objectType === 'USER') {
         const cards = await getOwnedCards(objectId, tabId);
-        if (!cards || !cards.length) return { cardsByPage: {}, childPages: [], orphanedCards: [] };
+        if (!cards || !cards.length) return { cardsByPage: {}, childPages: [], noCards: true, orphanedCards: [] };
         cardIds = cards.map((card) => card.id);
       } else {
         const cards = await getCardsForObject({
@@ -384,7 +382,7 @@ export function GetPagesView({
           tabId
         });
 
-        if (!cards || !cards.length) return { cardsByPage: {}, childPages: [], orphanedCards: [] };
+        if (!cards || !cards.length) return { cardsByPage: {}, childPages: [], noCards: true, orphanedCards: [] };
         cardIds = cards.map((card) => card.id);
       }
 
@@ -692,6 +690,36 @@ function findCardsOnlyHere(childPages, cardsByPage, orphanedCards) {
   }
 
   return [...candidates.values()].filter((card) => !cardsOnOtherPages.has(card.id));
+}
+
+function noCardPagesMessage(objectType, objectName) {
+  switch (objectType) {
+    case 'BEAST_MODE_FORMULA':
+      return `No pages found for cards using Beast Mode **${objectName}**`;
+    case 'CARD':
+      return 'This card does not appear on any app studio apps, dashboards, report builder pages, or worksheets';
+    case 'DATA_SOURCE':
+      return `No pages found for cards using dataset **${objectName}**`;
+    case 'USER':
+      return `No pages found for cards owned by **${objectName}**`;
+    default:
+      return `Cards on ${objectName} are not used on any other pages`;
+  }
+}
+
+function noCardsMessage(objectType, objectName) {
+  switch (objectType) {
+    case 'BEAST_MODE_FORMULA':
+      return `No cards use Beast Mode **${objectName}**`;
+    case 'DATA_SOURCE':
+      return `No cards are built on dataset **${objectName}**`;
+    case 'DATAFLOW_TYPE':
+      return `No cards are built on the output datasets of **${objectName}**`;
+    case 'USER':
+      return `**${objectName}** does not own any cards`;
+    default:
+      return `No cards found on ${objectName}`;
+  }
 }
 
 /**

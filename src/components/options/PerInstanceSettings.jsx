@@ -16,7 +16,7 @@ const INSTANCE_CONFIGS = [
       body: (
         <>
           <p>
-            The Activity Log Dataset ID is saved automatically the first time you choose the DomoStats Activity Log dataset
+            The Activity Log DataSet ID is saved automatically the first time you choose the DomoStats Activity Log dataset
             as your source for an instance.
           </p>
           <p className='mt-2'>
@@ -28,7 +28,7 @@ const INSTANCE_CONFIGS = [
       title: 'DomoStats Activity Log'
     },
     datasetIdField: 'activityLogDatasetId',
-    datasetIdLabel: 'Activity Log Dataset ID',
+    datasetIdLabel: 'Activity Log DataSet ID',
     key: 'activity-log',
     toggle: {
       field: 'preferActivityLogDataset',

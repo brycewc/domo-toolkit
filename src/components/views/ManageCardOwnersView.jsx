@@ -217,7 +217,7 @@ export function ManageCardOwnersView({ instance = null, onBackToDefault = null, 
   const handleSave = () => {
     const targets = cards.filter((c) => c.readable && selectedIds.has(String(c.id)));
     if (targets.length === 0) {
-      onStatusUpdate?.('No cards selected', 'Select at least one card', 'warning', 2500);
+      onStatusUpdate?.('No Cards Selected', 'Select at least one card', 'warning', 2500);
       return;
     }
     if (!hasEdits) return;
@@ -237,7 +237,7 @@ export function ManageCardOwnersView({ instance = null, onBackToDefault = null, 
       const names = orphaned.slice(0, 3).map((c) => c.name).join(', ');
       const more = orphaned.length > 3 ? ` and ${orphaned.length - 3} more` : '';
       onStatusUpdate?.(
-        'Cannot remove all owners',
+        'Cannot Remove All Owners',
         `${orphaned.length} card${orphaned.length === 1 ? '' : 's'} would be left with no owner (${names}${more}). Add an owner or deselect ${orphaned.length === 1 ? 'it' : 'them'}.`,
         'danger',
         6000
@@ -286,7 +286,7 @@ export function ManageCardOwnersView({ instance = null, onBackToDefault = null, 
       <Alert className='w-full' status='warning'>
         <AlertStatusIcon />
         <Alert.Content>
-          <Alert.Title>Could not read card owners</Alert.Title>
+          <Alert.Title>Could Not Read Card Owners</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
             <Button

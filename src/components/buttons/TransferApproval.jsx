@@ -31,7 +31,7 @@ export function TransferApproval({ currentContext, isDisabled, onStatusUpdate })
 
   const submitTransfer = (toUserId) => {
     if (!toUserId) {
-      onStatusUpdate?.('Blank approver', 'Please choose an approver', 'warning', 2000);
+      onStatusUpdate?.('Blank Approver', 'Please choose an approver', 'warning', 2000);
       return;
     }
 
@@ -52,7 +52,7 @@ export function TransferApproval({ currentContext, isDisabled, onStatusUpdate })
     if (duplicateStep) {
       const who = duplicateStep.approver?.displayName || 'That user';
       onStatusUpdate?.(
-        'Already in chain',
+        'Already in Chain',
         `${who} is already an approver on this request. Transferring would list them in the chain more than once.`,
         'warning',
         5000

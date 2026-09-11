@@ -20,8 +20,8 @@ const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
  *
  * @param {Object} props
  * @param {React.RefObject<Map>} [props.cacheRef] - Shared cache for preview data across sessions
- * @param {string} props.datasetId - Dataset ID to preview
- * @param {string} props.datasetName - Dataset display name
+ * @param {string} props.datasetId - DataSet ID to preview
+ * @param {string} props.datasetName - DataSet display name
  * @param {React.RefObject<number>} [props.heightRef] - Ref for persisting height across previews
  * @param {Function} [props.resolveTabId] - Async function that resolves a valid tab ID
  * @param {Function} props.onClose - Close handler

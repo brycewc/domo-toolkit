@@ -92,7 +92,7 @@ export function FaviconSettings() {
       const incoming = migrateRules(changes.faviconRules.newValue || []);
       if (incoming.length === 0) return;
       if (JSON.stringify(rulesRef.current) !== JSON.stringify(originalRulesRef.current)) {
-        showStatus('Rules changed elsewhere', 'Your unsaved edits were kept. Reload to see the new rules.', 'warning');
+        showStatus('Rules Changed Elsewhere', 'Your unsaved edits were kept. Reload to see the new rules.', 'warning');
         return;
       }
       setRules(incoming);
@@ -154,7 +154,7 @@ export function FaviconSettings() {
       },
       () => {
         setOriginalRules(rules);
-        showStatus('Settings saved successfully!', '', 'success');
+        showStatus('Settings Saved Successfully!', '', 'success');
       }
     );
   };

@@ -156,7 +156,7 @@ const TILE_ICONS = {
  * @param {Object} props
  * @param {React.RefObject<Map>} [props.cacheRef] - Shared cache for parsed dataflow data
  * @param {string} [props.className] - Outer card classes (defaults to the lineage right-rail look)
- * @param {string} props.dataflowId - Dataflow ID to inspect
+ * @param {string} props.dataflowId - DataFlow ID to inspect
  * @param {Function} [props.resolveTabId] - Async function that resolves a valid tab ID
  * @param {Function} props.onClose - Close handler
  * @param {boolean} [props.showJson=true] - Show the Tiles/JSON tabs (lineage). When false, renders just the tiles list (sidepanel, where the JSON is already available in the context footer).
@@ -252,7 +252,7 @@ export function DataflowInspector({
   if (loading) {
     return (
       <Card className={`flex flex-col p-2 ${className}`}>
-        <ViewHeader feature='Inspect Dataflow' featureIcon={<IconEye />} subtext='Loading...' onClose={onClose} />
+        <ViewHeader feature='Inspect DataFlow' featureIcon={<IconEye />} subtext='Loading...' onClose={onClose} />
         <Card.Content className='flex flex-1 items-center justify-center'>
           <Spinner size='md' />
         </Card.Content>
@@ -263,7 +263,7 @@ export function DataflowInspector({
   if (error || !dataflow) {
     return (
       <Card className={`flex flex-col p-2 ${className}`}>
-        <ViewHeader feature='Inspect Dataflow' featureIcon={<IconEye />} onClose={onClose} />
+        <ViewHeader feature='Inspect DataFlow' featureIcon={<IconEye />} onClose={onClose} />
         <Card.Content className='flex flex-1 items-center justify-center text-danger'>
           <p>{error || 'No data available'}</p>
         </Card.Content>
@@ -326,7 +326,7 @@ export function DataflowInspector({
           <Alert.Content>
             <Alert.Title className='flex items-center gap-1'>
               <AlertStatusIcon />
-              Historical version
+              Historical Version
             </Alert.Title>
             <Alert.Description>
               Showing version {dataflow.versionNumber ?? versionId}, not the live definition.

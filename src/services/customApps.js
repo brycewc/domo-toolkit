@@ -1,7 +1,7 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 import { getCardsForObject } from './cards';
-import { getChildPages } from './pages';
+import { getAppOnlyCardIds, getChildPages } from './pages';
 
 /**
  * Delete an entire App Studio app: all its pages and all cards on those pages.
@@ -13,9 +13,15 @@ import { getChildPages } from './pages';
  * `currentPageId` / `currentPageType`, which also covers a worksheet whose
  * admin-summary fetch came back empty.
  *
+ * With `cardScope: 'onlyHere'` the delete narrows to the cards that appear on no
+ * page outside this app, leaving ones a dashboard, report, or other app still
+ * shows. A failed narrowing lookup aborts the delete rather than falling back to
+ * deleting every card, the more destructive scope the user did not choose.
+ *
  * @param {Object} params
  * @param {string|number} params.appId - The parent app ID
  * @param {number[]|null} [params.cardIds] - Pre-fetched card IDs to delete; collected per-page when omitted
+ * @param {'all'|'onlyHere'} [params.cardScope='all'] - Delete every card, or only those living nowhere else
  * @param {string|number|null} [params.currentPageId] - The page the user is on (fallback path only)
  * @param {string|null} [params.currentPageType] - 'DATA_APP_VIEW' or 'WORKSHEET_VIEW' (fallback path only)
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
@@ -24,6 +30,7 @@ import { getChildPages } from './pages';
 export async function deleteAppAndAllContent({
   appId,
   cardIds = null,
+  cardScope = 'all',
   currentPageId = null,
   currentPageType = null,
   tabId = null
@@ -52,6 +59,10 @@ export async function deleteAppAndAllContent({
       }
     }
     ids = [...collected];
+  }
+
+  if (cardScope === 'onlyHere' && ids.length > 0) {
+    ids = await getAppOnlyCardIds({ appId, cardIds: ids, tabId });
   }
 
   if (ids.length > 0) {

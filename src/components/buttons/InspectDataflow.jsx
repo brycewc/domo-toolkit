@@ -27,7 +27,7 @@ export function InspectDataflow({ currentContext, isDisabled, onStatusUpdate }) 
             <Spinner color='currentColor' size='sm' />
           ) : (
             <>
-              <IconEye /> Inspect Dataflow
+              <IconEye /> Inspect DataFlow
             </>
           )
         }

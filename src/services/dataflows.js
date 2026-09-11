@@ -344,7 +344,7 @@ export async function getOwnedDataflows(userId, tabId = null) {
  *
  * @param {Object} params
  * @param {string} params.dataflowId - The DataFlow ID
- * @param {string[]} params.datasetIds - Dataset UUIDs to read (inputs and/or outputs)
+ * @param {string[]} params.datasetIds - DataSet UUIDs to read (inputs and/or outputs)
  * @param {number} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<{dataflow: string[], datasets: {[id: string]: string[]}}>}
  */
@@ -430,7 +430,7 @@ export async function getTagSuggestions(tabId = null) {
  * aborting the rest, mirroring the bulk-result shape used elsewhere.
  * @param {Object} params
  * @param {{id: string, name: string, tags: string[]}|null} params.dataflow - The dataflow to write, or null to skip
- * @param {Array<{id: string, name: string, tags: string[]}>} params.datasets - Datasets to write
+ * @param {Array<{id: string, name: string, tags: string[]}>} params.datasets - DataSets to write
  * @param {number} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<{errors: Array<{error: string, id: string, name: string}>, failed: number, succeeded: number}>}
  */

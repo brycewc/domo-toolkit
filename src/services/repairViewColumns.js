@@ -60,7 +60,7 @@ export async function detectBrokenViewColumns({ tabId = null, viewDefinition = n
   // top-level extraction can miss them; a full walk catches every input.
   const sourceIds = enumerateViewSourceIds(def, viewId);
   const names = await fetchDatasetNames(sourceIds, tabId).catch(() => new Map());
-  const nameFor = (id) => names.get(id) || `Dataset ${id}`;
+  const nameFor = (id) => names.get(id) || `DataSet ${id}`;
   const broken = [];
 
   await Promise.all(
@@ -223,5 +223,5 @@ async function fetchDatasetNames(ids, tabId) {
     [ids],
     tabId
   );
-  return new Map((rows || []).filter((r) => r?.id).map((r) => [r.id, r.name || `Dataset ${r.id}`]));
+  return new Map((rows || []).filter((r) => r?.id).map((r) => [r.id, r.name || `DataSet ${r.id}`]));
 }

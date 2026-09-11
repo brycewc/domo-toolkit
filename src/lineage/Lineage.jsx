@@ -123,7 +123,7 @@ export function Lineage() {
       } else if (clickedEntityType === 'DATA_SOURCE') {
         setPreviewDataset({
           id: clickedEntityId,
-          name: node?.name || `Dataset ${clickedEntityId}`
+          name: node?.name || `DataSet ${clickedEntityId}`
         });
         setInspectedDataflow(null);
       } else {
@@ -172,7 +172,7 @@ export function Lineage() {
         const { graph: fullGraph, untraced } = await fetchEntireLineage(setExportProgress);
         const rows = buildLineageRows(fullGraph);
         if (rows.length === 0) {
-          showStatus('Nothing to export', 'No lineage objects were found', 'warning');
+          showStatus('Nothing to Export', 'No lineage objects were found', 'warning');
           return;
         }
         const safeName = (params?.objectName || `${params?.entityType}_${params?.entityId}`).replace(/[^\w.-]+/g, '_');
@@ -186,16 +186,16 @@ export function Lineage() {
         }
         if (untraced > 0) {
           showStatus(
-            'Lineage partially exported',
+            'Lineage Partially Exported',
             `Exported **${rows.length}** objects. This pipeline is too large to trace in full, so **${untraced}** branches were left out.`,
             'warning'
           );
         } else {
-          showStatus('Lineage exported', `Exported **${rows.length}** objects`, 'success');
+          showStatus('Lineage Exported', `Exported **${rows.length}** objects`, 'success');
         }
       } catch (err) {
         console.error('[Lineage] Export failed:', err);
-        showStatus('Export failed', err.message || 'Could not export lineage', 'danger');
+        showStatus('Export Failed', err.message || 'Could not export lineage', 'danger');
       } finally {
         setIsExporting(false);
         setExportProgress(null);

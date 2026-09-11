@@ -289,7 +289,7 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
   const handleSave = () => {
     const targets = objects.filter((o) => o.readable && selectedIds.has(o.id));
     if (targets.length === 0) {
-      onStatusUpdate?.('No objects selected', 'Select at least one object to tag', 'warning', 2500);
+      onStatusUpdate?.('No Objects Selected', 'Select at least one object to tag', 'warning', 2500);
       return;
     }
 
@@ -307,7 +307,7 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
 
     const changedCount = (dataflowPayload ? 1 : 0) + datasetPayloads.length;
     if (changedCount === 0) {
-      onStatusUpdate?.('No changes to apply', 'The selected objects already have these tags', 'warning', 2500);
+      onStatusUpdate?.('No Changes to Apply', 'The selected objects already have these tags', 'warning', 2500);
       return;
     }
 
@@ -354,7 +354,7 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
       <Alert className='w-full' status='warning'>
         <AlertStatusIcon />
         <Alert.Content>
-          <Alert.Title>Could not read tags</Alert.Title>
+          <Alert.Title>Could Not Read Tags</Alert.Title>
           <div className='flex flex-col items-start justify-center gap-2'>
             <Alert.Description>{error}</Alert.Description>
             <Button

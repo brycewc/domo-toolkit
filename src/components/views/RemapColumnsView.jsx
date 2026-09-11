@@ -141,7 +141,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       }
       setDatasetId(context.domoObject.id);
       setDatasetName(
-        context.domoObject?.metadata?.name || context.domoObject?.metadata?.displayName || `Dataset ${context.domoObject.id}`
+        context.domoObject?.metadata?.name || context.domoObject?.metadata?.displayName || `DataSet ${context.domoObject.id}`
       );
       setOrigin(context.domoObject?.baseUrl || '');
       setTabId(context.tabId);
@@ -419,7 +419,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   useEffect(() => {
     if (bailedRef.current || !nothingToDo) return;
     bailedRef.current = true;
-    onStatusUpdate?.('Nothing to remap', `No broken column references found on **${datasetName}**`, 'warning');
+    onStatusUpdate?.('Nothing to Remap', `No broken column references found on **${datasetName}**`, 'warning');
     onBackToDefault?.();
   }, [datasetName, nothingToDo, onBackToDefault, onStatusUpdate]);
 
@@ -1012,7 +1012,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
                   <Alert.Content>
                     <Alert.Title className='flex items-center gap-1'>
                       <AlertStatusIcon />
-                      Scan failed
+                      Scan Failed
                     </Alert.Title>
                     <Alert.Description>{scanError}</Alert.Description>
                   </Alert.Content>
@@ -1096,7 +1096,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
                   <Alert.Content>
                     <Alert.Title className='flex items-center gap-1'>
                       <AlertStatusIcon />
-                      Some content needs manual review
+                      Some Content Needs Manual Review
                     </Alert.Title>
                     <Alert.Description>
                       {sqlDataflowWarnings.length > 0 &&
@@ -1115,8 +1115,8 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
                     <Alert.Title className='flex items-center gap-1'>
                       <AlertStatusIcon />
                       {appColumnCollisions.length === 1
-                        ? '1 pro-code app would lose fields'
-                        : `${appColumnCollisions.length} pro-code apps would lose fields`}
+                        ? '1 Pro-Code App Would Lose Fields'
+                        : `${appColumnCollisions.length} Pro-Code Apps Would Lose Fields`}
                     </Alert.Title>
                     <Alert.Description>
                       {appColumnCollisions.map((a) => a.name).join(', ')}{' '}

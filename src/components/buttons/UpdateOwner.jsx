@@ -31,7 +31,7 @@ export function UpdateOwner({ currentContext, onStatusUpdate }) {
 
   const submitOwnerUpdate = (ownerId) => {
     if (!ownerId) {
-      onStatusUpdate?.('Blank owner', 'Please enter an owner', 'warning', 2000);
+      onStatusUpdate?.('Blank Owner', 'Please enter an owner', 'warning', 2000);
       return;
     }
 

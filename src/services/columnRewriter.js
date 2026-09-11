@@ -227,7 +227,7 @@ export function rewriteDataflowColumns(dataflowDefinition, columnMap) {
 /**
  * Conservative rewriter for dataset views.
  *
- * Dataset views carry an OUTPUT column ledger at `tables[].columns[].name`
+ * DataSet views carry an OUTPUT column ledger at `tables[].columns[].name`
  * (output declaration — must NOT be renamed) AND can join multiple input
  * datasets where the same column name might exist on more than one. To
  * avoid renaming column refs that point at OTHER inputs (e.g. the right

@@ -43,7 +43,7 @@ const REDSHIFT_SQL = {
  * line-number gutter like Domo's editor, and merges the active search query as
  * inline highlight marks alongside the syntax colors.
  * @param {Object} props
- * @param {string} [props.dialect] - Dataflow engine ('mysql' | 'redshift' | 'magic' | 'unknown')
+ * @param {string} [props.dialect] - DataFlow engine ('mysql' | 'redshift' | 'magic' | 'unknown')
  * @param {string} [props.query] - Active search query to highlight within the SQL
  * @param {string} props.sql - The SQL statement to render
  */

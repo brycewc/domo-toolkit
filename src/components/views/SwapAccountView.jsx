@@ -142,7 +142,7 @@ export function SwapAccountView({ instance = null, liveContext = null, onBackToD
   const applyAccountChanges = (accountChanges, runAfter) => {
     const changeCount = Object.keys(accountChanges).length;
     if (changeCount === 0) {
-      onStatusUpdate?.('No changes to apply', 'Choose a different account first', 'warning', 2000);
+      onStatusUpdate?.('No Changes to Apply', 'Choose a different account first', 'warning', 2000);
       return;
     }
 

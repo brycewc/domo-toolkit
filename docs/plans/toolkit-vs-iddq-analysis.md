@@ -21,7 +21,7 @@ These IDDQDomo features are effectively covered by Toolkit today, sometimes unde
 | IDDQDomo feature                                  | Covered in Toolkit by                                                            |
 | ------------------------------------------------- | -------------------------------------------------------------------------------- |
 | Find Dashboards (pages a card is on)              | **Get Card Pages** (CARD)                                                        |
-| Find Datasets (datasets on a page)                | **Get DataSets** (PAGE)                                                          |
+| Find DataSets (datasets on a page)                | **Get DataSets** (PAGE)                                                          |
 | All MetaData (columns + cards + beast modes dump) | **Get Cards** + **Get Beast Modes** + Columns related tab + Current Context JSON |
 | Find Joins (join transforms in a dataflow)        | **Inspect DataFlow** (shows every tile's expressions/aggregates/columns/config)  |
 | Open Activity Log                                 | **Activity Log** (far richer: multi-user filters, DomoStats fallback)            |

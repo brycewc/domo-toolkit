@@ -340,7 +340,7 @@ export async function getCardBeastModes(datasetId, tabId = null) {
         for (const f of results) {
           if (f?.variable === true) continue;
           // Card-level Beast Modes: a DATA_SOURCE link that is NOT visible (the
-          // visible link is the card). Dataset-saved ones (DATA_SOURCE visible)
+          // visible link is the card). DataSet-saved ones (DATA_SOURCE visible)
           // are handled by getDatasetFunctions.
           const dataSourceLink = (f?.links || []).find((l) => l?.resource?.type === 'DATA_SOURCE');
           if (dataSourceLink && dataSourceLink.visible === true) continue;
@@ -387,8 +387,28 @@ export async function getCardBeastModes(datasetId, tabId = null) {
  * @returns {Promise<Array<{activeCardIds: string[], dataType: string|null, id: any, legacyId: string|null, name: string}>>}
  */
 export async function getDatasetFunctions(datasetId, tabId = null) {
-  return executeInPage(
-    async (datasetId) => {
+  const functions = await getDatasetFunctionsForDatasets([datasetId], tabId);
+  return functions.map(({ datasetId: _datasetId, ...fn }) => fn);
+}
+
+/**
+ * The Beast Modes saved to any of several datasets, each carrying the
+ * `datasetId` it belongs to. One search covers every dataset, so asking about a
+ * dataflow's outputs costs no more than asking about one of them.
+ *
+ * Same exclusions as `getDatasetFunctions`: Variables and card-level Beast
+ * Modes are left out.
+ *
+ * @param {string[]} datasetIds
+ * @param {number|null} [tabId]
+ * @returns {Promise<Array<{activeCardIds: string[], dataType: string|null, datasetId: string, id: any, legacyId: string|null, name: string}>>}
+ */
+export async function getDatasetFunctionsForDatasets(datasetIds, tabId = null) {
+  const ids = (datasetIds || []).filter(Boolean).map(String);
+  if (ids.length === 0) return [];
+
+  const result = await executeInPage(
+    async (ids) => {
       const all = [];
       const limit = 100;
       let offset = 0;
@@ -396,7 +416,7 @@ export async function getDatasetFunctions(datasetId, tabId = null) {
       while (moreData) {
         const response = await fetch('/api/query/v1/functions/search', {
           body: JSON.stringify({
-            filters: [{ field: 'dataset', idList: [datasetId] }],
+            filters: [{ field: 'dataset', idList: ids }],
             limit,
             offset,
             sort: { ascending: true, field: 'name' }
@@ -405,7 +425,7 @@ export async function getDatasetFunctions(datasetId, tabId = null) {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) return { error: `HTTP ${response.status}`, functions: null };
         const data = await response.json();
         const results = data?.results || [];
         for (const f of results) {
@@ -424,6 +444,7 @@ export async function getDatasetFunctions(datasetId, tabId = null) {
               const s = String(id);
               return s.startsWith('dr:') ? s.split(':')[1] || s : s;
             }),
+            datasetId: String(dataSourceLink.resource?.id ?? ''),
             dataType: f.dataType || null,
             id: f.id,
             legacyId: f.legacyId || null,
@@ -433,11 +454,17 @@ export async function getDatasetFunctions(datasetId, tabId = null) {
         offset += limit;
         moreData = Boolean(data?.hasMore) && results.length > 0;
       }
-      return all;
+      return { error: null, functions: all };
     },
-    [datasetId],
+    [ids],
     tabId
   );
+  // A failed search used to surface as a null return that every caller's
+  // `.catch` missed, so it read as "this dataset has no Beast Modes".
+  if (!result?.functions) {
+    throw new Error(result?.error ? `Could not load Beast Modes: ${result.error}` : 'Could not load Beast Modes');
+  }
+  return result.functions;
 }
 
 /**

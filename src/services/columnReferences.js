@@ -312,7 +312,7 @@ export function extractBeastModeColumnRefs(beastModeTemplate) {
  * if `definition` is absent so a future shape change degrades to over-reporting
  * rather than missing everything.
  *
- * Dataset-persisted Beast Modes are excluded from the walk: `definition.formulas`
+ * DataSet-persisted Beast Modes are excluded from the walk: `definition.formulas`
  * carries every Beast Mode on the dataset and card (used or not), but the
  * dataset-persisted ones (`persistedOnDataSource === true`) migrate as their own
  * Beast Mode type, not with the card, so their column refs belong to that scan,
@@ -750,7 +750,7 @@ async function collectDataflowCollisions({ byItem, originId, selectedDataflows, 
       if (!otherInputs.has(input.dataSourceId)) {
         otherInputs.set(input.dataSourceId, {
           dataflowsUsing: [],
-          name: input.dataSourceName || `Dataset ${input.dataSourceId}`
+          name: input.dataSourceName || `DataSet ${input.dataSourceId}`
         });
       }
       otherInputs.get(input.dataSourceId).dataflowsUsing.push({

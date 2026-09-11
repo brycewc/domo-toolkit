@@ -29,6 +29,7 @@
 - The Copy button on a Beast Mode now offers to copy its DataSet ID.
 - Beast Modes now support Migrate Content, repointing the cards, drills, and Beast Modes that use one onto a different Beast Mode on the same DataSet.
 - Migrate Content on a Beast Mode deletes the original once nothing uses it.
+- A Code Engine tile selected in a Workflow now has an Open in Code Engine button that opens its package page in a new tab.
 - Code Engine Packages now support Get Usage, listing the workflows and custom apps that use them.
 - Get Usage marks each workflow version Active or Inactive.
 - Get Usage can show only the active workflow versions.
@@ -41,6 +42,7 @@
 - An input DataSet that can't be deleted with its DataFlow now says why.
 - Deleting a DataFlow now names the places the dependency check doesn't look, such as Workflows, Code Engine Packages, and Domo Everywhere Publications.
 - Deleting a DataFlow can now search for the Jupyter Workspaces that read or write its output DataSets when you press Check Jupyter Workspaces.
+- Deleting a DataFlow now lists the Beast Modes on its output DataSets.
 - DataSets now support Delete.
 - Deleting a DataSet now lists the cards, Alerts, Beast Modes, and PDP policies that go with it.
 - Deleting a DataSet is blocked while a DataSet View is built on it.
@@ -76,6 +78,8 @@
 - Copy Color Rules now says why a copy was rejected instead of showing an error code.
 - Favicon Preferences now offers bottom-local and bottom-rig effects, putting a colored band across the bottom of the icon with LOCAL or RIG in it.
 - Enabling internal Domo instances now adds favicon rules that mark locally run instances LOCAL and test rigs RIG, and turning the setting back off removes them.
+- The activity log on a list row or group header that covers several object types now offers each type as its own choice, such as just the App Pages or just the Cards.
+- Deleting an App Page or Worksheet Page can now delete the whole App or Worksheet while leaving the cards that also appear outside it in place.
 
 ## UI Improvements
 
@@ -97,18 +101,22 @@
 - Buttons in an alert or a toast now carry an icon and stretch to fill the width.
 - Delete now gathers its warnings into a "Warnings" section you can collapse.
 - Delete now lists "Will Also Be Deleted" above "Other Dependencies".
-- The Activity Log Dataset ID in Per-Instance Settings is now a link that opens that DataSet in a new tab.
+- The Activity Log DataSet ID in Per-Instance Settings is now a link that opens that DataSet in a new tab.
 - The side panel now closes when you open the extension settings from it.
 - Get View Inputs is now named Get Fusion Inputs on a Fusion.
+- Update Details' and Delete's messages now lead with a short title such as "Success" or "Invalid Email" and put the detail below it.
+- Every alert and toast title is now in Title Case.
 
 ## Bug Fixes
 
 - Hovering a Jupyter Workspace in a list no longer puts scrollbars on the whole panel.
+- A delete that the platform refuses now reports the failure and keeps the view open instead of reading as a success.
 
 - Going back a step in Migrate Content no longer discards the Beast Mode conflict choices you already made.
 - Migrate Content no longer asks you to map PDP policies before you have picked a target DataSet.
 - The Activity Log on a report's page now shows that page's events instead of coming back empty.
 - The Cards and Card Pages activity logs now say how many cards or pages they cover instead of how many objects.
+- A group header with nothing loggable under it, such as a column in the Copy Color Rules list, no longer offers an activity log button that comes back empty.
 - Deleting a DataFlow's inputs no longer removes an input that other content still uses or that another DataFlow produces.
 - Open All on a group now reports the number of items it actually opened.
 - Deleting a DataFlow now reloads the DataFlow's page if you are still on it.
@@ -162,3 +170,5 @@
 - The tab title on an alert now shows the alert's name instead of "Alerts Management" or the DataSet's name.
 - Copy Filters now names a Beast Mode filter instead of copying its ID.
 - Copy Filters no longer copies one filter several times when cards match it against a mix of columns and Beast Modes.
+- A DataFlow's last run time in Lineage now includes the year when the run wasn't this year.
+- Get Card Pages now says there are no cards when an object has none, instead of reporting that its cards aren't on any pages.

@@ -184,7 +184,7 @@ export function MigrateDownstreamContentView({
 
       setDatasetId(context.domoObject.id);
       setDatasetName(
-        context.domoObject?.metadata?.name || context.domoObject?.metadata?.displayName || `Dataset ${context.domoObject.id}`
+        context.domoObject?.metadata?.name || context.domoObject?.metadata?.displayName || `DataSet ${context.domoObject.id}`
       );
       setOrigin(context.domoObject?.baseUrl || '');
       setTabId(context.tabId);
@@ -349,7 +349,7 @@ export function MigrateDownstreamContentView({
     if (jupyterStatus === 'idle') {
       let toastKey;
       toastKey = showStatus(
-        'Nothing to migrate',
+        'Nothing to Migrate',
         `**${datasetName}** has no downstream content to migrate, but Jupyter Workspaces haven't been searched`,
         'warning',
         15000,
@@ -371,7 +371,7 @@ export function MigrateDownstreamContentView({
         }
       );
     } else {
-      onStatusUpdate?.('Nothing to migrate', `**${datasetName}** has no downstream content to migrate`, 'warning');
+      onStatusUpdate?.('Nothing to Migrate', `**${datasetName}** has no downstream content to migrate`, 'warning');
     }
     onBackToDefault?.();
   }, [nothingToMigrate, currentContext, datasetName, jupyterStatus, onStatusUpdate, onBackToDefault, showStatus]);
@@ -1567,7 +1567,7 @@ export function MigrateDownstreamContentView({
     if (!obj || obj.typeId !== 'DATA_SOURCE') return null;
     const id = obj.id;
     if (!id || id === datasetId || dismissedSuggestionIds.has(id)) return null;
-    const name = obj.metadata?.name || obj.metadata?.displayName || `Dataset ${id}`;
+    const name = obj.metadata?.name || obj.metadata?.displayName || `DataSet ${id}`;
     return { id, name };
   }, [currentContext, datasetId, selectedDatasetId, dismissedSuggestionIds]);
 
@@ -1859,7 +1859,7 @@ export function MigrateDownstreamContentView({
           <Alert.Indicator>
             <IconInfoCircle data-slot='alert-default-icon' />
           </Alert.Indicator>
-          Jupyter Workspaces aren't searched automatically
+          Jupyter Workspaces Aren't Searched Automatically
         </Alert.Title>
         <Alert.Description>
           Finding them means reading every Jupyter Workspace in the instance, so it only runs when you ask.
@@ -1982,7 +1982,7 @@ export function MigrateDownstreamContentView({
                     <Alert.Indicator>
                       <IconInfoCircle data-slot='alert-default-icon' />
                     </Alert.Indicator>
-                    Use the dataset you're viewing?
+                    Use the DataSet You're Viewing?
                   </Alert.Title>
                   <Alert.Description className='break-all'>{suggestedTarget.name}</Alert.Description>
                   <div className='mt-2 flex w-full gap-2'>
@@ -2013,7 +2013,7 @@ export function MigrateDownstreamContentView({
                     <Alert.Indicator>
                       <IconExclamationPointCircle data-slot='alert-default-icon' />
                     </Alert.Indicator>
-                    Schema check failed
+                    Schema Check Failed
                   </Alert.Title>
                   <Alert.Description>{comparisonError}</Alert.Description>
                 </Alert.Content>
@@ -2027,7 +2027,7 @@ export function MigrateDownstreamContentView({
                     <Alert.Indicator>
                       <IconCheckCircle data-slot='alert-default-icon' />
                     </Alert.Indicator>
-                    Schemas are compatible
+                    Schemas Are Compatible
                   </Alert.Title>
                 </Alert.Content>
               </Alert>
@@ -2047,7 +2047,7 @@ export function MigrateDownstreamContentView({
                     <Alert.Indicator>
                       <IconExclamationPointCircle data-slot='alert-default-icon' />
                     </Alert.Indicator>
-                    Column scan failed
+                    Column Scan Failed
                   </Alert.Title>
                   <Alert.Description>{scanError}</Alert.Description>
                 </Alert.Content>

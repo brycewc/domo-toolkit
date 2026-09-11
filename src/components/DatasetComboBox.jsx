@@ -15,7 +15,7 @@ import IconChevronDown from '@icons/chevron-down.svg?react';
  * @param {Object} props
  * @param {string} [props.instanceBaseUrl] - Base URL for the Domo instance (e.g. "https://instance.domo.com"), used for provider icons
  * @param {string} [props.className] - Additional CSS class for the ComboBox
- * @param {Set<string>} [props.excludeIds] - Dataset IDs to omit from results (e.g. the origin dataset)
+ * @param {Set<string>} [props.excludeIds] - DataSet IDs to omit from results (e.g. the origin dataset)
  * @param {boolean} [props.isActive=true] - Whether to fetch datasets (use false when inside a closed modal)
  * @param {number} [props.maxListHeight] - Max height (px) for the dropdown list; React Aria caps it to the smaller of this and the available space, so it never overflows the popup edge
  * @param {number|null} [props.tabId] - Chrome tab ID for API calls
@@ -26,7 +26,7 @@ export function DatasetComboBox({
   excludeIds,
   instanceBaseUrl,
   isActive = true,
-  label = 'Dataset',
+  label = 'DataSet',
   maxListHeight,
   menuTrigger = 'focus',
   selectedDisplayName,

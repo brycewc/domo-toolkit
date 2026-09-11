@@ -392,7 +392,7 @@ async function fetchCardsForOutputDatasets(outputs, tabId) {
   const seen = new Set();
   for (const output of outputs) {
     const dsId = output.id || output.dataSourceId;
-    const dsName = output.name || output.dataSourceName || `Dataset ${dsId}`;
+    const dsName = output.name || output.dataSourceName || `DataSet ${dsId}`;
     const dsCards = await getCardsForObject({
       objectId: dsId,
       objectType: 'DATA_SOURCE',

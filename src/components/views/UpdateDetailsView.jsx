@@ -212,11 +212,19 @@ export function UpdateDetailsView({ instance = null, liveContext = null, onBackT
     })();
 
     showPromiseStatus(promise, {
-      error: (err) => err.message || 'An error occurred',
+      error: (err) => ({
+        description: isReset
+          ? `Could not reset ${config.typeName} **userDefinedType**: ${err.message || 'An error occurred'}`
+          : `Could not update ${config.typeName} **${fieldList}**: ${err.message || 'An error occurred'}`,
+        title: 'Error'
+      }),
       loading: isReset
         ? `Resetting ${config.typeName} **userDefinedType**…`
         : `Updating ${config.typeName} **${fieldList}**…`,
-      success: (f) => (isReset ? `Reset ${config.typeName} userDefinedType` : `Updated ${f}`)
+      success: (f) => ({
+        description: isReset ? `Reset ${config.typeName} **userDefinedType**` : `Updated ${config.typeName} **${f}**`,
+        title: 'Success'
+      })
     });
 
     promise
@@ -232,16 +240,16 @@ export function UpdateDetailsView({ instance = null, liveContext = null, onBackT
   const handleSubmit = () => {
     const diff = buildDiff();
     if (Object.keys(diff).length === 0) {
-      onStatusUpdate?.('No changes to update', 'No fields were modified', 'warning', 2000);
+      onStatusUpdate?.('No Changes', 'No fields were modified', 'warning', 2000);
       return;
     }
     for (const f of config.fields) {
       if (f.required && !(values[f.key] ?? '').trim()) {
-        onStatusUpdate?.(`${f.label} is required`, '', 'warning', 2000);
+        onStatusUpdate?.('Missing Required Field', `**${f.label}** cannot be empty`, 'warning', 2000);
         return;
       }
       if (f.kind === 'email' && diff[f.key] !== undefined && !EMAIL_PATTERN.test(diff[f.key])) {
-        onStatusUpdate?.(`${f.label} must be a valid email address`, '', 'warning', 2000);
+        onStatusUpdate?.('Invalid Email', `**${f.label}** must be a valid email address`, 'warning', 2000);
         return;
       }
     }

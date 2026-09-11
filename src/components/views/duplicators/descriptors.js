@@ -19,7 +19,7 @@ export const DUPLICATOR_DESCRIPTORS = {
         preCheck: async (currentContext) => {
           const rules = await getColorRules(currentContext.domoObject.id, currentContext.tabId);
           return rules.length === 0
-            ? { empty: true, message: 'This dataset has no color rules to copy.', title: 'No color rules' }
+            ? { empty: true, message: 'This dataset has no color rules to copy.', title: 'No Color Rules' }
             : null;
         },
         tooltip: "Copy this dataset's color rules to another dataset"

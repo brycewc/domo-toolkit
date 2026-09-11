@@ -43,8 +43,8 @@ import { getDataflowEngine } from '@/services/sqlColumns';
  * @property {ParsedFilter[]} filters         Filter conditions the tile applies.
  * @property {ParsedJoin[]} joins             Join key pairs the tile defines.
  * @property {string[]} sql                   Raw SQL statements the tile runs.
- * @property {string[]} inputDatasets         Dataset ids the tile reads from.
- * @property {string|null} outputDataset      Dataset id the tile writes to, if any.
+ * @property {string[]} inputDatasets         DataSet ids the tile reads from.
+ * @property {string|null} outputDataset      DataSet id the tile writes to, if any.
  * @property {Object} rawDetails              Per-type extras (constants, aggregates, renames, mappings, etc.).
  */
 

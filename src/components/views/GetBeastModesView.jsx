@@ -297,7 +297,7 @@ async function buildDataflowScope({ details, origin, tabId }) {
   const groups = await Promise.all(
     outputs.map(async (output) => {
       const id = output.id || output.dataSourceId;
-      const name = output.name || output.dataSourceName || `Dataset ${id}`;
+      const name = output.name || output.dataSourceName || `DataSet ${id}`;
       const beastModes = await getDatasetBeastModesWithUsage(id, tabId);
       return { beastModes, id, name };
     })
@@ -522,7 +522,7 @@ function countDistinctUsage(items) {
  */
 function datasetIdName(ds) {
   const id = ds.id || ds.dataSourceId || ds.datasetId;
-  const name = ds.name || ds.dataSourceName || ds.datasetName || `Dataset ${id}`;
+  const name = ds.name || ds.dataSourceName || ds.datasetName || `DataSet ${id}`;
   return { id, name };
 }
 

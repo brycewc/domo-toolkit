@@ -22,10 +22,10 @@ import {
   isTransformDataset,
   searchDatasets
 } from './datasets';
-import { getDatasetFunctions } from './functions';
+import { getDatasetFunctions, getDatasetFunctionsForDatasets } from './functions';
 import { getDownstreamCardsRaw, getDownstreamLineage } from './migrateDownstreamContent';
 import { resolveObjectSummaries, summaryKey } from './objectSummaries';
-import { getChildPages, getOnlyHereCardIds } from './pages';
+import { getAppOnlyCardIds, getChildPages, getOnlyHereCardIds } from './pages';
 import { getTaskCenterQueueName } from './taskCenter';
 import { getVersionDefinition, getWorkflowExecution, getWorkflowModelName, getWorkflowVersions } from './workflows';
 
@@ -355,7 +355,19 @@ async function fetchAppPageDependencies({ id, origin, parentId, typeId }, tabId)
   }
 
   const onlyHereCardIds = await onlyHerePromise;
-  return { appSummary, groups, onlyHereCardIds };
+  // One request per card in the app, so it lands as a deferred second pass and the
+  // cascade's count preview fills in after the list renders. Best-effort: a failed
+  // lookup leaves the count unknown rather than blocking the delete.
+  const appOnlyPromise =
+    parentId && appSummary?.cardIds?.length
+      ? getAppOnlyCardIds({ appId: parentId, cardIds: appSummary.cardIds, tabId }).catch(() => null)
+      : null;
+  return {
+    appSummary,
+    deferred: appOnlyPromise?.then((appOnlyCardIds) => ({ appOnlyCardIds, appSummary, groups, onlyHereCardIds })) ?? null,
+    groups,
+    onlyHereCardIds
+  };
 }
 
 function inputExclusionReason(dependents) {
@@ -377,16 +389,18 @@ function inputExclusionReason(dependents) {
 function normalizeDependencyResult(fetched) {
   // Fetchers return either a bare groups array or an object carrying extra data
   // the view reads: `appSummary` (app-wide page/card totals for the cascade
-  // delete), `onlyHereCardIds` (cards that live only on this page, for the
-  // alternate delete's card-count preview), `clearNote` (the all-clear banner's
-  // sentence), and `otherNote` (the note on the Other Dependencies header).
+  // delete), `onlyHereCardIds` / `appOnlyCardIds` (cards living only on this page,
+  // and only in this app, for the alternate deletes' count previews), `clearNote`
+  // (the all-clear banner's sentence), and `otherNote` (the Other Dependencies note).
   const allGroups = Array.isArray(fetched) ? fetched : fetched.groups;
+  const appOnlyCardIds = Array.isArray(fetched) ? null : (fetched.appOnlyCardIds ?? null);
   const appSummary = Array.isArray(fetched) ? null : (fetched.appSummary ?? null);
   const clearNote = Array.isArray(fetched) ? null : (fetched.clearNote ?? null);
   const onlyHereCardIds = Array.isArray(fetched) ? null : (fetched.onlyHereCardIds ?? null);
   const otherNote = Array.isArray(fetched) ? null : (fetched.otherNote ?? null);
 
   return {
+    appOnlyCardCount: appOnlyCardIds == null ? null : appOnlyCardIds.length,
     appSummary,
     clearNote,
     onlyHereCardCount: onlyHereCardIds == null ? null : onlyHereCardIds.length,
@@ -865,11 +879,11 @@ const FETCHERS = {
     // holding the listing. A failed lookup leaves the counts unknown.
     const impacts = getDatasetImpactCounts({ datasetIds: outputIds.map(String), tabId }).catch(() => ({}));
 
-    // Cards and alerts both hang off the output datasets and are both removed
-    // when those datasets are deleted, so fetch them together. Downstream views
-    // built on the outputs are fetched alongside: Domo blocks deleting a dataset
-    // a view sits on, so they must block this delete rather than cascade.
-    const [cards, alerts, downstream, inputDetails] = await Promise.all([
+    // Cards, alerts, and Beast Modes all hang off the output datasets and are all
+    // removed when those datasets are deleted, so fetch them together. Downstream
+    // views built on the outputs are fetched alongside: Domo blocks deleting a
+    // dataset a view sits on, so they must block this delete rather than cascade.
+    const [cards, alerts, functions, downstream, inputDetails] = await Promise.all([
       getCardsForObject({
         metadata,
         objectId: id,
@@ -877,9 +891,11 @@ const FETCHERS = {
         tabId
       }),
       getDownstreamAlertsForDatasets(outputIds, tabId),
+      getDatasetFunctionsForDatasets(outputIds, tabId).catch(() => []),
       getDownstreamViewsForDatasets(outputIds, tabId),
       inputs.length > 0 ? getDatasetDetailsForList({ datasets: inputs, tabId }).catch(() => []) : Promise.resolve([])
     ]);
+    const outputNameById = new Map(outputs.map((o) => [String(o.dataSourceId), o.dataSourceName || String(o.dataSourceId)]));
 
     // Only connector-backed inputs are listed. A dataflow output, view, or fusion
     // could never be deleted from here (Domo has no fallback, so the dataflow or
@@ -937,6 +953,20 @@ const FETCHERS = {
             url: `${origin}/alerts/${a.id}`
           })),
           label: 'Alerts'
+        },
+        {
+          blocking: false,
+          deleted: true,
+          items: functions.map((f) => ({
+            // Which output a Beast Mode sits on only needs saying when the delete
+            // takes down more than one.
+            annotation: outputs.length > 1 ? `On ${outputNameById.get(f.datasetId) || f.datasetId}` : null,
+            id: f.id,
+            label: f.name || `Beast Mode ${f.id}`,
+            typeId: 'BEAST_MODE_FORMULA',
+            url: `${origin}/datacenter/beastmode?id=${f.id}`
+          })),
+          label: 'Beast Modes'
         }
       ];
 
@@ -1421,6 +1451,7 @@ const WORKFLOW_VERSION_TYPES = {
  *   clearNote: string|null,
  *   supported: boolean,
  *   appSummary: {cardCount: number, cardIds: number[], pageCount: number}|null,
+ *   appOnlyCardCount: number|null,
  *   onlyHereCardCount: number|null,
  *   otherNote: string|null,
  *   deferred: Promise<Object>|null
@@ -1430,6 +1461,7 @@ export async function getDependenciesForDelete({ object, origin, tabId = null })
   const fetcher = FETCHERS[object.typeId];
   if (!fetcher) {
     return {
+      appOnlyCardCount: null,
       appSummary: null,
       blockingCount: 0,
       blockingReason: null,

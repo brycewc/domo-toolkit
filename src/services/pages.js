@@ -219,6 +219,30 @@ export async function deletePageAndAllCards({
 }
 
 /**
+ * From an app's card IDs, return only those that live nowhere outside the app:
+ * every page they appear on belongs to this app, or they are on no page at all.
+ * A card on several of the app's own pages still only lives here, so it comes
+ * back; one that also appears on a dashboard, a report, or another app does not.
+ *
+ * The app-scope twin of `getOnlyHereCardIds`, backing the "only live here" scope
+ * of the whole-app delete and its confirm-dialog card-count preview.
+ *
+ * @param {Object} params
+ * @param {string|number} params.appId - The app being deleted
+ * @param {Array<number>} params.cardIds - The app's card IDs
+ * @param {number|null} [params.tabId=null] - Optional Chrome tab ID
+ * @returns {Promise<Array<number>>} The card IDs that live only in this app
+ */
+export async function getAppOnlyCardIds({ appId, cardIds, tabId = null }) {
+  if (!cardIds || cardIds.length === 0) return [];
+  const { cardsByPage, pages } = await getPagesForCards(cardIds, tabId);
+  const appPageIds = (pages || [])
+    .filter((p) => (p.type === 'DATA_APP_VIEW' || p.type === 'WORKSHEET_VIEW') && String(p.parentId) === String(appId))
+    .map((p) => p.id);
+  return cardIdsOnlyOnPages({ cardIds, cardsByPage, pageIds: appPageIds });
+}
+
+/**
  * Get the App ID (parent) for an App Studio Page
  * @param {string} appPageId - The App Studio Page ID
  * @param {boolean} [inPageContext=false] - Whether already in page context (skip executeInPage)
@@ -400,7 +424,7 @@ export async function getChildPages({ appId = null, includeGrandchildren = false
 export async function getOnlyHereCardIds({ cardIds, pageId, tabId = null }) {
   if (!cardIds || cardIds.length === 0) return [];
   const { cardsByPage } = await getPagesForCards(cardIds, tabId);
-  return cardIdsOnlyOnPage({ cardIds, cardsByPage, pageId });
+  return cardIdsOnlyOnPages({ cardIds, cardsByPage, pageIds: [pageId] });
 }
 
 /**
@@ -809,25 +833,27 @@ export async function transferPages(pageIds, fromOwnerId, toOwnerId, tabId = nul
 }
 
 /**
- * From a page's card IDs, return only those that live on no other page.
+ * From a set of card IDs, return only those that live on none of the pages being
+ * kept: the ones going away are listed in `pageIds`.
  *
- * Given the page-reach map from `getPagesForCards`, a card is "only here" when
- * it appears under no page key other than this page's own. Cards the pages API
- * reports on no page at all (orphaned) are absent from every page key, so they
- * pass through as only-here too. Used by the "Delete Page and Cards that Only
- * Live Here" scope so cards shared to other pages are left in place.
+ * Given the page-reach map from `getPagesForCards`, a card is "only here" when it
+ * appears under no page key outside `pageIds`. Cards the pages API reports on no
+ * page at all (orphaned) are absent from every page key, so they pass through as
+ * only-here too. One page id serves the "Delete Page and Cards that Only Live
+ * Here" scope; an app's whole page list serves the same scope on a whole-app
+ * delete. Either way, cards shared beyond what is being deleted are left in place.
  *
  * @param {Object} params
- * @param {Array<number>} params.cardIds - The page's card IDs (delete candidates)
+ * @param {Array<number>} params.cardIds - The card IDs being considered (delete candidates)
  * @param {Object} [params.cardsByPage] - Mapping of pageId -> [{ id, name }]
- * @param {string|number} params.pageId - The page being deleted
- * @returns {Array<number>} The subset of cardIds that live only on this page
+ * @param {Array<string|number>} params.pageIds - The pages being deleted
+ * @returns {Array<number>} The subset of cardIds that live only on those pages
  */
-function cardIdsOnlyOnPage({ cardIds, cardsByPage, pageId }) {
-  const selfId = String(pageId);
+function cardIdsOnlyOnPages({ cardIds, cardsByPage, pageIds }) {
+  const deletedPageIds = new Set((pageIds || []).map((id) => String(id)));
   const cardsOnOtherPages = new Set();
   for (const [pid, cards] of Object.entries(cardsByPage || {})) {
-    if (pid === selfId) continue;
+    if (deletedPageIds.has(pid)) continue;
     for (const card of cards) cardsOnOtherPages.add(card.id);
   }
   return cardIds.filter((id) => !cardsOnOtherPages.has(id));

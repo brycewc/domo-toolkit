@@ -138,7 +138,7 @@ Content Script (detects page context)
 #### Core Models
 
 - **DomoContext** - Represents a tab's context (instance, URL, detected object)
-- **DomoObject** - Represents a Domo object (Card, Page, Dataset, etc.) with ID and type
+- **DomoObject** - Represents a Domo object (Card, Page, DataSet, etc.) with ID and type
 - **DomoObjectType** - Registry of \~100+ supported object types with URL patterns, ID validation, and API configs
 
 ### Development Setup

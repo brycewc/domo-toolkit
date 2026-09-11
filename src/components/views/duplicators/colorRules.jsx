@@ -283,7 +283,7 @@ function ColorRulesForm({
         <Alert className='w-full' status='danger' variant='transparent'>
           <AlertStatusIcon />
           <Alert.Content>
-            <Alert.Title>Could not read the destination</Alert.Title>
+            <Alert.Title>Could Not Read the Destination</Alert.Title>
             <Alert.Description>{target.error}</Alert.Description>
           </Alert.Content>
         </Alert>
@@ -325,7 +325,7 @@ function ColorRulesForm({
         <Alert className='w-full' status='warning' variant='transparent'>
           <AlertStatusIcon />
           <Alert.Content>
-            <Alert.Title>Over the {MAX_COLOR_RULES}-rule limit</Alert.Title>
+            <Alert.Title>Over the {MAX_COLOR_RULES}-Rule Limit</Alert.Title>
             <Alert.Description>
               A dataset holds at most {MAX_COLOR_RULES} color rules, and this would leave{' '}
               {composedRuleCount(options, selectedCount, target)}. Deselect some rules or switch to Replace.
@@ -338,7 +338,7 @@ function ColorRulesForm({
         <Alert className='w-full' status='success' variant='transparent'>
           <AlertStatusIcon />
           <Alert.Content>
-            <Alert.Title>Schema matches</Alert.Title>
+            <Alert.Title>Schema Matches</Alert.Title>
             <Alert.Description>
               All rule column references exist on the destination
               {swapCount > 0
@@ -354,7 +354,7 @@ function ColorRulesForm({
           <AlertStatusIcon />
           <Alert.Content>
             <Alert.Title>
-              {target.missingColumns.length} column{target.missingColumns.length === 1 ? '' : 's'} not on destination
+              {target.missingColumns.length} Column{target.missingColumns.length === 1 ? '' : 's'} Not on Destination
             </Alert.Title>
             <Alert.Description>
               Rules referencing {target.missingColumns.join(', ')} will be copied as-is and may not render until those

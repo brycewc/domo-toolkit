@@ -11,7 +11,7 @@ export function SetStreamToManual({ currentContext, isDisabled }) {
     const streamId = currentContext?.domoObject?.metadata?.details?.streamId;
     if (!streamId) return;
 
-    const datasetName = currentContext.domoObject.metadata?.name || `Dataset ${currentContext.domoObject.id}`;
+    const datasetName = currentContext.domoObject.metadata?.name || `DataSet ${currentContext.domoObject.id}`;
 
     showPromiseStatus(
       setStreamScheduleToManual({

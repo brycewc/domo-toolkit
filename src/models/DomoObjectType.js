@@ -1930,6 +1930,26 @@ export function getObjectType(type) {
   return ObjectTypeRegistry[type] || ALIAS_LOOKUP[type] || null;
 }
 
+const IRREGULAR_PLURAL_TYPE_NAMES = {
+  AI_TOOLKIT_DOMO_PROVIDED: 'AI Toolkits (Domo)',
+  APP: 'Custom App Designs (Brick)',
+  CERTIFICATION_PROCESS: 'Certification Processes',
+  OAUTH2_CLIENT_CREDENTIALS: 'Oauth 2.0 Client Credentials',
+  RYUU_APP: 'Custom App Designs (Pro-Code)',
+  VECTOR_INDEX: 'Vector Indexes'
+};
+
+/**
+ * Plural display name for a type, e.g. `DATA_APP` → `Studio Apps`.
+ * @param {string} typeId - The type ID or alias
+ * @returns {string} Plural human-readable name, or the raw type ID when unknown
+ */
+export function getPluralTypeName(typeId) {
+  if (IRREGULAR_PLURAL_TYPE_NAMES[typeId]) return IRREGULAR_PLURAL_TYPE_NAMES[typeId];
+  const name = getObjectType(typeId)?.name;
+  return name ? `${name}s` : typeId;
+}
+
 /**
  * Evaluate a `when` visibility condition against a Domo object. Shared by the
  * Copy button's `copyConfigs` and the Current Context footer's `relatedData`.

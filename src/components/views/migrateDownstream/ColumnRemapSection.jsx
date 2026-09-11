@@ -258,7 +258,7 @@ function ColumnMapRow({
             <Alert.Title className='flex items-start gap-1'>
               <AlertStatusIcon />
               <span>
-                Cross-input collision: <span className='font-mono font-bold'>{originName}</span> also exists on{' '}
+                Cross-Input Collision: <span className='font-mono font-bold'>{originName}</span> also exists on{' '}
                 {singleCollision ? (
                   <>
                     another input of{' '}

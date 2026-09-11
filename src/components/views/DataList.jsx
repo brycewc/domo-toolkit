@@ -21,7 +21,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
-import { getObjectType } from '@/models/DomoObjectType';
+import { getObjectType, getPluralTypeName } from '@/models/DomoObjectType';
 import { shareObjectsWithSelf, shareWithSelf } from '@/services/share';
 import { launchActivityLog } from '@/utils/activityLog';
 import { MAX_OPEN_ALL_TABS } from '@/utils/constants';
@@ -349,6 +349,23 @@ export function DataList({
   const handleItemAction = useCallback(
     async (actionType, item) => {
       try {
+        if (actionType.startsWith(ACTIVITY_LOG_TYPE_ACTION)) {
+          const typeId = actionType.slice(ACTIVITY_LOG_TYPE_ACTION.length);
+          // Descendants only: the row itself is covered by `activityLog`, so a
+          // container row's own type never swallows the "just the children" scope.
+          const objects = collectActivityLogObjects(item.children ?? []).filter((object) => object.type === typeId);
+          if (objects.length === 0) {
+            onStatusUpdate?.('No Objects', 'No loggable objects found here', 'warning', 3000);
+            return;
+          }
+          const origin = activityLogBaseUrlFor([item]);
+          const instance = origin ? instanceKeyFromUrl(origin) : null;
+          if (instance) {
+            const tabId = await getValidTabForInstance(instance);
+            await launchActivityLog({ instance, objects, origin, tabId, type: 'multi-object' });
+          }
+          return;
+        }
         switch (actionType) {
           case 'activityLog': {
             const origin = item.domoObject?.baseUrl ?? null;
@@ -750,10 +767,11 @@ export function DataList({
  */
 
 /**
- * Available item action types for DataList items. `activityLog` (single object)
- * and `activityLogAll` (item + all descendants) are added to every row
- * automatically, not opt-in via the `itemActions` prop.
- * @typedef {'openAll' | 'copy' | 'share' | 'shareAll' | 'viewsExplorer' | 'lineage' | 'activityLog' | 'activityLogAll'} ItemActionType
+ * Available item action types for DataList items. `activityLog` (single object),
+ * `activityLogAll` (item + all descendants), and `activityLogType:<TYPE_ID>`
+ * (the item's descendants of one type) are added to every row automatically, not
+ * opt-in via the `itemActions` prop.
+ * @typedef {'openAll' | 'copy' | 'share' | 'shareAll' | 'viewsExplorer' | 'lineage' | 'activityLog' | 'activityLogAll' | `activityLogType:${string}`} ItemActionType
  */
 
 /**
@@ -774,6 +792,37 @@ function activityLogBaseUrlFor(itemList) {
     }
   }
   return null;
+}
+
+/**
+ * Distinct object types among an item tree's loggable objects, in the order each
+ * type first appears. `collectActivityLogObjects` walks depth-first, so a
+ * container type leads the types nested under it (Studio Apps, then App Pages,
+ * then Cards). Drives the per-type choices on a row's activity-log menu.
+ * @param {Array} itemList - Array of items (and their children) to walk.
+ * @returns {Array<{ label: string, type: string }>}
+ */
+function activityLogTypeBuckets(itemList) {
+  const seen = new Set();
+  const buckets = [];
+  for (const object of collectActivityLogObjects(itemList)) {
+    if (seen.has(object.type)) continue;
+    seen.add(object.type);
+    buckets.push({ label: getPluralTypeName(object.type), type: object.type });
+  }
+  return buckets;
+}
+
+/**
+ * Label for the activity-log menu's "everything under here" choice, naming the
+ * types it covers, e.g. `All (Studio Apps, App Pages, and Cards)`.
+ * @param {Array<{ label: string }>} buckets - Type buckets from `activityLogTypeBuckets`.
+ * @returns {string}
+ */
+function allTypesLabel(buckets) {
+  const labels = buckets.map((bucket) => bucket.label);
+  const joined = labels.length > 2 ? `${labels.slice(0, -1).join(', ')}, and ${labels.at(-1)}` : labels.join(' and ');
+  return `All (${joined})`;
 }
 
 /**
@@ -864,6 +913,8 @@ function openUrlsWithLimit({ itemLabel, onStatusUpdate, urls }) {
 // lists so an expanded group with 1000s of items doesn't push the page. The cap
 // is lifted for a lone group in a `fillHeight` DataList, which owns a
 // height-constrained scroll viewport that nothing else is competing for.
+// The trailing colon is the delimiter the handler splits on; no type id has one.
+const ACTIVITY_LOG_TYPE_ACTION = 'activityLogType:';
 const ROW_HEIGHT = 36;
 const MAX_VISIBLE_CHILDREN_ROWS = 12;
 const VIRTUAL_OVERSCAN = 5;
@@ -1290,13 +1341,41 @@ function DataListItemImpl({
       </Tooltip>
     );
 
-    // Activity-log action. When both the single-object and "all objects" logs
-    // apply (a row with descendants), it's a dropdown: "This object" reads the
-    // log for the row itself, "All objects" covers everything nested under it.
-    // When only one applies (a leaf with no descendants, or a virtual group
-    // header with no object of its own), there's no choice to make, so it's a
-    // plain button that launches that log immediately with no dropdown.
-    const buildActivityLogAction = (showSingle, showAll) => {
+    // Activity-log action. Each scope the row can offer becomes a dropdown item:
+    // the row itself, everything under it, and one item per object type nested
+    // beneath it (so a "Dashboards" header can log the pages without the cards
+    // that swamp them). With only one scope there is nothing to choose, so a leaf
+    // with no loggable descendants, and a group header with a single type under
+    // it, both stay a plain button.
+    const buildActivityLogAction = (showSingle, showAll, typeBuckets) => {
+      const typeItems = typeBuckets.map((bucket) => (
+        <Dropdown.Item id={`${ACTIVITY_LOG_TYPE_ACTION}${bucket.type}`} key={bucket.type} textValue={bucket.label}>
+          <ObjectTypeIcon className='size-4 shrink-0' typeId={bucket.type} />
+          <Label>{bucket.label}</Label>
+        </Dropdown.Item>
+      ));
+
+      if (showAll && !showSingle && typeBuckets.length > 1) {
+        return (
+          <Dropdown key='activityLog'>
+            <Tooltip>
+              <Button fullWidth isIconOnly aria-label='View Activity Log' size='sm' variant='ghost'>
+                <IconListSearch />
+              </Button>
+              <Tooltip.Content className='max-w-60'>View activity log</Tooltip.Content>
+            </Tooltip>
+            <Dropdown.Popover className='w-fit min-w-60' placement='bottom'>
+              <Dropdown.Menu onAction={handleAction}>
+                <Dropdown.Item id='activityLogAll' textValue='All objects'>
+                  <IconTree className='size-4 shrink-0' />
+                  <Label>{allTypesLabel(typeBuckets)}</Label>
+                </Dropdown.Item>
+                {typeItems}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
+        );
+      }
       if (showSingle && !showAll) {
         return (
           <Tooltip key='activityLog'>
@@ -1349,11 +1428,15 @@ function DataListItemImpl({
                 <IconTree className='size-4 shrink-0' />
                 <Label>Including all children</Label>
               </Dropdown.Item>
+              {typeItems}
             </Dropdown.Menu>
           </Dropdown.Popover>
         </Dropdown>
       );
     };
+
+    // Walks the subtree, so skip it for the leaf rows that make up most of a list.
+    const logTypeBuckets = hasChildren ? activityLogTypeBuckets(item.children) : [];
 
     if (item.isVirtualParent) {
       if (!hasChildren) return [];
@@ -1369,7 +1452,8 @@ function DataListItemImpl({
       }
       // Virtual group headers have no object of their own, so only the "all
       // objects" log applies, covering every real descendant beneath the header.
-      actions.push(buildActivityLogAction(false, true));
+      // Nothing loggable under it means no log to offer at all.
+      if (logTypeBuckets.length > 0) actions.push(buildActivityLogAction(false, true, logTypeBuckets));
       return actions;
     }
 
@@ -1395,8 +1479,8 @@ function DataListItemImpl({
     }
     if (allowed.has('copy')) actions.push(copyButton);
     // Activity-log dropdown on every object: single-object for this row, plus the
-    // "all objects" log when it has descendants.
-    actions.push(buildActivityLogAction(true, hasChildren));
+    // "all objects" and per-type logs when it has loggable descendants.
+    actions.push(buildActivityLogAction(true, logTypeBuckets.length > 0, logTypeBuckets));
     return actions;
   }, [hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, shareEnabled, showActions]);
 

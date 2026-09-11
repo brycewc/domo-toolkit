@@ -103,7 +103,7 @@ export function GeneralSettings() {
     // Save all settings to storage
     chrome.storage.sync.set(settings, () => {
       setOriginalSettings(settings);
-      showStatus('Settings saved successfully!', '', 'success');
+      showStatus('Settings Saved Successfully!', '', 'success');
     });
   };
 
@@ -170,7 +170,7 @@ export function GeneralSettings() {
     const granted = await requestInternalAccess();
     setHasInternalDevAccess(granted);
     if (!granted) {
-      showStatus('Permission not granted', 'Internal Domo instances stay unsupported until you allow access.', 'warning');
+      showStatus('Permission Not Granted', 'Internal Domo instances stay unsupported until you allow access.', 'warning');
     }
   };
 

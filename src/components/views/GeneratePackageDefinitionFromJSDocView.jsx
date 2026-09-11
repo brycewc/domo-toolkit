@@ -219,7 +219,7 @@ export function GeneratePackageDefinitionFromJSDocView({
     if (!nothingToDo) return;
     bailedRef.current = true;
     onStatusUpdate?.(
-      'Already up to date',
+      'Already Up to Date',
       packageDef?.name
         ? `Package **${packageDef.name}** matches the JSDoc, no sync needed`
         : 'Package matches the JSDoc, no sync needed',

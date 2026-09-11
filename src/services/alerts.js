@@ -183,7 +183,7 @@ export async function getDownstreamAlertsForDatasets(datasetIds, tabId = null) {
         return found;
       };
 
-      // Datasets run together, but each one's pages stay sequential since every
+      // DataSets run together, but each one's pages stay sequential since every
       // page's offset depends on the last. Results land in the input's order so
       // the list reads the same whichever dataset finishes first.
       const perDataset = new Array(datasetIds.length);

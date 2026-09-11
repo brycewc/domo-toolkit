@@ -127,54 +127,7 @@ const deletersByType = {
     typeName: 'Code Engine Package'
   },
   DATA_APP_VIEW: {
-    cascadeButtons: [
-      {
-        available: ({ context }) => !!context.domoObject?.parentId,
-        buildContext: ({ context, deps }) => {
-          const appLabel = context.domoObject?.typeId === 'WORKSHEET_VIEW' ? 'Worksheet' : 'App';
-          return {
-            appLabel,
-            appName: context.domoObject.metadata?.parent?.name || `${appLabel} ${context.domoObject.parentId}`,
-            cardCount: deps?.appSummary?.cardCount ?? null,
-            pageCount: deps?.appSummary?.pageCount ?? null,
-            parentId: context.domoObject.parentId
-          };
-        },
-        confirmText: ({ appLabel, appName, cardCount, pageCount, parentId }) => {
-          const pages = pageCount != null ? ` (${pageCount})` : '';
-          const cards = cardCount != null ? ` (${cardCount})` : '';
-          return `Delete entire ${appLabel.toLowerCase()} **${appName} (ID: ${parentId})**, all its pages${pages}, and all cards on those pages${cards} permanently?`;
-        },
-        label: ({ appLabel }) => `Delete ${appLabel} and All Cards`,
-        loadingMessage: ({ appName }) => `Deleting **${appName}** and all its cards…`,
-        run: async ({ context, deps }) => {
-          const appId = context.domoObject.parentId;
-          const result = await deleteAppAndAllContent({
-            appId,
-            cardIds: deps?.appSummary?.cardIds ?? null,
-            currentPageId: context.domoObject.id,
-            currentPageType: context.domoObject.typeId,
-            tabId: context.tabId
-          });
-          // If the tab is still on anything the cascade just deleted, send it to
-          // the matching App Studio list: worksheets have their own tab,
-          // everything else lands on the main app-studio list. The app ID covers
-          // every one of its pages, since they all carry it in their URL, and the
-          // deleted card IDs cover a card opened on its own.
-          const origin = context.origin;
-          const listPath = context.domoObject.typeId === 'WORKSHEET_VIEW' ? '/app-studio/worksheets' : '/app-studio';
-          await redirectTabIfViewingObject({
-            ids: [appId, context.domoObject.id, ...(result.cardIds || [])],
-            tabId: context.tabId,
-            url: `${origin}${listPath}`
-          });
-          return result;
-        },
-        successMessage: ({ appName }, result) =>
-          `**${appName}** and ${result.cardCount} card${result.cardCount !== 1 ? 's' : ''} deleted`,
-        tooltip: ({ appLabel }) => `Deletes the entire ${appLabel.toLowerCase()} instead of just this page`
-      }
-    ],
+    cascadeButtons: undefined,
     confirmSuffix: ' and all its cards',
     primaryLabel: 'Delete Page and All Cards',
     run: ({ context }) => runPageDelete({ context, parentAppId: context.domoObject.parentId }),
@@ -263,7 +216,7 @@ const deletersByType = {
             if (result.datasetsFailed > 0) {
               const total = result.datasetsFailed + result.datasetsDeleted;
               throw new Error(
-                `Failed to delete ${result.datasetsFailed} of ${total} output dataset${total !== 1 ? 's' : ''}. Dataflow and input datasets were not deleted.`
+                `Failed to delete ${result.datasetsFailed} of ${total} output dataset${total !== 1 ? 's' : ''}. DataFlow and input datasets were not deleted.`
               );
             }
             throw new Error(
@@ -276,7 +229,7 @@ const deletersByType = {
           if (result.inputsFailed > 0) {
             const total = result.inputsFailed + result.inputsDeleted;
             throw new Error(
-              `Dataflow and its output datasets deleted, but ${result.inputsFailed} of ${total} input dataset${total !== 1 ? 's' : ''} could not be deleted. They may still be in use by other content.`
+              `DataFlow and its output datasets deleted, but ${result.inputsFailed} of ${total} input dataset${total !== 1 ? 's' : ''} could not be deleted. They may still be in use by other content.`
             );
           }
           await reloadTabIfViewingObject({
@@ -317,7 +270,7 @@ const deletersByType = {
       if (!result.success) {
         if (result.datasetsFailed > 0) {
           throw new Error(
-            `Failed to delete ${result.datasetsFailed} of ${result.datasetsFailed + result.datasetsDeleted} output dataset${result.datasetsFailed + result.datasetsDeleted !== 1 ? 's' : ''}. Dataflow was not deleted.`
+            `Failed to delete ${result.datasetsFailed} of ${result.datasetsFailed + result.datasetsDeleted} output dataset${result.datasetsFailed + result.datasetsDeleted !== 1 ? 's' : ''}. DataFlow was not deleted.`
           );
         }
         throw new Error(`Output datasets deleted, but dataflow deletion failed (HTTP ${result.statusCode}).`);
@@ -400,7 +353,7 @@ const deletersByType = {
       if (details && details.sourceSystem !== 'ODYSSEY') return base;
       return `${base} Voiding this one also fails the Workflow execution that created it, and any Workflow waiting on that one as a subflow fails with it.`;
     },
-    caveatTitle: 'Voiding cannot be undone',
+    caveatTitle: 'Voiding Cannot Be Undone',
     confirmActionLabel: 'Void',
     confirmSuffix: '',
     confirmText: ({ id, name }) =>
@@ -647,11 +600,15 @@ const onlyHereCardsCascade = {
       : `**${pageName}** and ${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's' : ''} that only lived here deleted`,
   tooltip: () => 'Deletes only the cards that live on no other page, leaving shared cards in place'
 };
-// App studio and worksheet pages already share one cascade array; add the
-// only-here action to all three page types. Prepending it via unshift mutates the
-// shared array in place, so both app and worksheet views pick it up.
+// App studio and worksheet pages offer the same three alternates, ordered by how
+// much they take: this page's exclusive cards, the app minus anything shared
+// outside it, then the app and every card on it.
+deletersByType.DATA_APP_VIEW.cascadeButtons = [
+  onlyHereCardsCascade,
+  buildAppCascade({ cardScope: 'onlyHere' }),
+  buildAppCascade({ cardScope: 'all' })
+];
 deletersByType.WORKSHEET_VIEW.cascadeButtons = deletersByType.DATA_APP_VIEW.cascadeButtons;
-deletersByType.DATA_APP_VIEW.cascadeButtons.unshift(onlyHereCardsCascade);
 deletersByType.PAGE.cascadeButtons = [onlyHereCardsCascade];
 // Bricks and pro-code apps are both custom app designs deleted the same way, so
 // the pro-code type reuses the brick's delete config.
@@ -818,35 +775,44 @@ export function DeleteObjectView({
       ? cascade.buildContext({ context: currentContext, deps, selection: selectedInputIds })
       : null;
 
-    const promise = isCascade
-      ? Promise.resolve().then(() =>
-          cascade.run({ cascadeContext: cascadeCtx, context: currentContext, deps, selection: selectedInputIds })
-        )
-      : Promise.resolve().then(() => config.run({ context: currentContext }));
-
     const verb = (config.confirmActionLabel ?? 'Delete').toLowerCase();
 
+    const promise = Promise.resolve()
+      .then(() =>
+        isCascade
+          ? cascade.run({ cascadeContext: cascadeCtx, context: currentContext, deps, selection: selectedInputIds })
+          : config.run({ context: currentContext })
+      )
+      .then((result) => {
+        // Some services report a refusal in their result instead of throwing,
+        // which would otherwise read as a success toast and close the view.
+        if (result?.success === false) {
+          throw new Error(result.statusDescription || `Failed to ${verb} **${objectName}**`);
+        }
+        return result;
+      });
+
     showPromiseStatus(promise, {
-      error: (err) => err.message || `Failed to ${verb} ${config.typeName.toLowerCase()}`,
+      error: (err) => ({
+        description: err.message || `Failed to ${verb} **${objectName}**`,
+        title: 'Error'
+      }),
       loading: isCascade
         ? cascade.loadingMessage(cascadeCtx)
         : (config.loadingMessage?.({ name: objectName }) ??
           `Deleting **${objectName}**${resolveSuffix(config, currentContext)}…`),
-      success: (result) => {
-        if (isCascade) {
-          return cascade.successMessage(cascadeCtx, result);
-        }
-        if (config.successMessage) {
-          return config.successMessage(
-            {
-              name: objectName,
-              outputCount: currentContext.domoObject.metadata?.details?.outputs?.length || 0
-            },
-            result
-          );
-        }
-        return result?.statusDescription || `**${objectName}** deleted`;
-      }
+      success: (result) => ({
+        description: resolveSuccessDescription({
+          cascade,
+          cascadeCtx,
+          config,
+          currentContext,
+          isCascade,
+          objectName,
+          result
+        }),
+        title: 'Success'
+      })
     });
 
     promise
@@ -993,7 +959,7 @@ export function DeleteObjectView({
       <Alert.Content>
         <Alert.Title className='flex items-center gap-1'>
           <AlertStatusIcon />
-          {config.caveatTitle ?? 'Some usage is not checked'}
+          {config.caveatTitle ?? 'Some Usage Is Not Checked'}
         </Alert.Title>
         <Alert.Description>{caveatText}</Alert.Description>
       </Alert.Content>
@@ -1216,6 +1182,89 @@ export function DeleteObjectView({
   );
 }
 
+/**
+ * The whole-app alternate delete, in its two scopes: every card in the app, or
+ * only the ones appearing on no page outside it.
+ * @param {{cardScope: 'all'|'onlyHere'}} params
+ * @returns {Object} A cascade button config
+ */
+function buildAppCascade({ cardScope }) {
+  const isOnlyHere = cardScope === 'onlyHere';
+  return {
+    available: ({ context }) => !!context.domoObject?.parentId,
+    buildContext: ({ context, deps }) => {
+      const appLabel = context.domoObject?.typeId === 'WORKSHEET_VIEW' ? 'Worksheet' : 'App';
+      return {
+        appLabel,
+        appName: context.domoObject.metadata?.parent?.name || `${appLabel} ${context.domoObject.parentId}`,
+        appOnlyCount: deps?.appOnlyCardCount ?? null,
+        cardCount: deps?.appSummary?.cardCount ?? null,
+        pageCount: deps?.appSummary?.pageCount ?? null,
+        parentId: context.domoObject.parentId
+      };
+    },
+    confirmText: ({ appLabel, appName, appOnlyCount, cardCount, pageCount, parentId }) => {
+      const pages = pageCount != null ? ` (${pageCount})` : '';
+      const base = `Delete entire ${appLabel.toLowerCase()} **${appName} (ID: ${parentId})**`;
+      if (!isOnlyHere) {
+        const cards = cardCount != null ? ` (${cardCount})` : '';
+        return `${base}, all its pages${pages}, and all cards on those pages${cards} permanently?`;
+      }
+      const shared = ' Cards that also appear outside it are left in place.';
+      // No count yet (lookup pending or failed): describe the scope without a number.
+      if (appOnlyCount == null) {
+        return `${base}, all its pages${pages}, and only the cards that appear on no page outside it permanently?${shared}`;
+      }
+      // Every card is shared outside the app: the delete removes just the app.
+      if (appOnlyCount === 0) {
+        return `${base} and all its pages${pages} permanently? Every one of its cards also appears outside it and will be left in place.`;
+      }
+      return `${base}, all its pages${pages}, and its **${appOnlyCount} card${appOnlyCount !== 1 ? 's' : ''}** that appear on no page outside it permanently?${shared}`;
+    },
+    label: ({ appLabel }) => `Delete ${appLabel} and All Cards${isOnlyHere ? ' that Only Live Here' : ''}`,
+    loadingMessage: ({ appName }) =>
+      isOnlyHere
+        ? `Deleting **${appName}** and the cards that only live in it…`
+        : `Deleting **${appName}** and all its cards…`,
+    run: async ({ context, deps }) => {
+      const appId = context.domoObject.parentId;
+      const result = await deleteAppAndAllContent({
+        appId,
+        cardIds: deps?.appSummary?.cardIds ?? null,
+        cardScope,
+        currentPageId: context.domoObject.id,
+        currentPageType: context.domoObject.typeId,
+        tabId: context.tabId
+      });
+      // If the tab is still on anything the cascade just deleted, send it to
+      // the matching App Studio list: worksheets have their own tab,
+      // everything else lands on the main app-studio list. The app ID covers
+      // every one of its pages, since they all carry it in their URL, and the
+      // deleted card IDs cover a card opened on its own.
+      const origin = context.origin;
+      const listPath = context.domoObject.typeId === 'WORKSHEET_VIEW' ? '/app-studio/worksheets' : '/app-studio';
+      await redirectTabIfViewingObject({
+        ids: [appId, context.domoObject.id, ...(result.cardIds || [])],
+        tabId: context.tabId,
+        url: `${origin}${listPath}`
+      });
+      return result;
+    },
+    successMessage: ({ appName }, result) => {
+      if (!isOnlyHere) {
+        return `**${appName}** and ${result.cardCount} card${result.cardCount !== 1 ? 's' : ''} deleted`;
+      }
+      return result.cardCount === 0
+        ? `**${appName}** deleted; its cards appear outside it and were left in place`
+        : `**${appName}** and ${result.cardCount} card${result.cardCount !== 1 ? 's' : ''} that only lived in it deleted`;
+    },
+    tooltip: ({ appLabel }) =>
+      isOnlyHere
+        ? `Deletes the entire ${appLabel.toLowerCase()}, leaving cards that also appear outside it in place`
+        : `Deletes the entire ${appLabel.toLowerCase()} instead of just this page`
+  };
+}
+
 function buildDependencyItems(groups, idPrefix, baseUrl) {
   return groups.flatMap((group, idx) => {
     // Count-only summary group (e.g. "Approvals"): a childless virtual parent
@@ -1413,7 +1462,7 @@ function jupyterWorkspacesCheck({ datasetsFor, groupLabel }) {
     buttonLabel: 'Check Jupyter Workspaces',
     key: 'jupyterWorkspaces',
     promptDescription: 'Finding them means reading every Jupyter Workspace in the instance, so it only runs when you ask.',
-    promptTitle: "Jupyter Workspaces aren't searched automatically",
+    promptTitle: "Jupyter Workspaces Aren't Searched Automatically",
     run: ({ context }) =>
       getJupyterWorkspacesForDatasets(
         datasetsFor(context).map((dataset) => dataset.id),
@@ -1476,7 +1525,7 @@ function renderCheckBanner({ check, onRun, result }) {
         <Alert.Content>
           <Alert.Title className='flex items-center gap-1'>
             <AlertStatusIcon />
-            {check.buttonLabel.replace(/^Check /, 'Could not check ')}
+            {check.buttonLabel.replace(/^Check /, 'Could Not Check ')}
           </Alert.Title>
           <Alert.Description>{result.error}</Alert.Description>
           <Button fullWidth className='mt-2' size='sm' variant='secondary' onPress={onRun}>
@@ -1525,7 +1574,7 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry, un
         <Alert.Content>
           <Alert.Title className='flex items-center gap-1'>
             <AlertStatusIcon />
-            Could not check dependencies
+            Could Not Check Dependencies
           </Alert.Title>
           <Alert.Description>{error}</Alert.Description>
           <Button fullWidth className='mt-2' size='sm' variant='secondary' onPress={onRetry}>
@@ -1544,7 +1593,7 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry, un
         <Alert.Content>
           <Alert.Title className='flex items-center gap-1'>
             <AlertStatusIcon />
-            Dependency check not supported
+            Dependency Check Not Supported
           </Alert.Title>
           <Alert.Description>Verify dependencies manually before deleting</Alert.Description>
         </Alert.Content>
@@ -1558,7 +1607,7 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry, un
         <Alert.Content>
           <Alert.Title className='flex items-center gap-1'>
             <AlertStatusIcon />
-            No dependencies found
+            No Dependencies Found
           </Alert.Title>
           {/* An all-clear would otherwise read as covering the search the user hasn't run. */}
           {unrunCheckLabels.length > 0 && (
@@ -1575,7 +1624,7 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry, un
         <Alert.Content>
           <Alert.Title className='flex items-center gap-1'>
             <AlertStatusIcon />
-            Delete blocked by dependencies
+            Delete Blocked by Dependencies
           </Alert.Title>
           <Alert.Description>{deps.blockingReason}</Alert.Description>
         </Alert.Content>
@@ -1589,7 +1638,7 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry, un
         <Alert.Content>
           <Alert.Title className='flex items-center gap-1'>
             <AlertStatusIcon />
-            Nothing else depends on this
+            Nothing Else Depends on This
           </Alert.Title>
           <Alert.Description>{deps.clearNote}</Alert.Description>
         </Alert.Content>
@@ -1598,6 +1647,22 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry, un
   }
 
   return null;
+}
+
+function resolveSuccessDescription({ cascade, cascadeCtx, config, currentContext, isCascade, objectName, result }) {
+  if (isCascade) {
+    return cascade.successMessage(cascadeCtx, result);
+  }
+  if (config.successMessage) {
+    return config.successMessage(
+      {
+        name: objectName,
+        outputCount: currentContext.domoObject.metadata?.details?.outputs?.length || 0
+      },
+      result
+    );
+  }
+  return result?.statusDescription || `**${objectName}** deleted`;
 }
 
 function resolveSuffix(config, context) {

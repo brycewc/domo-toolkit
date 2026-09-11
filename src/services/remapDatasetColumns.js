@@ -24,7 +24,7 @@ const REMAP_TYPES = ['cards', 'datasets', 'dataflows', 'apps'];
  * remap, so the executors' dataset-id sweep and Beast Mode repoints are no-ops
  * and only the column-name rewrite takes effect.
  *
- * Dataset Beast Modes can't go through the card/dataset/dataflow swap path (they
+ * DataSet Beast Modes can't go through the card/dataset/dataflow swap path (they
  * aren't a downstream input to repoint, they live on the dataset itself), so
  * phase 1 rewrites their formulas directly and saves them via a bulk update.
  * Card-level Beast Modes ride along inside `swapCardInput` (it already rewrites

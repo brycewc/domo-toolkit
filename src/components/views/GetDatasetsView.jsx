@@ -163,7 +163,7 @@ export function GetDatasetsView({
                   : objectType === 'CARD'
                     ? 'No datasets found for this card.'
                     : 'No datasets found for this page.';
-        onStatusUpdate?.('No Datasets Found', message, 'warning');
+        onStatusUpdate?.('No DataSets Found', message, 'warning');
         onBackToDefault?.();
         setIsLoading(false);
         return;
@@ -239,7 +239,7 @@ export function GetDatasetsView({
     setIsRefreshing(true);
     try {
       await loadDatasetsData(true);
-      onStatusUpdate?.('Refreshed', 'Dataset data updated successfully', 'success', 2000);
+      onStatusUpdate?.('Refreshed', 'DataSet data updated successfully', 'success', 2000);
     } catch (err) {
       onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data', 'danger', 3000);
     } finally {
@@ -342,7 +342,7 @@ const DATAFLOW_DATASET_GROUPS = [
 
 /**
  * Build the page-scope list: one row per dataset on the page, with the cards on
- * that same page that draw from it nested beneath. Datasets with no card on the
+ * that same page that draw from it nested beneath. DataSets with no card on the
  * page still appear (they can back filters, variables, or other content), just
  * without children.
  *

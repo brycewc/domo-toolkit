@@ -30,8 +30,8 @@ export function ReconciliationWarnings({
       key: 'mismatched-columns',
       title:
         usedUnmappedColumns.length === 1
-          ? "1 used column doesn't match"
-          : `${usedUnmappedColumns.length} used columns don't match`
+          ? "1 Used Column Doesn't Match"
+          : `${usedUnmappedColumns.length} Used Columns Don't Match`
     });
   }
 
@@ -41,8 +41,8 @@ export function ReconciliationWarnings({
       key: 'sql-dataflows',
       title:
         sqlDataflowWarnings.length === 1
-          ? '1 SQL dataflow needs manual review'
-          : `${sqlDataflowWarnings.length} SQL dataflows need manual review`
+          ? '1 SQL DataFlow Needs Manual Review'
+          : `${sqlDataflowWarnings.length} SQL DataFlows Need Manual Review`
     });
   }
 
@@ -52,8 +52,8 @@ export function ReconciliationWarnings({
       key: 'script-dataflows',
       title:
         scriptDataflowWarnings.length === 1
-          ? '1 script dataflow needs manual review'
-          : `${scriptDataflowWarnings.length} script dataflows need manual review`
+          ? '1 Script DataFlow Needs Manual Review'
+          : `${scriptDataflowWarnings.length} Script DataFlows Need Manual Review`
     });
   }
 
@@ -63,8 +63,8 @@ export function ReconciliationWarnings({
       key: 'fused-views',
       title:
         viewFusionWarnings.length === 1
-          ? '1 fused view needs manual review'
-          : `${viewFusionWarnings.length} fused views need manual review`
+          ? '1 Fused View Needs Manual Review'
+          : `${viewFusionWarnings.length} Fused Views Need Manual Review`
     });
   }
 
@@ -74,8 +74,8 @@ export function ReconciliationWarnings({
       key: 'jupyter-workspaces',
       title:
         jupyterColumnWarnings.length === 1
-          ? '1 Jupyter Workspace needs manual review'
-          : `${jupyterColumnWarnings.length} Jupyter Workspaces need manual review`
+          ? '1 Jupyter Workspace Needs Manual Review'
+          : `${jupyterColumnWarnings.length} Jupyter Workspaces Need Manual Review`
     });
   }
 
@@ -85,8 +85,8 @@ export function ReconciliationWarnings({
       key: 'mergeable-dataflows',
       title:
         mergeableDataflows.length === 1
-          ? '1 dataflow already reads the target'
-          : `${mergeableDataflows.length} dataflows already read the target`
+          ? '1 DataFlow Already Reads the Target'
+          : `${mergeableDataflows.length} DataFlows Already Read the Target`
     });
   }
 
@@ -96,8 +96,8 @@ export function ReconciliationWarnings({
       key: 'unrepointable-dataflows',
       title:
         unrepointableDataflows.length === 1
-          ? "1 dataflow can't be repointed"
-          : `${unrepointableDataflows.length} dataflows can't be repointed`
+          ? "1 DataFlow Can't Be Repointed"
+          : `${unrepointableDataflows.length} DataFlows Can't Be Repointed`
     });
   }
 
@@ -107,8 +107,8 @@ export function ReconciliationWarnings({
       key: 'unrepointable-datasets',
       title:
         unrepointableDatasets.length === 1
-          ? "1 view can't be repointed"
-          : `${unrepointableDatasets.length} views can't be repointed`
+          ? "1 View Can't Be Repointed"
+          : `${unrepointableDatasets.length} Views Can't Be Repointed`
     });
   }
 
@@ -119,8 +119,8 @@ export function ReconciliationWarnings({
       key: 'app-collisions',
       title:
         appColumnCollisions.length === 1
-          ? '1 pro-code app would lose fields'
-          : `${appColumnCollisions.length} pro-code apps would lose fields`
+          ? '1 Pro-Code App Would Lose Fields'
+          : `${appColumnCollisions.length} Pro-Code Apps Would Lose Fields`
     });
   }
 
