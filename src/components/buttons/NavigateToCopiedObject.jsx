@@ -109,6 +109,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       const params = {
         apiConfig: typeConfig.api,
         baseUrl,
+        expectMisses: true,
         fallbackMode,
         objectId,
         parentId: null,

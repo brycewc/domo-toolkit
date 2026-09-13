@@ -115,6 +115,7 @@
 - Get Card Pages now says there are no cards when an object has none, instead of reporting that its cards aren't on any pages.
 - A DataFlow's last run time in Lineage now includes the year when the run wasn't this year.
 - The tab title on an alert now shows the alert's name instead of "Alerts Management" or the DataSet's name.
+- Actions that depend on your permissions no longer stay hidden on a tab the extension couldn't read your account on when it loaded.
 
 ### Activity Log
 

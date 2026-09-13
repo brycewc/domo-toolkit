@@ -219,12 +219,7 @@ export async function getDataflowForOutputDataset(datasetId, tabId = null) {
     return data.id.toString();
   };
 
-  try {
-    return await executeInPage(fetchLogic, [datasetId], tabId);
-  } catch (error) {
-    console.error('Error fetching DataFlow for DataSet:', error);
-    throw error;
-  }
+  return await executeInPage(fetchLogic, [datasetId], tabId);
 }
 
 /**

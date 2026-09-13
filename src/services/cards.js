@@ -165,67 +165,57 @@ export async function exportCard({ cardId, cardTitle, format = 'excel', tabId = 
 }
 
 export async function getCardDatasets({ cardId, tabId = null }) {
-  try {
-    return await executeInPage(
-      async (cardId) => {
-        const response = await fetch(`/api/content/v1/cards?urns=${cardId}&includeFiltered=true&parts=datasources`);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch card datasets for ${cardId}. HTTP status: ${response.status}`);
-        }
-        const cards = await response.json();
-        return [].concat(cards).flatMap((c) => c.datasources || []);
-      },
-      [cardId],
-      tabId
-    );
-  } catch (error) {
-    console.error('Error fetching card datasets:', error);
-    throw error;
-  }
+  return await executeInPage(
+    async (cardId) => {
+      const response = await fetch(`/api/content/v1/cards?urns=${cardId}&includeFiltered=true&parts=datasources`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch card datasets for ${cardId}. HTTP status: ${response.status}`);
+      }
+      const cards = await response.json();
+      return [].concat(cards).flatMap((c) => c.datasources || []);
+    },
+    [cardId],
+    tabId
+  );
 }
 
 export async function getCardDefinition({ cardId, tabId = null }) {
-  try {
-    // Domo's own reason rides back in the result rather than a throw: a throw
-    // inside the injected function reaches the caller as a null definition,
-    // which then surfaced as a "reading 'columns' of null" further down.
-    const result = await executeInPage(
-      async (cardId) => {
-        const response = await fetch('/api/content/v3/cards/kpi/definition', {
-          body: JSON.stringify({
-            dynamicText: true,
-            urn: cardId,
-            variables: true
-          }),
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          method: 'PUT'
-        });
-        const body = await response.text().catch(() => '');
-        if (!response.ok) {
-          let reason = '';
-          try {
-            reason = JSON.parse(body)?.message || '';
-          } catch {
-            // Not JSON, so fall back to the status below.
-          }
-          return { error: reason || `HTTP ${response.status}`, ok: false };
+  // Domo's own reason rides back in the result rather than a throw: a throw
+  // inside the injected function reaches the caller as a null definition,
+  // which then surfaced as a "reading 'columns' of null" further down.
+  const result = await executeInPage(
+    async (cardId) => {
+      const response = await fetch('/api/content/v3/cards/kpi/definition', {
+        body: JSON.stringify({
+          dynamicText: true,
+          urn: cardId,
+          variables: true
+        }),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        method: 'PUT'
+      });
+      const body = await response.text().catch(() => '');
+      if (!response.ok) {
+        let reason = '';
+        try {
+          reason = JSON.parse(body)?.message || '';
+        } catch {
+          // Not JSON, so fall back to the status below.
         }
-        return { definition: JSON.parse(body), ok: true };
-      },
-      [cardId],
-      tabId
-    );
-    if (!result?.ok) {
-      throw new Error(`Could not read the definition of card ${cardId}: ${result?.error || 'no result from the page'}`);
-    }
-    return result.definition;
-  } catch (error) {
-    console.error('Error fetching card definition:', error);
-    throw error;
+        return { error: reason || `HTTP ${response.status}`, ok: false };
+      }
+      return { definition: JSON.parse(body), ok: true };
+    },
+    [cardId],
+    tabId
+  );
+  if (!result?.ok) {
+    throw new Error(`Could not read the definition of card ${cardId}: ${result?.error || 'no result from the page'}`);
   }
+  return result.definition;
 }
 
 /**
@@ -390,54 +380,49 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
     return allCards;
   }
 
-  try {
-    // Execute fetch in page context to use authenticated session
-    const result = await executeInPage(
-      async (objectId, objectType, parts) => {
-        switch (objectType) {
-          case 'DATA_APP_VIEW':
-          case 'PAGE':
-          case 'REPORT_BUILDER_PAGE':
-          case 'WORKSHEET_VIEW': {
-            const url = parts
-              ? `/api/content/v3/stacks/${objectId}/cards?parts=${parts}`
-              : `/api/content/v3/stacks/${objectId}/cards`;
-            const response = await fetch(url);
-            if (!response.ok) {
-              throw new Error(`Failed to fetch cards for ${objectType} ${objectId}. HTTP status: ${response.status}`);
-            }
-            const page = await response.json();
-            const cards = page.cards || [];
-            return cards.filter((c) => Number.isFinite(c.id));
+  // Execute fetch in page context to use authenticated session
+  const result = await executeInPage(
+    async (objectId, objectType, parts) => {
+      switch (objectType) {
+        case 'DATA_APP_VIEW':
+        case 'PAGE':
+        case 'REPORT_BUILDER_PAGE':
+        case 'WORKSHEET_VIEW': {
+          const url = parts
+            ? `/api/content/v3/stacks/${objectId}/cards?parts=${parts}`
+            : `/api/content/v3/stacks/${objectId}/cards`;
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch cards for ${objectType} ${objectId}. HTTP status: ${response.status}`);
           }
-
-          case 'DATA_SOURCE': {
-            const response = await fetch(`/api/content/v1/datasources/${objectId}/cards`);
-            if (!response.ok) {
-              throw new Error(`Failed to fetch cards for DataSet ${objectId}. HTTP status: ${response.status}`);
-            }
-            const cards = await response.json();
-            if (!cards.length) return [];
-            // Normalize cards to have id property
-            return cards.map((card) => ({
-              ...card,
-              id: card.id || card.kpiId || (typeof card.urn === 'string' ? parseInt(card.urn.split(':').pop(), 10) : null)
-            }));
-          }
-
-          default:
-            throw new Error(`Cannot get cards for object type ${objectType}`);
+          const page = await response.json();
+          const cards = page.cards || [];
+          return cards.filter((c) => Number.isFinite(c.id));
         }
-      },
-      [objectId, objectType, parts],
-      tabId
-    );
 
-    return result;
-  } catch (error) {
-    console.error('Error fetching cards for object:', error);
-    throw error;
-  }
+        case 'DATA_SOURCE': {
+          const response = await fetch(`/api/content/v1/datasources/${objectId}/cards`);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch cards for DataSet ${objectId}. HTTP status: ${response.status}`);
+          }
+          const cards = await response.json();
+          if (!cards.length) return [];
+          // Normalize cards to have id property
+          return cards.map((card) => ({
+            ...card,
+            id: card.id || card.kpiId || (typeof card.urn === 'string' ? parseInt(card.urn.split(':').pop(), 10) : null)
+          }));
+        }
+
+        default:
+          throw new Error(`Cannot get cards for object type ${objectType}`);
+      }
+    },
+    [objectId, objectType, parts],
+    tabId
+  );
+
+  return result;
 }
 
 /**
@@ -526,15 +511,10 @@ export async function getDrillParentCardId(drillViewId, inPageContext = false, t
     return card.rootId;
   };
 
-  try {
-    // If already in page context, execute directly; otherwise use executeInPage
-    const result = inPageContext ? await fetchLogic(drillViewId) : await executeInPage(fetchLogic, [drillViewId], tabId);
+  // If already in page context, execute directly; otherwise use executeInPage
+  const result = inPageContext ? await fetchLogic(drillViewId) : await executeInPage(fetchLogic, [drillViewId], tabId);
 
-    return result;
-  } catch (error) {
-    console.error('Error fetching drill parent card ID:', error);
-    throw error;
-  }
+  return result;
 }
 
 /**
@@ -774,83 +754,78 @@ export async function transferCards(cardIds, fromOwnerId, toOwnerId, tabId = nul
 }
 
 export async function updateCardDefinition({ cardId, definition, tabId = null }) {
-  try {
-    const datasetId = definition?.columns?.[0]?.sourceId;
+  const datasetId = definition?.columns?.[0]?.sourceId;
 
-    delete definition.id;
-    delete definition.urn;
-    delete definition.columns;
-    delete definition.drillpath;
-    delete definition.embedded;
-    delete definition.dataSourceWrite;
+  delete definition.id;
+  delete definition.urn;
+  delete definition.columns;
+  delete definition.drillpath;
+  delete definition.embedded;
+  delete definition.dataSourceWrite;
 
-    definition.dataProvider = {
-      dataSourceId: datasetId || null
+  definition.dataProvider = {
+    dataSourceId: datasetId || null
+  };
+  definition.variables = true;
+
+  definition.definition.formulas = {
+    card: (definition.definition.formulas || []).filter((f) => f.persistedOnDataSource === false),
+    dsDeleted: [],
+    dsUpdated: []
+  };
+  definition.definition.annotations = {
+    deleted: [],
+    modified: [],
+    new: []
+  };
+
+  // Transform conditionalFormats from array to object with card and datasource arrays
+  if (Array.isArray(definition.definition.conditionalFormats)) {
+    const cardFormats = [];
+    const datasourceFormats = [];
+
+    definition.definition.conditionalFormats.forEach((format) => {
+      if (format.dataSourceId) {
+        datasourceFormats.push(format);
+      } else {
+        cardFormats.push(format);
+      }
+    });
+
+    definition.definition.conditionalFormats = {
+      card: cardFormats,
+      datasource: datasourceFormats
     };
-    definition.variables = true;
-
-    definition.definition.formulas = {
-      card: (definition.definition.formulas || []).filter((f) => f.persistedOnDataSource === false),
-      dsDeleted: [],
-      dsUpdated: []
-    };
-    definition.definition.annotations = {
-      deleted: [],
-      modified: [],
-      new: []
-    };
-
-    // Transform conditionalFormats from array to object with card and datasource arrays
-    if (Array.isArray(definition.definition.conditionalFormats)) {
-      const cardFormats = [];
-      const datasourceFormats = [];
-
-      definition.definition.conditionalFormats.forEach((format) => {
-        if (format.dataSourceId) {
-          datasourceFormats.push(format);
-        } else {
-          cardFormats.push(format);
-        }
-      });
-
-      definition.definition.conditionalFormats = {
-        card: cardFormats,
-        datasource: datasourceFormats
-      };
-    }
-
-    // Update the card with the modifications.
-    // Return a structured result rather than throwing: Chrome swallows a rejected
-    // promise from an async injected function (null result, no error), which would
-    // make a failed card update report success. See executeInPage.
-    const result = await executeInPage(
-      async (cardId, definition) => {
-        const response = await fetch(`/api/content/v3/cards/kpi/${cardId}`, {
-          body: JSON.stringify(definition),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'PUT'
-        });
-        if (!response.ok) {
-          // Include the response body so callers can surface why the
-          // update was rejected (Domo returns helpful detail in JSON body).
-          let bodyText = '';
-          try {
-            bodyText = await response.text();
-          } catch {
-            // body unreadable, fall through with empty
-          }
-          return { error: `Failed to update card ${cardId}. HTTP ${response.status}: ${bodyText}`.trim(), ok: false };
-        }
-        return { ok: true };
-      },
-      [cardId, definition],
-      tabId
-    );
-    if (!result?.ok) throw new Error(result?.error || 'Failed to update card definition');
-  } catch (error) {
-    console.error('Error updating card definition:', error);
-    throw error;
   }
+
+  // Update the card with the modifications.
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed card update report success. See executeInPage.
+  const result = await executeInPage(
+    async (cardId, definition) => {
+      const response = await fetch(`/api/content/v3/cards/kpi/${cardId}`, {
+        body: JSON.stringify(definition),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      if (!response.ok) {
+        // Include the response body so callers can surface why the
+        // update was rejected (Domo returns helpful detail in JSON body).
+        let bodyText = '';
+        try {
+          bodyText = await response.text();
+        } catch {
+          // body unreadable, fall through with empty
+        }
+        return { error: `Failed to update card ${cardId}. HTTP ${response.status}: ${bodyText}`.trim(), ok: false };
+      }
+      return { ok: true };
+    },
+    [cardId, definition],
+    tabId
+  );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to update card definition');
 }
 
 /**

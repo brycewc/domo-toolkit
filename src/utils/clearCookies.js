@@ -69,7 +69,6 @@ export async function clearCookies({ daSidsToPreserve = [], domains = null, excl
       }
 
       if (shouldClear) {
-        console.log(`[ClearCookies] Removing cookie: ${cookie.name} from ${url}`);
         removePromises.push(
           chrome.cookies
             .remove({

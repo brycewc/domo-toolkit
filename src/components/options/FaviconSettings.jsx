@@ -612,11 +612,6 @@ async function clearFaviconCache() {
 
     if (faviconKeys.length > 0) {
       await chrome.storage.local.remove(faviconKeys);
-      // console.log(
-      //   'Cleared favicon cache (including instance logos):',
-      //   faviconKeys.length,
-      //   'items'
-      // );
     }
   } catch (error) {
     console.error('Error clearing favicon cache:', error);

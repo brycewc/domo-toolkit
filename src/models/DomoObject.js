@@ -110,7 +110,6 @@ export class DomoObject {
   async buildUrl(baseUrl, tabId = null) {
     if (this.requiresParentForUrl()) {
       const parentId = await this.getParent(false, null, tabId);
-      console.log(`Building URL for ${this.typeName} ${this.id} with parent ${parentId}`);
       return this.objectType.buildObjectUrl(baseUrl, this.id, parentId, tabId, this.metadata);
     }
     return this.objectType.buildObjectUrl(baseUrl, this.id, null, tabId, this.metadata);
@@ -158,23 +157,10 @@ export class DomoObject {
       const parentType = getObjectType(parentTypeId);
       const parentTypeName = parentType ? parentType.name : parentTypeId;
 
-      console.log(
-        `[getParent] parentType=${parentTypeId}, hasApi=${!!parentType?.api}, method=${parentType?.api?.method ?? 'GET'}, hasBodyTemplate=${!!parentType?.api?.bodyTemplate}`
-      );
       if (parentType && parentType.api) {
         try {
           // Fetch parent details using its API configuration
-          const {
-            bodyTemplate = null,
-            endpoint,
-            method = 'GET',
-            nameTemplate = null,
-            paths = {}
-          } = parentType.api;
-
-          console.log(
-            `[getParent] Fetching parent details: method=${method}, endpoint=${endpoint}, parentId=${parentId}, inPageContext=${inPageContext}, tabId=${tabId}`
-          );
+          const { bodyTemplate = null, endpoint, method = 'GET', nameTemplate = null, paths = {} } = parentType.api;
 
           const fetchParentDetails = async (
             endpoint,
@@ -198,18 +184,13 @@ export class DomoObject {
               };
             }
 
-            console.log(`[getParent:fetchParentDetails] Fetching ${method} ${url}, hasBody=${!!options.body}`);
-
             const response = await fetch(url, options);
-
-            console.log(`[getParent:fetchParentDetails] Response status: ${response.status}`);
 
             if (!response.ok) {
               throw new Error(`HTTP ${response.status}`);
             }
 
             const data = await response.json();
-            console.log('[getParent:fetchParentDetails] Response data keys:', Object.keys(data));
 
             const resolvePath = (path) => (path.match(/[^.[\]]+/g) || []).reduce((current, prop) => current?.[prop], data);
             // Mirrors fetchObjectDetailsInPage: a declared path may be an array of candidates, and
@@ -221,8 +202,6 @@ export class DomoObject {
             const name = nameTemplate
               ? nameTemplate.replace(/{([^}]+)}/g, (_, path) => (path === 'id' ? parentId : (resolvePath(path) ?? '')))
               : resolveField(paths.name);
-
-            console.log(`[getParent:fetchParentDetails] Extracted name=${name}, hasDetails=${!!details}`);
 
             return {
               created: paths.created ? resolvePath(paths.created) : undefined,
@@ -238,7 +217,16 @@ export class DomoObject {
 
           // If already in page context, execute directly; otherwise use executeInPage
           const parentDetails = inPageContext
-            ? await fetchParentDetails(endpoint, method, paths, nameTemplate, bodyTemplate, parentId, parentTypeId, parentTypeName)
+            ? await fetchParentDetails(
+                endpoint,
+                method,
+                paths,
+                nameTemplate,
+                bodyTemplate,
+                parentId,
+                parentTypeId,
+                parentTypeName
+              )
             : await executeInPage(
                 fetchParentDetails,
                 [endpoint, method, paths, nameTemplate, bodyTemplate, parentId, parentTypeId, parentTypeName],
@@ -247,7 +235,6 @@ export class DomoObject {
 
           // Store parent details in metadata
           this.metadata.parent = parentDetails;
-          console.log('[getParent] Successfully set parent:', parentDetails);
         } catch (error) {
           console.error('[getParent] Error fetching parent details:', error);
           // Still return the parentId even if we can't fetch details

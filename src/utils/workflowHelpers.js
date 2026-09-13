@@ -10,8 +10,6 @@ export async function waitForDefinition(currentContext, maxAttempts = 50) {
   let definition = currentContext.domoObject.metadata?.context?.definition;
 
   if (definition === undefined || definition === null) {
-    console.log('[workflowHelpers] Definition not yet loaded, waiting...');
-
     let attempts = 0;
 
     while (attempts < maxAttempts) {
@@ -27,14 +25,12 @@ export async function waitForDefinition(currentContext, maxAttempts = 50) {
         const details = response.context?.domoObject?.metadata?.context;
         if (details?.definition !== undefined && details?.definition !== null) {
           definition = details.definition;
-          console.log('[workflowHelpers] Definition loaded');
           break;
         }
       }
     }
 
     if (definition === undefined || definition === null) {
-      console.log('[workflowHelpers] Timeout waiting for definition');
       return {
         definition: null,
         error: 'Timeout waiting for workflow definition to load. Please try again.',

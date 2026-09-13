@@ -65,8 +65,6 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
       return;
     }
 
-    // console.log(currentContext);
-
     setIsLoading(true);
 
     let activityLogObjects;

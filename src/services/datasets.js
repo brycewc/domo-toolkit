@@ -363,12 +363,7 @@ export async function getDatasetsForApp({ appId, tabId }) {
     return response.json();
   };
 
-  try {
-    return await executeInPage(fetchLogic, [appId], tabId);
-  } catch (error) {
-    console.error('[getDatasetsForApp] Error:', error);
-    throw error;
-  }
+  return await executeInPage(fetchLogic, [appId], tabId);
 }
 
 /**
@@ -419,7 +414,6 @@ export async function getDatasetsForJupyterWorkspace({ details, tabId }) {
  */
 export async function getDatasetsForPage({ pageId, tabId }) {
   const fetchLogic = async (pageId) => {
-    console.log('[getDatasetsForPage] Fetching datasets for page:', pageId);
     const response = await fetch(`/api/content/v1/datasources/pages/${pageId}`);
 
     if (!response.ok) {
@@ -427,20 +421,10 @@ export async function getDatasetsForPage({ pageId, tabId }) {
     }
 
     const data = await response.json();
-    console.log('[getDatasetsForPage] API response:', data);
-    const result = data.dataSources || [];
-    console.log('[getDatasetsForPage] Returning datasets:', result);
-    return result;
+    return data.dataSources || [];
   };
 
-  try {
-    const result = await executeInPage(fetchLogic, [pageId], tabId);
-    console.log('[getDatasetsForPage] executeInPage result:', result);
-    return result;
-  } catch (error) {
-    console.error('[getDatasetsForPage] Error:', error);
-    throw error;
-  }
+  return await executeInPage(fetchLogic, [pageId], tabId);
 }
 
 /**
@@ -510,17 +494,10 @@ export async function getDatasetsForView({ datasetId, tabId }) {
     const namesResponse = await bulkResponse.json();
     const namesData = namesResponse.dataSources || [];
     const byId = Object.fromEntries(namesData.map((d) => [d.id || d.datasetId, d]));
-    const ordered = datasetIds.map((id) => byId[id]).filter(Boolean);
-    // console.log('[getDatasetsForView] ordered:', ordered);
-    return ordered;
+    return datasetIds.map((id) => byId[id]).filter(Boolean);
   };
 
-  try {
-    return await executeInPage(fetchLogic, [datasetId], tabId);
-  } catch (error) {
-    console.error('Error fetching datasets for view:', error);
-    throw error;
-  }
+  return await executeInPage(fetchLogic, [datasetId], tabId);
 }
 
 /**
@@ -568,12 +545,7 @@ export async function getDependentDatasets({ datasetId, tabId }) {
     return datasetIds.map((id) => byId[id]).filter(Boolean);
   };
 
-  try {
-    return await executeInPage(fetchLogic, [datasetId], tabId);
-  } catch (error) {
-    console.error('Error fetching dependent datasets:', error);
-    throw error;
-  }
+  return await executeInPage(fetchLogic, [datasetId], tabId);
 }
 
 /**

@@ -1703,17 +1703,29 @@ export const ObjectTypeRegistry = {
  *   'auto' tries it after the primary fails, 'off' never tries it, 'only' skips the primary. Pass
  *   'off' where a fallback shared by sibling types must not answer before each type's own endpoint.
  * @param {boolean} [params.throwOnError=true] - Whether to throw errors
+ * @param {boolean} [params.expectMisses=false] - Set by callers that probe an ID against many types
+ *   in turn, where a non-answer identifies the type rather than indicating a fault. Silences the
+ *   two expected-failure warnings below; a thrown exception is still reported.
  * @returns {Promise<Object>} Metadata object {created, details, name, parentId}, carrying
  *   `viaFallback: true` when the fallback config produced it
  */
 export async function fetchObjectDetailsInPage(params) {
-  const { apiConfig, fallbackMode = 'auto', objectId, parentId, requiresParent, throwOnError = true, typeId } = params;
+  const {
+    apiConfig,
+    expectMisses = false,
+    fallbackMode = 'auto',
+    objectId,
+    parentId,
+    requiresParent,
+    throwOnError = true,
+    typeId
+  } = params;
 
   try {
     if (requiresParent && !parentId) {
       const error = new Error(`Cannot fetch details for ${typeId} ${objectId} because parent ID is required`);
       if (throwOnError) throw error;
-      console.warn(error.message);
+      if (!expectMisses) console.warn(error.message);
       return { details: null, name: null };
     }
 
@@ -1859,7 +1871,7 @@ export async function fetchObjectDetailsInPage(params) {
 
     const error = new Error(firstReason || `Cannot fetch details for ${typeId} ${objectId}: no endpoint configured`);
     if (throwOnError) throw error;
-    console.warn(error.message);
+    if (!expectMisses) console.warn(error.message);
     return { details: null, name: null };
   } catch (error) {
     console.error(`Error fetching details for ${typeId}:`, error);

@@ -119,83 +119,78 @@ export async function executeInPage(func, args = [], tabId = null) {
     return func(...args);
   }
 
+  let targetTabId = tabId;
+
+  // If no tabId provided, get active tab
+  if (!targetTabId) {
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true
+    });
+
+    if (!tab) {
+      throw new Error('No active tab found');
+    }
+
+    targetTabId = tab.id;
+  }
+
+  // Verify the tab is on a Domo page
+  const tab = await chrome.tabs.get(targetTabId);
+  if (!tab.url || !isDomoUrl(tab.url)) {
+    throw new Error('Not on a Domo page');
+  }
+  // A local instance additionally requires the opt-in permission. activeTab
+  // would otherwise let this run on a local page the user never enabled.
+  if (!(await canActOnHost(tab.url))) {
+    throw new Error('Local Domo instances are off. Turn them on in the extension options to use the toolkit here.');
+  }
+
+  const target = { tabId: targetTabId };
+
+  // Mark extension-initiated requests so apiErrors.js bypasses interception
+  await chrome.scripting.executeScript({
+    func: () => {
+      window.__domoToolkitExtDepth = (window.__domoToolkitExtDepth || 0) + 1;
+    },
+    target,
+    world: 'MAIN'
+  });
+
   try {
-    let targetTabId = tabId;
-
-    // If no tabId provided, get active tab
-    if (!targetTabId) {
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true
-      });
-
-      if (!tab) {
-        throw new Error('No active tab found');
-      }
-
-      targetTabId = tab.id;
-    }
-
-    // Verify the tab is on a Domo page
-    const tab = await chrome.tabs.get(targetTabId);
-    if (!tab.url || !isDomoUrl(tab.url)) {
-      throw new Error('Not on a Domo page');
-    }
-    // A local instance additionally requires the opt-in permission. activeTab
-    // would otherwise let this run on a local page the user never enabled.
-    if (!(await canActOnHost(tab.url))) {
-      throw new Error('Local Domo instances are off. Turn them on in the extension options to use the toolkit here.');
-    }
-
-    const target = { tabId: targetTabId };
-
-    // Mark extension-initiated requests so apiErrors.js bypasses interception
-    await chrome.scripting.executeScript({
-      func: () => {
-        window.__domoToolkitExtDepth = (window.__domoToolkitExtDepth || 0) + 1;
-      },
+    // Execute function in the page context
+    const result = await chrome.scripting.executeScript({
+      args,
+      func,
       target,
       world: 'MAIN'
     });
 
+    // When the injected function throws, Chrome reports the thrown value in
+    // `error` and leaves `result` as null. Surface that error instead of
+    // returning the null, which would otherwise mask the real failure (e.g. a
+    // caller reading `.length` on it and crashing with a misleading message).
+    const injection = result?.[0];
+    if (injection?.error) {
+      throw new Error(injection.error.message || String(injection.error));
+    }
+
+    if (injection && injection.result !== undefined) {
+      return injection.result;
+    }
+
+    throw new Error('No result from script execution');
+  } finally {
     try {
-      // Execute function in the page context
-      const result = await chrome.scripting.executeScript({
-        args,
-        func,
+      await chrome.scripting.executeScript({
+        func: () => {
+          window.__domoToolkitExtDepth = Math.max(0, (window.__domoToolkitExtDepth || 0) - 1);
+        },
         target,
         world: 'MAIN'
       });
-
-      // When the injected function throws, Chrome reports the thrown value in
-      // `error` and leaves `result` as null. Surface that error instead of
-      // returning the null, which would otherwise mask the real failure (e.g. a
-      // caller reading `.length` on it and crashing with a misleading message).
-      const injection = result?.[0];
-      if (injection?.error) {
-        throw new Error(injection.error.message || String(injection.error));
-      }
-
-      if (injection && injection.result !== undefined) {
-        return injection.result;
-      }
-
-      throw new Error('No result from script execution');
-    } finally {
-      try {
-        await chrome.scripting.executeScript({
-          func: () => {
-            window.__domoToolkitExtDepth = Math.max(0, (window.__domoToolkitExtDepth || 0) - 1);
-          },
-          target,
-          world: 'MAIN'
-        });
-      } catch {
-        // Decrement failed (tab closed/navigated) — not recoverable
-      }
+    } catch {
+      // Decrement failed (tab closed/navigated), not recoverable
     }
-  } catch (error) {
-    console.error('Error executing script in page context:', error);
-    throw error;
   }
 }

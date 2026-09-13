@@ -251,7 +251,6 @@ export async function getAppOnlyCardIds({ appId, cardIds, tabId = null }) {
  * @throws {Error} If the parent cannot be fetched
  */
 export async function getAppStudioPageParent(appPageId, inPageContext = false, tabId = null) {
-  console.log(inPageContext, 'inPageContext');
   const fetchLogic = async (appPageId) => {
     // Use the page summary endpoint to get the parent App ID
     const response = await fetch('/api/content/v1/pages/summary?limit=1&skip=0', {
@@ -283,15 +282,7 @@ export async function getAppStudioPageParent(appPageId, inPageContext = false, t
     return appId.toString();
   };
 
-  try {
-    // If already in page context, execute directly; otherwise use executeInPage
-    const result = inPageContext ? await fetchLogic(appPageId) : await executeInPage(fetchLogic, [appPageId], tabId);
-
-    return result;
-  } catch (error) {
-    console.error('Error fetching App Studio Page parent:', error);
-    throw error;
-  }
+  return inPageContext ? await fetchLogic(appPageId) : await executeInPage(fetchLogic, [appPageId], tabId);
 }
 
 /**
@@ -305,106 +296,101 @@ export async function getAppStudioPageParent(appPageId, inPageContext = false, t
  * @throws {Error} If the fetch fails
  */
 export async function getChildPages({ appId = null, includeGrandchildren = false, pageId, pageType, tabId = null }) {
-  try {
-    // Execute fetch in page context to use authenticated session
-    const result = await executeInPage(
-      async (pageId, pageType, appId, includeGrandchildren) => {
-        let childPages = [];
-        if (pageType === 'PAGE') {
-          // Build request body
-          const body = {
-            ascending: true,
-            orderBy: 'lastModified'
-          };
+  // Execute fetch in page context to use authenticated session
+  const result = await executeInPage(
+    async (pageId, pageType, appId, includeGrandchildren) => {
+      let childPages = [];
+      if (pageType === 'PAGE') {
+        // Build request body
+        const body = {
+          ascending: true,
+          orderBy: 'lastModified'
+        };
 
-          body.includeParentPageIdsClause = true;
-          body.parentPageIds = [pageId];
+        body.includeParentPageIdsClause = true;
+        body.parentPageIds = [pageId];
 
-          // Make API call to fetch pages with relative URL
-          const response = await fetch('/api/content/v1/pages/adminsummary?limit=100&skip=0', {
-            body: JSON.stringify(body),
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json'
-            },
-            method: 'POST'
-          });
+        // Make API call to fetch pages with relative URL
+        const response = await fetch('/api/content/v1/pages/adminsummary?limit=100&skip=0', {
+          body: JSON.stringify(body),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          method: 'POST'
+        });
 
-          if (!response.ok) {
-            throw new Error(`Failed to fetch pages (HTTP ${response.status})`);
-          }
-
-          const adminSummaryResponse = await response.json();
-          childPages = adminSummaryResponse.pageAdminSummaries || [];
-
-          // If includeGrandchildren is true, fetch grandchildren for each child page.
-          // The adminsummary endpoint silently returns zero results when
-          // parentPageIds holds more than 10 ids, so request grandchildren in
-          // batches of at most 10 parents and combine them. Without batching, any
-          // page with more than 10 children returns no grandchildren at all.
-          if (includeGrandchildren && childPages.length > 0) {
-            const grandchildPageIds = childPages.map((page) => page.pageId);
-            const PARENT_BATCH_SIZE = 10;
-            const batches = [];
-            for (let i = 0; i < grandchildPageIds.length; i += PARENT_BATCH_SIZE) {
-              batches.push(grandchildPageIds.slice(i, i + PARENT_BATCH_SIZE));
-            }
-
-            const grandchildResults = await Promise.all(
-              batches.map(async (parentPageIds) => {
-                const grandchildrenResponse = await fetch('/api/content/v1/pages/adminsummary?limit=100&skip=0', {
-                  body: JSON.stringify({
-                    ascending: true,
-                    includeParentPageIdsClause: true,
-                    orderBy: 'lastModified',
-                    parentPageIds
-                  }),
-                  headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                  },
-                  method: 'POST'
-                });
-
-                if (!grandchildrenResponse.ok) {
-                  console.warn(`Failed to fetch grandchildren pages (HTTP ${grandchildrenResponse.status})`);
-                  return [];
-                }
-
-                const grandchildrenData = await grandchildrenResponse.json();
-                return grandchildrenData.pageAdminSummaries || [];
-              })
-            );
-
-            // Return both children and grandchildren
-            childPages = [...childPages, ...grandchildResults.flat()];
-          }
-        } else if (pageType === 'DATA_APP_VIEW') {
-          const appResponse = await fetch(`/api/content/v1/dataapps/${appId}`);
-
-          if (!appResponse.ok) {
-            throw new Error(`Failed to fetch app studio app ${appId} (HTTP ${appResponse.status})`);
-          }
-
-          const appData = await appResponse.json();
-          childPages = appData.views.map((view) => ({
-            pageId: view.viewId,
-            pageTitle: view.title,
-            typeId: 'DATA_APP_VIEW'
-          }));
+        if (!response.ok) {
+          throw new Error(`Failed to fetch pages (HTTP ${response.status})`);
         }
 
-        return childPages;
-      },
-      [pageId, pageType, appId, includeGrandchildren],
-      tabId
-    );
+        const adminSummaryResponse = await response.json();
+        childPages = adminSummaryResponse.pageAdminSummaries || [];
 
-    return result;
-  } catch (error) {
-    console.error('Error fetching child pages:', error);
-    throw error;
-  }
+        // If includeGrandchildren is true, fetch grandchildren for each child page.
+        // The adminsummary endpoint silently returns zero results when
+        // parentPageIds holds more than 10 ids, so request grandchildren in
+        // batches of at most 10 parents and combine them. Without batching, any
+        // page with more than 10 children returns no grandchildren at all.
+        if (includeGrandchildren && childPages.length > 0) {
+          const grandchildPageIds = childPages.map((page) => page.pageId);
+          const PARENT_BATCH_SIZE = 10;
+          const batches = [];
+          for (let i = 0; i < grandchildPageIds.length; i += PARENT_BATCH_SIZE) {
+            batches.push(grandchildPageIds.slice(i, i + PARENT_BATCH_SIZE));
+          }
+
+          const grandchildResults = await Promise.all(
+            batches.map(async (parentPageIds) => {
+              const grandchildrenResponse = await fetch('/api/content/v1/pages/adminsummary?limit=100&skip=0', {
+                body: JSON.stringify({
+                  ascending: true,
+                  includeParentPageIdsClause: true,
+                  orderBy: 'lastModified',
+                  parentPageIds
+                }),
+                headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json'
+                },
+                method: 'POST'
+              });
+
+              if (!grandchildrenResponse.ok) {
+                console.warn(`Failed to fetch grandchildren pages (HTTP ${grandchildrenResponse.status})`);
+                return [];
+              }
+
+              const grandchildrenData = await grandchildrenResponse.json();
+              return grandchildrenData.pageAdminSummaries || [];
+            })
+          );
+
+          // Return both children and grandchildren
+          childPages = [...childPages, ...grandchildResults.flat()];
+        }
+      } else if (pageType === 'DATA_APP_VIEW') {
+        const appResponse = await fetch(`/api/content/v1/dataapps/${appId}`);
+
+        if (!appResponse.ok) {
+          throw new Error(`Failed to fetch app studio app ${appId} (HTTP ${appResponse.status})`);
+        }
+
+        const appData = await appResponse.json();
+        childPages = appData.views.map((view) => ({
+          pageId: view.viewId,
+          pageTitle: view.title,
+          typeId: 'DATA_APP_VIEW'
+        }));
+      }
+
+      return childPages;
+    },
+    [pageId, pageType, appId, includeGrandchildren],
+    tabId
+  );
+
+  return result;
 }
 
 /**
@@ -501,185 +487,180 @@ export async function getOwnedPages(ownerId, tabId = null, ownerType = 'USER') {
  * @throws {Error} If the fetch fails
  */
 export async function getPagesForCards(cardIds, tabId = null) {
-  try {
-    // Execute fetch in page context to use authenticated session
-    const result = await executeInPage(
-      async (cardIds) => {
-        // Fetch all cards in parallel (one request per card for speed).
-        // Per-fetch `.catch` ensures one network failure (or non-OK response)
-        // doesn't sink the whole Promise.all. With 400+ cards on busy
-        // datasets, a single transient rejection would otherwise null out the
-        // entire result and crash the destructure on the caller side.
-        const results = await Promise.all(
-          cardIds.map((cardId) =>
-            fetch(`/api/content/v1/cards?urns=${cardId}&parts=adminAllPages`)
-              .then((response) => (response.ok ? response.json() : null))
-              .catch(() => null)
-          )
-        );
+  // Execute fetch in page context to use authenticated session
+  const result = await executeInPage(
+    async (cardIds) => {
+      // Fetch all cards in parallel (one request per card for speed).
+      // Per-fetch `.catch` ensures one network failure (or non-OK response)
+      // doesn't sink the whole Promise.all. With 400+ cards on busy
+      // datasets, a single transient rejection would otherwise null out the
+      // entire result and crash the destructure on the caller side.
+      const results = await Promise.all(
+        cardIds.map((cardId) =>
+          fetch(`/api/content/v1/cards?urns=${cardId}&parts=adminAllPages`)
+            .then((response) => (response.ok ? response.json() : null))
+            .catch(() => null)
+        )
+      );
 
-        const allDetailCards = results.filter(Boolean).flat();
+      const allDetailCards = results.filter(Boolean).flat();
 
-        // Empty result is a legitimate "this card isn't on any pages" case,
-        // not an error. Returning empty here keeps the executeScript bridge
-        // serializable and lets the caller render a friendly "no pages found"
-        // state instead of crashing on a thrown error.
-        if (!allDetailCards.length) {
-          return { cardsByPage: {}, orphanedCards: [], pages: [] };
+      // Empty result is a legitimate "this card isn't on any pages" case,
+      // not an error. Returning empty here keeps the executeScript bridge
+      // serializable and lets the caller render a friendly "no pages found"
+      // state instead of crashing on a thrown error.
+      if (!allDetailCards.length) {
+        return { cardsByPage: {}, orphanedCards: [], pages: [] };
+      }
+
+      // Build flat lists of all pages, app pages, and report pages from all cards
+      // Also build reverse mapping: pageId -> [{ id, name }] for cards on each page
+      const allPages = [];
+      const allAppPages = [];
+      const allWorksheetViews = [];
+      const allReportPages = [];
+      const cardsByPage = {};
+      const pagedCardIds = new Set();
+
+      const addCardToPage = (pageId, card) => {
+        const key = String(pageId);
+        if (!cardsByPage[key]) {
+          cardsByPage[key] = [];
         }
-
-        // Build flat lists of all pages, app pages, and report pages from all cards
-        // Also build reverse mapping: pageId -> [{ id, name }] for cards on each page
-        const allPages = [];
-        const allAppPages = [];
-        const allWorksheetViews = [];
-        const allReportPages = [];
-        const cardsByPage = {};
-        const pagedCardIds = new Set();
-
-        const addCardToPage = (pageId, card) => {
-          const key = String(pageId);
-          if (!cardsByPage[key]) {
-            cardsByPage[key] = [];
-          }
-          const cardId = card.id || card.urn;
-          pagedCardIds.add(cardId);
-          // Avoid duplicate cards on the same page
-          if (!cardsByPage[key].some((c) => c.id === cardId)) {
-            cardsByPage[key].push({
-              id: cardId,
-              name: card.title || card.name || `Card ${cardId}`
-            });
-          }
-        };
-
-        allDetailCards.forEach((card) => {
-          // Regular pages
-          if (Array.isArray(card.adminAllPages)) {
-            card.adminAllPages.forEach((page) => {
-              if (page && page.pageId) {
-                allPages.push({
-                  id: page.pageId,
-                  name: page.title || `Page ${page.pageId}`
-                });
-                addCardToPage(page.pageId, card);
-              }
-            });
-          }
-          // App studio pages and worksheet views
-          if (Array.isArray(card.adminAllAppPages)) {
-            card.adminAllAppPages.forEach((page) => {
-              if (page && page.appPageId) {
-                if (page.dataAppType === 'worksheet') {
-                  allWorksheetViews.push({
-                    id: page.appPageId,
-                    name: page.appPageTitle || `Worksheet View ${page.appPageId}`,
-                    parentId: page.appId,
-                    parentName: page.appTitle || `App ${page.appId}`
-                  });
-                } else {
-                  allAppPages.push({
-                    id: page.appPageId,
-                    name: page.appPageTitle || `App Page ${page.appPageId}`,
-                    parentId: page.appId,
-                    parentName: page.appTitle || `App ${page.appId}`
-                  });
-                }
-                addCardToPage(page.appPageId, card);
-              }
-            });
-          }
-          // Report builder pages. Carry the parent report's id/title in the same
-          // parentId/parentName slots App Studio and worksheet pages use, so the
-          // view can nest each report page under its report.
-          if (Array.isArray(card.adminAllReportPages)) {
-            card.adminAllReportPages.forEach((page) => {
-              if (page && page.reportPageId) {
-                allReportPages.push({
-                  id: page.reportPageId,
-                  name: page.reportPageTitle || `Report Page ${page.reportPageId}`,
-                  parentId: page.reportId,
-                  parentName: page.reportTitle || `Report ${page.reportId}`
-                });
-                addCardToPage(page.reportPageId, card);
-              }
-            });
-          }
-        });
-
-        // Cards present in the response but absent from every page list are
-        // orphaned. Cards missing from the response entirely (failed fetch or
-        // deleted card) are deliberately not flagged, since they can't be
-        // confirmed or named.
-        const orphanedCards = [];
-        const orphanedIds = new Set();
-        allDetailCards.forEach((card) => {
-          const cardId = card.id || card.urn;
-          if (cardId == null || pagedCardIds.has(cardId) || orphanedIds.has(cardId)) return;
-          orphanedIds.add(cardId);
-          orphanedCards.push({
+        const cardId = card.id || card.urn;
+        pagedCardIds.add(cardId);
+        // Avoid duplicate cards on the same page
+        if (!cardsByPage[key].some((c) => c.id === cardId)) {
+          cardsByPage[key].push({
             id: cardId,
             name: card.title || card.name || `Card ${cardId}`
           });
-        });
+        }
+      };
 
-        // Deduplicate pages by ID for each type (keep first occurrence's data)
-        const deduplicatePages = (pages) => {
-          const map = new Map();
-          pages.forEach((page) => {
-            if (!map.has(page.id)) {
-              map.set(page.id, page);
+      allDetailCards.forEach((card) => {
+        // Regular pages
+        if (Array.isArray(card.adminAllPages)) {
+          card.adminAllPages.forEach((page) => {
+            if (page && page.pageId) {
+              allPages.push({
+                id: page.pageId,
+                name: page.title || `Page ${page.pageId}`
+              });
+              addCardToPage(page.pageId, card);
             }
           });
-          return Array.from(map.values());
-        };
+        }
+        // App studio pages and worksheet views
+        if (Array.isArray(card.adminAllAppPages)) {
+          card.adminAllAppPages.forEach((page) => {
+            if (page && page.appPageId) {
+              if (page.dataAppType === 'worksheet') {
+                allWorksheetViews.push({
+                  id: page.appPageId,
+                  name: page.appPageTitle || `Worksheet View ${page.appPageId}`,
+                  parentId: page.appId,
+                  parentName: page.appTitle || `App ${page.appId}`
+                });
+              } else {
+                allAppPages.push({
+                  id: page.appPageId,
+                  name: page.appPageTitle || `App Page ${page.appPageId}`,
+                  parentId: page.appId,
+                  parentName: page.appTitle || `App ${page.appId}`
+                });
+              }
+              addCardToPage(page.appPageId, card);
+            }
+          });
+        }
+        // Report builder pages. Carry the parent report's id/title in the same
+        // parentId/parentName slots App Studio and worksheet pages use, so the
+        // view can nest each report page under its report.
+        if (Array.isArray(card.adminAllReportPages)) {
+          card.adminAllReportPages.forEach((page) => {
+            if (page && page.reportPageId) {
+              allReportPages.push({
+                id: page.reportPageId,
+                name: page.reportPageTitle || `Report Page ${page.reportPageId}`,
+                parentId: page.reportId,
+                parentName: page.reportTitle || `Report ${page.reportId}`
+              });
+              addCardToPage(page.reportPageId, card);
+            }
+          });
+        }
+      });
 
-        const pages = deduplicatePages(allPages);
-        const appPages = deduplicatePages(allAppPages);
-        const worksheetViews = deduplicatePages(allWorksheetViews);
-        const reportPages = deduplicatePages(allReportPages);
+      // Cards present in the response but absent from every page list are
+      // orphaned. Cards missing from the response entirely (failed fetch or
+      // deleted card) are deliberately not flagged, since they can't be
+      // confirmed or named.
+      const orphanedCards = [];
+      const orphanedIds = new Set();
+      allDetailCards.forEach((card) => {
+        const cardId = card.id || card.urn;
+        if (cardId == null || pagedCardIds.has(cardId) || orphanedIds.has(cardId)) return;
+        orphanedIds.add(cardId);
+        orphanedCards.push({
+          id: cardId,
+          name: card.title || card.name || `Card ${cardId}`
+        });
+      });
 
-        // Combine all page types into array of objects
-        const pageObjects = [
-          ...pages.map(({ id, name }) => ({
-            id: String(id),
-            name,
-            type: 'PAGE'
-          })),
-          ...appPages.map(({ id, name, parentId, parentName }) => ({
-            id: String(id),
-            name,
-            parentId,
-            parentName,
-            type: 'DATA_APP_VIEW'
-          })),
-          ...worksheetViews.map(({ id, name, parentId, parentName }) => ({
-            id: String(id),
-            name,
-            parentId,
-            parentName,
-            type: 'WORKSHEET_VIEW'
-          })),
-          ...reportPages.map(({ id, name, parentId, parentName }) => ({
-            id: String(id),
-            name,
-            parentId,
-            parentName,
-            type: 'REPORT_BUILDER_PAGE'
-          }))
-        ];
+      // Deduplicate pages by ID for each type (keep first occurrence's data)
+      const deduplicatePages = (pages) => {
+        const map = new Map();
+        pages.forEach((page) => {
+          if (!map.has(page.id)) {
+            map.set(page.id, page);
+          }
+        });
+        return Array.from(map.values());
+      };
 
-        return { cardsByPage, orphanedCards, pages: pageObjects };
-      },
-      [cardIds],
-      tabId
-    );
+      const pages = deduplicatePages(allPages);
+      const appPages = deduplicatePages(allAppPages);
+      const worksheetViews = deduplicatePages(allWorksheetViews);
+      const reportPages = deduplicatePages(allReportPages);
 
-    return result;
-  } catch (error) {
-    console.error('Error fetching pages for cards:', error);
-    throw error;
-  }
+      // Combine all page types into array of objects
+      const pageObjects = [
+        ...pages.map(({ id, name }) => ({
+          id: String(id),
+          name,
+          type: 'PAGE'
+        })),
+        ...appPages.map(({ id, name, parentId, parentName }) => ({
+          id: String(id),
+          name,
+          parentId,
+          parentName,
+          type: 'DATA_APP_VIEW'
+        })),
+        ...worksheetViews.map(({ id, name, parentId, parentName }) => ({
+          id: String(id),
+          name,
+          parentId,
+          parentName,
+          type: 'WORKSHEET_VIEW'
+        })),
+        ...reportPages.map(({ id, name, parentId, parentName }) => ({
+          id: String(id),
+          name,
+          parentId,
+          parentName,
+          type: 'REPORT_BUILDER_PAGE'
+        }))
+      ];
+
+      return { cardsByPage, orphanedCards, pages: pageObjects };
+    },
+    [cardIds],
+    tabId
+  );
+
+  return result;
 }
 
 /**
@@ -712,75 +693,70 @@ export async function sharePages({ pageIds, tabId, userId }) {
     throw new Error('No valid pages to share (all page IDs are negative)');
   }
 
-  try {
-    // Execute fetch in page context to use authenticated session.
-    // Return a structured result rather than throwing: Chrome swallows a rejected
-    // promise from an async injected function (null result, no error), which would
-    // make a failed share report success. See executeInPage.
-    const result = await executeInPage(
-      async (pageIds, userId, concurrency) => {
-        // Build request body
-        const body = {
-          recipients: [
-            {
-              id: userId,
-              type: 'user'
-            }
-          ],
-          resources: pageIds.map((id) => ({ id, type: 'page' }))
-        };
-
-        // Grant access to the pages
-        const response = await fetch('/api/content/v1/share?sendEmail=false', {
-          body: JSON.stringify(body),
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          method: 'POST'
-        });
-
-        if (!response.ok) {
-          const error = `Failed to share pages (HTTP ${response.status})`;
-          return { failures: pageIds.map((id) => ({ error, id })) };
-        }
-
-        // Sharing only grants access; the page stays hidden from the recipient's
-        // navigation until it is explicitly marked visible. There is no bulk
-        // form of this, so the PUTs run through a small pool: a batch can carry
-        // a hundred pages, and firing them all at once floods the instance.
-        const failures = [];
-        let next = 0;
-        const workers = Array.from({ length: Math.min(concurrency, pageIds.length) }, async () => {
-          while (next < pageIds.length) {
-            const id = pageIds[next++];
-            const visibilityResponse = await fetch(`/api/content/v1/pages/${id}`, {
-              body: JSON.stringify({ pageVisible: true }),
-              headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-              },
-              method: 'PUT'
-            });
-
-            if (!visibilityResponse.ok) {
-              failures.push({ error: `Failed to make page ${id} visible (HTTP ${visibilityResponse.status})`, id });
-            }
+  // Execute fetch in page context to use authenticated session.
+  // Return a structured result rather than throwing: Chrome swallows a rejected
+  // promise from an async injected function (null result, no error), which would
+  // make a failed share report success. See executeInPage.
+  const result = await executeInPage(
+    async (pageIds, userId, concurrency) => {
+      // Build request body
+      const body = {
+        recipients: [
+          {
+            id: userId,
+            type: 'user'
           }
-        });
-        await Promise.all(workers);
+        ],
+        resources: pageIds.map((id) => ({ id, type: 'page' }))
+      };
 
-        return { failures };
-      },
-      [validPageIds, userId, DEPENDENCY_FETCH_CONCURRENCY],
-      tabId
-    );
-    if (!result) throw new Error('Failed to share pages');
-    return { failures: result.failures ?? [] };
-  } catch (error) {
-    console.error('Error sharing pages:', error);
-    throw error;
-  }
+      // Grant access to the pages
+      const response = await fetch('/api/content/v1/share?sendEmail=false', {
+        body: JSON.stringify(body),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        const error = `Failed to share pages (HTTP ${response.status})`;
+        return { failures: pageIds.map((id) => ({ error, id })) };
+      }
+
+      // Sharing only grants access; the page stays hidden from the recipient's
+      // navigation until it is explicitly marked visible. There is no bulk
+      // form of this, so the PUTs run through a small pool: a batch can carry
+      // a hundred pages, and firing them all at once floods the instance.
+      const failures = [];
+      let next = 0;
+      const workers = Array.from({ length: Math.min(concurrency, pageIds.length) }, async () => {
+        while (next < pageIds.length) {
+          const id = pageIds[next++];
+          const visibilityResponse = await fetch(`/api/content/v1/pages/${id}`, {
+            body: JSON.stringify({ pageVisible: true }),
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            },
+            method: 'PUT'
+          });
+
+          if (!visibilityResponse.ok) {
+            failures.push({ error: `Failed to make page ${id} visible (HTTP ${visibilityResponse.status})`, id });
+          }
+        }
+      });
+      await Promise.all(workers);
+
+      return { failures };
+    },
+    [validPageIds, userId, DEPENDENCY_FETCH_CONCURRENCY],
+    tabId
+  );
+  if (!result) throw new Error('Failed to share pages');
+  return { failures: result.failures ?? [] };
 }
 
 /**

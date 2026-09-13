@@ -23,10 +23,6 @@ export async function applyFaviconRules(rules) {
   // Check if current hostname is in the excluded list
   const hostname = location.hostname;
   if (EXCLUDED_HOSTNAMES.includes(hostname)) {
-    // console.log(
-    //   'Favicon modification skipped for excluded hostname:',
-    //   hostname
-    // );
     return;
   }
 
@@ -40,7 +36,6 @@ export async function applyFaviconRules(rules) {
   const subdomain = instanceKeyFromUrl(location.href);
 
   if (!subdomain) {
-    // console.log('Not a Domo instance URL');
     return;
   }
 
@@ -65,11 +60,8 @@ export async function applyFaviconRules(rules) {
   });
 
   if (!matchingRule) {
-    // console.log('No matching favicon rule found');
     return;
   }
-
-  // console.log('Applying favicon rule:', matchingRule);
 
   // Get the current favicon
   const favicon = getFavicon();
@@ -87,7 +79,6 @@ export async function applyFaviconRules(rules) {
     const cachedFavicon = await getCachedFavicon(cacheKey);
 
     if (cachedFavicon) {
-      // console.log('Using cached favicon');
       favicon.href = cachedFavicon;
       return;
     }
@@ -240,7 +231,6 @@ async function applyDomoLogoColored(favicon, color) {
       const newFaviconUrl = canvas.toDataURL('image/png');
       favicon.href = newFaviconUrl;
 
-      // console.log('Applied Domo logo with colored background:', color);
       resolve(newFaviconUrl);
     };
 
@@ -309,7 +299,6 @@ async function applyInstanceLogo(favicon, subdomain) {
 async function cacheFavicon(cacheKey, dataUrl) {
   try {
     await chrome.storage.local.set({ [cacheKey]: dataUrl });
-    // console.log('Cached favicon:', cacheKey);
   } catch (error) {
     console.error('Error caching favicon:', error);
   }
@@ -410,13 +399,11 @@ async function getInstanceLogo(subdomain) {
     const avatars = await checkResponse.json();
 
     if (!Array.isArray(avatars) || avatars.length === 0) {
-      // console.log('No instance logo available');
       return null;
     }
 
     const primaryLogo = avatars.find((avatar) => avatar.primary === true);
     if (!primaryLogo || !primaryLogo.id) {
-      // console.log('No primary instance logo found');
       return null;
     }
 

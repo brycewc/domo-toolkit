@@ -64,7 +64,6 @@ export function GetPagesView({
     try {
       // Get the stored page data from local storage
       const data = await getSidepanelData(viewInstance);
-      console.log('Loaded sidepanel data:', data);
       if (!data || (data.type !== 'getChildPages' && data.type !== 'getCardPages' && data.type !== 'childPagesWarning')) {
         setError('No page data found. Please try again from a page URL.');
         setIsLoading(false);

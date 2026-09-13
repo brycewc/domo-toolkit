@@ -81,35 +81,30 @@ export async function getActiveWorkflowVersionsByModel(workflowItems, tabId = nu
 export async function getCodeEngineCode({ packageId, tabId, version }) {
   return executeInPage(
     async (packageId, version) => {
-      try {
-        // If no version provided, read from the page's version selector
-        // (works on the code engine page itself)
-        if (!version) {
-          const container = document.querySelector('div[class*="module_packageControls"]');
-          const input = container?.querySelector('input[class*="SelectListInputComponent"]');
-          if (input) {
-            const versionMatch = input.value.match(/^Version\s+(\d+\.\d+\.\d+)$/);
-            if (versionMatch) {
-              version = versionMatch[1];
-            }
+      // If no version provided, read from the page's version selector
+      // (works on the code engine page itself)
+      if (!version) {
+        const container = document.querySelector('div[class*="module_packageControls"]');
+        const input = container?.querySelector('input[class*="SelectListInputComponent"]');
+        if (input) {
+          const versionMatch = input.value.match(/^Version\s+(\d+\.\d+\.\d+)$/);
+          if (versionMatch) {
+            version = versionMatch[1];
           }
         }
-
-        if (!version) {
-          throw new Error('Could not determine package version');
-        }
-
-        const response = await fetch(`/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch package code. HTTP status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        return { code: data.code, version };
-      } catch (error) {
-        console.error('Error fetching code engine code:', error);
-        throw error;
       }
+
+      if (!version) {
+        throw new Error('Could not determine package version');
+      }
+
+      const response = await fetch(`/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch package code. HTTP status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return { code: data.code, version };
     },
     [packageId, version],
     tabId

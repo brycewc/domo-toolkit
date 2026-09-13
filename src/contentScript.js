@@ -56,7 +56,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Apply favicon on initial load
 (async () => {
-  // console.log('[ContentScript] Initialized, applying favicon');
   await applyFavicon();
 
   // Title will be updated when we receive tab context from background

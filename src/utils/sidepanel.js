@@ -107,7 +107,6 @@ export async function showStatus({
     onComplete?.();
   } else {
     // If we're in the popup, send message to sidepanel
-    console.log('[pageHelpers] Sending SHOW_STATUS message to sidepanel');
     try {
       await chrome.runtime.sendMessage({
         description,
@@ -116,10 +115,8 @@ export async function showStatus({
         title,
         type: 'SHOW_STATUS'
       });
-      console.log('[pageHelpers] SHOW_STATUS message sent successfully');
       onComplete?.();
-    } catch (error) {
-      console.log('[pageHelpers] SHOW_STATUS message failed, showing in popup instead:', error);
+    } catch {
       // If sidepanel is not open, show in popup instead
       onStatusUpdate?.(title, description, status, timeout);
       onComplete?.();
@@ -203,7 +200,6 @@ export async function storeSidepanelData(options) {
   };
 
   const key = sidepanelStorageKey(windowId, effectiveInstance);
-  console.log(`[storeSidepanelData] Storing data for window ${windowId}, instance ${effectiveInstance}:`, data);
   try {
     await chrome.storage.session.set({ [key]: data });
   } catch (error) {

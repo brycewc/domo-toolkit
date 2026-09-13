@@ -28,8 +28,6 @@ export async function waitForCards(currentContext, maxAttempts = 50) {
   const allResolved = () => isSet(cards) && (!hasFormsAndQueues || (isSet(forms) && isSet(queues)));
 
   if (!allResolved()) {
-    console.log('[cardHelpers] Page items not yet loaded, waiting...');
-
     let attempts = 0;
 
     while (attempts < maxAttempts) {
@@ -54,16 +52,12 @@ export async function waitForCards(currentContext, maxAttempts = 50) {
         }
 
         if (allResolved()) {
-          console.log(
-            `[cardHelpers] Page items loaded: ${cards?.length || 0} cards, ${forms?.length || 0} forms, ${queues?.length || 0} queues`
-          );
           break;
         }
       }
     }
 
     if (!allResolved()) {
-      console.log('[cardHelpers] Timeout waiting for page items');
       return {
         cards: cards || [],
         error: 'Timeout while checking for page items. Please try again.',

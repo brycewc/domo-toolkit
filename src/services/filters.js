@@ -129,10 +129,6 @@ export async function getAllFilters({ cardId = null, pageId, tabId = null }) {
   });
   const allFilters = dedupeFiltersByName(namedFilters, legacyColumnByFilter);
 
-  if (allFilters.length > 0) {
-    console.log(`[Domo] Captured ${allFilters.length} filter(s):`, allFilters.map((f) => f.column).join(', '));
-  }
-
   return {
     allFilters,
     angularFilters,
@@ -547,8 +543,8 @@ export async function getAppStudioFilters(tabId = null) {
                   });
                 });
               }
-            } catch (e) {
-              console.log('Error in menuSelectors forEach:', e.message);
+            } catch {
+              // Ignore a scope that doesn't expose the shape we probe for
             }
           });
         });
@@ -571,8 +567,8 @@ export async function getAppStudioFilters(tabId = null) {
                 });
               }
             });
-          } catch (e) {
-            console.log('Error in allWithScope forEach:', e.message);
+          } catch {
+            // Ignore a scope that doesn't expose the shape we probe for
           }
         }
 
@@ -1270,8 +1266,8 @@ async function isAppStudioPage(tabId = null) {
           currentWindow: true
         });
         currentUrl = tab?.url || '';
-      } catch (e) {
-        console.log('Error in isAppStudioPage:', e.message);
+      } catch {
+        currentUrl = '';
       }
     }
 
@@ -1318,8 +1314,8 @@ async function isAppStudioPage(tabId = null) {
               if (appStudioElementCount >= 2) break;
             }
           }
-        } catch (e) {
-          console.log('Error in appStudioElementCount forEach:', e.message);
+        } catch {
+          // Selector probing is best-effort; keep whatever count we reached
         }
 
         detection.checks.appStudioElementCount = appStudioElementCount;

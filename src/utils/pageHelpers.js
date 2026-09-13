@@ -81,8 +81,6 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
     // 3. [...]: Has pages
 
     if (childPages === undefined || childPages === null) {
-      console.log(`[pageHelpers] ${propertyName} not yet loaded, waiting...`);
-
       // Poll for pages to be loaded (max 5 seconds by default)
       let attempts = 0;
 
@@ -98,13 +96,11 @@ export async function waitForChildPages(currentContext, maxAttempts = 50) {
 
         if (response?.success && response?.context?.domoObject?.metadata?.context?.[propertyName] !== undefined) {
           childPages = response.context.domoObject.metadata.context[propertyName];
-          console.log(`[pageHelpers] ${propertyName} loaded:`, childPages?.length || 0);
           break;
         }
       }
 
       if (childPages === undefined || childPages === null) {
-        console.log(`[pageHelpers] Timeout waiting for ${propertyName}`);
         return {
           childPages: null,
           error: `Timeout while checking for ${objectType === 'PAGE' ? 'child pages' : 'pages'}. Please try again.`,
