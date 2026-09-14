@@ -56,7 +56,9 @@ export function Export({ currentContext, isDisabled }) {
       const packageId = isCEVersion ? currentContext?.domoObject?.parentId : currentContext?.domoObject?.id;
       if (!packageId) return;
 
-      const name = currentContext.domoObject.metadata?.name || 'code-engine-package';
+      const metadata = currentContext.domoObject.metadata;
+      const name = metadata?.name || 'code-engine-package';
+      const packageName = (isCEVersion ? metadata?.parent?.name : metadata?.name) || 'code-engine-package';
 
       const exportPromise = getCodeEngineCode({
         packageId,
@@ -73,7 +75,7 @@ export function Export({ currentContext, isDisabled }) {
         const blob = new Blob([formatted], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        const fileName = `${name}_v${version}.${ext}`;
+        const fileName = `${packageName}_v${version}.${ext}`;
         link.href = url;
         link.download = fileName;
         document.body.appendChild(link);

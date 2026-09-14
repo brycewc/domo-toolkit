@@ -83,6 +83,7 @@
 - The Activity Log DataSet ID in Per-Instance Settings is now a link that opens that dataset in a new tab.
 - The side panel now closes when you open the extension settings from it.
 - Delete Unused Beast Modes now shows its delete progress on the Delete button instead of above the list, and lists its results directly instead of under a "Beast Modes" or "Variables" header when only one of the two was found.
+- A Code Engine Package version is now named with a "v" on its version number, like "Domo Certified Attributes - v1.0.1".
 
 ### Alerts and Toasts
 
@@ -117,6 +118,7 @@
 - A dataflow's last run time in Lineage now includes the year when the run wasn't this year.
 - The tab title on an alert now shows the alert's name instead of "Alerts Management" or the dataset's name.
 - Actions that depend on your permissions no longer stay hidden on a tab the extension couldn't read your account on when it loaded.
+- Download Code on a Code Engine Package version no longer repeats the version number in the file name.
 
 ### Activity Log
 

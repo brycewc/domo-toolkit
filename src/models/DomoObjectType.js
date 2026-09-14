@@ -647,7 +647,7 @@ export const ObjectTypeRegistry = {
   }),
   CODEENGINE_PACKAGE_VERSION: new DomoObjectType('CODEENGINE_PACKAGE_VERSION', 'Code Engine Package Version', {
     api: {
-      displayName: '{parent.name} - {id}',
+      displayName: '{parent.name} - v{id}',
       endpoint: '/codeengine/v2/packages/{parent}/versions/{id}?parts=functions,privateFunctions',
       nameFromDisplayName: true,
       paths: { name: 'version' }
