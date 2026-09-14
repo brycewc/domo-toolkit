@@ -15,7 +15,11 @@ import { deleteAppAndAllContent } from '@/services/customApps';
 import { deleteDataflowAndOutputs, deleteDataflowWithInputsAndOutputs } from '@/services/dataflows';
 import { deleteDataset } from '@/services/datasets';
 import { deleteObject } from '@/services/deleteObject';
-import { getDependenciesForDelete, withExtraDependencyGroups } from '@/services/dependencies';
+import {
+  getDependenciesForDelete,
+  withExtraDependencyGroups,
+  withInputJupyterWorkspaceUsage
+} from '@/services/dependencies';
 import { getJupyterWorkspacesForDatasets } from '@/services/jupyterWorkspaces';
 import { deletePageAndAllCards } from '@/services/pages';
 import { voidTaskCenterTask } from '@/services/taskCenter';
@@ -53,12 +57,16 @@ import { DataList } from './DataList';
  *
  * `onDemandChecks` declares lookups too expensive to run on open, each offered as
  * a prompt with a button instead. An entry needs a `key`, the `buttonLabel`,
- * `promptTitle` and `promptDescription` for the prompt, a `run({ context })` that
- * resolves to the found items, and a `toGroups({ context, items })` returning
- * dependency groups in the same shape a fetcher produces. A check's groups fold
- * into the loaded result once it finishes, so they list, count, and block exactly
- * like the automatic ones. An optional `available({ context })` withholds the
- * prompt from an object the check could never find anything for.
+ * `promptTitle` and `promptDescription` for the prompt, a `run({ context, deps })`
+ * that resolves to the found items, and a `toGroups({ context, deps, items })`
+ * returning dependency groups in the same shape a fetcher produces. A check's
+ * groups fold into the loaded result once it finishes, so they list, count, and
+ * block exactly like the automatic ones. An optional `amend({ context, deps,
+ * items, result })` returns a whole amended result, for a finding that changes a
+ * row the automatic check already produced rather than adding one of its own. An
+ * optional `available({ context, deps })` withholds the prompt from an object the
+ * check could never find anything for. `deps` throughout is the automatic result,
+ * which is why the prompt's button waits for that to land.
  *
  * A type whose removal isn't a deletion overrides the view's verb with `feature`
  * (the header), `actionIcon` (header and buttons), `confirmActionLabel` (the
@@ -138,7 +146,7 @@ const deletersByType = {
     confirmSuffix: '',
     onDemandChecks: [
       jupyterWorkspacesCheck({
-        datasetsFor: (context) => [{ id: context.domoObject.id, name: context.domoObject.metadata?.name }],
+        datasetsFor: ({ context }) => [{ id: context.domoObject.id, name: context.domoObject.metadata?.name }],
         groupLabel: () => 'Jupyter Workspaces'
       })
     ],
@@ -250,13 +258,18 @@ const deletersByType = {
     onDemandChecks: [
       {
         ...jupyterWorkspacesCheck({
-          datasetsFor: (context) =>
-            (context.domoObject.metadata?.details?.outputs || [])
+          // Searched alongside the outputs are the connector inputs the alternate
+          // delete offers, which is the list the dependency check narrowed to.
+          datasetsFor: ({ context, deps }) => [
+            ...(context.domoObject.metadata?.details?.outputs || [])
               .filter((output) => output.dataSourceId)
               .map((output) => ({ id: output.dataSourceId, name: output.dataSourceName || output.dataSourceId })),
+            ...findDataflowInputs(deps).map((input) => ({ id: input.id, name: input.label }))
+          ],
           groupLabel: () => 'Jupyter Workspaces'
         }),
-        available: ({ context }) => (context.domoObject.metadata?.details?.outputs?.length || 0) > 0
+        available: ({ context, deps }) =>
+          (context.domoObject.metadata?.details?.outputs?.length || 0) > 0 || findDataflowInputs(deps).length > 0
       }
     ],
     primaryLabel: ({ outputCount }) => (outputCount > 0 ? 'Delete DataFlow and All Outputs' : 'Delete DataFlow'),
@@ -717,22 +730,22 @@ export function DeleteObjectView({
     }
   };
 
+  // What the check found is kept raw rather than as finished groups: the
+  // automatic result it folds into keeps changing (the deferred pass lands, a
+  // refresh replaces it), and the groups have to be rebuilt against the latest.
   const runCheck = async (check) => {
     if (!currentContext) return;
-    setCheckResults((prev) => ({ ...prev, [check.key]: { error: null, groups: [], status: 'loading' } }));
+    setCheckResults((prev) => ({ ...prev, [check.key]: { error: null, items: [], status: 'loading' } }));
     try {
-      const items = await check.run({ context: currentContext });
+      const items = await check.run({ context: currentContext, deps: autoDeps });
       if (!mountedRef.current) return;
-      setCheckResults((prev) => ({
-        ...prev,
-        [check.key]: { error: null, groups: check.toGroups({ context: currentContext, items }), status: 'loaded' }
-      }));
+      setCheckResults((prev) => ({ ...prev, [check.key]: { error: null, items, status: 'loaded' } }));
     } catch (error) {
       console.error(`[DeleteObjectView] Error running the ${check.key} check:`, error);
       if (!mountedRef.current) return;
       setCheckResults((prev) => ({
         ...prev,
-        [check.key]: { error: error.message || 'The check failed', groups: [], status: 'error' }
+        [check.key]: { error: error.message || 'The check failed', items: [], status: 'error' }
       }));
     }
   };
@@ -751,17 +764,19 @@ export function DeleteObjectView({
   };
 
   const onDemandChecks = (config?.onDemandChecks || []).filter(
-    (check) => !check.available || (currentContext && check.available({ context: currentContext }))
+    (check) => !check.available || (currentContext && check.available({ context: currentContext, deps: autoDeps }))
   );
   // What a finished opt-in check found joins the automatic result, so its groups
-  // list, count, and block the same way every other group does.
-  const deps = onDemandChecks.reduce(
-    (merged, check) =>
-      checkResults[check.key]?.status === 'loaded'
-        ? withExtraDependencyGroups(merged, checkResults[check.key].groups)
-        : merged,
-    autoDeps
-  );
+  // list, count, and block the same way every other group does. A check may also
+  // `amend` the groups already there, for a finding that changes a row the
+  // automatic check produced rather than adding one of its own.
+  const deps = onDemandChecks.reduce((merged, check) => {
+    const result = checkResults[check.key];
+    if (result?.status !== 'loaded') return merged;
+    const params = { context: currentContext, deps: autoDeps, items: result.items };
+    const withGroups = withExtraDependencyGroups(merged, check.toGroups(params));
+    return check.amend ? check.amend({ ...params, result: withGroups }) : withGroups;
+  }, autoDeps);
   const runningCheck = onDemandChecks.find((check) => checkResults[check.key]?.status === 'loading') ?? null;
 
   const performDelete = (action) => {
@@ -906,7 +921,9 @@ export function DeleteObjectView({
   const pickerAncestors = selectionScope ? collectPickerAncestors(dependencyItems, selectionScope) : new Map();
   // State holds picker rows only; an ancestor's checkbox is derived from whether
   // every selectable row under it is ticked, so the two can never disagree.
-  const shownSelection = new Set(selectedInputIds);
+  // A row an opt-in check has since ruled out stays in state but is no longer
+  // shown ticked, so its disabled checkbox can't read as still selected.
+  const shownSelection = new Set([...selectedInputIds].filter((id) => selectionScope?.eligibleIds.has(id)));
   for (const [ancestorId, { eligible }] of pickerAncestors) {
     if (eligible.length > 0 && eligible.every((rowId) => selectedInputIds.has(rowId))) shownSelection.add(ancestorId);
   }
@@ -968,7 +985,14 @@ export function DeleteObjectView({
   const checkBanners = onDemandChecks
     .map((check) => ({
       isRunning: checkResults[check.key]?.status === 'loading',
-      node: renderCheckBanner({ check, onRun: () => runCheck(check), result: checkResults[check.key] })
+      node: renderCheckBanner({
+        check,
+        // A check can search what the automatic one turned up, so starting it
+        // early would search an incomplete list and report a clean result.
+        isWaitingForDeps: isLoadingDeps || !autoDeps,
+        onRun: () => runCheck(check),
+        result: checkResults[check.key]
+      })
     }))
     .filter((entry) => entry.node);
   // A check still running is progress, not a notice, so its spinner stays out of
@@ -1459,17 +1483,29 @@ function jupyterUsageChip({ inputAliases, outputAliases }) {
  */
 function jupyterWorkspacesCheck({ datasetsFor, groupLabel }) {
   return {
+    // A Jupyter Workspace using an input dataset is one more thing that breaks
+    // if the alternate delete takes it, so it counts against that input exactly
+    // as a card or dataflow using it does. A type with no input rows is untouched.
+    amend: ({ items, result }) => {
+      const jupyterWorkspaceCounts = {};
+      for (const workspace of items) {
+        for (const datasetId of workspace.datasetIds) {
+          jupyterWorkspaceCounts[String(datasetId)] = (jupyterWorkspaceCounts[String(datasetId)] || 0) + 1;
+        }
+      }
+      return withInputJupyterWorkspaceUsage(result, jupyterWorkspaceCounts);
+    },
     buttonLabel: 'Check Jupyter Workspaces',
     key: 'jupyterWorkspaces',
     promptDescription: 'Finding them means reading every Jupyter Workspace in the instance, so it only runs when you ask.',
     promptTitle: "Jupyter Workspaces Aren't Searched Automatically",
-    run: ({ context }) =>
+    run: ({ context, deps }) =>
       getJupyterWorkspacesForDatasets(
-        datasetsFor(context).map((dataset) => dataset.id),
+        datasetsFor({ context, deps }).map((dataset) => dataset.id),
         context.tabId
       ),
-    toGroups: ({ context, items }) => {
-      const datasets = datasetsFor(context);
+    toGroups: ({ context, deps, items }) => {
+      const datasets = datasetsFor({ context, deps });
       const nameById = new Map(datasets.map((dataset) => [String(dataset.id), dataset.name]));
       return [
         {
@@ -1503,11 +1539,12 @@ function jupyterWorkspacesCheck({ datasetsFor, groupLabel }) {
  * are then in the list itself.
  * @param {Object} params
  * @param {Object} params.check - The `onDemandChecks` entry
+ * @param {boolean} params.isWaitingForDeps - Whether the automatic check is still running
  * @param {Function} params.onRun - Starts the check
  * @param {{error: string|null, status: string}} [params.result] - Its state, absent until first run
  * @returns {JSX.Element|null}
  */
-function renderCheckBanner({ check, onRun, result }) {
+function renderCheckBanner({ check, isWaitingForDeps, onRun, result }) {
   if (result?.status === 'loaded') return null;
 
   if (result?.status === 'loading') {
@@ -1544,7 +1581,7 @@ function renderCheckBanner({ check, onRun, result }) {
           {check.promptTitle}
         </Alert.Title>
         <Alert.Description>{check.promptDescription}</Alert.Description>
-        <Button fullWidth className='mt-2' size='sm' variant='secondary' onPress={onRun}>
+        <Button fullWidth className='mt-2' isDisabled={isWaitingForDeps} size='sm' variant='secondary' onPress={onRun}>
           <IconSync />
           {check.buttonLabel}
         </Button>

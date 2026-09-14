@@ -259,6 +259,12 @@ function countDependencyGroups(allGroups) {
   return { blockingCount, blockingReason, groups, totalCount };
 }
 
+function dataflowInputsAnnotation(deletableCount) {
+  return deletableCount > 0
+    ? 'Only the alternate delete removes these, and only the ones you check.'
+    : 'All of these are used elsewhere, so nothing here can be deleted with the DataFlow.';
+}
+
 /**
  * Shared fetcher for app pages, used by both `DATA_APP_VIEW` and
  * `WORKSHEET_VIEW`. Reports cards on this page (lost in the primary delete)
@@ -968,10 +974,7 @@ const FETCHERS = {
           };
         });
         groups.push({
-          annotation:
-            deletableIds.length > 0
-              ? 'Only the alternate delete removes these, and only the ones you check.'
-              : 'All of these are used elsewhere, so nothing here can be deleted with the DataFlow.',
+          annotation: dataflowInputsAnnotation(deletableIds.length),
           blocking: false,
           deletableIds,
           deleted: false,
@@ -1489,4 +1492,47 @@ export function withExtraDependencyGroups(result, groups) {
     ...result,
     ...countDependencyGroups([...(result.groups || []), ...groups])
   };
+}
+
+/**
+ * Fold Jupyter Workspace usage into the connector input rows. An input a
+ * Jupyter Workspace reads or writes is used elsewhere, so it stops being
+ * offered for deletion and its other-dependency count grows, exactly as a card
+ * or dataflow using it would. A result with no input group (every type but a
+ * dataflow's) comes back untouched.
+ * @param {Object} result - A result from `getDependenciesForDelete`
+ * @param {Object<string, number>} jupyterWorkspaceCounts - Jupyter Workspaces per input dataset ID
+ * @returns {Object} The amended result
+ */
+export function withInputJupyterWorkspaceUsage(result, jupyterWorkspaceCounts) {
+  const groups = result?.groups || [];
+  const index = groups.findIndex((g) => g.key === 'dataflowInputs');
+  if (index < 0) return result;
+
+  const group = groups[index];
+  const unselectableReasons = { ...(group.unselectableReasons || {}) };
+  const items = group.items.map((item) => {
+    const used = jupyterWorkspaceCounts[String(item.id)] || 0;
+    if (used === 0) return item;
+    // A row already off limits keeps the reason it has: it names the uses that
+    // ruled it out first, and the count beside it covers the workspaces too.
+    if (!unselectableReasons[String(item.id)]) {
+      unselectableReasons[String(item.id)] = `Also used by ${used} Jupyter Workspace${used !== 1 ? 's' : ''}.`;
+    }
+    // An unverified count stays absent rather than becoming a total that was
+    // only partly counted.
+    if (item.count == null) return item;
+    return { ...item, ...countBadge(item.count + used, 'other dependency', 'other dependencies') };
+  });
+  const deletableIds = items.map((item) => String(item.id)).filter((id) => !unselectableReasons[id]);
+
+  const nextGroups = [...groups];
+  nextGroups[index] = {
+    ...group,
+    annotation: dataflowInputsAnnotation(deletableIds.length),
+    deletableIds,
+    items,
+    unselectableReasons
+  };
+  return { ...result, groups: nextGroups };
 }
