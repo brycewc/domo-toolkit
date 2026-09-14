@@ -41,7 +41,7 @@
 
 ### Delete
 
-- DataSets now support Delete, listing the cards, Alerts, Beast Modes, and PDP policies that go with one along with the DataFlow that produces it, and blocking the delete while a DataSet View is built on it.
+- DataSets other than a DataFlow's outputs now support Delete, listing the cards, Alerts, Beast Modes, and PDP policies that go with one, and blocking the delete while a DataSet View is built on it.
 - Deleting a DataSet or DataFlow can now search for the Jupyter Workspaces that read or write it when you press Check Jupyter Workspaces, and names the places the dependency check doesn't look, such as Workflows, Code Engine Packages, and Domo Everywhere Publications.
 - Deleting a DataFlow and its inputs now lets you pick which inputs go, says why an input can't be deleted with it, and lists the Beast Modes on its output DataSets.
 - Deleting a Workflow now lists the DataSets, forms, Task Center queues, Code Engine Packages, subflows, pages, and Jupyter Workspaces it uses, and names anything the check couldn't read.

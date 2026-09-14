@@ -830,6 +830,19 @@ export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
 }
 
 /**
+ * Whether a DATA_SOURCE is a DataFlow's output.
+ *
+ * Note the casing: the bulk datasources endpoint reports a DataFlow output as
+ * `DataFlow` while the single-datasource endpoint reports `dataflow`, so the
+ * comparison has to be case-insensitive to work against both.
+ * @param {Object} details - A datasource object, or a `metadata.details` object
+ * @returns {boolean}
+ */
+export function isDataflowOutput(details) {
+  return details?.type?.toLowerCase() === 'dataflow';
+}
+
+/**
  * Check if a DATA_SOURCE is a data fusion
  * @param {Object} details - The metadata.details object
  * @returns {boolean}
@@ -840,19 +853,14 @@ export function isFusionType(details) {
 }
 
 /**
- * Whether a DATA_SOURCE is produced inside Domo by a transform (a dataflow's
+ * Whether a DATA_SOURCE is produced inside Domo by a transform (a DataFlow's
  * output, a dataset view, or a fusion) rather than loaded from a source.
- *
- * Note the casing: the bulk datasources endpoint reports a dataflow output as
- * `DataFlow` while the single-datasource endpoint reports `dataflow`, so the
- * comparison has to be case-insensitive to work against both.
  * @param {Object} details - A datasource object, or a `metadata.details` object
  * @returns {boolean}
  */
 export function isTransformDataset(details) {
   if (!details) return false;
-  if (details.type?.toLowerCase() === 'dataflow') return true;
-  return isViewOrFusionType(details);
+  return isDataflowOutput(details) || isViewOrFusionType(details);
 }
 
 /**

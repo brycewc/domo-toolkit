@@ -685,7 +685,7 @@ const FETCHERS = {
   // Only a view built on the dataset blocks, since that is the one case Domo
   // itself rejects. Everything else either goes with the dataset or survives it
   // and breaks, which is listed rather than gated.
-  DATA_SOURCE: async ({ id, metadata, origin, parentId }, tabId) => {
+  DATA_SOURCE: async ({ id, origin }, tabId) => {
     const [rawCards, alerts, functions, pdpPolicies, downstream, lineage] = await Promise.all([
       getDownstreamCardsRaw(id, tabId).catch(() => []),
       getDownstreamAlertsForDatasets([id], tabId).catch(() => []),
@@ -704,10 +704,6 @@ const FETCHERS = {
     const impacts = getDatasetImpactCounts({ datasetIds: viewIds, tabId }).catch(() => ({}));
 
     const readingDataflows = lineage.dataflows || [];
-    const producer =
-      metadata?.details?.type?.toLowerCase() === 'dataflow' && parentId
-        ? { id: parentId, name: metadata.parent?.name || `DataFlow ${parentId}` }
-        : null;
 
     // A view is the only hard stop: Domo refuses to delete a DataSet one is
     // built on. An output whose views couldn't be read blocks too, so an
@@ -826,25 +822,6 @@ const FETCHERS = {
           })),
           key: 'readingDataflows',
           label: 'Child DataFlows'
-        });
-      }
-
-      if (producer) {
-        groups.push({
-          annotation: 'Parent dataflows break when an output dataset is deleted.',
-          blocking: false,
-          deleted: false,
-          flat: true,
-          items: [
-            {
-              id: producer.id,
-              label: producer.name,
-              typeId: 'DATAFLOW_TYPE',
-              url: `${origin}/datacenter/dataflows/${producer.id}/details`
-            }
-          ],
-          key: 'producingDataflow',
-          label: 'Parent DataFlow'
         });
       }
 

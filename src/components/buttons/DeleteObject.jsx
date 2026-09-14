@@ -2,6 +2,7 @@ import { Button, Tooltip } from '@heroui/react';
 
 import { DisabledTooltip } from '@/components/DisabledTooltip';
 import { useLaunchView } from '@/hooks/useLaunchView';
+import { isDataflowOutput } from '@/services/datasets';
 import { isCodeEngineInWorkflow } from '@/utils/availableActions';
 import IconCancel from '@icons/cancel.svg?react';
 import IconTrash from '@icons/trash.svg?react';
@@ -35,6 +36,9 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
 
   const isInWorkflow = isCodeEngineInWorkflow(currentContext);
   const isVoid = typeId === 'HOPPER_TASK';
+
+  const isDataflowOutputDataset =
+    typeId === 'DATA_SOURCE' && isDataflowOutput(currentContext?.domoObject?.metadata?.details);
 
   // A task's status is only known once its details load, and the workflow
   // user-task-response page carries no queue to load them with, so an unknown
@@ -93,6 +97,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
     !currentContext?.domoObject ||
     !SUPPORTED_TYPES.includes(typeId) ||
     (typeId === 'DATAFLOW_TYPE' && currentContext?.domoObject?.metadata?.details?.deleted === true) ||
+    isDataflowOutputDataset ||
     isInWorkflow ||
     !!closedTaskReason ||
     isDeleteForbidden;
@@ -106,13 +111,15 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
         ? `Delete isn't supported for ${typeName}s`
         : typeId === 'DATAFLOW_TYPE' && currentContext?.domoObject?.metadata?.details?.deleted === true
           ? 'This dataflow is already deleted'
-          : isInWorkflow
-            ? 'Open the Code Engine package itself to delete it'
-            : closedTaskReason
-              ? closedTaskReason
-              : isDeleteForbidden
-                ? `You don't have permission to delete this ${typeName}`
-                : null;
+          : isDataflowOutputDataset
+            ? 'You can delete a dataflow output using the extension from the dataflow itself'
+            : isInWorkflow
+              ? 'Open the code engine package itself to delete it'
+              : closedTaskReason
+                ? closedTaskReason
+                : isDeleteForbidden
+                  ? `You don't have permission to delete this ${typeName}`
+                  : null;
 
   const ActionIcon = isVoid ? IconCancel : IconTrash;
 

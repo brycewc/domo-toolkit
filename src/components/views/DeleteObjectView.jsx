@@ -149,7 +149,7 @@ const deletersByType = {
       await redirectTabIfViewingObject({
         ids: [context.domoObject.id],
         tabId: context.tabId,
-        url: `${origin}/datacenter/datasets`
+        url: `${origin}/datacenter/datasources`
       });
       return { success: true };
     },

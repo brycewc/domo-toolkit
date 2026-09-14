@@ -1,5 +1,5 @@
 import { getAccountIdsForDomoObject } from '@/services/accounts';
-import { isViewOrFusionType } from '@/services/datasets';
+import { isDataflowOutput, isViewOrFusionType } from '@/services/datasets';
 import { pathnameOf } from '@/utils/general';
 import { isSupportUser } from '@/utils/supportMode';
 
@@ -250,7 +250,8 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
   // Routing key for the Delete view's reload action (not consumed by any button;
   // the Delete control lives outside getAvailableActions). Mirrors the object
   // types DeleteObjectView's `deletersByType` knows how to remove, including the
-  // ones it voids rather than deletes.
+  // ones it voids rather than deletes, minus the gates DeleteObject applies: a
+  // DataFlow output goes through the DataFlow that produces it.
   if (
     [
       'APP',
@@ -270,6 +271,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
       'WORKFLOW_MODEL',
       'WORKSHEET_VIEW'
     ].includes(typeId) &&
+    !(typeId === 'DATA_SOURCE' && isDataflowOutput(details)) &&
     !isCodeEngineInWorkflow(currentContext)
   ) {
     actions.add('deleteObject');

@@ -46,8 +46,8 @@ export function ViewHeader({
   const hasTitleRow = featureIcon || feature || subject;
   const hasSubtextRow = beta || subtext || subtextTypeId || actions?.length > 0;
   // The tooltip names the subject's type so the icon's meaning is spelled out in
-  // text (e.g. "Cards for dataset Sales" rather than "Cards for Sales").
-  const subjectTypeName = subject && subjectTypeId ? getObjectType(subjectTypeId)?.name?.toLowerCase() : null;
+  // text (e.g. "Cards for DataSet Sales" rather than "Cards for Sales").
+  const subjectTypeName = subject && subjectTypeId ? getObjectType(subjectTypeId)?.name : null;
   const tooltipTitle = [feature, subjectTypeName, subject].filter(Boolean).join(' ');
 
   return (
