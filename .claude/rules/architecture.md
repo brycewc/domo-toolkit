@@ -93,7 +93,7 @@ does the registration and re-detects local tabs either way.
 ## Core Models
 
 - **DomoContext** (`src/models/DomoContext.js`) — Tab's full context (tabId, URL, instance, origin, detected object). Serializable via `toJSON()`/`fromJSON()`.
-- **DomoObject** (`src/models/DomoObject.js`) — A Domo object (Card, Page, DataSet, etc.) with ID, type, metadata, URL. Methods: `buildUrl()`, `navigateTo()`, `getParent()`, `toJSON()`, `fromJSON()`.
+- **DomoObject** (`src/models/DomoObject.js`): a Domo object (card, page, dataset, etc.) with ID, type, metadata, URL. Methods: `buildUrl()`, `navigateTo()`, `getParent()`, `toJSON()`, `fromJSON()`.
 - **DomoObjectType** (`src/models/DomoObjectType.js`) — Registry of ~100+ types with URL patterns, ID validation, API configs. Each type has: `id`, `name`, `urlPath`, `idPattern`, `extractConfig`, `api`, `parents`.
 
 ## Executing Code in Page Context

@@ -1,6 +1,50 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
+ * Create the Approval Center dataset for an approval template.
+ * @param {Object} params
+ * @param {string} params.templateId - The approval template ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure or a
+ *   response that did not report the dataset as created
+ */
+export async function createTemplateDataset({ tabId = null, templateId }) {
+  const result = await executeInPage(
+    async (templateId) => {
+      // This mutation was captured in the batched (single-element array) form, so
+      // the response comes back as an array too.
+      const response = await fetch('/api/synapse/approval/graphql', {
+        body: JSON.stringify([
+          {
+            operationName: 'createTemplateDataset',
+            query:
+              'mutation createTemplateDataset($templateId: ID!) {\n  createTemplateDataset(templateId: $templateId)\n}',
+            variables: { templateId }
+          }
+        ]),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST'
+      });
+      if (!response.ok) return { error: `HTTP ${response.status}`, ok: false };
+      const json = await response.json();
+      const payload = Array.isArray(json) ? json[0] : json;
+      if (payload?.errors?.length) {
+        return { error: payload.errors[0]?.message || 'Create dataset failed', ok: false };
+      }
+      // The mutation resolves to Boolean!, so a false is the failure signal and
+      // there is no new dataset ID to read back.
+      if (payload?.data?.createTemplateDataset !== true) {
+        return { error: 'Create dataset failed', ok: false };
+      }
+      return { ok: true };
+    },
+    [templateId],
+    tabId
+  );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to create the dataset');
+}
+
+/**
  * Archive (soft-delete) an approval template.
  * @param {Object} params
  * @param {string} params.templateId - The approval template ID

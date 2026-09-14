@@ -154,6 +154,14 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     }
   }
 
+  if (
+    typeId === 'TEMPLATE' &&
+    !details?.datasetId &&
+    (metadata?.isOwner || userRights.includes('approvalcenter.admin'))
+  ) {
+    actions.add('sync');
+  }
+
   if (typeId === 'WORKFLOW_MODEL_VERSION' && !details?.deletedAt && !details?.releasedAt) {
     actions.add('updateWorkflowActionVersions');
   }

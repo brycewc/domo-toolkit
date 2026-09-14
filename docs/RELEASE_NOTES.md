@@ -7,6 +7,7 @@
 - Open All now warns when a list has more than 50 items and opens only the first 50.
 - Share All is now much faster on a long list of pages, App Studio Apps, or Worksheets.
 - The API Errors list now includes Magic ETL preview failures.
+- An approval template with no dataset now has a Create DataSet button.
 
 ### Reports
 

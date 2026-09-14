@@ -17,7 +17,7 @@ Concrete example: when designing UpdateDetails for datasets, `name` and `descrip
 
 ## Working with Claude
 
-This project is maintained by a solo developer. **All durable AI guidance must live in git-tracked files**, primarily this `CLAUDE.md`, plus the `.claude/rules/*.md` rules listed in [Rules & Skills Directory](#rules--skills-directory). If the user gives you guidance worth remembering across sessions, capture it here.
+This project is maintained by a solo developer. **All durable AI guidance must live in git-tracked files**, primarily this `CLAUDE.md`, plus the `.claude/rules/*.md` rules listed in [Rules & Skills Directory](#rules--skills-directory). If the user gives you guidance worth remembering across sessions, capture it in the appropriate git-tracked file.
 
 ### Behavioral overrides
 
@@ -58,6 +58,7 @@ Claude Code auto-loads every `.md` in `.claude/rules/`. Rules with a `paths:` fr
 | ------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `code-style.md`           | `.js`/`.jsx` files     | ESLint + Prettier sorting/formatting spec. **Always run `npx eslint --no-warn-ignored <file>` after edits.** |
 | `architecture.md`         | Core source files      | Extension contexts, message flow, core models, `executeInPage()`, services pattern, detection flow           |
+| `object-type-names.md`    | Always                 | Casing for Domo object type names in prose and in identifiers: `dataset` vs `DataSet`, never `dataSet`       |
 | `wip-release-notes.md`    | Always                 | Auto-update `docs/RELEASE_NOTES.md` WIP list after every notable change without being asked                  |
 | `local-testing.md`        | Always                 | Localhost dev routes + the CRXJS dev extension (HMR on all surfaces) for testing UI before claiming success  |
 | `domo-apis.md`            | Always                 | Use Postman MCP to look up Domo API endpoints before writing API calls                                       |
@@ -78,12 +79,3 @@ Skills are not auto-loaded; they are invoked by name when the work matches their
 | ------------------ | --------------------------------------- |
 | `/domo-debug`      | Outputs browser console debug utilities |
 | `/prepare-release` | Walks through full release checklist    |
-
-## Code Conventions (quick reference)
-
-- Functional components only, React 19 (no `forwardRef`)
-- Tailwind utility classes only (no inline styles)
-- ES6 model classes must implement `toJSON()` and `static fromJSON()` for message passing
-- OKLch colors via CSS variables: use `var(--color-*)` in DOM, only resolve in JS when needed for canvas/math
-- Custom hooks in `src/hooks/`
-- See `code-style.md` for full formatting spec

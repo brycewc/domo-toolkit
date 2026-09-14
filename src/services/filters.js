@@ -30,7 +30,7 @@ export function buildPfilterUrl(baseUrl, objectId, filters) {
     if (Array.isArray(filters) && filters.length > 0) {
       // Drop dataSetId, then collapse the duplicate bare entries that stripping
       // per-dataset variants of the same column can produce.
-      const bareFilters = dedupeFilters(filters.map(stripDataSetId));
+      const bareFilters = dedupeFilters(filters.map(stripDatasetId));
       const encoded = encodeFilters(bareFilters);
       urlObj.searchParams.set('pfilters', decodeURIComponent(encoded));
     }
@@ -1432,7 +1432,7 @@ async function resolveBeastModeFilterNames(filters, { cardId, pageId, tabId }) {
  * @param {Object} filter - Pfilter object that may carry dataSetId/dataSourceId
  * @returns {Object} A new filter object without dataset-scoping keys
  */
-function stripDataSetId(filter) {
+function stripDatasetId(filter) {
   if (!filter || (filter.dataSetId === undefined && filter.dataSourceId === undefined)) {
     return filter;
   }
