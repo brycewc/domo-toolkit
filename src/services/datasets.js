@@ -168,6 +168,33 @@ export async function getDatasetColumns({ datasetId, tabId }) {
 }
 
 /**
+ * Get how a derived dataset is built. A data model, a view and a fusion each put
+ * their definition in a different node of the one indexed-schema response, so
+ * this drops the column list rather than picking a node, staying correct for any
+ * node Domo adds later.
+ * @param {Object} params
+ * @param {string} params.datasetId - The datasource ID
+ * @param {number} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object>} The definition nodes of the dataset's schema
+ */
+export async function getDatasetDefinition({ datasetId, tabId }) {
+  return executeInPage(
+    async (datasetId) => {
+      const response = await fetch(`/api/query/v1/datasources/${datasetId}/schema/indexed`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch definition for datasource ${datasetId}. HTTP status: ${response.status}`);
+      }
+      const { name: _name, tables: _tables, ...definition } = await response.json();
+      return definition;
+    },
+    [datasetId],
+    tabId
+  );
+}
+
+/**
  * Count the objects downstream of a dataset, used to decide whether deleting it
  * is safe. Reads Domo's precomputed impact endpoint, which already rolls up the
  * full downstream blast radius, and sums the impact counts (every dataflow,
@@ -827,55 +854,6 @@ export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
     tabId
   );
   return result;
-}
-
-/**
- * Whether a DATA_SOURCE is a DataFlow's output.
- *
- * Note the casing: the bulk datasources endpoint reports a DataFlow output as
- * `DataFlow` while the single-datasource endpoint reports `dataflow`, so the
- * comparison has to be case-insensitive to work against both.
- * @param {Object} details - A datasource object, or a `metadata.details` object
- * @returns {boolean}
- */
-export function isDataflowOutput(details) {
-  return details?.type?.toLowerCase() === 'dataflow';
-}
-
-/**
- * Check if a DATA_SOURCE is a data fusion
- * @param {Object} details - The metadata.details object
- * @returns {boolean}
- */
-export function isFusionType(details) {
-  if (!details) return false;
-  return details.dataProviderType === 'datafusion' || details.displayType === 'datafusion' || details.type === 'datafusion';
-}
-
-/**
- * Whether a DATA_SOURCE is produced inside Domo by a transform (a DataFlow's
- * output, a dataset view, or a fusion) rather than loaded from a source.
- * @param {Object} details - A datasource object, or a `metadata.details` object
- * @returns {boolean}
- */
-export function isTransformDataset(details) {
-  if (!details) return false;
-  return isDataflowOutput(details) || isViewOrFusionType(details);
-}
-
-/**
- * Check if a DATA_SOURCE is a view type (dataset-view or datafusion)
- * @param {Object} details - The metadata.details object
- * @returns {boolean}
- */
-export function isViewOrFusionType(details) {
-  if (!details) return false;
-  const viewTypes = ['dataset-view', 'datafusion'];
-  return (
-    viewTypes.includes(details.dataProviderType) ||
-    viewTypes.includes(details.displayType) ||
-    viewTypes.includes(details.type)
-  );
 }
 
 /**

@@ -536,6 +536,17 @@ export function findOriginAliases(viewDefinition, originId) {
 }
 
 /**
+ * True when a definition is a data model's: its entities and relationships live
+ * in a `model` node that neither the template nor the fusion walker can read.
+ *
+ * @param {Object} definition
+ * @returns {boolean}
+ */
+export function isDataModelDefinition(definition) {
+  return !!definition?.model;
+}
+
+/**
  * True when a view definition is a fusion (`views[].mapping`) rather than the
  * template form (`viewTemplate.select.selectBody`). The two store column refs in
  * incompatible shapes, so scanning and rewriting branch on this.
@@ -629,7 +640,12 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
         // Fusion views (views[].mapping) and template views (viewTemplate) store
         // column refs in incompatible shapes; the template walker is blind to
         // fusion, so route by shape. Fusion computed exprs are flagged for review.
-        if (isFusionView(definition)) {
+        if (isDataModelDefinition(definition)) {
+          // A data model names its columns in a `model` node neither walker reads,
+          // so scanning it would report "uses no columns" and clear it wrongly.
+          viewFusionWarnings.push({ id: item.id, name: item.name || String(item.id) });
+          used = new Set();
+        } else if (isFusionView(definition)) {
           const fusionScan = extractFusionViewColumnRefs(definition, originId);
           used = fusionScan.refs;
           if (fusionScan.unsafe) {

@@ -6,10 +6,13 @@ import IconPencil from '@icons/pencil.svg?react';
 // Per-type tooltip describing what fields the Update Details view edits.
 // Falls back to a generic message for any type without an entry here.
 const TOOLTIPS_BY_TYPE = {
+  DATA_FUSION: "Edit this fusion's user defined type",
+  DATA_MODEL: "Edit this data model's user defined type",
   DATA_SOURCE: "Edit this dataset's user defined type",
   DATAFLOW_TYPE: "Edit this dataflow's name and description without creating a new version",
   MAGNUM_COLLECTION: 'Rename this AppDB collection',
-  USER: "Edit this person's username, the login and SSO identity"
+  USER: "Edit this person's username, the login and SSO identity",
+  VIEW: "Edit this view's user defined type"
 };
 
 export function UpdateDetails({ currentContext, onStatusUpdate }) {

@@ -1,5 +1,6 @@
 import { DomoObject } from '@/models/DomoObject';
 import { getAccountIdsForDomoObject } from '@/services/accounts';
+import { isDataModelType, isDatasetTypeId, isDatasetViewType, isFusionType } from '@/utils/datasetTypes';
 import {
   GOVERNANCE_TOOLKIT_APPLICATION_ID_BY_SLUG,
   GOVERNANCE_TOOLKIT_JOB_PARAM,
@@ -14,6 +15,10 @@ export class DomoObjectType {
    * @param {string} id - The internal type identifier
    * @param {string} name - The human-readable type name
    * @param {Object} [options] - Configuration options
+   * @param {Array<string>} [options.activityLogTypes] - The audit object types this object's own activity log
+   *   covers, defaulting to `[id]`. Set it when Domo records an object's events under more than one type, or
+   *   under a name other than the type ID: a view and a data model each log CREATED/EDITED as `VIEW` and
+   *   everything else as `DATA_SOURCE`, and neither set appears in the other's log.
    * @param {Array<string>} [options.aliases] - Legacy or alternate type IDs that should resolve to this same config
    *   via `getObjectType()`. Use when Domo has renamed a type (e.g. OBJECTIVE → GOAL) so existing references
    *   to the old name keep working without a separate registry entry.
@@ -77,6 +82,7 @@ export class DomoObjectType {
   constructor(id, name, options = {}) {
     this.id = id;
     this.name = name;
+    this.activityLogTypes = options.activityLogTypes ?? [id];
     this.aliases = options.aliases ?? null;
     this.api = options.api ?? null;
     this.copyConfigs = options.copyConfigs ?? null;
@@ -788,6 +794,18 @@ export const ObjectTypeRegistry = {
   }),
   DATA_DICTIONARY: new DomoObjectType('DATA_DICTIONARY', 'Data Dictionary', {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  }),
+  DATA_FUSION: new DomoObjectType('DATA_FUSION', 'Data Fusion', {
+    ...derivedDatasetConfig(),
+    extractConfig: { keyword: 'fusion' },
+    icon: { component: 'Domofusion' }
+  }),
+  DATA_MODEL: new DomoObjectType('DATA_MODEL', 'Data Model', {
+    ...derivedDatasetConfig(),
+    activityLogTypes: ['DATA_SOURCE', 'VIEW'],
+    extractConfig: { keyword: 'datamodels' },
+    featureSwitch: 'data-modeling',
+    icon: { component: 'Model' }
   }),
   DATA_SCIENCE_NOTEBOOK: new DomoObjectType('DATA_SCIENCE_NOTEBOOK', 'Jupyter Workspace', {
     api: { endpoint: '/datascience/v1/workspaces/{id}', paths: { created: 'created', name: 'name' } },
@@ -1519,7 +1537,10 @@ export const ObjectTypeRegistry = {
     idPattern: /.*/
   }),
   VIEW: new DomoObjectType('VIEW', 'View', {
-    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    ...derivedDatasetConfig(),
+    activityLogTypes: ['DATA_SOURCE', 'VIEW'],
+    extractConfig: { keyword: 'datasources' },
+    icon: { component: 'TableSelect' }
   }),
   VIEW_ADVANCED_EDITOR: new DomoObjectType('VIEW_ADVANCED_EDITOR', 'View Advanced Editor', {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -1932,6 +1953,33 @@ const ALIAS_LOOKUP = (() => {
 })();
 
 /**
+ * The registry config every derived dataset (view, data fusion, data model) shares.
+ * All three are datasets carrying their own definition, so they sit on the dataset
+ * endpoint and the dataset detail URL, and differ only in label, icon and how they
+ * are logged. Sharing the URL is what lets `refineTypeFromMetadata` swap between
+ * them without invalidating an already-built URL.
+ * @returns {Object} Options for the `DomoObjectType` constructor
+ */
+function derivedDatasetConfig() {
+  return {
+    api: {
+      endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
+      paths: { created: 'created', name: 'name' }
+    },
+    copyConfigs: [{ label: 'Stream ID', source: 'metadata.details.streamId' }],
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    parents: ['DATA_SOURCE', 'STREAM'],
+    relatedData: [
+      { label: 'Stream', source: 'parent', typeId: 'STREAM' },
+      { fetcher: 'datasetDefinition', label: 'Definition' },
+      { field: 'approvalTemplateId', fieldSource: 'context', label: 'Approval Template', typeId: 'TEMPLATE' },
+      { fetcher: 'datasetColumns', isArray: true, label: 'Columns' }
+    ],
+    urlPath: '/datasources/{id}/details/overview'
+  };
+}
+
+/**
  * Pull one keyword-anchored segment out of a URL, optionally translating it through `valueMap`.
  * @param {string} url - The URL to extract from
  * @param {Object} [config] - `{ keyword, offset, fromEnd, valueMap }`
@@ -2038,6 +2086,15 @@ export function refineTypeFromMetadata(typeId, metadata) {
   // discriminators below, so it can only produce a wrong answer.
   if (!metadata || metadata.viaFallback) return typeId;
   const details = metadata.details;
+
+  // A dataset's flavor is only knowable from its provider type, so detection lands
+  // on whichever one the URL implies and the response settles it.
+  if (isDatasetTypeId(typeId)) {
+    if (isDataModelType(details)) return 'DATA_MODEL';
+    if (isDatasetViewType(details)) return 'VIEW';
+    if (isFusionType(details)) return 'DATA_FUSION';
+    return 'DATA_SOURCE';
+  }
 
   // A brick's latest design version carries the `client-code-enabled` flag; without
   // version data, fall back to the older heuristic (a brick has no `createdBy`).

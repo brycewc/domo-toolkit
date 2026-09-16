@@ -2,6 +2,7 @@ import { getObjectType } from '@/models/DomoObjectType';
 import { DRILL_ONLY_NOTE, groupBeastModeUsageByCard } from '@/utils/beastModeLinks';
 import { ACTIVE_CHIP, INACTIVE_CHIP } from '@/utils/codeEngineUsage';
 import { DEPENDENCY_FETCH_CONCURRENCY } from '@/utils/constants';
+import { isTransformDataset } from '@/utils/datasetTypes';
 import { formatTimestamp } from '@/utils/general';
 import { compareSemver } from '@/utils/semver';
 import { collectDefinitionReferences } from '@/utils/workflowReferences';
@@ -19,7 +20,6 @@ import {
   getDatasetImpactCounts,
   getDownstreamViewsForDatasets,
   getOtherDependentCountsForDatasets,
-  isTransformDataset,
   searchDatasets
 } from './datasets';
 import { getDatasetFunctions, getDatasetFunctionsForDatasets } from './functions';

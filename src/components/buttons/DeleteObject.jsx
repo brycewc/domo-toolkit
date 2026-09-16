@@ -2,8 +2,8 @@ import { Button, Tooltip } from '@heroui/react';
 
 import { DisabledTooltip } from '@/components/DisabledTooltip';
 import { useLaunchView } from '@/hooks/useLaunchView';
-import { isDataflowOutput } from '@/services/datasets';
 import { isCodeEngineInWorkflow } from '@/utils/availableActions';
+import { isDataflowOutput, isDatasetTypeId } from '@/utils/datasetTypes';
 import IconCancel from '@icons/cancel.svg?react';
 import IconTrash from '@icons/trash.svg?react';
 
@@ -15,6 +15,8 @@ const SUPPORTED_TYPES = [
   'CODEENGINE_PACKAGE',
   'CODEENGINE_PACKAGE_VERSION',
   'DATA_APP_VIEW',
+  'DATA_FUSION',
+  'DATA_MODEL',
   'DATA_SOURCE',
   'DATAFLOW_TYPE',
   'HOPPER_TASK',
@@ -38,7 +40,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
   const isVoid = typeId === 'HOPPER_TASK';
 
   const isDataflowOutputDataset =
-    typeId === 'DATA_SOURCE' && isDataflowOutput(currentContext?.domoObject?.metadata?.details);
+    isDatasetTypeId(typeId) && isDataflowOutput(currentContext?.domoObject?.metadata?.details);
 
   // A task's status is only known once its details load, and the workflow
   // user-task-response page carries no queue to load them with, so an unknown
@@ -64,7 +66,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
     if (typeId === 'DATAFLOW_TYPE') {
       return !isOwner && !userRights.includes('dataflow.admin');
     }
-    if (typeId === 'DATA_SOURCE') {
+    if (isDatasetTypeId(typeId)) {
       return !isOwner && !userRights.includes('dataset.admin');
     }
     if (typeId === 'WORKFLOW_MODEL') {

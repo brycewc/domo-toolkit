@@ -6,7 +6,14 @@ import { executeInPage } from '@/utils/executeInPage';
 // downstream response lists every child of each entity it expanded, but trims
 // those entities' parents down to the edges on the traversal path.
 const COMPLETENESS_FLAGS = { children: 'childrenComplete', parents: 'parentsComplete' };
-const LINEAGE_TYPE_MAP = { DATAFLOW_TYPE: 'DATAFLOW' };
+// The lineage API knows only the base types, so the dataset flavors map onto
+// DATA_SOURCE rather than being sent under their own names.
+const LINEAGE_TYPE_MAP = {
+  DATA_FUSION: 'DATA_SOURCE',
+  DATA_MODEL: 'DATA_SOURCE',
+  DATAFLOW_TYPE: 'DATAFLOW',
+  VIEW: 'DATA_SOURCE'
+};
 
 export function convertToGraph(lineageResponse, startEntityType, startEntityId, baseUrl = '') {
   if (!lineageResponse || typeof lineageResponse !== 'object') {

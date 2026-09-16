@@ -219,9 +219,14 @@ export async function detectCurrentObject() {
       objectType = 'BEAST_MODE_FORMULA';
       break;
 
+    // Only the fusion and data model editors sit outside the /datasources space; a
+    // view's editor and every flavor's detail page are ordinary /datasources URLs,
+    // which refineTypeFromMetadata settles from the response.
     case url.includes('fusion/'):
-      objectType = 'DATA_SOURCE';
-      id = parts[parts.indexOf('fusion') + 1];
+      objectType = 'DATA_FUSION';
+      break;
+    case url.includes('datamodels/'):
+      objectType = 'DATA_MODEL';
       break;
     case url.includes('datasources/') && parts[parts.indexOf('datasources') + 1].length > 5:
       objectType = 'DATA_SOURCE';

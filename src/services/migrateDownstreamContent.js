@@ -17,6 +17,7 @@ import {
   extractCardColumnRefs,
   extractDataflowColumnRefs,
   findOriginAliases,
+  isDataModelDefinition,
   isFusionView,
   makeItemKey
 } from './columnReferences';
@@ -257,9 +258,10 @@ export async function getDownstreamLineage(datasetId, tabId = null) {
       }
 
       // Downstream DATA_SOURCE children of a dataset are always derived
-      // datasets (views / data-fusions) — a plain dataset can't sit downstream
-      // of another. So there's nothing to filter; we only bulk-fetch to pick up
-      // their names (the lineage payload carries ids/types but no names).
+      // datasets (views, data-fusions or data models) - a plain dataset can't sit
+      // downstream of another. So there's nothing to filter; we only bulk-fetch to
+      // pick up their names (the lineage payload carries ids/types but no names).
+      // Data models reach dispatchDatasetSwap and are rejected there.
       let datasets = [];
       if (datasetIds.length > 0) {
         const bulkResponse = await fetch('/api/data/v3/datasources/bulk?includePrivate=true&part=core', {
@@ -1884,6 +1886,15 @@ async function dispatchDatasetSwap(item, options) {
     return {
       skipped: true,
       skipReason: 'already reads the target dataset, which would leave it reading that dataset twice',
+      success: false
+    };
+  }
+  // A data model's inputs live in a `model` node the swap walkers don't touch, so
+  // letting it through would PUT an unchanged definition back over itself.
+  if (isDataModelDefinition(indexed)) {
+    return {
+      skipped: true,
+      skipReason: 'is a data model, whose inputs this tool cannot repoint',
       success: false
     };
   }

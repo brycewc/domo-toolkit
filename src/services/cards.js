@@ -1,5 +1,6 @@
 import { parseBeastModeLinks, rootCardIdsFor } from '@/utils/beastModeLinks';
 import { DEPENDENCY_FETCH_CONCURRENCY, EXPORT_FORMATS } from '@/utils/constants';
+import { isDatasetTypeId } from '@/utils/datasetTypes';
 import { executeInPage } from '@/utils/executeInPage';
 
 import { extractPageContentIds, getFormsForPage, getQueuesForPage } from './appStudio';
@@ -380,6 +381,8 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
     return allCards;
   }
 
+  const endpointType = isDatasetTypeId(objectType) ? 'DATA_SOURCE' : objectType;
+
   // Execute fetch in page context to use authenticated session
   const result = await executeInPage(
     async (objectId, objectType, parts) => {
@@ -418,7 +421,7 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
           throw new Error(`Cannot get cards for object type ${objectType}`);
       }
     },
-    [objectId, objectType, parts],
+    [objectId, endpointType, parts],
     tabId
   );
 

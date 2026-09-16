@@ -1,5 +1,6 @@
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
 import { certifiedContentUrlSegment } from '@/utils/certifiedContent';
+import { DATASET_TYPE_IDS } from '@/utils/datasetTypes';
 import { executeInPage } from '@/utils/executeInPage';
 
 import { getAppDbCollectionPermission } from './appDb';
@@ -76,7 +77,7 @@ const ENRICHMENTS = [
     },
     id: 'stream-parent',
     storePath: 'parent',
-    types: ['DATA_SOURCE']
+    types: DATASET_TYPE_IDS
   },
 
   // Child pages for PAGE (fast pre-check then full fetch)
@@ -142,7 +143,7 @@ const ENRICHMENTS = [
     fetch: ({ objectId, tabId, typeId }) => getCardsForObject({ objectId, objectType: typeId, tabId }),
     id: 'page-cards',
     storePath: 'context.cards',
-    types: ['PAGE', 'DATA_APP_VIEW', 'DATA_SOURCE', 'WORKSHEET_VIEW', 'REPORT_BUILDER_PAGE']
+    types: [...DATASET_TYPE_IDS, 'PAGE', 'DATA_APP_VIEW', 'WORKSHEET_VIEW', 'REPORT_BUILDER_PAGE']
   },
 
   // Forms for page-like types
@@ -287,7 +288,7 @@ const ENRICHMENTS = [
     },
     id: 'approval-dataset-template',
     storePath: 'context.approvalTemplateId',
-    types: ['DATA_SOURCE']
+    types: DATASET_TYPE_IDS
   },
 
   // URL segment for CERTIFICATION_PROCESS, derived from the template type

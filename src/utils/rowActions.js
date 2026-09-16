@@ -17,12 +17,15 @@ const ROW_ACTION_CAPABILITIES = {
   CARD: ['copy'],
   DATA_APP: ['copy', 'share'],
   DATA_APP_VIEW: ['copy'],
+  DATA_FUSION: ['copy', 'lineage', 'viewsExplorer'],
+  DATA_MODEL: ['copy', 'lineage', 'viewsExplorer'],
   DATA_SOURCE: ['copy', 'lineage', 'viewsExplorer'],
   DATAFLOW_TYPE: ['copy', 'lineage'],
   // Tasks are deliberately absent: a task row's share would act on its queue,
   // which reads wrong next to rows that share themselves.
   HOPPER_QUEUE: ['copy', 'share'],
   PAGE: ['copy', 'share'],
+  VIEW: ['copy', 'lineage', 'viewsExplorer'],
   WORKSHEET: ['copy', 'share']
 };
 

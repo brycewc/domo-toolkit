@@ -11,6 +11,7 @@ import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { bulkDeleteFunctions, deleteFunction, findUnusedFunctions } from '@/services/functions';
 import { getValidTabForInstance } from '@/utils/currentObject';
+import { isDatasetTypeId } from '@/utils/datasetTypes';
 import { parseMarkdownBold } from '@/utils/markdown';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconBeastMode from '@icons/beast-mode.svg?react';
@@ -61,7 +62,7 @@ export function DeleteUnusedBeastModesView({
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       const domoObject = context?.domoObject;
       const objectType = domoObject?.typeId;
-      if (!context || (objectType !== 'DATA_SOURCE' && objectType !== 'USER')) {
+      if (!context || (!isDatasetTypeId(objectType) && objectType !== 'USER')) {
         onStatusUpdate?.('Error', 'Delete Unused Beast Modes supports datasets and users only', 'danger');
         onBackToDefault?.();
         return;

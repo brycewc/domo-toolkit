@@ -1,15 +1,15 @@
 import { Button, Tooltip } from '@heroui/react';
 
-import { isFusionType, isViewOrFusionType } from '@/services/datasets';
 import { launchView } from '@/utils/sidepanel';
 import IconCompass from '@icons/compass.svg?react';
 
+const DERIVED_TYPES = ['DATA_FUSION', 'DATA_MODEL', 'VIEW'];
+
 export function GetViewInputs({ currentContext, isDisabled, onStatusUpdate }) {
   const objectType = currentContext?.domoObject?.typeId;
-  const details = currentContext?.domoObject?.metadata?.details;
-  if (objectType !== 'DATA_SOURCE' || !isViewOrFusionType(details)) return null;
+  if (!DERIVED_TYPES.includes(objectType)) return null;
 
-  const label = isFusionType(details) ? 'Fusion' : 'View';
+  const label = currentContext?.domoObject?.typeName ?? 'View';
 
   return (
     <Tooltip>

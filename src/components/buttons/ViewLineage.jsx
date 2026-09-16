@@ -1,9 +1,12 @@
 import { Button, Tooltip } from '@heroui/react';
 
+import { isDatasetTypeId } from '@/utils/datasetTypes';
 import IconLineage from '@icons/lineage.svg?react';
+
 export function ViewLineage({ currentContext, onStatusUpdate }) {
   const isDisabled =
-    !currentContext?.domoObject?.id || !['DATA_SOURCE', 'DATAFLOW_TYPE'].includes(currentContext?.domoObject?.typeId);
+    !currentContext?.domoObject?.id ||
+    !(isDatasetTypeId(currentContext?.domoObject?.typeId) || currentContext?.domoObject?.typeId === 'DATAFLOW_TYPE');
 
   const handlePress = async () => {
     if (!currentContext?.domoObject) return;

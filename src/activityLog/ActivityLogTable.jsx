@@ -329,11 +329,16 @@ export function ActivityLogTable() {
       .catch(() => {});
   }, [events, tabId, resolveTabId]);
 
+  // A log covering one object can still span several audit types, because Domo
+  // records a view's and a data model's edits under VIEW and the rest under
+  // DATA_SOURCE. Those logs need the filter as much as a multi-object one does.
+  const spansOneObjectType = new Set(objects.map((obj) => obj.type)).size <= 1;
+
   // Get unique object types for filter — only relevant for multi-object logs.
   // Stabilized to avoid new reference when events change but types stay the same.
   const prevObjectTypeOptionsRef = useRef([]);
   const objectTypeOptions = useMemo(() => {
-    if (activityLogType === 'single-object') return prevObjectTypeOptionsRef.current;
+    if (activityLogType === 'single-object' && spansOneObjectType) return prevObjectTypeOptionsRef.current;
     const types = new Set();
     events.forEach((event) => {
       if (event.objectType) {
@@ -347,7 +352,7 @@ export function ActivityLogTable() {
     }
     prevObjectTypeOptionsRef.current = next;
     return next;
-  }, [events, activityLogType]);
+  }, [events, activityLogType, spansOneObjectType]);
 
   // Filter events locally (object type is client-side only)
   const filteredEvents = useMemo(() => {
@@ -1025,8 +1030,8 @@ export function ActivityLogTable() {
             </Dropdown.Popover>
           </Dropdown>
 
-          {/* Object Type Filter — only shown for multi-object activity logs */}
-          {activityLogType !== 'single-object' && (
+          {/* Object Type Filter — hidden only when every row is the same object type */}
+          {(activityLogType !== 'single-object' || !spansOneObjectType) && (
             <Dropdown>
               <Button fullWidth className='min-w-0 flex-1' isDisabled={objectTypeOptions.length === 0} variant='tertiary'>
                 <IconFunnel />
@@ -1206,15 +1211,15 @@ export function ActivityLogTable() {
             Activity Log for{' '}
             {activityLogType === 'single-object' ? (
               <>
-                <span>{objects[0]?.type} </span>
+                <span>{objects[0]?.typeName ?? objects[0]?.type} </span>
                 <span className='text-accent'>{objects[0]?.name}</span>
                 <span> (ID: {objects[0].id})</span>
               </>
             ) : activityLogType === 'object-and-parent' ? (
               <>
-                <span>{objects[0]?.type} </span>
+                <span>{objects[0]?.typeName ?? objects[0]?.type} </span>
                 <span className='text-accent'>{objects[0]?.name}</span>
-                <span> and its parent {objects[1]?.type} </span>
+                <span> and its parent {objects[1]?.typeName ?? objects[1]?.type} </span>
                 <span className='text-accent'>{objects[1]?.name}</span>
               </>
             ) : (

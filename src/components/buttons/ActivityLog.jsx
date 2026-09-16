@@ -8,6 +8,7 @@ import { getObjectType } from '@/models/DomoObjectType';
 import { getCardsForObject, getOwnedCards } from '@/services/cards';
 import { getPagesForCards, getSubpageIds } from '@/services/pages';
 import { launchActivityLog } from '@/utils/activityLog';
+import { isDatasetTypeId } from '@/utils/datasetTypes';
 import { waitForChildPages } from '@/utils/pageHelpers';
 import IconChartBarBox from '@icons/chart-bar-box.svg?react';
 import IconListSearch from '@icons/list-search.svg?react';
@@ -28,7 +29,8 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
       ? 'You need the Audit permission to view activity logs'
       : null;
   const typeId = currentContext?.domoObject?.typeId;
-  const hasCards = ['DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
+  const hasCards =
+    isDatasetTypeId(typeId) || ['DATA_APP_VIEW', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
   const ownsCards = ['GROUP', 'USER'].includes(typeId);
   const longPressEnabled = !isDisabled && (hasCards || ownsCards);
   const typeLabel = currentContext?.domoObject?.typeName?.toLowerCase() || 'object';
@@ -207,7 +209,8 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
             {
               id: String(parentId),
               name: parentName || '',
-              type: parentTypeId
+              type: parentTypeId,
+              typeName: parentTypeName
             }
           ];
           activityLogType = 'single-object';
@@ -223,26 +226,31 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           const parentId =
             hasParent && (currentContext?.domoObject?.parentId ?? currentContext?.domoObject?.metadata?.parent?.id);
 
-          const self = {
+          // A type whose events Domo splits across several audit types (a view and a
+          // data model log their edits as VIEW and the rest as DATA_SOURCE) needs one
+          // entry each, or the log silently omits whichever set it didn't ask for.
+          const self = (getObjectType(typeId)?.activityLogTypes ?? [typeId]).map((auditType) => ({
             id: currentContext?.domoObject.id,
             name: currentContext?.domoObject.metadata?.name || '',
-            type: currentContext?.domoObject.typeId
-          };
+            type: auditType,
+            typeName: currentContext?.domoObject.typeName
+          }));
 
           if (parentId) {
             const parentName = currentContext?.domoObject?.metadata?.parent?.name;
             activityLogObjects = [
-              self,
+              ...self,
               {
                 id: String(parentId),
                 name: parentName || '',
-                type: parentTypeId
+                type: parentTypeId,
+                typeName: parentTypeName
               }
             ];
             activityLogType = 'object-and-parent';
             message = `Navigating to activity log for ${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}** and its parent ${parentTypeName?.toLowerCase()}`;
           } else {
-            activityLogObjects = [self];
+            activityLogObjects = self;
             activityLogType = 'single-object';
             message = `Navigating to activity log for ${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}**`;
           }

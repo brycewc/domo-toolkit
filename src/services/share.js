@@ -1,4 +1,5 @@
 import { SHARE_BATCH_SIZE } from '@/utils/constants';
+import { isDataflowOutput, isDerivedDatasetType } from '@/utils/datasetTypes';
 import { executeInPage } from '@/utils/executeInPage';
 
 import { getAccountIdsForDomoObject, shareAccount } from './accounts';
@@ -213,9 +214,15 @@ async function shareForType({ object, tabId, userId }) {
       return `App ${parentId} shared successfully`;
     }
 
-    case 'DATA_SOURCE': {
-      if (object.metadata?.details?.type === 'dataflow') {
+    case 'DATA_FUSION':
+    case 'DATA_MODEL':
+    case 'DATA_SOURCE':
+    case 'VIEW': {
+      if (isDataflowOutput(object.metadata?.details)) {
         throw new Error('DataSet is a DataFlow output and does not have an account to share');
+      }
+      if (isDerivedDatasetType(object.metadata?.details)) {
+        throw new Error(`${object.typeName} is built from other datasets and does not have an account to share`);
       }
       const accountIds = getAccountIdsForDomoObject(object);
       if (accountIds.length === 0) {

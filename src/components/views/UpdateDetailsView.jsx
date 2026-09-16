@@ -110,6 +110,10 @@ const updatersByType = {
   }
 };
 
+updatersByType.DATA_FUSION = updatersByType.DATA_SOURCE;
+updatersByType.DATA_MODEL = updatersByType.DATA_SOURCE;
+updatersByType.VIEW = updatersByType.DATA_SOURCE;
+
 export function UpdateDetailsView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   useViewReady(!isLoading);

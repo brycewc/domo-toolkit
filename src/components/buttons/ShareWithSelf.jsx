@@ -5,6 +5,7 @@ import { DisabledTooltip } from '@/components/DisabledTooltip';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { getAccountIdsForDomoObject } from '@/services/accounts';
 import { shareWithSelf } from '@/services/share';
+import { isDatasetTypeId } from '@/utils/datasetTypes';
 import { isSidepanel } from '@/utils/sidepanel';
 import IconPersonPlus from '@icons/person-plus.svg?react';
 
@@ -27,7 +28,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
       return;
     }
 
-    if (currentContext.domoObject.typeId === 'DATA_SOURCE') {
+    if (isDatasetTypeId(currentContext.domoObject.typeId)) {
       if (getAccountIdsForDomoObject(currentContext.domoObject).length === 0) {
         onStatusUpdate?.(
           'Missing Account Information',
@@ -41,7 +42,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
     setIsSharing(true);
 
     let label;
-    if (currentContext.domoObject?.typeId === 'DATA_SOURCE') {
+    if (isDatasetTypeId(currentContext.domoObject?.typeId)) {
       const accountIds = getAccountIdsForDomoObject(currentContext.domoObject);
       label =
         accountIds.length > 1 ? `${accountIds.length} accounts (${accountIds.join(', ')})` : `Account ${accountIds[0]}`;
@@ -102,7 +103,8 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
   const needsContentAdmin =
     contentAdminTypes.includes(currentContext?.domoObject?.typeId) && !userRights.includes('content.admin');
-  const needsAccountAdmin = currentContext?.domoObject?.typeId === 'DATA_SOURCE' && !userRights.includes('account.admin');
+  const needsAccountAdmin =
+    isDatasetTypeId(currentContext?.domoObject?.typeId) && !userRights.includes('account.admin');
   const needsAppAdmin =
     ['APP', 'RYUU_APP'].includes(currentContext?.domoObject?.typeId) && !userRights.includes('app.admin');
   const taskCenterTypes = ['HOPPER_QUEUE', 'HOPPER_TASK'];
@@ -111,7 +113,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
   const isTaskWithoutQueue =
     currentContext?.domoObject?.typeId === 'HOPPER_TASK' && !queueIdForShare(currentContext.domoObject);
   const typeName = currentContext?.domoObject?.typeName;
-  const isDataSource = currentContext?.domoObject?.typeId === 'DATA_SOURCE';
+  const isDataSource = isDatasetTypeId(currentContext?.domoObject?.typeId);
   const hasAccounts = isDataSource && getAccountIdsForDomoObject(currentContext.domoObject).length > 0;
   // Persistent reasons the action is unavailable (sharing-in-progress is
   // transient, the button disables itself while the share runs, so it is excluded).
@@ -168,11 +170,14 @@ function isSupportedForShare(domoObject) {
     'CARD',
     'DATA_APP',
     'DATA_APP_VIEW',
+    'DATA_FUSION',
+    'DATA_MODEL',
     'DATA_SOURCE',
     'HOPPER_QUEUE',
     'HOPPER_TASK',
     'PAGE',
     'RYUU_APP',
+    'VIEW',
     'WORKSHEET',
     'WORKSHEET_VIEW'
   ];
@@ -181,7 +186,7 @@ function isSupportedForShare(domoObject) {
   if (domoObject.typeId === 'CARD') {
     return domoObject.metadata?.details?.type === 'domoapp';
   }
-  if (domoObject.typeId === 'DATA_SOURCE') {
+  if (isDatasetTypeId(domoObject.typeId)) {
     return getAccountIdsForDomoObject(domoObject).length > 0;
   }
   if (domoObject.typeId === 'HOPPER_TASK') {

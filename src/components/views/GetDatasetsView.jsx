@@ -18,6 +18,7 @@ import {
 } from '@/services/datasets';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { soleExpandedGroupIds, withCanonicalGroups } from '@/utils/dataListGroups';
+import { isDatasetTypeId } from '@/utils/datasetTypes';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconDatabase from '@icons/database.svg?react';
 import IconSync from '@icons/sync.svg?react';
@@ -104,7 +105,7 @@ export function GetDatasetsView({
       let typeLabel = 'DataSets';
       if (objectType === 'DATAFLOW_TYPE') {
         typeLabel = 'DataFlow DataSets';
-      } else if (objectType === 'DATA_SOURCE') {
+      } else if (isDatasetTypeId(objectType)) {
         typeLabel = 'Dependent Views';
       }
 
@@ -158,7 +159,7 @@ export function GetDatasetsView({
               ? 'This dataflow has no input or output datasets.'
               : objectType === 'DATA_SCIENCE_NOTEBOOK'
                 ? 'This Jupyter workspace has no input or output datasets.'
-                : objectType === 'DATA_SOURCE'
+                : isDatasetTypeId(objectType)
                   ? 'No dependent dataset views found for this dataset.'
                   : objectType === 'CARD'
                     ? 'No datasets found for this card.'
@@ -228,7 +229,7 @@ export function GetDatasetsView({
       return getDatasetsForDataflow({ details });
     } else if (objectType === 'DATA_SCIENCE_NOTEBOOK') {
       return getDatasetsForJupyterWorkspace({ details, tabId });
-    } else if (objectType === 'DATA_SOURCE') {
+    } else if (isDatasetTypeId(objectType)) {
       return getDependentDatasets({ datasetId: objectId, tabId });
     }
 

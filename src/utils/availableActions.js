@@ -1,5 +1,5 @@
 import { getAccountIdsForDomoObject } from '@/services/accounts';
-import { isDataflowOutput, isViewOrFusionType } from '@/services/datasets';
+import { isDataflowOutput, isDatasetTypeId, isDerivedDatasetType } from '@/utils/datasetTypes';
 import { pathnameOf } from '@/utils/general';
 import { isSupportUser } from '@/utils/supportMode';
 
@@ -16,16 +16,14 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
   const details = metadata?.details;
   const url = currentContext?.url;
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
+  // Views, fusions and data models are datasets wearing a different label, so
+  // every dataset gate below covers all four.
+  const isDataset = isDatasetTypeId(typeId);
   if (
-    [
-      'BEAST_MODE_FORMULA',
-      'DATA_APP_VIEW',
-      'DATA_SOURCE',
-      'DATAFLOW_TYPE',
-      'PAGE',
-      'REPORT_BUILDER_PAGE',
-      'WORKSHEET_VIEW'
-    ].includes(typeId)
+    isDataset ||
+    ['BEAST_MODE_FORMULA', 'DATA_APP_VIEW', 'DATAFLOW_TYPE', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW'].includes(
+      typeId
+    )
   ) {
     actions.add('getCards');
     if (userRights.includes('content.admin')) {
@@ -35,24 +33,17 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
   }
 
   if (
-    [
-      'ACCOUNT',
-      'CARD',
-      'DATA_APP_VIEW',
-      'DATA_SCIENCE_NOTEBOOK',
-      'DATA_SOURCE',
-      'DATAFLOW_TYPE',
-      'PAGE',
-      'WORKSHEET_VIEW'
-    ].includes(typeId)
+    isDataset ||
+    ['ACCOUNT', 'CARD', 'DATA_APP_VIEW', 'DATA_SCIENCE_NOTEBOOK', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
+      typeId
+    )
   ) {
     actions.add('getDatasets');
   }
 
   if (
-    ['BEAST_MODE_FORMULA', 'CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
-      typeId
-    )
+    isDataset ||
+    ['BEAST_MODE_FORMULA', 'CARD', 'DATA_APP_VIEW', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)
   ) {
     actions.add('getBeastModes');
   }
@@ -62,19 +53,18 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
   }
 
   if (
-    ['BEAST_MODE_FORMULA', 'CARD', 'DATA_APP_VIEW', 'DATA_SOURCE', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
-      typeId
-    )
+    isDataset ||
+    ['BEAST_MODE_FORMULA', 'CARD', 'DATA_APP_VIEW', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)
   ) {
     actions.add('getCardPages');
   }
 
   if (
+    isDataset ||
     [
       'CARD',
       'DATA_APP',
       'DATA_APP_VIEW',
-      'DATA_SOURCE',
       'DATAFLOW_TYPE',
       'PAGE',
       'WORKFLOW_MODEL',
@@ -89,7 +79,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     actions.add('migrateBeastModeUsage');
   }
 
-  if (typeId === 'DATA_SOURCE') {
+  if (isDataset) {
     // One key for every duplicator a dataset offers; see duplicators/descriptors.js.
     actions.add('duplicate');
     actions.add('getViewInputs');
@@ -102,7 +92,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     if (details?.streamId && metadata?.parent?.details?.currentExecutionState === 'ACTIVE') {
       actions.add('cancelStreamExecution');
     }
-    if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL' && !isViewOrFusionType(details)) {
+    if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL' && !isDerivedDatasetType(details)) {
       actions.add('setStreamToManual');
     }
     if (userRights.includes('account.admin') && getAccountIdsForDomoObject(currentContext.domoObject).length > 0) {
@@ -110,7 +100,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     }
   }
 
-  if (['DATA_SOURCE', 'DATAFLOW_TYPE'].includes(typeId)) {
+  if (isDataset || typeId === 'DATAFLOW_TYPE') {
     actions.add('viewLineage');
   }
 
@@ -124,7 +114,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
       actions.add('updateDetails');
       actions.add('manageTags');
     }
-  } else if (typeId === 'DATA_SOURCE') {
+  } else if (isDataset) {
     if (metadata?.isOwner || userRights.includes('dataset.admin')) {
       actions.add('updateDetails');
     }
@@ -279,7 +269,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
       'WORKFLOW_MODEL',
       'WORKSHEET_VIEW'
     ].includes(typeId) &&
-    !(typeId === 'DATA_SOURCE' && isDataflowOutput(details)) &&
+    !(isDataset && isDataflowOutput(details)) &&
     !isCodeEngineInWorkflow(currentContext)
   ) {
     actions.add('deleteObject');

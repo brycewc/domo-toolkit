@@ -13,7 +13,12 @@ import { getBeastModeCards } from '@/services/beastModes';
 import { getCardDefinition, getNotebookCardText } from '@/services/cards';
 import { getCodeEngineUsage } from '@/services/codeEngine';
 import { getDesignCards, getDesignInstances } from '@/services/customApps';
-import { getDatasetColumns, getDatasetDetailsForList, getDatasetsForPage } from '@/services/datasets';
+import {
+  getDatasetColumns,
+  getDatasetDefinition,
+  getDatasetDetailsForList,
+  getDatasetsForPage
+} from '@/services/datasets';
 import {
   getJupyterWorkspaceAccounts,
   getJupyterWorkspaceDatasets,
@@ -95,7 +100,8 @@ const LAZY_OBJECT_FETCHERS = {
   cardDefinition: ({ details, objectId, tabId }) =>
     details?.type?.toLowerCase() === 'text'
       ? getNotebookCardText({ cardId: objectId, tabId })
-      : getCardDefinition({ cardId: objectId, tabId })
+      : getCardDefinition({ cardId: objectId, tabId }),
+  datasetDefinition: ({ objectId, tabId }) => getDatasetDefinition({ datasetId: objectId, tabId })
 };
 
 import { AlertStatusIcon } from './AlertStatusIcon';

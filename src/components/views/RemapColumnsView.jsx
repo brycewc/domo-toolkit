@@ -32,7 +32,7 @@ import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { getObjectType } from '@/models/DomoObjectType';
 import { scanContentForColumns } from '@/services/columnReferences';
-import { getDatasetColumns, isViewOrFusionType } from '@/services/datasets';
+import { getDatasetColumns } from '@/services/datasets';
 import { getDatasetFunctions } from '@/services/functions';
 import { getDownstreamCards, getDownstreamCardsRaw, getDownstreamLineage } from '@/services/migrateDownstreamContent';
 import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
@@ -41,6 +41,7 @@ import { detectBrokenViewColumns, repairViewColumns } from '@/services/repairVie
 import { describeViewOutputDrop, isColumnDroppable } from '@/utils/columnDrops';
 import { suggestReplacement } from '@/utils/columnMatching';
 import { indexColumnNames, isBrokenColumnReference, resolveColumnName } from '@/utils/columnOrphans';
+import { isDatasetTypeId, isViewOrFusionType } from '@/utils/datasetTypes';
 import { pathnameOf } from '@/utils/general';
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -134,7 +135,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
         return;
       }
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
-      if (!context || context.domoObject?.typeId !== 'DATA_SOURCE') {
+      if (!context || !isDatasetTypeId(context.domoObject?.typeId)) {
         onStatusUpdate?.('Error', 'Remap Columns requires a dataset in scope', 'danger');
         onBackToDefault?.();
         return;

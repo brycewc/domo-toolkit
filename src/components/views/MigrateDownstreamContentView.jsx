@@ -37,6 +37,7 @@ import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeAp
 import { isColumnDroppable } from '@/utils/columnDrops';
 import { suggestReplacement } from '@/utils/columnMatching';
 import { indexColumnNames, isBrokenColumnReference, resolveColumnName } from '@/utils/columnOrphans';
+import { isDatasetTypeId } from '@/utils/datasetTypes';
 import { buildRefreshAction } from '@/utils/headerActions';
 import { getSidepanelData, launchView } from '@/utils/sidepanel';
 import IconArrowLeft from '@icons/arrow-left.svg?react';
@@ -176,7 +177,7 @@ export function MigrateDownstreamContentView({
         return;
       }
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
-      if (!context || context.domoObject?.typeId !== 'DATA_SOURCE') {
+      if (!context || !isDatasetTypeId(context.domoObject?.typeId)) {
         onStatusUpdate?.('Error', 'Migrate requires a dataset in scope', 'danger');
         onBackToDefault?.();
         return;
@@ -1564,7 +1565,7 @@ export function MigrateDownstreamContentView({
   const suggestedTarget = useMemo(() => {
     if (selectedDatasetId) return null;
     const obj = currentContext?.domoObject;
-    if (!obj || obj.typeId !== 'DATA_SOURCE') return null;
+    if (!obj || !isDatasetTypeId(obj.typeId)) return null;
     const id = obj.id;
     if (!id || id === datasetId || dismissedSuggestionIds.has(id)) return null;
     const name = obj.metadata?.name || obj.metadata?.displayName || `DataSet ${id}`;

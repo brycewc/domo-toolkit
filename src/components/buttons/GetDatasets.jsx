@@ -47,13 +47,16 @@ export function GetDatasets({ currentContext, isDisabled, onStatusUpdate }) {
       buttonText = 'Get Card DataSets';
       tooltipText = 'List datasets powering this card';
       break;
+    case 'DATA_FUSION':
+    case 'DATA_MODEL':
+    case 'DATA_SOURCE':
+    case 'VIEW':
+      buttonText = 'Get Child Views';
+      tooltipText = 'List dataset views, fusions and data models built on this dataset';
+      break;
     case 'DATA_SCIENCE_NOTEBOOK':
       buttonText = 'Get Workspace DataSets';
       tooltipText = 'List dataset inputs and outputs for this Jupyter workspace';
-      break;
-    case 'DATA_SOURCE':
-      buttonText = 'Get Child Views';
-      tooltipText = 'List dataset views and fusions built on this dataset';
       break;
     case 'DATAFLOW_TYPE':
       buttonText = 'Get I/O DataSets';

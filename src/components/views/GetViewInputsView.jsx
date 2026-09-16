@@ -7,7 +7,7 @@ import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
-import { getDatasetsForView, isFusionType } from '@/services/datasets';
+import { getDatasetsForView } from '@/services/datasets';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconCompass from '@icons/compass.svg?react';
@@ -71,10 +71,10 @@ export function GetViewInputsView({
 
       setViewData({
         instance,
-        isFusion: isFusionType(domoObject.metadata?.details),
         objectId,
         objectName,
-        origin
+        origin,
+        typeName: domoObject.typeName
       });
 
       let datasets = data.datasets;
@@ -169,7 +169,7 @@ export function GetViewInputsView({
   return (
     <DataList
       currentContext={currentContext}
-      feature={`DataSets Used in ${viewData?.isFusion ? 'Fusion' : 'View'} for`}
+      feature={`DataSets Used in ${viewData?.typeName || 'View'} for`}
       featureIcon={<IconCompass />}
       headerActions={['openAll', 'reload', 'refresh']}
       isActive={isActive}

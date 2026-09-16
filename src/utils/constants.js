@@ -68,6 +68,9 @@ export const ACTION_COLOR_PATTERNS = {
 // (e.g. /datacenter/dataflows before /datacenter).
 export const SECTION_TITLES = {
   '/admin/people': 'People',
+  '/ai-library': 'AI Library',
+  '/ai-library/agents': 'AI Agents',
+  '/ai-library/toolkits': 'AI Toolkits',
   '/ai-services/jupyter': 'Jupyter Workspaces',
   '/alerts': 'Alerts Management',
   '/app-studio': 'App Studio Apps',

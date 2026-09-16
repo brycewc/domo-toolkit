@@ -14,6 +14,10 @@
 - Governance Toolkit Jobs and applications now open straight from a copied ID, a row in a list, or a link you share.
 - Drill Paths can now be opened from a copied ID in Navigate to Copied Object.
 - Scheduled Reports now support Objects Owned and Transfer Ownership.
+- Data Models are now recognized as their own type.
+- Views and Data Fusions are now recognized as their own types instead of being treated as plain DataSets.
+- The Current Context footer on a data model, view, or data fusion now has a Definition tab showing how it is built.
+- Data models now support Get Data Model Inputs.
 
 ### Reports
 
@@ -66,6 +70,7 @@
 - People and groups now support an activity log across every card they own and the pages those cards appear on.
 - The activity log on a list row or group header that covers several object types now offers each type as its own choice, such as just the App Pages or just the Cards.
 - The Activity Log now shows when the DomoStats Activity Log dataset last updated.
+- The activity log on a view or a data model now includes its created and edited events.
 
 ### Copy Color Rules
 
@@ -118,10 +123,14 @@
 - Remove Empty String Filters now also finds empty string filters saved in a card's filter list, not just its quick filters.
 - Navigate to Copied Object now identifies a pro-code custom app design as pro-code instead of calling it a brick, and a variable instead of calling it a Beast Mode.
 - Objects Owned and Transfer Ownership no longer list a dataflow that has been deleted.
+- Set Stream to Manual no longer appears on a data model.
+- Share With Self on a view, data fusion, or data model now explains that it has no account instead of reporting that the account was not found.
 - A custom app card no longer shows a Definition tab that fails to load.
 - Get Card Pages now says there are no cards when an object has none, instead of reporting that its cards aren't on any pages.
 - A dataflow's last run time in Lineage now includes the year when the run wasn't this year.
 - The tab title on an alert now shows the alert's name instead of "Alerts Management" or the dataset's name.
+- The browser tab title now updates when you open a different object in the same tab, instead of staying stuck on the first one.
+- Leaving an agent or toolkit in the AI Library now shows "AI Agents" or "AI Toolkits" in the browser tab.
 - Actions that depend on your permissions no longer stay hidden on a tab the extension couldn't read your account on when it loaded.
 - Download Code on a Code Engine Package version no longer repeats the version number in the file name.
 
@@ -148,6 +157,8 @@
 - Migrate Content now offers to remap or drop a column the content references that is missing from both the original and the target dataset, instead of failing those items at the end.
 - Migrate Content and Remap Columns no longer ask you to remap a column because a formula spells its name in a different capitalization than the dataset does, and a card that spells one differently now migrates instead of being rejected.
 - Migrate Content and Remap Columns no longer count a column as used when the formula line referencing it is commented out, or miss one because an earlier commented-out line left a backtick unclosed.
+- Migrate Content now skips a downstream data model instead of attempting a repoint that has no effect.
+- Remap Columns now flags a downstream data model for review instead of reporting that it uses none of the columns.
 - Migrate Content and Remap Columns no longer ask you to remap the date grouping on a card's axis, such as month or quarter, as if it were a dataset column.
 - Auto Map now fills in a replacement column whose name differs only in capitalization or separators, instead of leaving it unmapped.
 - Remap Columns no longer offers to drop a broken view column that the view also filters, groups, or sorts on.

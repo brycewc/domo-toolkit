@@ -25,6 +25,7 @@ import {
   fetchDatasetSchemaColumns,
   fetchDatasetViewDefinition,
   findOriginAliases,
+  isDataModelDefinition,
   isFusionView
 } from './columnReferences';
 import { describeSwapFailure, swapDatasetViewInput, swapFusionInput } from './migrateDownstreamContent';
@@ -54,6 +55,9 @@ import { describeSwapFailure, swapDatasetViewInput, swapFusionInput } from './mi
  */
 export async function detectBrokenViewColumns({ tabId = null, viewDefinition = null, viewId }) {
   const def = viewDefinition || (await fetchDatasetViewDefinition(viewId, tabId));
+  // Neither walker below reads a data model's `model` node, so every column would
+  // come back unreferenced and read as broken.
+  if (isDataModelDefinition(def)) return [];
   const fusion = isFusionView(def);
   // Enumerate the view's source datasets straight from its definition. A UNION
   // view nests each branch's table deep under the SUB_SELECT, so the shallow

@@ -27,6 +27,7 @@ import IconDatabase from '@icons/database.svg?react';
 import IconDataflow from '@icons/dataflow.svg?react';
 import IconDocument from '@icons/document.svg?react';
 import IconDomobox from '@icons/domobox.svg?react';
+import IconDomofusion from '@icons/domofusion.svg?react';
 import IconDrill from '@icons/drill.svg?react';
 import IconEnvelope from '@icons/envelope.svg?react';
 import IconFileDrawer from '@icons/file-drawer.svg?react';
@@ -40,6 +41,7 @@ import IconJupyter from '@icons/jupyter.svg?react';
 import IconKey from '@icons/key.svg?react';
 import IconLineage from '@icons/lineage.svg?react';
 import IconListBulleted from '@icons/list-bulleted.svg?react';
+import IconModel from '@icons/model.svg?react';
 import IconNewspaper from '@icons/newspaper.svg?react';
 import IconPackage from '@icons/package.svg?react';
 import IconPagesBars from '@icons/pages-bars.svg?react';
@@ -52,6 +54,7 @@ import IconProject from '@icons/project.svg?react';
 import IconRingingBell from '@icons/ringing-bell.svg?react';
 import IconSandcastle from '@icons/sandcastle.svg?react';
 import IconShield from '@icons/shield.svg?react';
+import IconTableSelect from '@icons/table-select.svg?react';
 import IconTag from '@icons/tag.svg?react';
 import IconToolbox from '@icons/toolbox.svg?react';
 import IconVariable from '@icons/variable.svg?react';
@@ -89,6 +92,7 @@ const ICON_MAP = {
   DataWarehouse: IconDataWarehouse,
   Document: IconDocument,
   Domobox: IconDomobox,
+  Domofusion: IconDomofusion,
   Drill: IconDrill,
   Envelope: IconEnvelope,
   FileDrawer: IconFileDrawer,
@@ -102,6 +106,7 @@ const ICON_MAP = {
   Key: IconKey,
   Lineage: IconLineage,
   ListBulleted: IconListBulleted,
+  Model: IconModel,
   Newspaper: IconNewspaper,
   Package: IconPackage,
   Pages: IconPages,
@@ -114,6 +119,7 @@ const ICON_MAP = {
   RingingBell: IconRingingBell,
   Sandcastle: IconSandcastle,
   Shield: IconShield,
+  TableSelect: IconTableSelect,
   Tag: IconTag,
   Toolbox: IconToolbox,
   Variable: IconVariable,

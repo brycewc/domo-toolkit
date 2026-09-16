@@ -7,8 +7,11 @@ import { userDuplicator } from './user';
 // `buildItems` must prefix every row it returns (`card:123`, `rule:2`), since
 // DuplicateView holds one selection Set across all of a duplicator's groups.
 export const duplicatorsByType = {
+  DATA_FUSION: [colorRulesDuplicator],
+  DATA_MODEL: [colorRulesDuplicator],
   DATA_SOURCE: [colorRulesDuplicator],
-  USER: [userDuplicator]
+  USER: [userDuplicator],
+  VIEW: [colorRulesDuplicator]
 };
 
 /**

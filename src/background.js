@@ -20,9 +20,11 @@ import {
   rootCardIdsFor
 } from '@/utils/beastModeLinks';
 import { clearCookies } from '@/utils/clearCookies';
+import { createCoalescedTask } from '@/utils/coalesce';
 import { DOMO_MATCH_PATTERNS, EXCLUDED_HOSTNAMES, INTERNAL_MATCH_PATTERNS, SECTION_TITLES } from '@/utils/constants';
 import { copyToClipboard } from '@/utils/copyToClipboard';
 import { detectCurrentObject, isDomoUrl } from '@/utils/currentObject';
+import { isDatasetTypeId } from '@/utils/datasetTypes';
 import { executeInPage } from '@/utils/executeInPage';
 import { removeInternalFaviconRules, seedInternalFaviconRules } from '@/utils/faviconRules';
 import { pathnameOf } from '@/utils/general';
@@ -213,8 +215,15 @@ const MAX_CACHED_TABS = 10;
 // the worst case stays around MAX_CACHED_TABS * this out of the 10 MB quota.
 const MAX_BACKUP_ENTRY_CHARS = 250000;
 
+// Wide enough to span a navigation's enrichments, which resolve on independent
+// network latencies over a second or two; the cap keeps that steady stream from
+// deferring the backup indefinitely.
+const PERSIST_DEBOUNCE_MS = 250;
+const PERSIST_MAX_WAIT_MS = 1000;
+
 // Session storage keys
 const SESSION_STORAGE_KEY = 'tabContextsBackup';
+const APPLIED_TITLES_KEY = 'appliedTitlesBackup';
 const INSTANCE_USERS_KEY = 'instanceUsersBackup';
 const VERIFIED_LOCAL_ORIGINS_KEY = 'verifiedLocalOrigins';
 
@@ -304,7 +313,7 @@ function backfillInstanceUser(instance, instanceUser, exceptTabId) {
     filled.push(tabId);
   }
   if (!filled.length) return;
-  persistToSession();
+  sessionBackup.schedule();
   for (const tabId of filled) {
     // A redetecting tab's object is nulled until detection commits, so
     // broadcasting now would flash "No object detected"; its own detection
@@ -437,7 +446,7 @@ function getInstanceUser(instance, tabId) {
     // for a full admin until logout. Dropping it lets the next detection retry.
     if (user?.metadata?.USER_RIGHTS?.length) {
       instanceUserCache.set(instance, { featureSwitches, promise: null, user, userGroups });
-      persistInstanceUsers();
+      instanceUsersBackup.schedule();
       backfillInstanceUser(instance, { featureSwitches, user, userGroups }, tabId);
     } else {
       instanceUserCache.delete(instance);
@@ -460,7 +469,7 @@ function getInstanceUser(instance, tabId) {
  */
 function invalidateInstanceUser(instance) {
   instanceUserCache.delete(instance);
-  persistInstanceUsers();
+  instanceUsersBackup.schedule();
 }
 
 /**
@@ -695,6 +704,9 @@ async function migrateClearCookiesSetting() {
  */
 async function persistInstanceUsers() {
   try {
+    // Writing before the restore has read would clobber the backup with a
+    // one-instance record, same race persistToSession guards against.
+    await sessionRestore;
     const record = {};
     for (const [instance, entry] of instanceUserCache.entries()) {
       if (entry?.user) {
@@ -712,11 +724,21 @@ async function persistInstanceUsers() {
   }
 }
 
+const instanceUsersBackup = createCoalescedTask(persistInstanceUsers, {
+  delayMs: PERSIST_DEBOUNCE_MS,
+  label: 'Background',
+  maxWaitMs: PERSIST_MAX_WAIT_MS
+});
+
 /**
  * Persist current tab contexts to session storage
  */
 async function persistToSession() {
   try {
+    // A wake event reaches setTabContext after a single round trip while the
+    // restore needs three, so without this the first persist would overwrite the
+    // backup with a one-tab snapshot that the restore then reads back.
+    await sessionRestore;
     // Convert Map to array for storage. toStorageJSON allowlists what survives
     // per tab; on top of that, any entry still over MAX_BACKUP_ENTRY_CHARS
     // (some type's raw details blob) is stored without details at all. The
@@ -737,13 +759,24 @@ async function persistToSession() {
         }
         return [tabId, entry];
       });
+    // Pairs rather than an object: tab IDs are numbers, and object keys would
+    // come back as strings that no tabId lookup ever matches.
     await chrome.storage.session.set({
+      [APPLIED_TITLES_KEY]: Array.from(tabAppliedTitles),
       [SESSION_STORAGE_KEY]: contextsArray
     });
   } catch (error) {
     console.error('[Background] Error persisting to session storage:', error);
   }
 }
+
+// Reach the tab-context backup only through this: calling persistToSession
+// directly bypasses both the coalescing and the one-write-at-a-time guard.
+const sessionBackup = createCoalescedTask(persistToSession, {
+  delayMs: PERSIST_DEBOUNCE_MS,
+  label: 'Background',
+  maxWaitMs: PERSIST_MAX_WAIT_MS
+});
 
 /**
  * Restore tab contexts from session storage on service worker wake
@@ -755,7 +788,14 @@ async function restoreFromSession() {
     await restoreInstanceUsers();
     await restoreVerifiedLocalOrigins();
 
-    const result = await chrome.storage.session.get(SESSION_STORAGE_KEY);
+    const result = await chrome.storage.session.get([APPLIED_TITLES_KEY, SESSION_STORAGE_KEY]);
+    for (const [tabId, title] of result[APPLIED_TITLES_KEY] || []) {
+      // A wake event can apply a title before this restore lands, and that one is
+      // newer than the backup's.
+      if (!tabAppliedTitles.has(tabId)) {
+        tabAppliedTitles.set(tabId, title);
+      }
+    }
     if (result[SESSION_STORAGE_KEY]) {
       const contextsArray = result[SESSION_STORAGE_KEY];
       tabContexts.clear();
@@ -851,8 +891,8 @@ function setTabContext(tabId, context) {
   tabContexts.set(tabId, context);
   touchTab(tabId);
 
-  // Persist to session storage (async, non-blocking)
-  persistToSession();
+  // Back up to session storage (coalesced, non-blocking)
+  sessionBackup.schedule();
 
   if (context?.domoObject?.metadata?.name) {
     const allowedTitles = buildAllowedTitles(context.domoObject);
@@ -891,8 +931,13 @@ function setTabTitle(tabId, objectName, allowedTitles = [], force = false, allow
         world: 'MAIN'
       })
       .then((results) => {
-        if (results?.[0]?.result) {
-          tabAppliedTitles.set(tabId, newTitle);
+        if (!results?.[0]?.result || tabAppliedTitles.get(tabId) === newTitle) return;
+        tabAppliedTitles.set(tabId, newTitle);
+        // The title lands after setTabContext already scheduled its backup, so
+        // schedule another or the backup trails a navigation behind. A section
+        // title needs none: the check above treats every one as overwritable.
+        if (!SECTION_TITLE_STRINGS.includes(newTitle)) {
+          sessionBackup.schedule();
         }
       })
       .catch((error) => {
@@ -1039,17 +1084,18 @@ chrome.permissions.onRemoved.addListener(async (permissions) => {
       if (context?.instance && isInternalInstanceKey(context.instance)) {
         tabContexts.delete(tabId);
         tabAccessTimes.delete(tabId);
+        tabAppliedTitles.delete(tabId);
         chrome.runtime.sendMessage({ context: null, tabId, type: 'TAB_CONTEXT_UPDATED' }).catch(() => {
           /* no listeners */
         });
       }
     }
-    persistToSession();
+    await sessionBackup.flush();
   }
 });
 
 // Restore contexts on service worker startup
-restoreFromSession();
+const sessionRestore = restoreFromSession();
 applyIconFromStorage();
 // Hydrate the cached permission flag, and re-assert the content-script
 // registration: it does not survive an extension reload in dev, and a granted
@@ -1175,7 +1221,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabLastContext.delete(tabId);
   deepLinkHandled.delete(tabId);
   deepLinkInFlight.delete(tabId);
-  persistToSession();
+  sessionBackup.schedule();
 });
 
 // Sweep a closed window's per-instance sidepanel records so their full context
@@ -1385,7 +1431,7 @@ async function detectAndStoreContext(tabId) {
       const hadContext = tabContexts.has(tabId);
       tabContexts.delete(tabId);
       tabAccessTimes.delete(tabId);
-      persistToSession();
+      sessionBackup.schedule();
 
       // Broadcast null context to extension pages so they update their UI. A
       // blocked internal instance rides along so the UI can offer the opt-in rather
@@ -1655,9 +1701,9 @@ async function detectAndStoreContext(tabId) {
       }
     }
 
-    // DATA_SOURCE: set streamId as parentId for non-DataFlow datasets
+    // Any dataset flavor: set streamId as parentId for non-DataFlow datasets
     const isStreamParent =
-      typeModel.id === 'DATA_SOURCE' &&
+      isDatasetTypeId(typeModel.id) &&
       !parentId &&
       enrichedMetadata.details?.streamId &&
       enrichedMetadata.details?.type?.toLowerCase() !== 'dataflow';

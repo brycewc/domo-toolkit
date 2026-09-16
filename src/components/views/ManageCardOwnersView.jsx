@@ -24,10 +24,13 @@ import IconX from '@icons/x.svg?react';
 const SUPPORTED_TYPES = [
   'BEAST_MODE_FORMULA',
   'DATA_APP_VIEW',
+  'DATA_FUSION',
+  'DATA_MODEL',
   'DATA_SOURCE',
   'DATAFLOW_TYPE',
   'PAGE',
   'REPORT_BUILDER_PAGE',
+  'VIEW',
   'WORKSHEET_VIEW'
 ];
 

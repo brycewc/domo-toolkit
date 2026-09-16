@@ -12,6 +12,7 @@ import { getCardDatasets, getCardsForObject, getCardsForParent } from '@/service
 import { getDatasetsForPage } from '@/services/datasets';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { soleExpandedGroupIds, withCanonicalGroups } from '@/utils/dataListGroups';
+import { isDatasetTypeId } from '@/utils/datasetTypes';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconBeastMode from '@icons/beast-mode.svg?react';
 import IconSync from '@icons/sync.svg?react';
@@ -92,7 +93,7 @@ export function GetBeastModesView({
         transformedItems = result.items;
         objectName = result.parentName;
         displayType = result.parentType;
-      } else if (objectType === 'DATA_SOURCE') {
+      } else if (isDatasetTypeId(objectType)) {
         const beastModes = await getDatasetBeastModesWithUsage(objectId, tabId);
         transformedItems = beastModes.map((bm) => buildUsageBeastModeItem(bm, origin));
       } else if (objectType === 'DATAFLOW_TYPE') {

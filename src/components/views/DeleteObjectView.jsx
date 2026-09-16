@@ -626,6 +626,9 @@ deletersByType.PAGE.cascadeButtons = [onlyHereCardsCascade];
 // Bricks and pro-code apps are both custom app designs deleted the same way, so
 // the pro-code type reuses the brick's delete config.
 deletersByType.RYUU_APP = deletersByType.APP;
+deletersByType.DATA_FUSION = deletersByType.DATA_SOURCE;
+deletersByType.DATA_MODEL = deletersByType.DATA_SOURCE;
+deletersByType.VIEW = deletersByType.DATA_SOURCE;
 
 export function DeleteObjectView({
   instance = null,
