@@ -131,6 +131,8 @@
 - The tab title on an alert now shows the alert's name instead of "Alerts Management" or the dataset's name.
 - The browser tab title now updates when you open a different object in the same tab, instead of staying stuck on the first one.
 - Leaving an agent or toolkit in the AI Library now shows "AI Agents" or "AI Toolkits" in the browser tab.
+- The browser tab now names the Domo section you are on across many more areas, such as Task Center, Scheduled Reports, the Marketplace, and the Asset Library.
+- Opening a group or a role from an admin list now keeps its name in the browser tab instead of falling back to the section name.
 - Actions that depend on your permissions no longer stay hidden on a tab the extension couldn't read your account on when it loaded.
 - Download Code on a Code Engine Package version no longer repeats the version number in the file name.
 

@@ -37,13 +37,7 @@ import { instanceKeyFromUrl, isInternalDomoHostname, isInternalInstanceKey, isLo
 import { hasInternalAccess, registerInternalContentScript, unregisterInternalContentScript } from '@/utils/internalInstance';
 import { sidepanelStorageKeyPrefix } from '@/utils/sidepanel';
 
-// Generic titles the toolkit applies to list/index pages, in both the bare and
-// " - Domo"-suffixed forms document.title can hold. They are overwritable in two
-// directions: our own writes replace them with a resolved object name, and when
-// Domo (re)writes one after we have already set an object name, we re-apply the
-// name. Domo reuses a section title across a list and its detail pages, so
-// navigating from the list into an item can leave the detail tab on it.
-const SECTION_TITLE_STRINGS = Object.values(SECTION_TITLES).flatMap((title) => [title, `${title} - Domo`]);
+const SECTION_KEYS_LONGEST_FIRST = Object.keys(SECTION_TITLES).sort((a, b) => b.length - a.length);
 
 /**
  * Compute whether the current user is an owner of the detected object.
@@ -778,6 +772,15 @@ const sessionBackup = createCoalescedTask(persistToSession, {
   maxWaitMs: PERSIST_MAX_WAIT_MS
 });
 
+function matchSectionKey(url) {
+  try {
+    const pathname = new URL(url).pathname.toLowerCase();
+    return SECTION_KEYS_LONGEST_FIRST.find((key) => pathname.startsWith(key.toLowerCase())) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Restore tab contexts from session storage on service worker wake
  */
@@ -863,24 +866,36 @@ async function restoreVerifiedLocalOrigins() {
   }
 }
 
+function sectionTitleFor(key) {
+  const section = SECTION_TITLES[key];
+  return typeof section === 'string' ? section : section.title;
+}
+
+/**
+ * Titles that count as ours to overwrite on a page, in both the bare and
+ * " - Domo"-suffixed forms. Scoped to the URL's own section, so a card named
+ * "Reports" elsewhere is never mistaken for one.
+ * @param {string} url - The tab's URL
+ * @returns {string[]}
+ */
+function sectionTitleStrings(url) {
+  const key = matchSectionKey(url);
+  if (!key) return [];
+  const section = SECTION_TITLES[key];
+  const names = typeof section === 'string' ? [section] : [section.title, ...(section.aliases ?? [])];
+  return names.flatMap((name) => [name, `${name} - Domo`]);
+}
+
 function setActionIcon(color) {
   const path = ICON_PATHS[color] ?? ICON_PATHS.blue;
   chrome.action.setIcon({ path }).catch((err) => console.error('[Background] setIcon failed:', err));
 }
 
 function setSectionTitle(tabId, url, force = false) {
-  try {
-    const pathname = new URL(url).pathname.toLowerCase();
-    const sortedKeys = Object.keys(SECTION_TITLES).sort((a, b) => b.length - a.length);
-    const matchedKey = sortedKeys.find((key) => pathname.startsWith(key.toLowerCase()));
-    if (matchedKey) {
-      setTabTitle(tabId, SECTION_TITLES[matchedKey], [], force);
-      return true;
-    }
-  } catch (error) {
-    console.error(`[Background] Error setting section title for tab ${tabId}:`, error);
-  }
-  return false;
+  const matchedKey = matchSectionKey(url);
+  if (!matchedKey) return false;
+  setTabTitle(tabId, sectionTitleFor(matchedKey), { force, url });
+  return true;
 }
 
 /**
@@ -897,23 +912,24 @@ function setTabContext(tabId, context) {
   if (context?.domoObject?.metadata?.name) {
     const allowedTitles = buildAllowedTitles(context.domoObject);
     const allowedPrefixes = buildAllowedTitlePrefixes(context.domoObject);
-    setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles, false, allowedPrefixes);
+    setTabTitle(tabId, getTitleName(context.domoObject), { allowedPrefixes, allowedTitles, url: context.url });
   }
 
   broadcastTabContext(tabId, context?.toJSON());
 }
 
-function setTabTitle(tabId, objectName, allowedTitles = [], force = false, allowedPrefixes = []) {
+function setTabTitle(tabId, objectName, { allowedPrefixes = [], allowedTitles = [], force = false, url } = {}) {
   const ourTitle = tabAppliedTitles.get(tabId);
   // An in-place navigation to another object (a DataSet's Alerts tab, say)
   // leaves our last title standing, and Domo never rewrites it, so a title we
   // wrote ourselves counts as free to replace.
   const allowed = ourTitle && !allowedTitles.includes(ourTitle) ? [...allowedTitles, ourTitle] : allowedTitles;
   const newTitle = removeDomoTitleSuffix ? objectName : `${objectName} - Domo`;
+  const sectionTitles = sectionTitleStrings(url);
   try {
     chrome.scripting
       .executeScript({
-        args: [objectName, allowed, allowedPrefixes, SECTION_TITLE_STRINGS, removeDomoTitleSuffix, force],
+        args: [objectName, allowed, allowedPrefixes, sectionTitles, removeDomoTitleSuffix, force],
         func: (objectName, allowedTitles, allowedPrefixes, sectionTitles, removeSuffix, force) => {
           const currentTitle = document.title.trim();
           const isManagedTitle =
@@ -936,7 +952,7 @@ function setTabTitle(tabId, objectName, allowedTitles = [], force = false, allow
         // The title lands after setTabContext already scheduled its backup, so
         // schedule another or the backup trails a navigation behind. A section
         // title needs none: the check above treats every one as overwritable.
-        if (!SECTION_TITLE_STRINGS.includes(newTitle)) {
+        if (!sectionTitles.includes(newTitle)) {
           sessionBackup.schedule();
         }
       })
@@ -1308,19 +1324,19 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (changeInfo.title === 'Domo') {
       // Title reset to "Domo", so apply the object name or a section title
       if (objectName) {
-        setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles, false, allowedPrefixes);
+        setTabTitle(tabId, getTitleName(context.domoObject), { allowedPrefixes, allowedTitles, url: tab.url });
       } else if (tab.url) {
         setSectionTitle(tabId, tab.url);
       }
     } else if (
       objectName &&
-      (allowedTitles.includes(changeInfo.title) || SECTION_TITLE_STRINGS.includes(changeInfo.title))
+      (allowedTitles.includes(changeInfo.title) || sectionTitleStrings(tab.url).includes(changeInfo.title))
     ) {
       // Domo re-applied a generic title after we set the object name: either a
       // stale parent-only title (e.g., "MyApp - Domo") or a section title it
       // reuses across a list and its detail pages (e.g., "Code Engine
       // Packages"), so re-apply the object name.
-      setTabTitle(tabId, getTitleName(context.domoObject), allowedTitles, false, allowedPrefixes);
+      setTabTitle(tabId, getTitleName(context.domoObject), { allowedPrefixes, allowedTitles, url: tab.url });
     } else if (removeDomoTitleSuffix && changeInfo.title.endsWith(' - Domo')) {
       // Suffix setting on, so strip " - Domo" from any other Domo tab title.
       // Excluded hosts never reach here: isDomoUrl(tab.url) above is false for them.
@@ -1377,7 +1393,12 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
       if (context?.domoObject?.metadata?.name) {
         const allowedTitles = buildAllowedTitles(context.domoObject);
         const allowedPrefixes = buildAllowedTitlePrefixes(context.domoObject);
-        setTabTitle(tab.id, getTitleName(context.domoObject), allowedTitles, true, allowedPrefixes);
+        setTabTitle(tab.id, getTitleName(context.domoObject), {
+          allowedPrefixes,
+          allowedTitles,
+          force: true,
+          url: tab.url
+        });
         continue;
       }
       // Unmanaged page (no detected object): re-apply a section title if one
