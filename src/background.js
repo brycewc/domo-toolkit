@@ -10,6 +10,7 @@ import {
 import { getDataflowForOutputDataset } from '@/services/dataflows';
 import { runEnrichments } from '@/services/enrichments';
 import { getFeatureSwitches } from '@/services/features';
+import { openGovernanceToolkitJob } from '@/services/governanceToolkit';
 import { checkPageType } from '@/services/pages';
 import { getCurrentUser, getUserGroups } from '@/services/users';
 import {
@@ -25,6 +26,11 @@ import { detectCurrentObject, isDomoUrl } from '@/utils/currentObject';
 import { executeInPage } from '@/utils/executeInPage';
 import { removeInternalFaviconRules, seedInternalFaviconRules } from '@/utils/faviconRules';
 import { pathnameOf } from '@/utils/general';
+import {
+  GOVERNANCE_TOOLKIT_APPLICATION_ID_BY_SLUG,
+  GOVERNANCE_TOOLKIT_JOB_PARAM,
+  GOVERNANCE_TOOLKIT_PATH
+} from '@/utils/governanceToolkitApps';
 import { instanceKeyFromUrl, isInternalDomoHostname, isInternalInstanceKey, isLocalDomoHostname } from '@/utils/instance';
 import { hasInternalAccess, registerInternalContentScript, unregisterInternalContentScript } from '@/utils/internalInstance';
 import { sidepanelStorageKeyPrefix } from '@/utils/sidepanel';
@@ -224,6 +230,19 @@ const tabDetectionGen = new Map();
 // detection while one is already running, which would bump the generation and
 // cancel the in-flight run before it commits the object's name.
 const tabDetectionInFlight = new Map();
+
+// tabId -> jobId already driven there, so an SPA navigation still carrying the
+// param cannot repeat it.
+const deepLinkHandled = new Map();
+const deepLinkInFlight = new Set();
+
+// Keys double as the set of failures worth surfacing; anything absent leaves the
+// user on the job list, which is a reasonable place to land.
+const DEEP_LINK_FAILURE_MESSAGES = {
+  JOB_NOT_FOUND: 'The job no longer exists, or it belongs to a different Governance Toolkit tool.',
+  NOT_ENTITLED: 'This instance does not have that Governance Toolkit tool.',
+  ROW_NOT_FOUND: 'The job list did not include this job. Seeing every job on a tool needs job admin rights.'
+};
 
 // Per-instance cache for user + groups + feature switches
 // (instance -> { user, userGroups, featureSwitches, promise })
@@ -1154,6 +1173,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabApiErrors.delete(tabId);
   tabAppliedTitles.delete(tabId);
   tabLastContext.delete(tabId);
+  deepLinkHandled.delete(tabId);
+  deepLinkInFlight.delete(tabId);
   persistToSession();
 });
 
@@ -1217,8 +1238,14 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // the cached object until it commits, and a reload fires `complete` more than
   // once, so an unguarded retry would read that transient null, start a
   // competing detection, and cancel the in-flight run (e.g. the one Share with
-  // Self kicks off after reloading), leaving the details blank.
-  if (changeInfo.status === 'complete' && isActionableDomoUrl(tab.url) && !tabDetectionInFlight.has(tabId)) {
+  // Self kicks off after reloading), leaving the details blank. A deep-link
+  // drive is skipped for the same reason: it detects nothing until it lands.
+  if (
+    changeInfo.status === 'complete' &&
+    isActionableDomoUrl(tab.url) &&
+    !tabDetectionInFlight.has(tabId) &&
+    !deepLinkInFlight.has(tabId)
+  ) {
     const context = getTabContext(tabId);
     if (context && !context.domoObject?.metadata?.name) {
       await detectAndStoreContext(tabId);
@@ -1258,9 +1285,20 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 // Detect context when history state changes (SPA navigation)
 chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
+  if (details.frameId === 0) {
+    driveGovernanceJobDeepLink(details.tabId, details.url, false).catch(() => {});
+  }
   if (details.url && isActionableDomoUrl(details.url)) {
     await detectAndStoreContext(details.tabId);
   }
+});
+
+// DOMContentLoaded rather than `changeInfo.url`: that fires at navigation commit,
+// early enough for a new tab's injection to land in the empty document the real one
+// replaces, and it never fires at all for a same-URL reload.
+chrome.webNavigation.onDOMContentLoaded.addListener((details) => {
+  if (details.frameId !== 0) return;
+  driveGovernanceJobDeepLink(details.tabId, details.url, true).catch(() => {});
 });
 
 // Listen for setting changes
@@ -1694,6 +1732,80 @@ async function detectAndStoreContext(tabId) {
     if (tabDetectionInFlight.get(tabId) === generation) {
       tabDetectionInFlight.delete(tabId);
     }
+  }
+}
+
+/**
+ * Open a Governance Toolkit job when a tab lands on the extension's deep link.
+ * Triggering on navigation rather than from the caller is what lets the link work
+ * from a pasted URL and survive the popup closing.
+ * @param {number} tabId - The tab that navigated
+ * @param {string} url - The URL it landed on
+ * @param {boolean} isNewDocument - A document load rather than an SPA navigation
+ */
+async function driveGovernanceJobDeepLink(tabId, url, isNewDocument) {
+  if (!isActionableDomoUrl(url)) return;
+
+  let jobId, slug;
+  try {
+    const parsed = new URL(url);
+    if (!parsed.pathname.startsWith(GOVERNANCE_TOOLKIT_PATH)) return;
+    slug = parsed.pathname.slice(GOVERNANCE_TOOLKIT_PATH.length).split('/')[0];
+    jobId = parsed.searchParams.get(GOVERNANCE_TOOLKIT_JOB_PARAM);
+  } catch {
+    return;
+  }
+
+  // The driver strips the param once the job is open, so its absence is also how
+  // a tab becomes eligible for that same job again later.
+  if (!slug || !jobId) {
+    deepLinkHandled.delete(tabId);
+    return;
+  }
+  // The param is untrusted input; validating here also keeps it out of the URL
+  // the driver builds for its job lookup.
+  if (!getObjectType('EXECUTOR_JOB').isValidObjectId(jobId)) return;
+  if (deepLinkInFlight.has(tabId)) return;
+  if (isNewDocument) {
+    deepLinkHandled.delete(tabId);
+  } else if (deepLinkHandled.get(tabId) === jobId) {
+    return;
+  }
+
+  let tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch {
+    return;
+  }
+  if (!(await confirmDomoTab(tab))) return;
+
+  deepLinkHandled.set(tabId, jobId);
+  deepLinkInFlight.add(tabId);
+  try {
+    const applicationId = GOVERNANCE_TOOLKIT_APPLICATION_ID_BY_SLUG[slug] ?? null;
+    const result = await openGovernanceToolkitJob({ applicationId, jobId, slug }, tabId);
+    if (result.ok || result.reason === 'NAVIGATED_AWAY' || result.reason === 'PARAM_GONE') return;
+
+    console.warn(`[Background] Governance Toolkit deep link failed (${result.reason})`, result.error || '');
+
+    const message = DEEP_LINK_FAILURE_MESSAGES[result.reason];
+    if (message) {
+      chrome.action.setBadgeText({ text: '!' });
+      chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
+      restoreBadgeAfterDelay();
+      addApiError(tabId, {
+        method: 'GET',
+        response: result.reason,
+        status: 'Deep Link',
+        statusText: message,
+        time: Date.now(),
+        timestamp: new Date().toLocaleTimeString(),
+        url
+      });
+    }
+  } finally {
+    deepLinkInFlight.delete(tabId);
   }
 }
 

@@ -1,4 +1,5 @@
 import { getDrillParentCardId } from '@/services/cards';
+import { getGovernanceToolkitJobApplicationId } from '@/services/governanceToolkit';
 import { getAppStudioPageParent } from '@/services/pages';
 import { executeInPage } from '@/utils/executeInPage';
 
@@ -52,6 +53,7 @@ export class DomoObject {
       // For types requiring a parent, build URL if we have the parent ID
       if (parentId) {
         let builtUrl = `${baseUrl}${this.objectType.urlPath.replace('{parent}', parentId).replace('{id}', id)}`;
+        builtUrl = this.objectType.resolveSlugPlaceholder(builtUrl, id, parentId);
         // Resolve {metadata.dot.path} placeholders from this object's metadata
         builtUrl = DomoObjectType.resolveMetadataPlaceholders(builtUrl, this.metadata);
         // Resolve extra URL placeholders (e.g. {version}) from the original URL
@@ -61,7 +63,7 @@ export class DomoObject {
             if (value) builtUrl = builtUrl.replace(`{${key}}`, value);
           }
         }
-        this.url = builtUrl.includes('{') && originalUrl ? originalUrl : builtUrl;
+        this.url = builtUrl.includes('{') ? (originalUrl ?? null) : builtUrl;
       } else {
         // Don't build URL yet (it's async)
         this.url = null;
@@ -69,9 +71,10 @@ export class DomoObject {
     } else {
       // For simple types, build URL synchronously
       let builtUrl = `${baseUrl}${this.objectType.urlPath.replace('{id}', id)}`;
+      builtUrl = this.objectType.resolveSlugPlaceholder(builtUrl, id, null);
       builtUrl = DomoObjectType.resolveMetadataPlaceholders(builtUrl, this.metadata);
       // Fall back to originalUrl if any metadata placeholders remain unresolved
-      this.url = builtUrl.includes('{') && originalUrl ? originalUrl : builtUrl;
+      this.url = builtUrl.includes('{') ? (originalUrl ?? null) : builtUrl;
     }
   }
 
@@ -144,6 +147,9 @@ export class DomoObject {
             break;
           case 'DRILL_VIEW':
             parentId = await getDrillParentCardId(this.id, inPageContext, tabId);
+            break;
+          case 'EXECUTOR_JOB':
+            parentId = await getGovernanceToolkitJobApplicationId(this.id, inPageContext, tabId);
             break;
           default:
             throw new Error(`Parent lookup not supported for type: ${this.objectType.id}`);
@@ -270,6 +276,11 @@ export class DomoObject {
       throw new Error(`Cannot navigate to ${this.objectType.name}: this object type does not have a navigable URL`);
     }
     const url = this.url || (await this.buildUrl(this.baseUrl, tabId));
+    // A placeholder the type couldn't fill comes back literally, and opening it
+    // would land the user on a nonsense URL.
+    if (url.includes('{')) {
+      throw new Error(`Cannot navigate to ${this.objectType.name}: its URL could not be resolved`);
+    }
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 

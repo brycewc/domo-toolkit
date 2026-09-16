@@ -1,5 +1,10 @@
 import { DomoObject } from '@/models/DomoObject';
 import { getAccountIdsForDomoObject } from '@/services/accounts';
+import {
+  GOVERNANCE_TOOLKIT_APPLICATION_ID_BY_SLUG,
+  GOVERNANCE_TOOLKIT_JOB_PARAM,
+  GOVERNANCE_TOOLKIT_SLUG_BY_APPLICATION_ID
+} from '@/utils/governanceToolkitApps';
 
 /**
  * ObjectType class represents a Domo object id with its configuration
@@ -20,7 +25,9 @@ export class DomoObjectType {
    *     or a function (domoObject) => value that derives the copy value — return null/undefined to hide the entry.
    *   - primary: if true, overrides the default copy action; original object ID moves to dropdown
    *   - when: visibility condition (see `matchesCondition`) — omit to show when source is truthy
-   * @param {Object} [options.extractConfig] - Configuration for extracting ID from URL
+   * @param {Object} [options.extractConfig] - Configuration for extracting ID from URL. A `valueMap` on the
+   *   config (or on its `parentExtract`) translates the extracted segment through a lookup table, yielding null
+   *   when the segment is absent from it — for a URL carrying a slug where the extension needs the mapped ID.
    * @param {string} [options.featureSwitch] - Instance feature switch this type requires (e.g. 'approvalcenter').
    *   Consumers route through `isTypeFeatureEnabled()` in `@/utils/featureSwitches`, which fails open while the
    *   context's switch list is unknown and skips the type once the loaded list confirms the switch is absent.
@@ -62,6 +69,10 @@ export class DomoObjectType {
    *   - `{parent}`: the parent object ID (fetched async if needed)
    *   - `{metadata.<dot.path>}`: any value resolved by dot-path from the DomoObject's `metadata`
    *     (e.g., `{metadata.details.type}`). Unresolved placeholders fall back to `originalUrl`.
+   *   - `{slug}`: resolved from `options.urlSlugs`
+   * @param {Object} [options.urlSlugs] - Resolves `{slug}`: `{ map, source }`, `source` being `'id'` or `'parent'`
+   *   and `map` keyed by that ID. `source: 'parent'` makes the type parent-requiring even with no `{parent}` in
+   *   the path. An ID absent from the map leaves `{slug}` in place, which consumers read as "not navigable".
    */
   constructor(id, name, options = {}) {
     this.id = id;
@@ -77,6 +88,7 @@ export class DomoObjectType {
     this.redirectsToType = options.redirectsToType ?? null;
     this.relatedData = options.relatedData ?? null;
     this.urlPath = options.urlPath ?? null;
+    this.urlSlugs = options.urlSlugs ?? null;
   }
 
   /**
@@ -110,8 +122,8 @@ export class DomoObjectType {
 
     let url = this.urlPath.replace('{id}', id);
 
-    // If the URL contains {parent}, replace it with the parentId
-    if (url.includes('{parent}')) {
+    // Covers a type whose parent feeds {slug} rather than a literal {parent}
+    if (this.requiresParentForUrl()) {
       if (!parentId) {
         // If we have a tabId and this type supports parent lookup, try to get it
         if (tabId) {
@@ -130,6 +142,7 @@ export class DomoObjectType {
       url = url.replace('{parent}', parentId);
     }
 
+    url = this.resolveSlugPlaceholder(url, id, parentId);
     url = DomoObjectType.resolveMetadataPlaceholders(url, metadata);
 
     return `${baseUrl}${url}`;
@@ -137,16 +150,14 @@ export class DomoObjectType {
 
   /**
    * Whether this type's parent ID can be resolved from just an object ID,
-   * without an originating URL or a pre-stored parentId. True only for types
-   * with a built-in resolver in `DomoObject.getParent`'s switch — currently
-   * only `DATA_APP_VIEW` (via `getAppStudioPageParent`). When true, both
+   * without an originating URL or a pre-stored parentId. When true, both
    * `buildObjectUrl` (URL flow) and `fetchObjectMetadata` callers (API flow)
    * can fill in the parent placeholder lazily, so a parent-requiring type is
-   * still navigable from just a clipboard ID. Keep in sync with that switch.
+   * still navigable from just a clipboard ID.
    * @returns {boolean}
    */
   canResolveParentFromIdAlone() {
-    return this.id === 'DATA_APP_VIEW';
+    return PARENT_RESOLVABLE_FROM_ID.has(this.id);
   }
 
   /**
@@ -155,25 +166,7 @@ export class DomoObjectType {
    * @returns {string|null} The extracted ID or null if not found
    */
   extractObjectId(url) {
-    if (!this.extractConfig) {
-      return null;
-    }
-
-    const parts = url.split(/[/?=&]/);
-    const { fromEnd = false, keyword, offset = 1 } = this.extractConfig;
-
-    let id;
-    if (fromEnd) {
-      // Extract from end of URL
-      id = parts[parts.length - offset] || null;
-    } else {
-      // Lowercase keyword to match lowercased URLs from content script detection
-      const index = parts.indexOf(keyword.toLowerCase());
-      if (index === -1) {
-        return null;
-      }
-      id = parts[index + offset] || null;
-    }
+    const id = extractUrlPart(url, this.extractConfig);
 
     // Validate extracted ID against the type's pattern (rejects e.g. "new", "graph")
     if (id && !this.idPattern.test(id)) {
@@ -189,25 +182,7 @@ export class DomoObjectType {
    * @returns {string|null} The extracted parent ID or null if not found/configured
    */
   extractParentId(url) {
-    if (!this.extractConfig || !this.extractConfig.parentExtract) {
-      return null;
-    }
-
-    const parts = url.split(/[/?=&]/);
-    const { fromEnd = false, keyword, offset = 1 } = this.extractConfig.parentExtract;
-
-    if (fromEnd) {
-      // Extract from end of URL
-      return parts[parts.length - offset] || null;
-    }
-
-    // Lowercase keyword to match lowercased URLs from content script detection
-    const index = parts.indexOf(keyword.toLowerCase());
-    if (index === -1) {
-      return null;
-    }
-
-    return parts[index + offset] || null;
+    return extractUrlPart(url, this.extractConfig?.parentExtract);
   }
 
   /**
@@ -280,7 +255,21 @@ export class DomoObjectType {
    * @returns {boolean} Whether a parent ID is required for URL construction
    */
   requiresParentForUrl() {
-    return this.urlPath && this.urlPath.includes('{parent}');
+    return !!this.urlPath && (this.urlPath.includes('{parent}') || this.urlSlugs?.source === 'parent');
+  }
+
+  /**
+   * Resolve the `{slug}` placeholder from this type's `urlSlugs` table
+   * @param {string} url - URL or path possibly containing `{slug}`
+   * @param {string} id - The object ID
+   * @param {string} [parentId] - The parent object ID
+   * @returns {string} The string with `{slug}` replaced, or untouched when it cannot be resolved
+   */
+  resolveSlugPlaceholder(url, id, parentId) {
+    if (!url || !this.urlSlugs || !url.includes('{slug}')) return url;
+    const key = this.urlSlugs.source === 'parent' ? parentId : id;
+    const slug = key == null ? null : this.urlSlugs.map[key];
+    return slug ? url.replace('{slug}', slug) : url;
   }
 }
 
@@ -1017,13 +1006,22 @@ export const ObjectTypeRegistry = {
   }),
   EXECUTOR_APPLICATION: new DomoObjectType('EXECUTOR_APPLICATION', 'Governance Toolkit Application', {
     api: { endpoint: '/executor/v1/applications/{id}', paths: { name: 'name' } },
-    icon: { component: 'Toolbox' },
-    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    extractConfig: { keyword: 'governance-toolkit', valueMap: GOVERNANCE_TOOLKIT_APPLICATION_ID_BY_SLUG },
+    icon: { component: 'Domobox' },
+    idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    urlPath: '/admin/governance-toolkit/{slug}',
+    urlSlugs: { map: GOVERNANCE_TOOLKIT_SLUG_BY_APPLICATION_ID, source: 'id' }
   }),
   EXECUTOR_JOB: new DomoObjectType('EXECUTOR_JOB', 'Governance Toolkit Job', {
     api: {
       endpoint: '/executor/v1/applications/{parent}/jobs/{id}',
       paths: { name: 'jobName' }
+    },
+    // Domo publishes no deep link to a job, so the extension's own param is what
+    // carries it; the background drives the toolkit UI to open it on arrival.
+    extractConfig: {
+      keyword: GOVERNANCE_TOOLKIT_JOB_PARAM,
+      parentExtract: { keyword: 'governance-toolkit', valueMap: GOVERNANCE_TOOLKIT_APPLICATION_ID_BY_SLUG }
     },
     icon: { component: 'Toolbox' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
@@ -1045,7 +1043,9 @@ export const ObjectTypeRegistry = {
         label: 'Log DataSet',
         typeId: 'DATA_SOURCE'
       }
-    ]
+    ],
+    urlPath: `/admin/governance-toolkit/{slug}?${GOVERNANCE_TOOLKIT_JOB_PARAM}={id}`,
+    urlSlugs: { map: GOVERNANCE_TOOLKIT_SLUG_BY_APPLICATION_ID, source: 'parent' }
   }),
   FILE: new DomoObjectType('FILE', 'Document', {
     api: { endpoint: '/data/v1/data-files/{id}/details', paths: { name: 'name' } },
@@ -1930,6 +1930,42 @@ const ALIAS_LOOKUP = (() => {
   }
   return map;
 })();
+
+/**
+ * Pull one keyword-anchored segment out of a URL, optionally translating it through `valueMap`.
+ * @param {string} url - The URL to extract from
+ * @param {Object} [config] - `{ keyword, offset, fromEnd, valueMap }`
+ * @returns {string|null} The extracted (and mapped) value, or null
+ */
+function extractUrlPart(url, config) {
+  if (!config) {
+    return null;
+  }
+
+  const parts = url.split(/[/?=&]/);
+  const { fromEnd = false, keyword, offset = 1, valueMap } = config;
+
+  let value;
+  if (fromEnd) {
+    value = parts[parts.length - offset] || null;
+  } else {
+    // Lowercase keyword to match lowercased URLs from content script detection
+    const index = parts.indexOf(keyword.toLowerCase());
+    if (index === -1) {
+      return null;
+    }
+    value = parts[index + offset] || null;
+  }
+
+  if (value && valueMap) {
+    return valueMap[value] ?? null;
+  }
+
+  return value;
+}
+
+/** Types with a resolver in `DomoObject.getParent`'s switch. Keep in sync with it. */
+const PARENT_RESOLVABLE_FROM_ID = new Set(['DATA_APP_VIEW', 'DRILL_VIEW', 'EXECUTOR_JOB']);
 
 /**
  * Get a DomoObjectType by its type ID, falling back to alias lookup.

@@ -1,6 +1,8 @@
 import { Button, Card, Spinner } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
+import { AlertStatusIcon } from '@/components/AlertStatusIcon';
 import { TransferOwnershipModal } from '@/components/modals/TransferOwnershipModal';
 import { DataList } from '@/components/views/DataList';
 import { useParallelFetches } from '@/hooks/useParallelFetches';
@@ -41,6 +43,19 @@ const LOG_COLUMNS = [
 
 const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
+const UNSUPPORTED_TYPE_LABELS = [
+  'AI Agents',
+  'AI Toolkits',
+  'API Clients',
+  'Buzz Channels',
+  'Cloud Integrations',
+  'Custom App Designs',
+  'Custom Connectors',
+  'Forms',
+  'Vector Indexes',
+  'Workbench Jobs'
+];
+
 /**
  * Maps TRANSFER_TYPES keys to DomoObjectType IDs. Used for two things:
  *   - Leading ObjectTypeIcon on each parent row in selection mode.
@@ -65,6 +80,7 @@ const TYPE_KEY_TO_DOMO_TYPE = {
   approvalTemplates: 'TEMPLATE',
   appStudioApps: 'DATA_APP',
   cards: 'CARD',
+  certificationProcesses: 'CERTIFICATION_PROCESS',
   codeEnginePackages: 'CODEENGINE_PACKAGE',
   customApps: 'APP',
   dataflows: 'DATAFLOW_TYPE',
@@ -72,13 +88,16 @@ const TYPE_KEY_TO_DOMO_TYPE = {
   filesets: 'FILESET',
   functions: 'BEAST_MODE_FORMULA',
   goals: 'GOAL',
+  governanceToolkitJobs: 'EXECUTOR_JOB',
   groups: 'GROUP',
   jupyterWorkspaces: 'DATA_SCIENCE_NOTEBOOK',
   metrics: 'METRIC',
   pages: 'PAGE',
   projectsAndTasks: 'PROJECT',
+  publications: 'PUBLICATION',
   reports: 'REPORT_BUILDER',
   repositories: 'REPOSITORY',
+  scheduledReports: 'REPORT_SCHEDULE',
   subscriptions: 'SUBSCRIPTION',
   taskCenterQueues: 'HOPPER_QUEUE',
   taskCenterTasks: 'HOPPER_TASK',
@@ -290,7 +309,11 @@ export function OwnershipView({
     if (Object.keys(results).length === 0) return;
     if (errorCount > 0 || totalObjects > 0) return;
     emptyHandledRef.current = true;
-    showStatus('No Objects Owned', `${isGroupSource ? 'Group' : 'User'} **${userName}** does not own any objects`, 'warning');
+    showStatus(
+      'No Objects Owned',
+      `${isGroupSource ? 'Group' : 'User'} **${userName}** does not own any objects`,
+      'warning'
+    );
     onBackToDefault?.();
   }, [errorCount, isFullyLoaded, isGroupSource, onBackToDefault, results, showStatus, totalObjects, userName]);
 
@@ -368,12 +391,30 @@ export function OwnershipView({
             changed = true;
           }
         }
+        for (const groupId of groupRowIdsForType(t.key, items)) {
+          if (!next.has(groupId)) {
+            next.add(groupId);
+            changed = true;
+          }
+        }
       }
       return changed ? next : prev;
     });
 
     if (isFullyLoaded) setPendingSelectAll(false);
   }, [pendingSelectAll, isFullyLoaded, results, forbidden, transferTypes]);
+
+  const jobsByApplication = useMemo(() => {
+    const map = new Map();
+    const r = results['governanceToolkitJobs'];
+    if (r?.status !== 'loaded' || !Array.isArray(r.items)) return map;
+    for (const job of r.items) {
+      const appId = job.parentId ?? null;
+      if (!map.has(appId)) map.set(appId, []);
+      map.get(appId).push(job);
+    }
+    return map;
+  }, [results]);
 
   // Map<projectId, task[]> for the Projects & Tasks group. Drives two things:
   //   - `buildLeafItems` reads it to nest tasks under their parent project
@@ -421,7 +462,7 @@ export function OwnershipView({
 
         if (result?.status === 'loaded' && result.items !== null) {
           count = countOwned(t.key, result.items);
-          children = buildLeafItems(t.key, result.items, origin, tasksByProject);
+          children = buildLeafItems(t.key, result.items, origin, { jobsByApplication, tasksByProject });
         } else if (result?.status === 'error') {
           error = result.error;
         }
@@ -452,7 +493,7 @@ export function OwnershipView({
           typeId: TYPE_KEY_TO_DOMO_TYPE[t.key] || undefined
         });
       }),
-    [results, transferStatus, forbidden, origin, tasksByProject, transferTypes]
+    [results, transferStatus, forbidden, jobsByApplication, origin, tasksByProject, transferTypes]
   );
 
   // Selection eligibility: applies to BOTH parent type rows and individual
@@ -508,6 +549,33 @@ export function OwnershipView({
           if (isAdding) next.add(leafId);
           else next.delete(leafId);
         }
+        // Synthetic group rows aren't in the owned list, so they'd otherwise
+        // stay stale when the type row toggles. No-op for every other type.
+        for (const groupId of groupRowIdsForType(typeKey, r.items)) {
+          if (isAdding) next.add(groupId);
+          else next.delete(groupId);
+        }
+      };
+
+      // Application-tier cascade: toggling an application row mirrors the
+      // change onto every job under it.
+      const propagateApplication = (applicationId, isAdding) => {
+        for (const job of jobsByApplication.get(applicationId) || []) {
+          const leafId = leafIdForItem('governanceToolkitJobs', job);
+          if (isAdding) next.add(leafId);
+          else next.delete(leafId);
+        }
+      };
+
+      // Application-tier reconcile: an application's checkbox is "in" iff every
+      // one of its jobs is in the selection set.
+      const reconcileJobApplication = (applicationId) => {
+        const jobs = jobsByApplication.get(applicationId) || [];
+        if (jobs.length === 0) return;
+        const allSelected = jobs.every((job) => next.has(leafIdForItem('governanceToolkitJobs', job)));
+        const applicationLeafId = `governanceToolkitJobs:app-${applicationId}`;
+        if (allSelected) next.add(applicationLeafId);
+        else next.delete(applicationLeafId);
       };
 
       // Project-tier cascade: toggling a project row's checkbox mirrors the
@@ -544,16 +612,21 @@ export function OwnershipView({
         else next.delete(typeKey);
       };
 
-      // Cascade downward: type-parent → leaves, project → tasks.
+      // Cascade downward: type-parent → leaves, project → tasks,
+      // application → jobs.
       for (const id of added) {
         if (isParentKey(id)) propagateParent(id, true);
         const projectId = parseProjectIdFromLeaf(id);
         if (projectId !== null) propagateProject(projectId, true);
+        const applicationId = parseApplicationIdFromLeaf(id);
+        if (applicationId !== null) propagateApplication(applicationId, true);
       }
       for (const id of removed) {
         if (isParentKey(id)) propagateParent(id, false);
         const projectId = parseProjectIdFromLeaf(id);
         if (projectId !== null) propagateProject(projectId, false);
+        const applicationId = parseApplicationIdFromLeaf(id);
+        if (applicationId !== null) propagateApplication(applicationId, false);
       }
 
       // Reconcile upward: tasks → their parent project. Collect the set of
@@ -573,6 +646,23 @@ export function OwnershipView({
       }
       for (const projectId of touchedProjects) reconcileTaskProject(projectId);
 
+      // Reconcile upward: jobs → their application. Same one-pass-per-parent
+      // shape as the task pass above; an application row toggling is skipped
+      // since the cascade already settled its jobs.
+      const touchedApplications = new Set();
+      for (const id of [...added, ...removed]) {
+        if (parseLeafTypeKey(id) !== 'governanceToolkitJobs') continue;
+        if (parseApplicationIdFromLeaf(id) !== null) continue;
+        const jobId = id.slice('governanceToolkitJobs:'.length);
+        for (const [appId, jobs] of jobsByApplication) {
+          if (jobs.some((job) => String(job.id) === jobId)) {
+            touchedApplications.add(appId);
+            break;
+          }
+        }
+      }
+      for (const applicationId of touchedApplications) reconcileJobApplication(applicationId);
+
       // Reconcile upward: leaves → type-parent. Uses the flat owned list,
       // which already includes projects + tasks for the projectsAndTasks
       // case, so the membership check still treats every leaf equally.
@@ -585,7 +675,7 @@ export function OwnershipView({
 
       setSelectedIds(next);
     },
-    [results, selectedIds, tasksByProject]
+    [jobsByApplication, results, selectedIds, tasksByProject]
   );
 
   // Selected leaf items grouped by type: drives the per-row count badge,
@@ -614,6 +704,23 @@ export function OwnershipView({
     () => Object.values(selectedItemsByType).reduce((sum, items) => sum + items.length, 0),
     [selectedItemsByType]
   );
+
+  // Caveats the modal shows before the user commits, for types whose transfer
+  // has a consequence beyond the owner change itself.
+  const transferNotices = useMemo(() => {
+    const notices = [];
+    if (selectedItemsByType.governanceToolkitJobs?.length > 0) {
+      notices.push(
+        'A Governance Toolkit Job fails to transfer when its application requires the new owner to be the person running the transfer, or when the new owner lacks an authority the application requires. The previous owner also keeps their access to every job that transfers.'
+      );
+    }
+    if (selectedItemsByType.publications?.length > 0) {
+      notices.push(
+        'Transferring a publication republishes it. The new owner must be able to read every dataset, card, and page it contains, or that publication fails to transfer.'
+      );
+    }
+    return notices;
+  }, [selectedItemsByType]);
 
   // Denominator for the toolbar Select-all checkbox (and the subtext). Counts
   // every leaf across types the user has authority for AND that loaded with
@@ -650,6 +757,9 @@ export function OwnershipView({
       if (r?.status !== 'loaded' || !r.items) continue;
       for (const item of flattenOwned(typeKey, r.items)) {
         next.add(leafIdForItem(typeKey, item));
+      }
+      for (const groupId of groupRowIdsForType(typeKey, r.items)) {
+        next.add(groupId);
       }
     }
     setSelectedIds(next);
@@ -921,6 +1031,21 @@ export function OwnershipView({
     transferTypes
   ]);
 
+  const unsupportedBanner = (
+    <Alert className='w-full' status='warning' variant='transparent'>
+      <Alert.Content>
+        <Alert.Title className='flex items-center gap-1'>
+          <AlertStatusIcon />
+          Not Checked
+        </Alert.Title>
+        <Alert.Description className='text-xs'>
+          Domo has no way to list these by owner, so they are neither shown here nor transferred:{' '}
+          {UNSUPPORTED_TYPE_LABELS.join(', ')}.
+        </Alert.Description>
+      </Alert.Content>
+    </Alert>
+  );
+
   const customHeaderActions = useMemo(() => {
     const actions = [];
     if (canTransfer) {
@@ -1013,6 +1138,7 @@ export function OwnershipView({
       <DataList
         beta
         fillHeight
+        banner={unsupportedBanner}
         currentContext={currentContext}
         customHeaderActions={customHeaderActions}
         feature='Objects Owned by'
@@ -1042,6 +1168,7 @@ export function OwnershipView({
       <TransferOwnershipModal
         currentContext={launchContext}
         isOpen={transferModalOpen && isActive}
+        notices={transferNotices}
         ownerType={ownerType}
         selectedObjectCount={selectedObjectCount}
         selectedTypeCount={selectedTypeCount}
@@ -1054,13 +1181,59 @@ export function OwnershipView({
 }
 
 /**
+ * Build the nested Governance Toolkit tree, one row per application holding the
+ * owned jobs under it. Only a job is owned, so an application row is synthetic:
+ * its `governanceToolkitJobs:app-<id>` selection ID can't collide with a job's
+ * `governanceToolkitJobs:<uuid>`, and `groupRowIdsForType` regenerates the same
+ * IDs for the select-all paths. A row whose application isn't one of the toolkit's
+ * own (or is the retired dataset-naming one) has no route to link to, so it keeps
+ * its unresolved `{slug}` and renders unlinked.
+ */
+function buildGovernanceToolkitJobItems(jobsByApplication, origin) {
+  const buildJobItem = (job) =>
+    new DataListItem({
+      ...domoObjectRowFields('EXECUTOR_JOB', job.id, origin, { name: job.name, parentId: job.parentId }),
+      id: leafIdForItem('governanceToolkitJobs', job),
+      label: job.name || String(job.id),
+      originalId: job.id,
+      typeId: 'EXECUTOR_JOB'
+    });
+
+  const applicationItems = [];
+  const orphanJobs = [];
+
+  for (const [applicationId, jobs] of jobsByApplication) {
+    if (applicationId === null) {
+      orphanJobs.push(...jobs.map(buildJobItem));
+      continue;
+    }
+    const applicationName = (jobs[0]?.applicationName || '').replace(/^toolkit:\s*/i, '').trim();
+    applicationItems.push(
+      new DataListItem({
+        ...domoObjectRowFields('EXECUTOR_APPLICATION', applicationId, origin),
+        children: jobs.map(buildJobItem),
+        childTypeId: 'EXECUTOR_JOB',
+        count: jobs.length,
+        id: `governanceToolkitJobs:app-${applicationId}`,
+        label: applicationName || String(applicationId),
+        originalId: applicationId,
+        typeId: 'EXECUTOR_APPLICATION'
+      })
+    );
+  }
+
+  applicationItems.sort((a, b) => a.label.localeCompare(b.label));
+  return [...applicationItems, ...orphanJobs];
+}
+
+/**
  * Convert raw owned data per type into DataListItem leaf children.
  * For projectsAndTasks, project and task IDs come from independent namespaces
  * and can collide, so we namespace the React-key id (`project-<id>` /
  * `task-<id>`) and stash the canonical id in `originalId` so Copy-ID still
  * yields the unmodified value.
  */
-function buildLeafItems(typeKey, owned, origin, tasksByProject) {
+function buildLeafItems(typeKey, owned, origin, { jobsByApplication, tasksByProject }) {
   // projectsAndTasks gets its own tree-style builder so tasks nest under
   // their parent project instead of rendering as siblings. Selection IDs
   // stay namespaced as `projectsAndTasks:project-<id>` /
@@ -1069,6 +1242,10 @@ function buildLeafItems(typeKey, owned, origin, tasksByProject) {
   // the UI shape changes here.
   if (typeKey === 'projectsAndTasks') {
     return buildProjectsAndTasksItems(owned, tasksByProject, origin);
+  }
+
+  if (typeKey === 'governanceToolkitJobs') {
+    return buildGovernanceToolkitJobItems(jobsByApplication, origin);
   }
 
   const flat = flattenOwned(typeKey, owned);
@@ -1087,15 +1264,17 @@ function buildLeafItems(typeKey, owned, origin, tasksByProject) {
     let url = null;
     if (domoTypeId) {
       try {
-        domoObject = new DomoObject(
-          domoTypeId,
-          item.id,
-          origin,
-          { name: item.name },
-          null,
-          item.queueId || item.parentId || null
-        );
+        const metadata = item.certifiedType
+          ? { context: { certifiedType: item.certifiedType }, name: item.name }
+          : { name: item.name };
+        domoObject = new DomoObject(domoTypeId, item.id, origin, metadata, null, item.queueId || item.parentId || null);
         url = domoObject.url;
+        // An unresolved {metadata.…} placeholder is returned literally rather
+        // than thrown, so the catch below can't see it.
+        if (url?.includes('{')) {
+          domoObject = null;
+          url = null;
+        }
       } catch {
         domoObject = null;
         url = null;
@@ -1226,6 +1405,22 @@ function buildTransferLogRows({ fromUserId, fromUserName, results, toUserId, toU
   return rows;
 }
 
+/**
+ * Resolve a row's DomoObject and URL, dropping both when the type has no route
+ * for this object: an unresolved placeholder comes back literally, not thrown.
+ * @returns {{domoObject: DomoObject|null, url: string|null}}
+ */
+function domoObjectRowFields(typeId, id, origin, { name, parentId } = {}) {
+  if (!typeId || !origin) return { domoObject: null, url: null };
+  try {
+    const domoObject = new DomoObject(typeId, id, origin, name ? { name } : {}, null, parentId ?? null);
+    if (domoObject.url?.includes('{')) return { domoObject: null, url: null };
+    return { domoObject, url: domoObject.url };
+  } catch {
+    return { domoObject: null, url: null };
+  }
+}
+
 // Concise one-line title for the error Alert's header. The full per-item
 // breakdown rides along as structured `errorDetail` (rendered as JSON in the
 // Alert body), so this only has to summarize.
@@ -1235,6 +1430,21 @@ function formatTransferErrors(result) {
   if (wholeBatch) return wholeBatch.error;
   const n = result.errors.length;
   return `${n} item${n === 1 ? '' : 's'} failed`;
+}
+
+/**
+ * Selection IDs for a type's synthetic group rows, which exist only in the UI
+ * tree and so are absent from `flattenOwned`. Without them the select-all paths
+ * would leave an application row unchecked while all its jobs were checked.
+ * Every type but governanceToolkitJobs has none.
+ */
+function groupRowIdsForType(typeKey, owned) {
+  if (typeKey !== 'governanceToolkitJobs' || !Array.isArray(owned)) return [];
+  const applicationIds = new Set();
+  for (const job of owned) {
+    if (job.parentId != null) applicationIds.add(job.parentId);
+  }
+  return [...applicationIds].map((applicationId) => `${typeKey}:app-${applicationId}`);
 }
 
 function isParentKey(id) {
@@ -1260,6 +1470,17 @@ function leafIdForItem(typeKey, item) {
     return `${typeKey}:${prefix}-${item.id}`;
   }
   return `${typeKey}:${item.id}`;
+}
+
+/**
+ * Extract the application ID from a `governanceToolkitJobs:app-<id>` selection
+ * ID, or null if the input doesn't match. Unlike the project parser this keeps
+ * the value a string, since an application ID is a UUID.
+ */
+function parseApplicationIdFromLeaf(id) {
+  if (typeof id !== 'string') return null;
+  const match = /^governanceToolkitJobs:app-(.+)$/.exec(id);
+  return match ? match[1] : null;
 }
 
 function parseLeafTypeKey(id) {

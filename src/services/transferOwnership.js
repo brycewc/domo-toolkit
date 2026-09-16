@@ -3,7 +3,14 @@ import { getOwnedAiModels, transferAiModels } from './aiModels';
 import { getOwnedAiProjects, transferAiProjects } from './aiProjects';
 import { getOwnedAlerts, transferAlerts } from './alerts';
 import { getOwnedAppDbCollections, transferAppDbCollections } from './appDb';
-import { getOwnedApprovals, getOwnedApprovalTemplates, transferApprovals, transferApprovalTemplates } from './approvals';
+import {
+  getOwnedApprovals,
+  getOwnedApprovalTemplates,
+  getOwnedCertificationProcesses,
+  transferApprovals,
+  transferApprovalTemplates,
+  transferCertificationProcesses
+} from './approvals';
 import { getOwnedAppStudioApps, getOwnedWorksheets, transferAppStudioApps, transferWorksheets } from './appStudio';
 import { getOwnedCards, transferCards } from './cards';
 import { getOwnedCodeEnginePackages, transferCodeEnginePackages } from './codeEngine';
@@ -12,13 +19,16 @@ import { getOwnedDatasets, transferDatasets } from './datasets';
 import { getOwnedFilesets, transferFilesets } from './filesets';
 import { getOwnedFunctions, transferFunctions } from './functions';
 import { getOwnedGoals, transferGoals } from './goals';
+import { getOwnedGovernanceToolkitJobs, transferGovernanceToolkitJobs } from './governanceToolkit';
 import { getOwnedGroups, transferGroups } from './groups';
 import { getOwnedJupyterWorkspaces, transferJupyterWorkspaces } from './jupyterWorkspaces';
 import { getOwnedMetrics, transferMetrics } from './metrics';
 import { getOwnedPages, transferPages } from './pages';
 import { getOwnedProjectsAndTasks, transferProjectsAndTasks } from './projects';
+import { getOwnedPublications, transferPublications } from './publications';
 import { getOwnedReports, transferReports } from './reportBuilder';
 import { getOwnedRepositories, transferRepositories } from './sandbox';
+import { getOwnedScheduledReports, transferScheduledReports } from './scheduledReports';
 import { getOwnedSubscriptions, transferSubscriptions } from './subscriptions';
 import {
   getOwnedTaskCenterQueues,
@@ -102,6 +112,15 @@ export const TRANSFER_TYPES = [
     transfer: transferCards
   },
   {
+    // No groupOwnable: the owner filter maps to an exact user id on the
+    // template row, so a group can't own a certification process.
+    getOwned: getOwnedCertificationProcesses,
+    key: 'certificationProcesses',
+    label: 'Certification Processes',
+    requiredAuthority: 'certifiedcontent.admin',
+    transfer: transferCertificationProcesses
+  },
+  {
     getOwned: getOwnedCodeEnginePackages,
     key: 'codeEnginePackages',
     label: 'Code Engine Packages',
@@ -131,6 +150,16 @@ export const TRANSFER_TYPES = [
     transfer: transferDatasets
   },
   {
+    // No groupOwnable: the owner is a user id on the publication's owner row.
+    // The transfer is a full publication update that re-runs as the new owner
+    // and republishes, so it fails when they can't read the contents.
+    getOwned: getOwnedPublications,
+    key: 'publications',
+    label: 'Domo Everywhere Publications',
+    requiredAuthority: 'publish.publication.create',
+    transfer: transferPublications
+  },
+  {
     getOwned: getOwnedSubscriptions,
     key: 'subscriptions',
     label: 'Domo Everywhere Subscriptions',
@@ -158,6 +187,16 @@ export const TRANSFER_TYPES = [
     label: 'Goals',
     requiredAuthority: 'goal.admin',
     transfer: transferGoals
+  },
+  {
+    // No groupOwnable: the owner endpoint validates `ownerUserId` as a user.
+    // Gated on the job admin authority rather than the `dataset.admin` the
+    // transfer also accepts, because only it makes Domo list every job.
+    getOwned: getOwnedGovernanceToolkitJobs,
+    key: 'governanceToolkitJobs',
+    label: 'Governance Toolkit Jobs',
+    requiredAuthority: 'pipeline.executor.job.admin',
+    transfer: transferGovernanceToolkitJobs
   },
   {
     getOwned: getOwnedGroups,
@@ -211,6 +250,15 @@ export const TRANSFER_TYPES = [
     label: 'Sandbox Repositories',
     requiredAuthority: 'versions.repository.admin',
     transfer: transferRepositories
+  },
+  {
+    // No groupOwnable: the schedule's owner is a user id, and the update moves
+    // the container view and notify schedule owners along with it.
+    getOwned: getOwnedScheduledReports,
+    key: 'scheduledReports',
+    label: 'Scheduled Reports',
+    requiredAuthority: 'content.admin',
+    transfer: transferScheduledReports
   },
   {
     getOwned: getOwnedTaskCenterQueues,
@@ -270,6 +318,7 @@ export const TYPE_KEY_TO_LOG_TYPE = {
   approvalTemplates: 'TEMPLATE',
   appStudioApps: 'DATA_APP',
   cards: 'CARD',
+  certificationProcesses: 'CERTIFICATION_PROCESS',
   codeEnginePackages: 'CODEENGINE_PACKAGE',
   customApps: 'APP',
   dataflows: 'DATAFLOW_TYPE',
@@ -277,13 +326,16 @@ export const TYPE_KEY_TO_LOG_TYPE = {
   filesets: 'FILESET',
   functions: 'BEAST_MODE_FORMULA',
   goals: 'GOAL',
+  governanceToolkitJobs: 'EXECUTOR_JOB',
   groups: 'GROUP',
   jupyterWorkspaces: 'DATA_SCIENCE_NOTEBOOK',
   metrics: 'METRIC',
   pages: 'PAGE',
   projectsAndTasks: null,
+  publications: 'PUBLICATION',
   reports: 'REPORT_BUILDER',
   repositories: 'REPOSITORY',
+  scheduledReports: 'REPORT_SCHEDULE',
   subscriptions: 'SUBSCRIPTION',
   taskCenterQueues: 'HOPPER_QUEUE',
   taskCenterTasks: 'HOPPER_TASK',
@@ -435,6 +487,9 @@ export async function transferAllOwnership({
         transferResult = await type.transfer(owned, fromUserId, toUserId, tabId, ownerType);
       } else if (type.key === 'taskCenterTasks') {
         // Tasks need the full objects (id + queueId)
+        transferResult = await type.transfer(owned, fromUserId, toUserId, tabId, ownerType);
+      } else if (type.key === 'governanceToolkitJobs') {
+        // Jobs need the full objects (id + parentId, their application)
         transferResult = await type.transfer(owned, fromUserId, toUserId, tabId, ownerType);
       } else if (type.key === 'functions') {
         // Functions need the full objects: the bulk template update sends each

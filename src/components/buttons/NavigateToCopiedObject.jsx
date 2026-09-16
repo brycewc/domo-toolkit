@@ -9,6 +9,7 @@ import {
   getObjectType,
   refineTypeFromMetadata
 } from '@/models/DomoObjectType';
+import { certifiedContentUrlSegment } from '@/utils/certifiedContent';
 import { executeInPage } from '@/utils/executeInPage';
 import { instanceKeyFromUrl, instanceOriginFromKey } from '@/utils/instance';
 import { isSidepanel, openSidepanel, storeSidepanelData } from '@/utils/sidepanel';
@@ -33,6 +34,10 @@ const TYPE_PRIORITY = [
   'BEAST_MODE_FORMULA',
   'WORKFLOW_MODEL'
 ];
+
+// Tried last: identifying one costs a probe of every Governance Toolkit
+// application, since Domo has no endpoint that resolves a job from its ID alone.
+const TYPE_DEPRIORITY = ['EXECUTOR_JOB'];
 
 export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
   const [copiedId, setCopiedId] = useState(null);
@@ -174,6 +179,9 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
         if (aIdx !== -1) return -1;
         if (bIdx !== -1) return 1;
+        const aLast = TYPE_DEPRIORITY.includes(a.id);
+        const bLast = TYPE_DEPRIORITY.includes(b.id);
+        if (aLast !== bLast) return aLast ? 1 : -1;
         return 0;
       });
 
@@ -408,9 +416,7 @@ function buildDomoMetadata(typeId, metadata) {
   // CERTIFICATION_PROCESS doesn't go through the page-detection pipeline, so
   // the clipboard flow has to add the context discriminator itself.
   if (typeId === 'CERTIFICATION_PROCESS' && metadata.details?.type) {
-    domoMetadata.context = {
-      certifiedType: metadata.details.type.startsWith('CC:CARD') ? 'certified-cards' : 'certified-datasets'
-    };
+    domoMetadata.context = { certifiedType: certifiedContentUrlSegment(metadata.details.type) };
   }
   return domoMetadata;
 }

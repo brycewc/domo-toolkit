@@ -26,6 +26,7 @@ import IconDataWarehouse from '@icons/data-warehouse.svg?react';
 import IconDatabase from '@icons/database.svg?react';
 import IconDataflow from '@icons/dataflow.svg?react';
 import IconDocument from '@icons/document.svg?react';
+import IconDomobox from '@icons/domobox.svg?react';
 import IconDrill from '@icons/drill.svg?react';
 import IconEnvelope from '@icons/envelope.svg?react';
 import IconFileDrawer from '@icons/file-drawer.svg?react';
@@ -87,6 +88,7 @@ const ICON_MAP = {
   Dataflow: IconDataflow,
   DataWarehouse: IconDataWarehouse,
   Document: IconDocument,
+  Domobox: IconDomobox,
   Drill: IconDrill,
   Envelope: IconEnvelope,
   FileDrawer: IconFileDrawer,

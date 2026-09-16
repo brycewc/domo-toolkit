@@ -16,9 +16,11 @@
 
 import {
   BACKTICK_REF_RE,
+  BEAST_MODE_CALL_RE,
   COLUMN_KEYED_FIELDS,
   COLUMN_LIST_FIELDS,
   COLUMN_VALUE_FIELDS,
+  eachExpressionRef,
   EXPRESSION_FIELDS,
   isBeastModeLegacyId,
   isCalculatedColumnEntry,
@@ -174,6 +176,48 @@ export function removeCardColumns(cardDefinition, droppedColumns) {
 }
 
 /**
+ * Repoint one nested Beast Mode reference inside a formula onto a physical
+ * column, in place: the `DOMO_BEAST_MODE(<id>)` call becomes a backticked
+ * column ref, and the two indexes Domo stores beside the expression are rebuilt
+ * from the rewritten text so neither still names the Beast Mode.
+ * `columnPositions[].columnPosition` is the character offset of the ref's
+ * opening backtick, so every entry is recomputed rather than patched.
+ *
+ * Covers both shapes that carry a formula: a card-level Beast Mode
+ * (`definition.formulas[]`, expression at `formula`, nesting at
+ * `formulaDependencies`) and a dataset Beast Mode template (expression at
+ * `expression`, whose dependency list the caller drops for Domo to re-derive).
+ *
+ * @param {Object} entry
+ * @param {Object} params
+ * @param {string} params.columnName
+ * @param {string} [params.expressionField]
+ * @param {string|number|null} params.originNumericId - The nested Beast Mode's numeric template id.
+ * @returns {boolean} Whether the expression changed.
+ */
+export function repointNestedBeastModeToColumn(entry, { columnName, expressionField = 'expression', originNumericId }) {
+  const expression = entry?.[expressionField];
+  if (typeof expression !== 'string' || originNumericId == null) return false;
+  const rewritten = replaceExpressionRefs(expression, BEAST_MODE_CALL_RE, (match, id) =>
+    id === String(originNumericId) ? `\`${columnName}\`` : match
+  );
+  if (rewritten === expression) return false;
+  entry[expressionField] = rewritten;
+
+  const positions = [];
+  eachExpressionRef(rewritten, BACKTICK_REF_RE, (match) =>
+    positions.push({ columnName: match[0], columnPosition: match.index })
+  );
+  entry.columnPositions = positions;
+
+  const nested = new Set();
+  eachExpressionRef(rewritten, BEAST_MODE_CALL_RE, (match) => nested.add(match[1]));
+  if (nested.size > 0) entry.formulaDependencies = [...nested];
+  else delete entry.formulaDependencies;
+  return true;
+}
+
+/**
  * Rewrite the column refs in a Beast Mode (function) template. Walks the same
  * field registry as the card/dataflow rewriters, so it covers the template's
  * `expression` (backticked refs) and `columnPositions[].columnName`.
@@ -185,6 +229,48 @@ export function removeCardColumns(cardDefinition, droppedColumns) {
 export function rewriteBeastModeColumns(beastModeTemplate, columnMap) {
   const next = deepClone(beastModeTemplate);
   walkAndRewriteColumns(next, columnMap);
+  return next;
+}
+
+/**
+ * Repoint every reference a card makes to one Beast Mode onto a physical column
+ * — the inverse of the column → Beast Mode mapping `rewriteCardColumns` applies,
+ * and so the same three contexts in reverse:
+ *   - projection / sort / group lists and the summary number: the calc id sits
+ *     at `formulaId`, reshaped back to `column` (reshapeBeastModeRefToColumn);
+ *   - filters and conditional-format conditions: the calc id sits at `column`,
+ *     so a plain value swap is already right;
+ *   - card-level formulas: a `DOMO_BEAST_MODE(<id>)` call becomes a backticked
+ *     ref (repointNestedBeastModeToColumn).
+ *
+ * `aggregation` fills the gap the reshape leaves in a value slot: a card leans
+ * on an aggregating Beast Mode to aggregate itself, so its entry carries none,
+ * and a column put in its place would arrive unaggregated.
+ *
+ * @param {Object} cardDefinition
+ * @param {Object} params
+ * @param {string|null} [params.aggregation] - Applied to reshaped VALUE-mapped entries that carry no aggregation of their own.
+ * @param {string} params.columnName
+ * @param {boolean} [params.dropCardFormula] - Also delete the origin's own card-level definition, for a Beast Mode saved to this card rather than to the DataSet.
+ * @param {string} params.originLegacyId
+ * @param {string|number|null} [params.originNumericId]
+ * @returns {Object} new card definition (input is not mutated)
+ */
+export function rewriteCardBeastModeToColumn(
+  cardDefinition,
+  { aggregation = null, columnName, dropCardFormula = false, originLegacyId, originNumericId = null }
+) {
+  const next = deepClone(cardDefinition);
+  walkAndRewriteColumns(next, { [originLegacyId]: columnName }, null, {
+    beastModeToColumn: { aggregation, columnName, originLegacyId }
+  });
+  const formulas = Array.isArray(next?.definition?.formulas) ? next.definition.formulas : [];
+  for (const formula of formulas) {
+    repointNestedBeastModeToColumn(formula, { columnName, expressionField: 'formula', originNumericId });
+  }
+  if (dropCardFormula && formulas.length > 0) {
+    next.definition.formulas = formulas.filter((f) => f?.id !== originLegacyId);
+  }
   return next;
 }
 
@@ -557,6 +643,24 @@ function propagateColumnTypes(node, columnMap, originAliases, targetColumnTypes)
  * @param {{reshapeBeastModeRefs?: boolean}} options
  * @returns {boolean}
  */
+/**
+ * Reshape a card entry that names a Beast Mode at `formulaId` into one that
+ * names a physical column at `column` — the inverse of
+ * `reshapeColumnRefToBeastMode`, and needed for the same reason: leaving the
+ * column name at `formulaId` would have Domo look for a calculation that does
+ * not exist. Every sibling (`mapping`, `alias`, `order`) is left alone.
+ *
+ * `aggregation` is added only in a value slot and only when the entry has none:
+ * an aggregating Beast Mode carried its own aggregation, so its entry has no
+ * such field for a plain column to inherit.
+ */
+function reshapeBeastModeRefToColumn(entry, { aggregation, columnName, originLegacyId }) {
+  if (entry.formulaId !== originLegacyId) return;
+  delete entry.formulaId;
+  entry.column = columnName;
+  if (aggregation && entry.mapping === 'VALUE' && entry.aggregation == null) entry.aggregation = aggregation;
+}
+
 function reshapeColumnRefToBeastMode(entry, fieldName, originalValue, rewrittenValue, options) {
   if (!options?.reshapeBeastModeRefs || fieldName !== 'column') return false;
   if (!isBeastModeLegacyId(rewrittenValue) || isBeastModeLegacyId(originalValue)) return false;
@@ -741,6 +845,10 @@ function walkAndRemoveColumns(node, drop) {
  * `options.reshapeBeastModeRefs` (card rewriter only): when a `column` ref is
  * remapped onto a dataset Beast Mode, rewrite the ENTRY so the calc id sits at
  * the `formulaId` key instead of `column` (see `reshapeColumnRefToBeastMode`).
+ *
+ * `options.beastModeToColumn` (card rewriter only): the reverse, moving the
+ * named Beast Mode's refs from `formulaId` back to `column` (see
+ * `reshapeBeastModeRefToColumn`).
  */
 function walkAndRewriteColumns(node, columnMap, parentKey = null, options = {}) {
   if (node == null) return;
@@ -760,6 +868,10 @@ function walkAndRewriteColumns(node, columnMap, parentKey = null, options = {}) 
   if (node.type === 'Field' && typeof node.name === 'string') {
     node.name = rewriteColumnName(node.name, columnMap);
   }
+
+  // Matched here rather than in the key loop: `formulaId` names a calculation,
+  // never a column, so it is deliberately absent from the field registry.
+  if (options.beastModeToColumn) reshapeBeastModeRefToColumn(node, options.beastModeToColumn);
 
   for (const [key, value] of Object.entries(node)) {
     // 1. Column-keyed objects — rename keys.

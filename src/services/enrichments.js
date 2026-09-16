@@ -1,4 +1,5 @@
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
+import { certifiedContentUrlSegment } from '@/utils/certifiedContent';
 import { executeInPage } from '@/utils/executeInPage';
 
 import { getAppDbCollectionPermission } from './appDb';
@@ -290,13 +291,8 @@ const ENRICHMENTS = [
   },
 
   // URL segment for CERTIFICATION_PROCESS, derived from the template type
-  // (CC:CARD[:DOMO] → certified-cards; CC:DSET[:DOMO] → certified-datasets)
   {
-    fetch: ({ enrichedMetadata }) => {
-      const type = enrichedMetadata.details?.type;
-      if (!type) return undefined;
-      return type.startsWith('CC:CARD') ? 'certified-cards' : 'certified-datasets';
-    },
+    fetch: ({ enrichedMetadata }) => certifiedContentUrlSegment(enrichedMetadata.details?.type) ?? undefined,
     id: 'certification-process-certified-type',
     storePath: 'context.certifiedType',
     types: ['CERTIFICATION_PROCESS']

@@ -1,6 +1,8 @@
 import { Button, Description, Form, Input, Label, Modal, Switch, TextField, Tooltip } from '@heroui/react';
 import { useEffect, useState } from 'react';
 
+import { Alert } from '@/components/Alert';
+import { AlertStatusIcon } from '@/components/AlertStatusIcon';
 import { OwnerComboBox } from '@/components/OwnerComboBox';
 import { fetchGroupDisplayNames } from '@/services/groups';
 import { getFullUserDetails, getUserDetails } from '@/services/users';
@@ -25,6 +27,7 @@ import IconX from '@icons/x.svg?react';
  * @param {Object} props
  * @param {Object} props.currentContext - Active DomoContext (carries baseUrl, tabId, user.metadata.USER_RIGHTS, and the source user's reportsTo).
  * @param {boolean} props.isOpen
+ * @param {string[]} [props.notices=[]] - Caveats to show above the summary line, one warning per entry. The parent owns the wording so the modal stays type-agnostic.
  * @param {'USER'|'GROUP'} [props.ownerType='USER'] - Owner type of the source and destination.
  * @param {(open: boolean) => void} props.onOpenChange
  * @param {(formData: { toOwnerId: number, toOwnerType: 'USER'|'GROUP', toDisplayName: string|null, emailNewOwner: boolean, emailCurrentUser: boolean, deleteAfterTransfer: boolean, target: { displayName: string|null, email: string|null }|null, currentUser: { displayName: string|null, email: string|null }|null }) => void} props.onSubmit
@@ -35,6 +38,7 @@ import IconX from '@icons/x.svg?react';
 export function TransferOwnershipModal({
   currentContext,
   isOpen,
+  notices = [],
   onOpenChange,
   onSubmit,
   ownerType = 'USER',
@@ -298,6 +302,18 @@ export function TransferOwnershipModal({
                     )}
                   </Switch>
                 )}
+
+                {notices.map((notice) => (
+                  <Alert className='w-full' key={notice} status='warning' variant='transparent'>
+                    <Alert.Content>
+                      <Alert.Title className='flex items-center gap-1'>
+                        <AlertStatusIcon />
+                        Before You Transfer
+                      </Alert.Title>
+                      <Alert.Description className='text-xs'>{notice}</Alert.Description>
+                    </Alert.Content>
+                  </Alert>
+                ))}
 
                 <p className='text-xs text-muted'>
                   <span className='font-medium text-foreground'>{selectedTypeCount}</span> type

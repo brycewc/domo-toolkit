@@ -799,6 +799,7 @@ function buildSimpleUrl(baseUrl, typeId, objectId, parentId) {
   if (!type?.hasUrl()) return null;
   let path = type.urlPath.replace('{id}', objectId);
   if (parentId) path = path.replace('{parent}', parentId);
+  path = type.resolveSlugPlaceholder(path, objectId, parentId);
   if (path.includes('{')) return null;
   return `${baseUrl}${path}`;
 }

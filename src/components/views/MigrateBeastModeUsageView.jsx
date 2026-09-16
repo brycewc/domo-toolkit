@@ -4,13 +4,16 @@ import {
   Button,
   Card,
   Checkbox,
+  Collection,
   EmptyState,
+  Header,
   Label,
   ListBox,
   ListLayout,
   Popover,
   ScrollShadow,
   SearchField,
+  Select,
   Separator,
   Spinner,
   useFilter,
@@ -19,6 +22,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
+import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { BeastModeCardsModal } from '@/components/views/BeastModeCardsModal';
 import { DataList } from '@/components/views/DataList';
 import { ViewHeader } from '@/components/views/ViewHeader';
@@ -29,6 +33,7 @@ import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { getObjectType } from '@/models/DomoObjectType';
 import { getBeastModeNestingParents, getBeastModeUsageForObject } from '@/services/beastModes';
+import { getDatasetColumns } from '@/services/datasets';
 import { getDatasetFunctions, getFunctionTemplate, getNestingBeastModeIds } from '@/services/functions';
 import { MIGRATE_BEAST_MODE_TYPES, migrateBeastModeUsage } from '@/services/migrateBeastModeUsage';
 import {
@@ -41,14 +46,37 @@ import {
 import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconArrowLeft from '@icons/arrow-left.svg?react';
+import IconCheck from '@icons/check.svg?react';
 import IconExclamationTriangle from '@icons/exclamation-triangle.svg?react';
 import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
 import IconX from '@icons/x.svg?react';
 
 import { AlertStatusIcon } from '../AlertStatusIcon';
 
+/**
+ * Aggregations a card can apply to a column. "None" is the default because it is
+ * what the card already does: it leaned on the Beast Mode to aggregate itself.
+ */
+const AGGREGATIONS = [
+  { id: 'NONE', label: 'None' },
+  { id: 'AVG', label: 'Average' },
+  { id: 'COUNT', label: 'Count' },
+  { id: 'MAX', label: 'Max' },
+  { id: 'MIN', label: 'Min' },
+  { id: 'SUM', label: 'Sum' }
+];
+
+/** The fetches that decide whether there is anything to migrate at all. */
+const DISCOVERY_KEYS = ['nestingParents', 'targets', 'usage'];
+
 /** Stable empty set, so an unsettled target doesn't churn the memos reading it. */
 const EMPTY_SET = new Set();
+
+// Both kinds of replacement share one picker, so each option's key says which
+// list it came from. A column name can hold anything, so only the first `:`
+// separates the two halves.
+const TARGET_BEAST_MODE_PREFIX = 'bm:';
+const TARGET_COLUMN_PREFIX = 'col:';
 
 const TYPE_GROUP_LABEL = {
   beastModes: 'Beast Modes Nesting This One',
@@ -79,11 +107,15 @@ export function MigrateBeastModeUsageView({
   const [seededSelection, setSeededSelection] = useState(false);
   const [page, setPage] = useState('select');
 
+  const [targetKey, setTargetKey] = useState(null);
+  // Applied to the card slots where the origin used to aggregate itself; only
+  // offered for a column replacing an aggregating Beast Mode.
+  const [aggregation, setAggregation] = useState('NONE');
+
   // `targetDetail` holds the facts only the target's own template answers
   // (whether it nests something, which cards already use it, its legacyId) and
   // carries the id it was read for, so `targetSettled` below can tell a
   // half-loaded target from a settled one and keep blockers from misfiring.
-  const [targetId, setTargetId] = useState(null);
   const [targetDetail, setTargetDetail] = useState(null);
 
   // Consolidation's whole point is collapsing a duplicate, so removing the
@@ -150,6 +182,7 @@ export function MigrateBeastModeUsageView({
     if (!beastModeId || !datasetId || !originTemplate) return [];
     const metadata = { details: originTemplate };
     return [
+      { fetch: () => getDatasetColumns({ datasetId, tabId }), key: 'columns' },
       {
         fetch: () => getBeastModeNestingParents({ id: beastModeId, metadata, tabId }),
         key: 'nestingParents'
@@ -168,18 +201,22 @@ export function MigrateBeastModeUsageView({
   // render after `specs` populates, because the hook seeds its state from the
   // FIRST specs value and only marks keys as loading in an effect. Treating that
   // frame as settled made the empty-usage bail fire before any fetch had run.
-  // An errored fetch settles too, but must never read as "nothing uses it".
-  const discoveryStatuses = specs.map((spec) => results[spec.key]?.status);
+  // An errored fetch settles too, but must never read as "nothing uses it". The
+  // schema read is left out: it stocks the picker rather than discovering usage,
+  // so failing it must not claim the usage scan came back short.
+  const discoveryStatuses = DISCOVERY_KEYS.map((key) => results[key]?.status);
   const discoverySettled = specs.length > 0 && discoveryStatuses.every((s) => s === 'loaded' || s === 'error');
-  const discoveryErrors = specs.map((spec) => results[spec.key]?.error).filter(Boolean);
+  const discoveryErrors = DISCOVERY_KEYS.map((key) => results[key]?.error).filter(Boolean);
 
   const usage = results.usage?.items || null;
   const nestingParents = results.nestingParents?.items || [];
+  const datasetColumns = results.columns?.items || [];
   const datasetFunctions = results.targets?.items || [];
   const otherLinks = usage?.otherLinks || [];
 
   const originLegacyId = originTemplate?.legacyId || null;
   const originDataType = originTemplate?.dataType || null;
+  const originAggregates = originTemplate?.aggregated === true;
   const originSavedOn = useMemo(() => beastModeSaveTarget(originTemplate?.links), [originTemplate]);
 
   // Every row the repoint has to write, split by which write it needs. A
@@ -303,34 +340,52 @@ export function MigrateBeastModeUsageView({
     setSeededSelection(true);
   }, [discoverySettled, isRowSelectable, rowsByType, seededSelection, selectableIds, selectionKey]);
 
-  const target = useMemo(
+  const toColumn = Boolean(targetKey?.startsWith(TARGET_COLUMN_PREFIX));
+  const targetId = targetKey && !toColumn ? targetKey.slice(TARGET_BEAST_MODE_PREFIX.length) : null;
+  const targetColumnName = toColumn ? targetKey.slice(TARGET_COLUMN_PREFIX.length) : null;
+
+  const targetBeastMode = useMemo(
     () => datasetFunctions.find((f) => String(f.id) === String(targetId)) || null,
     [datasetFunctions, targetId]
   );
+  const targetColumn = useMemo(
+    () => datasetColumns.find((c) => c.name === targetColumnName) || null,
+    [datasetColumns, targetColumnName]
+  );
+  const target = targetBeastMode || targetColumn;
+  const targetName = toColumn ? targetColumnName : targetBeastMode?.name || '';
+  const targetDataType = (toColumn ? targetColumn?.type : targetBeastMode?.dataType) || null;
 
   // True only once the CURRENT target's template has been read. Every check that
   // depends on the target's own fields is gated on this, so none of them fires
-  // against a half-loaded target.
-  const targetSettled = Boolean(targetId) && targetDetail?.forId === targetId;
-  const targetCardIds = targetSettled ? targetDetail.cardIds : EMPTY_SET;
-  const targetLegacyId = targetSettled ? targetDetail.legacyId : null;
-  const targetNests = targetSettled ? targetDetail.nests : false;
+  // against a half-loaded target. A column has no template, so it settles as
+  // soon as the schema names it.
+  const targetSettled = toColumn ? Boolean(targetColumn) : Boolean(targetId) && targetDetail?.forId === targetId;
+  const isBeastModeTarget = targetSettled && !toColumn;
+  const targetCardIds = isBeastModeTarget ? targetDetail.cardIds : EMPTY_SET;
+  const targetLegacyId = isBeastModeTarget ? targetDetail.legacyId : null;
+  const targetNests = isBeastModeTarget ? targetDetail.nests : false;
 
-  // Candidates: every other dataset-saved Beast Mode on this dataset, minus the
-  // ones that nest the origin (they can't replace what they contain).
+  // Beast Mode candidates: every other dataset-saved Beast Mode on this dataset,
+  // minus the ones that nest the origin (they can't replace what they contain).
+  // Columns carry no such constraint, so the whole schema is offered.
   const targetOptions = useMemo(() => {
     const excluded = new Set([String(beastModeId), ...nestingParents.map((p) => String(p.id))]);
-    return datasetFunctions
-      .filter((f) => !excluded.has(String(f.id)))
-      .map((f) => ({
-        cardCount: (f.activeCardIds || []).length,
-        dataType: f.dataType || null,
-        id: String(f.id),
-        legacyId: f.legacyId || null,
-        name: f.name || String(f.id)
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [beastModeId, datasetFunctions, nestingParents]);
+    return {
+      beastModes: datasetFunctions
+        .filter((f) => !excluded.has(String(f.id)))
+        .map((f) => ({
+          cardCount: (f.activeCardIds || []).length,
+          dataType: f.dataType || null,
+          id: `${TARGET_BEAST_MODE_PREFIX}${f.id}`,
+          name: f.name || String(f.id)
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+      columns: datasetColumns
+        .map((c) => ({ dataType: c.type || null, id: `${TARGET_COLUMN_PREFIX}${c.name}`, name: c.name }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    };
+  }, [beastModeId, datasetColumns, datasetFunctions, nestingParents]);
 
   // Read the chosen target's own template for the two things the search response
   // can't answer: whether it nests anything (depth) and which cards use it.
@@ -524,19 +579,30 @@ export function MigrateBeastModeUsageView({
     if (targetNests && selectedByType.beastModes.length > 0) {
       const n = selectedByType.beastModes.length;
       out.push(
-        `"${target.name}" nests another Beast Mode, and ${n} Beast Mode${n === 1 ? '' : 's'} nesting ` +
+        `"${targetName}" nests another Beast Mode, and ${n} Beast Mode${n === 1 ? '' : 's'} nesting ` +
           `"${beastModeName}" ${n === 1 ? 'is' : 'are'} selected. Domo allows only one level of nesting, so this ` +
           `would break ${n === 1 ? 'it' : 'them'}. Pick a target that doesn't nest another Beast Mode, or clear ` +
           `${n === 1 ? 'it' : 'them'} from the selection.`
       );
     }
-    if (selectedByType.cards.length > 0 && (!originLegacyId || !targetLegacyId)) {
+    if (selectedByType.cards.length > 0 && (!originLegacyId || (!toColumn && !targetLegacyId))) {
       out.push(
-        "Domo didn't return an ID for one of these Beast Modes, so the cards can't be repointed. Refresh and try again."
+        `Domo didn't return an ID for ${toColumn ? 'this Beast Mode' : 'one of these Beast Modes'}, so the cards ` +
+          "can't be repointed. Refresh and try again."
       );
     }
     return out;
-  }, [beastModeName, originLegacyId, selectedByType, target, targetLegacyId, targetNests, targetSettled]);
+  }, [
+    beastModeName,
+    originLegacyId,
+    selectedByType,
+    target,
+    targetLegacyId,
+    targetName,
+    targetNests,
+    targetSettled,
+    toColumn
+  ]);
 
   // Cards in the selection that already reference the target. Named here rather
   // than inside the warning text: the list belongs in the info-icon modal, where
@@ -558,24 +624,32 @@ export function MigrateBeastModeUsageView({
     }
     // Only a real mismatch counts: a template can legitimately report no
     // dataType at all, and calling that a mismatch would warn on every such pair.
-    if (target && originDataType && target.dataType && originDataType !== target.dataType) {
+    if (target && originDataType && targetDataType && originDataType !== targetDataType) {
       out.push({
         key: 'dataType',
         message:
-          `"${beastModeName}" is a ${originDataType} and "${target.name}" is a ${target.dataType}. Cards using it may ` +
+          `"${beastModeName}" is a ${originDataType} and "${targetName}" is a ${targetDataType}. Cards using it may ` +
           'aggregate, sort, or format differently afterward.'
       });
     }
-    if (target && alreadyUsingCards.length > 0) {
+    if (toColumn && originAggregates && aggregation === 'NONE') {
+      out.push({
+        key: 'aggregation',
+        message:
+          `"${beastModeName}" aggregates its own result, so a card using it as a value carries no aggregation of its ` +
+          `own. With none chosen above, those cards read "${targetColumnName}" row by row instead.`
+      });
+    }
+    if (target && !toColumn && alreadyUsingCards.length > 0) {
       const one = alreadyUsingCards.length === 1;
       out.push({
         key: 'alreadyUsing',
         message:
           `${alreadyUsingCards.length} selected card${one ? '' : 's'} already reference${one ? 's' : ''} ` +
-          `"${target.name}". Deselect ${one ? 'it' : 'them'} to leave ${one ? 'it' : 'them'} alone.`,
+          `"${targetName}". Deselect ${one ? 'it' : 'them'} to leave ${one ? 'it' : 'them'} alone.`,
         trailing: (
           <BeastModeCardsModal
-            beastModeName={target.name}
+            beastModeName={targetName}
             cards={alreadyUsingCards}
             origin={origin}
             total={selectedByType.cards.length}
@@ -602,14 +676,20 @@ export function MigrateBeastModeUsageView({
     }
     return out;
   }, [
+    aggregation,
     alreadyUsingCards,
     beastModeName,
+    originAggregates,
     originDataType,
     originSavedOn,
     origin,
     otherLinks,
     selectedByType,
     target,
+    targetColumnName,
+    targetDataType,
+    targetName,
+    toColumn,
     unreadableNesting
   ]);
 
@@ -663,7 +743,13 @@ export function MigrateBeastModeUsageView({
         selectedNestingBeastModes: selectedByType.beastModes,
         selectionIsComplete,
         tabId,
-        target: { id: target.id, legacyId: targetLegacyId, name: target.name }
+        target: toColumn
+          ? {
+              aggregation: originAggregates && aggregation !== 'NONE' ? aggregation : null,
+              kind: 'column',
+              name: targetColumnName
+            }
+          : { id: targetBeastMode.id, kind: 'beastMode', legacyId: targetLegacyId, name: targetName }
       });
 
       let totalSucceeded = 0;
@@ -693,7 +779,7 @@ export function MigrateBeastModeUsageView({
         showStatus(
           'Migration Complete',
           `Repointed **${totalSucceeded}** item${totalSucceeded === 1 ? '' : 's'} from **${beastModeName}** to ` +
-            `**${target.name}**.${deleteNote}`,
+            `**${targetName}**.${deleteNote}`,
           'success',
           7000
         );
@@ -754,8 +840,8 @@ export function MigrateBeastModeUsageView({
             <AlertDialog.Body className='flex flex-col gap-2 text-sm'>
               <p>
                 This repoints <strong>{totalSelected}</strong> item{totalSelected === 1 ? '' : 's'} from{' '}
-                <strong>{beastModeName}</strong> to <strong>{target?.name}</strong>. It saves changes to live content and
-                cannot be undone.
+                <strong>{beastModeName}</strong> to the {toColumn ? 'column' : 'Beast Mode'} <strong>{targetName}</strong>.
+                It saves changes to live content and cannot be undone.
               </p>
               {deleteOrigin && canDeleteOrigin && (
                 <p>
@@ -860,13 +946,41 @@ export function MigrateBeastModeUsageView({
         <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
           <Card.Content className='flex flex-col gap-3 py-2'>
             <div className='flex flex-col gap-1'>
-              <Label className='text-sm font-medium'>To Beast Mode</Label>
+              <Label className='text-sm font-medium'>Replace With</Label>
               <p className='text-xs text-muted'>
-                <strong>{totalSelected}</strong> item{totalSelected === 1 ? '' : 's'} will reference this Beast Mode instead.
-                Only Beast Modes on the same DataSet can replace it.
+                <strong>{totalSelected}</strong> item{totalSelected === 1 ? '' : 's'} will reference this instead. Only Beast
+                Modes and columns on the same DataSet can replace it.
               </p>
-              <TargetBeastModeSelect options={targetOptions} value={targetId} onChange={setTargetId} />
+              <TargetSelect options={targetOptions} value={targetKey} onChange={setTargetKey} />
             </div>
+
+            {toColumn && originAggregates && (
+              <div className='flex flex-col gap-1'>
+                <Label className='text-sm font-medium'>Aggregation</Label>
+                <p className='text-xs text-muted'>
+                  Applied where a card used <strong>{beastModeName}</strong> as a value. Its own aggregation went with it, so
+                  the column needs one of its own.
+                </p>
+                <Select selectionMode='single' value={aggregation} variant='secondary' onChange={setAggregation}>
+                  <Select.Trigger className='h-8 w-full items-center py-0'>
+                    <Select.Value />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover className='max-h-60!'>
+                    <ListBox aria-label='Aggregation'>
+                      {AGGREGATIONS.map((option) => (
+                        <ListBox.Item id={option.id} key={option.id} textValue={option.label}>
+                          <Label>{option.label}</Label>
+                          <ListBox.ItemIndicator>
+                            {({ isSelected }) => (isSelected ? <IconCheck /> : null)}
+                          </ListBox.ItemIndicator>
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </div>
+            )}
 
             {blockers.map((message) => (
               <Alert className='w-full' key={message} status='warning' variant='transparent'>
@@ -980,20 +1094,48 @@ function leafUrl(typeKey, row, origin) {
   return `${origin}/kpis/details/${row.id}`;
 }
 
-// The replacement picker. Virtualized and searchable because a busy dataset
-// carries hundreds of Beast Modes; each option shows its data type and how many
-// cards already use it.
-function TargetBeastModeSelect({ onChange, options, value }) {
+function TargetOption({ item }) {
+  const isColumn = item.id.startsWith(TARGET_COLUMN_PREFIX);
+  return (
+    <ListBox.Item id={item.id} textValue={item.name}>
+      <div className='flex min-w-0 flex-col'>
+        <span className={`truncate text-sm${isColumn ? ' font-mono' : ''}`}>{item.name}</span>
+        <span className='truncate text-xs text-muted'>
+          {[item.dataType, isColumn ? null : `${item.cardCount} card${item.cardCount === 1 ? '' : 's'}`]
+            .filter(Boolean)
+            .join(' · ')}
+        </span>
+      </div>
+      <ListBox.ItemIndicator>{({ isSelected }) => (isSelected ? <IconCheck /> : null)}</ListBox.ItemIndicator>
+    </ListBox.Item>
+  );
+}
+
+// The replacement picker, listing the dataset's Beast Modes and its columns in
+// separate sections. Virtualized and searchable because a busy dataset carries
+// hundreds of each; a Beast Mode option also shows how many cards already use
+// it. A section filtered down to nothing is dropped so no bare header shows.
+function TargetSelect({ onChange, options, value }) {
   const { contains } = useFilter({ sensitivity: 'base' });
   const [query, setQuery] = useState('');
 
-  const filtered = useMemo(() => options.filter((o) => !query || contains(o.name, query)), [contains, options, query]);
-  const selected = options.find((o) => o.id === value) || null;
+  const sections = useMemo(() => {
+    const matching = (items) => items.filter((o) => !query || contains(o.name, query));
+    const beastModes = matching(options.beastModes);
+    const columns = matching(options.columns);
+    const out = [];
+    if (beastModes.length > 0) out.push({ id: '__beastModes__', items: beastModes, label: 'Beast Modes' });
+    if (columns.length > 0) out.push({ id: '__columns__', items: columns, label: 'Columns' });
+    return out;
+  }, [contains, options, query]);
+
+  const selected = [...options.beastModes, ...options.columns].find((o) => o.id === value) || null;
+  const selectedIsColumn = Boolean(selected?.id.startsWith(TARGET_COLUMN_PREFIX));
 
   return (
     <Autocomplete
       allowsEmptyCollection
-      aria-label='Replacement Beast Mode'
+      aria-label='Replacement'
       className='w-full'
       selectionMode='single'
       value={value}
@@ -1004,9 +1146,12 @@ function TargetBeastModeSelect({ onChange, options, value }) {
         <Autocomplete.Value className='flex min-w-0 flex-1 items-center gap-1'>
           {() =>
             selected ? (
-              <span className='min-w-0 truncate'>{selected.name}</span>
+              <>
+                {!selectedIsColumn && <ObjectTypeIcon className='size-3.5 shrink-0' typeId='BEAST_MODE_FORMULA' />}
+                <span className={`min-w-0 truncate${selectedIsColumn ? ' font-mono text-xs' : ''}`}>{selected.name}</span>
+              </>
             ) : (
-              <span className='min-w-0 truncate text-muted italic'>Choose a Beast Mode…</span>
+              <span className='min-w-0 truncate text-muted italic'>Choose a Beast Mode or column…</span>
             )
           }
         </Autocomplete.Value>
@@ -1014,39 +1159,33 @@ function TargetBeastModeSelect({ onChange, options, value }) {
         <Autocomplete.Indicator />
       </Autocomplete.Trigger>
       <Autocomplete.Popover className='w-fit max-w-9/10 min-w-72' placement='bottom start'>
-        <Popover.Heading className='sr-only'>Choose a replacement Beast Mode</Popover.Heading>
+        <Popover.Heading className='sr-only'>Choose a replacement Beast Mode or column</Popover.Heading>
         <Autocomplete.Filter inputValue={query} onInputChange={setQuery}>
           <SearchField
             autoFocus
-            aria-label='Search Beast Modes'
+            aria-label='Search Beast Modes and columns'
             className='sticky top-0 z-10'
-            name='beast-mode-search'
+            name='replacement-search'
             variant='secondary'
           >
             <SearchField.Group>
               <SearchField.SearchIcon />
-              <SearchField.Input placeholder='Search Beast Modes...' />
+              <SearchField.Input placeholder='Search...' />
               <SearchField.ClearButton />
             </SearchField.Group>
           </SearchField>
-          <Virtualizer layout={ListLayout} layoutOptions={{ estimatedRowHeight: 48 }}>
+          <Virtualizer layout={ListLayout} layoutOptions={{ estimatedHeadingHeight: 28, estimatedRowHeight: 48 }}>
             <ListBox
-              aria-label='Beast Modes on this DataSet'
+              aria-label='Beast Modes and columns on this DataSet'
               className='max-h-80 overflow-y-auto'
-              items={filtered}
-              renderEmptyState={() => <EmptyState>No Beast Modes found</EmptyState>}
+              items={sections}
+              renderEmptyState={() => <EmptyState>No Beast Modes or columns found</EmptyState>}
             >
-              {(item) => (
-                <ListBox.Item id={item.id} key={item.id} textValue={item.name}>
-                  <div className='flex min-w-0 flex-col'>
-                    <span className='truncate text-sm'>{item.name}</span>
-                    <span className='truncate text-xs text-muted'>
-                      {[item.dataType, `${item.cardCount} card${item.cardCount === 1 ? '' : 's'}`]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </span>
-                  </div>
-                </ListBox.Item>
+              {(section) => (
+                <ListBox.Section id={section.id}>
+                  <Header>{section.label}</Header>
+                  <Collection items={section.items}>{(item) => <TargetOption item={item} />}</Collection>
+                </ListBox.Section>
               )}
             </ListBox>
           </Virtualizer>

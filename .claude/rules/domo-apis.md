@@ -12,3 +12,4 @@ When working with Domo API endpoints (fetching data, building service functions,
 4. Use `getCollectionRequest` with `populate: true` to get full request details including example responses.
 5. The primary collection is **"Domo Product APIs"** (collection ID `17302996-d887dd51-ea30-43be-a2bd-3a81f15cce13`), workspace **"Domo Product APIs"**.
 6. Never guess at endpoint paths, request body shapes, or response formats; verify via Postman or the user first.
+7. **Authority (grant) names** such as `certifiedcontent.admin` or `dataset.admin`, the strings compared against a user's `USER_RIGHTS`, are not in Postman. Look them up by querying dataset `073c76f1-c846-48fd-876c-34d98d89a07b` on `domo.domo.com`. Never guess one: a wrong authority makes a feature read as forbidden for the very people who can use it.

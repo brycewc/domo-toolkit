@@ -26,6 +26,7 @@ import {
   hasEffectiveMapping,
   removeCardColumns,
   rewriteBeastModeColumns,
+  rewriteCardBeastModeToColumn,
   rewriteCardColumns,
   rewriteDataflowColumns,
   rewriteDatasetViewColumns
@@ -447,6 +448,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
  * @param {string} params.targetId
  * @param {Record<string, string>} [params.beastModeIdRemap] - Origin → target Beast Mode legacyIds, for the card's own references.
  * @param {Record<string, string>} [params.beastModeNumericRemap] - Origin → target Beast Mode numeric ids, for nested DOMO_BEAST_MODE(id) references.
+ * @param {{aggregation?: string|null, columnName: string, dropCardFormula?: boolean, originLegacyId: string, originNumericId?: string|number|null}} [params.beastModeToColumn] - Repoint one Beast Mode's references onto a physical column instead of another Beast Mode.
  * @param {Record<string, string|null>} [params.columnMap]
  * @param {Object} [params.cachedDefinition]
  * @param {Record<string, string>} [params.targetColumnTypes] - Target column name → type. Supplies the schema's exact spellings, which the write is validated against.
@@ -458,6 +460,7 @@ export async function swapCardInput({
   beastModeIdRemap,
   beastModeNumericByLegacyId,
   beastModeNumericRemap,
+  beastModeToColumn,
   cachedDefinition,
   cardBeastModeResolutions,
   cardId,
@@ -476,11 +479,13 @@ export async function swapCardInput({
   // card's own references (legacyId); `beastModeNumericRemap` covers nested
   // `DOMO_BEAST_MODE(<id>)` refs embedded in card-level Beast Mode formulas;
   // `cardBeastModeResolutions` resolves card-level Beast Modes whose name
-  // collides with a target dataset Beast Mode (rename, or use the target's).
+  // collides with a target dataset Beast Mode (rename, or use the target's);
+  // `beastModeToColumn` retires one Beast Mode in favor of a physical column.
   const hasCardBeastModeResolutions = Array.isArray(cardBeastModeResolutions) && cardBeastModeResolutions.length > 0;
   const hasBeastModeRemap =
     (beastModeIdRemap && Object.keys(beastModeIdRemap).length > 0) ||
     (beastModeNumericRemap && Object.keys(beastModeNumericRemap).length > 0) ||
+    Boolean(beastModeToColumn?.columnName) ||
     hasCardBeastModeResolutions;
   // Dropping columns also forces the full-PUT path: the lightweight shortcut
   // can't strip a column's references from the definition.
@@ -534,6 +539,11 @@ export async function swapCardInput({
     // the card-level copy.
     if (hasCardBeastModeResolutions) {
       rewritten = applyCardBeastModeResolutions(rewritten, cardBeastModeResolutions);
+    }
+    // The calc id moves out of `formulaId` and back to `column`, and any card
+    // formula nesting the Beast Mode reads the column directly instead.
+    if (beastModeToColumn?.columnName) {
+      rewritten = rewriteCardBeastModeToColumn(rewritten, beastModeToColumn);
     }
     // Drop columns the user chose to remove (offered only for badge_table
     // cards/drills): strip every reference so they disappear from the table.
@@ -1659,14 +1669,16 @@ export async function migrateAllDownstreamContent({
 function applyCardBeastModeResolutions(definition, resolutions) {
   let def = definition;
   for (const r of resolutions) {
-    const formulas = Array.isArray(def.formulas) ? def.formulas : [];
+    // Card-level Beast Modes live at `definition.formulas`, one level in from
+    // the card response's root.
+    const formulas = Array.isArray(def.definition?.formulas) ? def.definition.formulas : [];
     const entry = formulas.find((f) => f?.id === r.originLegacyId);
     if (!entry) continue;
     if (r.disposition === 'rename' && r.newName) {
       entry.name = r.newName;
     } else if (r.disposition === 'useTarget' && r.targetLegacyId) {
       // Drop the card-level copy first, then repoint references to the target.
-      def.formulas = formulas.filter((f) => f?.id !== r.originLegacyId);
+      def.definition.formulas = formulas.filter((f) => f?.id !== r.originLegacyId);
       let json = JSON.stringify(def).replaceAll(r.originLegacyId, r.targetLegacyId);
       if (r.originTemplateId != null && r.targetTemplateId != null) {
         json = json.replaceAll(`DOMO_BEAST_MODE(${r.originTemplateId})`, `DOMO_BEAST_MODE(${r.targetTemplateId})`);

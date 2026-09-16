@@ -1,3 +1,4 @@
+import { repointNestedBeastModeToColumn } from './columnRewriter';
 import { deleteFunction, getFunctionTemplate, updateDatasetFunctions } from './functions';
 import { describeSwapFailure, swapCardInput } from './migrateDownstreamContent';
 
@@ -5,8 +6,9 @@ import { describeSwapFailure, swapCardInput } from './migrateDownstreamContent';
 export const MIGRATE_BEAST_MODE_TYPES = [{ key: 'beastModes' }, { key: 'cards' }];
 
 /**
- * Repoint everything that uses one Beast Mode onto another Beast Mode saved to
- * the same dataset, then optionally delete the original.
+ * Repoint everything that uses one Beast Mode onto a replacement on the same
+ * dataset — either another Beast Mode or one of the dataset's own columns —
+ * then optionally delete the original.
  *
  * This is the single-Beast-Mode counterpart to `remapDatasetColumns`: it drives
  * the shared card executor with `targetId === originId === datasetId`, so that
@@ -20,6 +22,11 @@ export const MIGRATE_BEAST_MODE_TYPES = [{ key: 'beastModes' }, { key: 'cards' }
  * `swapCardInput`'s `cardBeastModeResolutions` is the path that drops the
  * card-level copy and repoints its references onto a dataset Beast Mode.
  *
+ * A column target takes a different path in both phases, because a card names a
+ * column at a different key than a Beast Mode and a formula names one with a
+ * backticked ref rather than a `DOMO_BEAST_MODE` call. Either origin works:
+ * dropping a card-saved one is the same `dropCardFormula` edit.
+ *
  * @param {Object} params
  * @param {string} params.datasetId - The dataset both Beast Modes read; passed as both origin and target.
  * @param {boolean} [params.deleteOrigin] - Delete the origin once nothing references it. Only honored when every discovered usage was selected, every write succeeded, and no unmappable usage remains.
@@ -31,7 +38,7 @@ export const MIGRATE_BEAST_MODE_TYPES = [{ key: 'beastModes' }, { key: 'cards' }
  * @param {Array<{id: any, name: string, template: Object|null}>} params.selectedNestingBeastModes - DATASET-saved nesting parents only; card-saved ones ride along in `selectedCards`.
  * @param {boolean} [params.selectionIsComplete] - Every discovered usage is in the selection.
  * @param {number|null} [params.tabId]
- * @param {{id: any, legacyId: string|null, name: string}} params.target
+ * @param {{aggregation?: string|null, id: any, kind?: 'beastMode'|'column', legacyId?: string|null, name: string}} params.target - A column target carries its name in `name` and no ids; `aggregation` fills the value slots the origin used to aggregate itself.
  * @returns {Promise<{
  *   originDelete: {attempted: boolean, error: string|null, skipReason: string|null, succeeded: boolean},
  *   results: Map<string, {attempted: Array, count: number, errors: Array, failed: number, succeeded: number}>
@@ -51,7 +58,8 @@ export async function migrateBeastModeUsage({
   target
 }) {
   const results = new Map();
-  const numericRemap = { [String(origin.id)]: String(target.id) };
+  const toColumn = target.kind === 'column';
+  const numericRemap = toColumn ? null : { [String(origin.id)]: String(target.id) };
 
   // One shared counter across both phases, so the readout is a single
   // "N of M items" rather than a per-phase reset. A failed item still counts as
@@ -68,10 +76,12 @@ export async function migrateBeastModeUsage({
   await repointNestingBeastModes({
     numericRemap,
     onProgress,
+    origin,
     reportItems,
     results,
     selectedBeastModes: selectedNestingBeastModes,
-    tabId
+    tabId,
+    target
   });
 
   await repointCards({
@@ -116,14 +126,19 @@ export async function migrateBeastModeUsage({
  * Deliberately not `remapNestedBeastModeIds`, which also rewrites the dependency
  * list and the `FUNCTION_TEMPLATE` links: the two fields this endpoint won't
  * take.
+ *
+ * A column target swaps the call for a backticked ref instead, which also moves
+ * the reference into `columnPositions`.
  */
-function buildNestingUpdateEntry(template, numericRemap) {
+function buildNestingUpdateEntry(template, { columnName, numericRemap, originId }) {
   const entry = JSON.parse(JSON.stringify(template));
   delete entry.checkSum;
   delete entry.created;
   delete entry.functionTemplateDependencies;
   delete entry.lastModified;
-  if (typeof entry.expression === 'string') {
+  if (columnName) {
+    repointNestedBeastModeToColumn(entry, { columnName, expressionField: 'expression', originNumericId: originId });
+  } else if (typeof entry.expression === 'string') {
     entry.expression = entry.expression.replace(/DOMO_BEAST_MODE\(\s*(\d+)\s*\)/g, (match, id) =>
       numericRemap[id] ? `DOMO_BEAST_MODE(${numericRemap[id]})` : match
     );
@@ -195,6 +210,10 @@ function describeBeastModeUpdateError(err) {
  * copy. `numericRemap` rides along either way for card-level formulas that nest
  * the origin.
  *
+ * A column target replaces all three with one `beastModeToColumn` edit, which
+ * reshapes the references, rewrites the formulas that nest the origin, and drops
+ * a card-saved origin's own definition.
+ *
  * Writes the `results`/`onProgress` entry for the `cards` type in place.
  */
 async function repointCards({
@@ -214,10 +233,22 @@ async function repointCards({
   onProgress?.({ count: selectedCards.length, status: 'transferring', typeKey: 'cards' });
 
   const isCardSavedOrigin = Boolean(origin.savedOn);
+  const toColumn = target.kind === 'column';
+  const beastModeToColumn = toColumn
+    ? {
+        aggregation: target.aggregation || null,
+        columnName: target.name,
+        dropCardFormula: isCardSavedOrigin,
+        originLegacyId: origin.legacyId,
+        originNumericId: origin.id
+      }
+    : undefined;
   const beastModeIdRemap =
-    !isCardSavedOrigin && origin.legacyId && target.legacyId ? { [origin.legacyId]: target.legacyId } : undefined;
+    !toColumn && !isCardSavedOrigin && origin.legacyId && target.legacyId
+      ? { [origin.legacyId]: target.legacyId }
+      : undefined;
   const cardBeastModeResolutions =
-    isCardSavedOrigin && origin.legacyId && target.legacyId
+    !toColumn && isCardSavedOrigin && origin.legacyId && target.legacyId
       ? [
           {
             disposition: 'useTarget',
@@ -234,7 +265,8 @@ async function repointCards({
   for (const card of selectedCards) {
     const resp = await swapCardInput({
       beastModeIdRemap,
-      beastModeNumericRemap: numericRemap,
+      beastModeNumericRemap: numericRemap || undefined,
+      beastModeToColumn,
       cardBeastModeResolutions,
       cardId: card.id,
       originId: datasetId,
@@ -254,11 +286,21 @@ async function repointCards({
 
 /**
  * Repoint each selected dataset-saved Beast Mode that nests the origin so it
- * nests the target instead, saved with one bulk update.
+ * nests the target Beast Mode, or reads the target column, instead. Saved with
+ * one bulk update.
  *
  * Writes the `results`/`onProgress` entry for the `beastModes` type in place.
  */
-async function repointNestingBeastModes({ numericRemap, onProgress, reportItems, results, selectedBeastModes, tabId }) {
+async function repointNestingBeastModes({
+  numericRemap,
+  onProgress,
+  origin,
+  reportItems,
+  results,
+  selectedBeastModes,
+  tabId,
+  target
+}) {
   if (selectedBeastModes.length === 0) return;
 
   const attempted = selectedBeastModes.map((bm) => ({ id: bm.id, name: bm.name || String(bm.id) }));
@@ -275,7 +317,13 @@ async function repointNestingBeastModes({ numericRemap, onProgress, reportItems,
         errors.push({ error: `Could not read the formula of "${bm.name || bm.id}"`, id: bm.id });
         continue;
       }
-      entries.push(buildNestingUpdateEntry(template, numericRemap));
+      entries.push(
+        buildNestingUpdateEntry(template, {
+          columnName: target.kind === 'column' ? target.name : null,
+          numericRemap,
+          originId: origin.id
+        })
+      );
     } catch (err) {
       errors.push({ error: err?.message || String(err), id: bm.id });
     }

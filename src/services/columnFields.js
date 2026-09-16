@@ -135,6 +135,13 @@ export const REMOVABLE_ENTRY_LIST_FIELDS = new Set(['controls', 'filters']);
 export const BACKTICK_REF_RE = /`([^`]+)`/g;
 
 /**
+ * Matches a nested Beast Mode call, `DOMO_BEAST_MODE(<numeric template id>)`,
+ * with the id in group 1. Pass it to `eachExpressionRef` /
+ * `replaceExpressionRefs`, for the reasons `BACKTICK_REF_RE` gives.
+ */
+export const BEAST_MODE_CALL_RE = /DOMO_BEAST_MODE\(\s*(\d+)\s*\)/g;
+
+/**
  * Matches a backticked column ref with its optional table qualifier:
  * `` `alias`.`Column Name` `` or plain `` `Column Name` ``. Group 1 is the
  * qualifier and group 3 the column; group 3 is undefined when unqualified.

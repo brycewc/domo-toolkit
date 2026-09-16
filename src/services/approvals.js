@@ -1,3 +1,4 @@
+import { certifiedContentUrlSegment } from '@/utils/certifiedContent';
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
@@ -17,8 +18,7 @@ export async function createTemplateDataset({ tabId = null, templateId }) {
         body: JSON.stringify([
           {
             operationName: 'createTemplateDataset',
-            query:
-              'mutation createTemplateDataset($templateId: ID!) {\n  createTemplateDataset(templateId: $templateId)\n}',
+            query: 'mutation createTemplateDataset($templateId: ID!) {\n  createTemplateDataset(templateId: $templateId)\n}',
             variables: { templateId }
           }
         ]),
@@ -177,6 +177,72 @@ export async function getOwnedApprovalTemplates(userId, tabId = null) {
     [userId],
     tabId
   );
+}
+
+/**
+ * Get all certification processes owned by a user. Certification processes are
+ * approval templates whose type is a `CC:` composite, so this is the same
+ * templateConnection query as getOwnedApprovalTemplates with a different type
+ * filter. The filter is a prefix match server-side, so 'CC' returns every
+ * certification type at once.
+ * @param {number} userId - The Domo user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<Array<{certifiedType: string|null, id: string, name: string}>>}
+ */
+export async function getOwnedCertificationProcesses(userId, tabId = null) {
+  const templates = await executeInPage(
+    async (userId) => {
+      const url = '/api/synapse/approval/graphql';
+      const queryString =
+        'query getFilteredTemplates($first: Int, $after: ID, $orderBy: OrderBy, $reverseSort: Boolean, $query: TemplateQueryRequest!) {\n  templateConnection(first: $first, after: $after, orderBy: $orderBy, reverseSort: $reverseSort, query: $query) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        type\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}';
+
+      const templates = [];
+      let after = null;
+      // Page guard in case the API never flips hasNextPage; 200 pages of 100
+      // covers far more processes than any instance realistically has.
+      for (let page = 0; page < 200; page++) {
+        const response = await fetch(url, {
+          body: JSON.stringify({
+            operationName: 'getFilteredTemplates',
+            query: queryString,
+            variables: {
+              after,
+              first: 100,
+              orderBy: 'TITLE',
+              query: { ownerId: userId, publishedOnly: false, type: 'CC' },
+              reverseSort: false
+            }
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        const connection = data?.data?.templateConnection;
+        for (const edge of connection?.edges || []) {
+          if (!edge.node) continue;
+          templates.push({ id: edge.node.id, title: edge.node.title, type: edge.node.type });
+        }
+
+        const pageInfo = connection?.pageInfo;
+        if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) break;
+        after = pageInfo.endCursor;
+      }
+
+      return templates;
+    },
+    [userId],
+    tabId
+  );
+
+  // The URL segment is derived out here rather than in the injected function,
+  // which is serialized and so cannot reach the imported helper.
+  return (templates || []).map((t) => ({
+    certifiedType: certifiedContentUrlSegment(t.type),
+    id: t.id,
+    name: t.title || t.id
+  }));
 }
 
 /**
@@ -535,6 +601,167 @@ export async function transferApprovalTemplates(templateIds, fromUserId, toUserI
             method: 'POST'
           });
           if (!saveResponse.ok) throw new Error(`HTTP ${saveResponse.status}`);
+          succeeded++;
+        } catch (error) {
+          errors.push({ error: error.message, id: templateId });
+        }
+      }
+
+      return { errors, failed: errors.length, succeeded };
+    },
+    [templateIds, fromUserId, toUserId],
+    tabId
+  );
+}
+
+/**
+ * Transfer certification process ownership to a new user, following
+ * transferApprovalTemplates: sets `ownerId` and swaps the old owner for the new
+ * one in both the approver chain and the observers, dropping deleted members of
+ * either. saveTemplate is a full replace, so every field read is sent back or it
+ * is destroyed. The deprecated saveCertifyTemplate is not an option: its field
+ * check reads `type != TEXT || type != PARAGRAPH`, true for every value, so it
+ * rejects any template with more than one field.
+ *
+ * @param {string[]} templateIds - Array of certification process IDs to transfer
+ * @param {number} fromUserId - The current owner's user ID
+ * @param {number} toUserId - The new owner's user ID
+ * @param {number|null} tabId - Optional Chrome tab ID
+ * @returns {Promise<{errors: Array, failed: number, succeeded: number}>}
+ */
+export async function transferCertificationProcesses(templateIds, fromUserId, toUserId, tabId = null) {
+  return executeInPage(
+    async (templateIds, fromUserId, toUserId) => {
+      const url = '/api/synapse/approval/graphql';
+      const errors = [];
+      let succeeded = 0;
+
+      // Template fields are a flat list (nesting only applies to approvals), so
+      // no HeaderField/ItemListField fragments are needed here.
+      const getTemplateQuery =
+        'query getCertificationProcessForEdit($id: ID!) {\n  template(id: $id) {\n    id\n    title\n    type\n    providerName\n    acknowledgment\n    titleName\n    titlePlaceholder\n    isPublic\n    isPublished\n    description\n    instructions\n    chainIsLocked\n    owner {\n      id\n    }\n    categories {\n      id\n    }\n    observers {\n      id\n      type\n      ... on Group {\n        userCount\n        isDeleted\n      }\n      ... on User {\n        isDeleted\n      }\n    }\n    approvers {\n      type\n      ... on ApproverPerson {\n        approverId\n        userDetails {\n          id\n          isDeleted\n        }\n      }\n      ... on ApproverGroup {\n        approverId\n        groupDetails {\n          id\n          isDeleted\n        }\n      }\n      ... on ApproverPlaceholder {\n        placeholderText\n      }\n    }\n    fields {\n      type\n      name\n      placeholder\n      required\n      isPrivate\n      data\n      isLocked\n      ... on CurrencyField {\n        currency\n      }\n      ... on SelectField {\n        multiselect\n        option\n        datasource\n        column\n        order\n      }\n    }\n    workflowIntegration {\n      modelId\n      modelVersion\n      modelName\n      startName\n      parameterMapping {\n        fields {\n          field\n          parameter\n          type\n          required\n        }\n      }\n    }\n  }\n}';
+
+      const saveTemplateQuery =
+        'mutation saveTemplate($template: TemplateInput!) {\n  saveTemplate(template: $template) {\n    id\n  }\n}';
+
+      for (const templateId of templateIds) {
+        try {
+          const getResponse = await fetch(url, {
+            body: JSON.stringify({
+              operationName: 'getCertificationProcessForEdit',
+              query: getTemplateQuery,
+              variables: { id: templateId }
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
+          if (!getResponse.ok) throw new Error(`HTTP ${getResponse.status}`);
+          const getData = await getResponse.json();
+          if (getData?.errors?.length) throw new Error(getData.errors[0]?.message || 'Failed to read certification process');
+          const raw = getData?.data?.template;
+          if (!raw) throw new Error('Certification process not found');
+
+          // One unresolvable person or group anywhere in the payload's chain
+          // rejects the whole save, so deleted members are dropped before sending.
+          let approvers = (raw.approvers || [])
+            .filter(
+              (a) => !(a.type === 'PERSON' && a.userDetails?.isDeleted) && !(a.type === 'GROUP' && a.groupDetails?.isDeleted)
+            )
+            .map((a) =>
+              a.type === 'PERSON' && a.approverId == fromUserId
+                ? { approverId: toUserId, type: 'PERSON' }
+                : {
+                    type: a.type,
+                    ...(a.approverId && { approverId: a.approverId }),
+                    ...(a.placeholderText && { placeholderText: a.placeholderText })
+                  }
+            );
+          // The remap can land the new owner on a step they already held.
+          approvers = approvers.filter(
+            (v, i, self) => !v.approverId || i === self.findIndex((a) => a.approverId === v.approverId)
+          );
+          if (approvers.length === 0) {
+            throw new Error('Every approver has been deleted; fix the approver chain in Domo before transferring');
+          }
+
+          let observers = (raw.observers || [])
+            .filter((o) => !o.isDeleted)
+            .map((o) => ({
+              id: o.id == fromUserId ? toUserId : o.id,
+              type: o.type,
+              ...(o.type === 'Group' && o.userCount !== undefined && { userCount: o.userCount })
+            }));
+          observers = observers.filter((v, i, self) => i === self.findIndex((o) => o.id === v.id));
+
+          const template = {
+            acknowledgment: raw.acknowledgment,
+            approvers,
+            categories: (raw.categories || []).map((c) => ({ id: c.id })),
+            chainIsLocked: raw.chainIsLocked,
+            description: raw.description,
+            fields: (raw.fields || []).map((f) => ({
+              ...(f.column !== undefined && { column: f.column }),
+              ...(f.currency !== undefined && { currency: f.currency }),
+              data: f.data,
+              ...(f.datasource !== undefined && { datasource: f.datasource }),
+              isLocked: f.isLocked,
+              isPrivate: f.isPrivate,
+              ...(f.multiselect !== undefined && { multiselect: f.multiselect }),
+              name: f.name,
+              ...(f.option !== undefined && { option: f.option }),
+              ...(f.order !== undefined && { order: f.order }),
+              placeholder: f.placeholder,
+              required: f.required,
+              type: f.type
+            })),
+            id: raw.id,
+            instructions: raw.instructions,
+            isPublic: raw.isPublic,
+            isPublished: raw.isPublished,
+            observers,
+            ownerId: toUserId,
+            providerName: raw.providerName,
+            title: raw.title,
+            titleName: raw.titleName,
+            titlePlaceholder: raw.titlePlaceholder,
+            type: raw.type
+          };
+
+          if (raw.workflowIntegration) {
+            template.workflowIntegration = {
+              modelId: raw.workflowIntegration.modelId,
+              modelName: raw.workflowIntegration.modelName,
+              modelVersion: raw.workflowIntegration.modelVersion,
+              startName: raw.workflowIntegration.startName
+            };
+            if (raw.workflowIntegration.parameterMapping) {
+              template.workflowIntegration.parameterMapping = {
+                fields: (raw.workflowIntegration.parameterMapping.fields || []).map((f) => ({
+                  field: f.field,
+                  parameter: f.parameter,
+                  required: f.required,
+                  type: f.type
+                }))
+              };
+            }
+          }
+
+          const saveResponse = await fetch(url, {
+            body: JSON.stringify({
+              operationName: 'saveTemplate',
+              query: saveTemplateQuery,
+              variables: { template }
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
+          if (!saveResponse.ok) throw new Error(`HTTP ${saveResponse.status}`);
+          const saveData = await saveResponse.json();
+          // A rejected replace still comes back 200 with an errors array, so
+          // checking response.ok alone would report a lost template as success.
+          if (saveData?.errors?.length)
+            throw new Error(saveData.errors[0]?.message || 'Failed to save certification process');
+          if (!saveData?.data?.saveTemplate?.id) throw new Error('Failed to save certification process');
           succeeded++;
         } catch (error) {
           errors.push({ error: error.message, id: templateId });

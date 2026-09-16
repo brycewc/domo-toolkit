@@ -8,6 +8,12 @@
 - Share All is now much faster on a long list of pages, App Studio Apps, or Worksheets.
 - The API Errors list now includes Magic ETL preview failures.
 - An approval template with no dataset now has a Create DataSet button.
+- Certification Processes now support Objects Owned and Transfer Ownership.
+- Domo Everywhere Publications now support Objects Owned and Transfer Ownership.
+- Governance Toolkit Jobs now support Objects Owned and Transfer Ownership, listed under the application that holds them.
+- Governance Toolkit Jobs and applications now open straight from a copied ID, a row in a list, or a link you share.
+- Drill Paths can now be opened from a copied ID in Navigate to Copied Object.
+- Scheduled Reports now support Objects Owned and Transfer Ownership.
 
 ### Reports
 
@@ -19,7 +25,7 @@
 ### Beast Modes
 
 - Beast Modes now support Get Cards, Get Card Pages, Get Beast Modes, Manage Card Owners, and Manage Card Locks.
-- Beast Modes now support Migrate Content, repointing the cards, drills, and Beast Modes that use one onto a different Beast Mode on the same dataset and deleting the original once nothing uses it.
+- Beast Modes now support Migrate Content, repointing the cards, drills, and Beast Modes that use one onto a different Beast Mode or a column on the same dataset and deleting the original once nothing uses it.
 - Deleting a Beast Mode now lists the cards, drills, and Beast Modes that still use it, and blocks the delete until nothing does.
 - The Current Context footer on a Beast Mode now shows its dataset and the cards using it, and the Copy button offers to copy its DataSet ID.
 
@@ -76,26 +82,24 @@
 
 ## UI Improvements
 
-- The "System" chip on a system page now sits at the right of the row next to its actions instead of beside the name.
-- A report's page is now labeled "Report Page" wherever it is listed.
 - A workflow execution is now named for when it started, like "Run of My Workflow - 12/15/2025, 8:11:59 AM", instead of repeating the workflow's name.
-- Get View Inputs is now named Get Fusion Inputs on a Fusion, and the "Enable on locally run Domo instances" setting is now "Enable on internal Domo instances".
+- Get View Inputs is now named Get Fusion Inputs on a Fusion.
 - The Activity Log DataSet ID in Per-Instance Settings is now a link that opens that dataset in a new tab.
-- The side panel now closes when you open the extension settings from it.
-- Delete Unused Beast Modes now shows its delete progress on the Delete button instead of above the list, and lists its results directly instead of under a "Beast Modes" or "Variables" header when only one of the two was found.
 - A Code Engine Package version is now named with a "v" on its version number, like "Domo Certified Attributes - v1.0.1".
+
+### Objects Owned
+
+- Objects Owned now opens with a note listing the object types it cannot check, such as Custom App Designs and Workbench Jobs.
 
 ### Alerts and Toasts
 
 - Update Details' and Delete's messages now lead with a short title such as "Success" or "Invalid Email" and put the detail below it.
-- Every alert and toast title is now in Title Case.
 - Buttons in an alert or a toast now carry an icon, stretch to fill the width, and sit below the message instead of beside it.
 
 ### Migrate Content
 
 - Migrate Content now collapses its warnings into one block and lists each decision you still need to make with a count.
 - Migrate Content no longer pre-picks how to resolve a Beast Mode conflict, and its confirm dialog spells out what any choices you left unmade will do.
-- The Migrate Content button's description now names everything it migrates.
 
 ### Delete
 
@@ -109,6 +113,7 @@
 - Open All on a group now reports the number of items it actually opened.
 - Lists now order names containing numbers by value, so Card 9 comes before Card 10 instead of after it.
 - Task Center tasks and queues on an internal Domo instance now open at the right address.
+- A certification process for Beast Modes now opens its own admin page instead of the certified datasets page.
 - Document Collections are recognized again now that Domo moved them to a new address, and links to them open the right page.
 - Remove Empty String Filters now also finds empty string filters saved in a card's filter list, not just its quick filters.
 - Navigate to Copied Object now identifies a pro-code custom app design as pro-code instead of calling it a brick, and a variable instead of calling it a Beast Mode.
@@ -123,7 +128,6 @@
 ### Activity Log
 
 - The Activity Log on a report's page now shows that page's events instead of coming back empty.
-- The Cards and Card Pages activity logs now say how many cards or pages they cover instead of how many objects.
 - A group header with nothing loggable under it, such as a column in the Copy Color Rules list, no longer offers an activity log button that comes back empty.
 
 ### Delete
@@ -153,6 +157,7 @@
 - Migrate Content now migrates a Beast Mode whose formula uses a variable instead of skipping it.
 - Migrate Content no longer skips a Beast Mode when the Beast Mode it nests did migrate, and names the nested Beast Mode that didn't migrate when it does skip one.
 - Choosing Overwrite for a Beast Mode conflict in Migrate Content now replaces the target's Beast Mode instead of failing every one of them.
+- Renaming a card's Beast Mode, or pointing it at the target's, to settle a name conflict in Migrate Content now takes effect instead of being ignored.
 - Migrate Content now explains that Domo allows only one level of Beast Mode nesting when that is why a Beast Mode couldn't be created, instead of showing Domo's raw error.
 - A card whose conditional formatting still names a dataset it no longer reads, or that references a Beast Mode saved on one, now migrates instead of failing.
 - A card carrying a filter that has no values now migrates, and that filter is removed.
