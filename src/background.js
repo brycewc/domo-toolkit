@@ -1574,9 +1574,11 @@ async function detectAndStoreContext(tabId) {
         detected.typeId = refinedTypeId;
         detected.parentId = appId;
         typeModel = getObjectType(refinedTypeId);
-        // A bare /page/{id} that resolves to an App Studio page is Domo's broken
-        // "must be viewed within its app" dead-end; flag it for redirect below.
-        isBrokenAppStudioPageUrl = refinedTypeId === 'DATA_APP_VIEW';
+        // Only the bare /page/{id} is Domo's "must be viewed within its app" dead-end.
+        // Sub-routes of that page render fine, notably the drill path editor at
+        // /page/{id}/kpis/{cardId}/drillpath/{n}, so redirecting those breaks them.
+        isBrokenAppStudioPageUrl =
+          refinedTypeId === 'DATA_APP_VIEW' && /^\/page\/[^/]+\/?$/.test(new URL(detected.url).pathname);
       }
     }
 
