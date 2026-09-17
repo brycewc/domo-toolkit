@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useLongPress } from '@/hooks/useLongPress';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { buildPfilterUrl, getAllFilters } from '@/services/filters';
+import { buildPvariablesUrl, getPageVariables } from '@/services/pageVariables';
 import { copyToClipboard } from '@/utils/copyToClipboard';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
 import IconFunnel from '@icons/funnel.svg?react';
@@ -16,6 +17,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
   const [isCopied, setIsCopied] = useState(false);
   const [isFailed, setIsFailed] = useState(false);
   const [filterCount, setFilterCount] = useState(0);
+  const [variableCount, setVariableCount] = useState(0);
   const { LongPressOverlay, pressProps } = useLongPress();
   const { showStatus } = useStatusBar();
 
@@ -23,6 +25,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
   const isSupported = typeId === 'PAGE' || typeId === 'DATA_APP_VIEW' || typeId === 'CARD';
 
   const longPressDisabled = isDisabled || !isSupported;
+  const capturedCount = filterCount + variableCount;
 
   useEffect(() => {
     let isMounted = true;
@@ -30,18 +33,16 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
     const updateFilterDetection = async () => {
       if (!currentContext?.domoObject?.id || !isSupported) {
         setFilterCount(0);
+        setVariableCount(0);
         return;
       }
 
       try {
-        const { allFilters } = await getAllFilters({
-          cardId: typeId === 'CARD' ? currentContext.domoObject.id : null,
-          pageId: typeId === 'CARD' ? null : currentContext.domoObject.id,
-          tabId: currentContext.tabId
-        });
+        const { allFilters, changedVariables } = await captureFiltersAndVariables(currentContext, typeId);
 
         if (isMounted) {
           setFilterCount(allFilters.length);
+          setVariableCount(Object.keys(changedVariables).length);
         }
       } catch (error) {
         console.warn('[CopyFilteredUrl] Failed to pre-fetch filter count:', error);
@@ -59,18 +60,12 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
     if (!currentContext?.domoObject?.id || !isSupported) return;
 
     try {
-      const objectId = currentContext.domoObject.id;
-      const currentUrl = resolveCurrentUrl(currentContext, typeId, objectId);
-
-      const { allFilters } = await getAllFilters({
-        cardId: typeId === 'CARD' ? objectId : null,
-        pageId: typeId === 'CARD' ? null : objectId,
-        tabId: currentContext.tabId
-      });
+      const { allFilters, changedVariables, filteredUrl } = await captureFiltersAndVariables(currentContext, typeId);
+      const changedCount = Object.keys(changedVariables).length;
 
       setFilterCount(allFilters.length);
+      setVariableCount(changedCount);
 
-      const filteredUrl = buildPfilterUrl(currentUrl, objectId, allFilters);
       const tabTitle = await getTabTitle(currentContext.tabId);
       const linkText = tabTitle || currentContext.domoObject?.metadata?.name?.trim() || filteredUrl;
       await copyUrlAsLink(filteredUrl, linkText);
@@ -78,12 +73,12 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
 
-      if (allFilters.length === 0) {
-        showStatus('No Filters Active', 'Copied base URL without filters', 'warning', 3000);
+      if (allFilters.length === 0 && changedCount === 0) {
+        showStatus('No Filters or Variables Active', 'Copied base URL without filters', 'warning', 3000);
       } else {
         showStatus(
           'Success',
-          `Captured ${allFilters.length} filter${allFilters.length !== 1 ? 's' : ''} and copied URL`,
+          `Captured ${describeCapture(allFilters.length, changedCount)} and copied URL`,
           'success',
           3000
         );
@@ -105,30 +100,24 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
     if (!currentContext?.domoObject?.id || !isSupported) return;
 
     try {
-      const objectId = currentContext.domoObject.id;
-      const currentUrl = resolveCurrentUrl(currentContext, typeId, objectId);
-
-      const { allFilters } = await getAllFilters({
-        cardId: typeId === 'CARD' ? objectId : null,
-        pageId: typeId === 'CARD' ? null : objectId,
-        tabId: currentContext.tabId
-      });
+      const { allFilters, changedVariables, filteredUrl } = await captureFiltersAndVariables(currentContext, typeId);
+      const changedCount = Object.keys(changedVariables).length;
 
       setFilterCount(allFilters.length);
+      setVariableCount(changedCount);
 
-      if (allFilters.length === 0) {
+      if (allFilters.length === 0 && changedCount === 0) {
         setIsFailed(true);
         setTimeout(() => setIsFailed(false), 2000);
-        showStatus('No Filters Active', 'No filters to apply', 'danger', 3000);
+        showStatus('No Filters or Variables Active', 'Nothing to apply', 'danger', 3000);
         return;
       }
 
-      const filteredUrl = buildPfilterUrl(currentUrl, objectId, allFilters);
       chrome.tabs.update(currentContext.tabId, { url: filteredUrl });
 
       showStatus(
         'Applying Filters',
-        `Reloading this tab with ${allFilters.length} filter${allFilters.length !== 1 ? 's' : ''}`,
+        `Reloading this tab with ${describeCapture(allFilters.length, changedCount)}`,
         'success',
         3000
       );
@@ -141,37 +130,26 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
     if (!currentContext?.domoObject?.id || !isSupported) return;
 
     try {
-      const objectId = currentContext.domoObject.id;
-      const currentUrl = resolveCurrentUrl(currentContext, typeId, objectId);
-
-      const { allFilters } = await getAllFilters({
-        cardId: typeId === 'CARD' ? objectId : null,
-        pageId: typeId === 'CARD' ? null : objectId,
-        tabId: currentContext.tabId
-      });
+      const { allFilters, changedVariables, filteredUrl } = await captureFiltersAndVariables(currentContext, typeId);
+      const changedCount = Object.keys(changedVariables).length;
 
       setFilterCount(allFilters.length);
+      setVariableCount(changedCount);
 
-      if (allFilters.length === 0) {
+      if (allFilters.length === 0 && changedCount === 0) {
         setIsFailed(true);
         setTimeout(() => setIsFailed(false), 2000);
-        showStatus('No Filters Active', 'No pfilters to copy', 'danger', 3000);
+        showStatus('No Filters or Variables Active', 'No params to copy', 'danger', 3000);
         return;
       }
 
-      const filteredUrl = buildPfilterUrl(currentUrl, objectId, allFilters);
       const urlObj = new URL(filteredUrl);
       await copyToClipboard(urlObj.search, currentContext.tabId);
 
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
 
-      showStatus(
-        'Success',
-        `Copied pfilters param with ${allFilters.length} filter${allFilters.length !== 1 ? 's' : ''}`,
-        'success',
-        3000
-      );
+      showStatus('Success', `Copied params with ${describeCapture(allFilters.length, changedCount)}`, 'success', 3000);
     } catch (_error) {
       showStatus('Error', 'Failed to copy filter params', 'danger', 3000);
     }
@@ -190,15 +168,15 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
         >
           {isFailed ? <AnimatedX /> : isCopied ? <AnimatedCheck /> : <IconFunnel />}
           Copy Filters
-          {filterCount > 0 && (
+          {capturedCount > 0 && (
             <Chip className='h-5 w-5 items-center justify-center rounded-full' color='accent' size='sm' variant='soft'>
-              {filterCount}
+              {capturedCount}
             </Chip>
           )}
           <LongPressOverlay />
         </Button>
         <Tooltip.Content className='max-w-60' offset={4}>
-          <span>Copy filtered URL (pfilter)</span>
+          <span>Copy filtered URL (pfilters and pvariables)</span>
           {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>
       </Tooltip>
@@ -208,14 +186,30 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
             <IconReset className='size-4 shrink-0' />
             <Label>Apply filters here and reload</Label>
           </Dropdown.Item>
-          <Dropdown.Item id='pfilters' textValue='Copy pfilters param only'>
+          <Dropdown.Item id='pfilters' textValue='Copy filter and variable params only'>
             <IconClipboardCopy className='size-4 shrink-0' />
-            <Label>Copy pfilters param only</Label>
+            <Label>Copy filter and variable params only</Label>
           </Dropdown.Item>
         </Dropdown.Menu>
       </Dropdown.Popover>
     </Dropdown>
   );
+}
+
+async function captureFiltersAndVariables(currentContext, typeId) {
+  const objectId = currentContext.domoObject.id;
+  const currentUrl = resolveCurrentUrl(currentContext, typeId, objectId);
+  const scope = {
+    cardId: typeId === 'CARD' ? objectId : null,
+    pageId: typeId === 'CARD' ? null : objectId,
+    tabId: currentContext.tabId
+  };
+
+  const [{ allFilters }, { changedVariables }] = await Promise.all([getAllFilters(scope), getPageVariables(scope)]);
+
+  const filteredUrl = buildPvariablesUrl(buildPfilterUrl(currentUrl, objectId, allFilters), changedVariables);
+
+  return { allFilters, changedVariables, filteredUrl };
 }
 
 async function copyUrlAsLink(url, text) {
@@ -227,6 +221,17 @@ async function copyUrlAsLink(url, text) {
     'text/plain': new Blob([url], { type: 'text/plain' })
   });
   await navigator.clipboard.write([item]);
+}
+
+function describeCapture(filterCount, variableCount) {
+  const parts = [];
+  if (filterCount > 0) {
+    parts.push(`${filterCount} filter${filterCount !== 1 ? 's' : ''}`);
+  }
+  if (variableCount > 0) {
+    parts.push(`${variableCount} variable${variableCount !== 1 ? 's' : ''}`);
+  }
+  return parts.join(' and ');
 }
 
 async function getTabTitle(tabId) {

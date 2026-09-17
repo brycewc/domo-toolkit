@@ -312,3 +312,78 @@ Domo pages commonly expose data through these window properties:
 - `window.__NEXT_DATA__` — Next.js page data (some newer Domo pages)
 - `window.__INITIAL_STATE__` / `window.__APP_DATA__` — App state
 - `window.domo` / `window.appData` / `window.pageData` / `window.cardData` — Legacy globals
+
+## Reach Domo's Redux Store
+
+The store is never on `window` outside Domo's dev builds, so get it through the react-redux provider's props. The anchor element matters: a dashboard is reachable from the document root, but an App Studio view was only reachable from inside the filter chrome (`[class*="filter"]`, at fiber depth 56), so try several selectors and allow a generous depth.
+
+```javascript
+function findStore() {
+  const selectors = ['#root', 'body > div', '[class*="filter"]', '[class*="control"]', '[class*="page"]'];
+  for (const selector of selectors) {
+    for (const anchor of Array.from(document.querySelectorAll(selector)).slice(0, 20)) {
+      const key = Object.keys(anchor).find((name) => name.startsWith('__reactFiber$'));
+      if (!key) continue;
+      let fiber = anchor[key];
+      for (let depth = 0; fiber && depth < 100; depth++, fiber = fiber.return) {
+        const store = fiber.memoizedProps?.value?.store;
+        if (typeof store?.getState === 'function') return store;
+      }
+    }
+  }
+  return null;
+}
+```
+
+`src/services/governanceToolkit.js` and `src/services/pageVariables.js` both use this.
+
+### Page Variable State
+
+Variable state lives in a different slice on each surface, leaving the others empty, so read all three and use whichever is populated.
+
+| Surface               | Slice                                              | Controls                 | Current values                                        | Keyed by             |
+| --------------------- | -------------------------------------------------- | ------------------------ | ----------------------------------------------------- | -------------------- |
+| Dashboard `/page/:id` | `state.page.variables`                             | `variables` map          | `controlValuesByPageId[pageId]`                       | control ID           |
+| App Studio view       | `state.stack.variables`                            | `variables` map          | `contexts["REDUX_CONTEXT_ID:<viewId>"].controlValues` | control urn          |
+| Card details          | `state.card.cardDetailsPage.dataControlsByCardURN` | `dataControls` **array** | `functionOverrides`                                   | function template ID |
+
+The control ID lists are also inconsistently shaped. The page slice has `pageVariableControlIdsByPageId` and `cardVariableControlIdsByPageId`, both maps of page ID to array. The stack context has `pageVariableControlUrns` as a bare array but `cardVariableControlUrns` as a map of card ID to array. Flatten defensively.
+
+The card slice's values are wrapped one level deeper, as `{ name, functionName, parsedExpression: { exprType, value } }`, where the other two hold `{ exprType, value }` directly.
+
+A control object is otherwise the same in every slice:
+
+```javascript
+{
+  id: '4342',                     // `urn: '4142'` in the stack slice
+  name: 'Health Monitor Summary',
+  function: { id: 469619, name: 'Health Monitor Summary', dataType: 'STRING', expression: "'TOTAL'", variable: true },
+  entityType: 'PAGE',             // or 'CARD'
+  entityId: '603719348',
+  type: 'DROPDOWN',
+  dataType: 'STRING',
+  values: [{ expression: { exprType: 'STRING_VALUE', value: 'TOTAL' } }],
+  override: { exprType: 'STRING_VALUE', value: 'TOTAL' },   // the DEFAULT, not the live value
+  controlType: 'VARIABLE'
+}
+```
+
+### Deciding whether a variable is actually changed
+
+**An entry in the values map does not mean the user changed anything.** Setting a variable back to its default leaves the override behind rather than clearing it, so presence alone reports a variable as changed when it is sitting exactly where it started.
+
+The question to ask instead is **what value Domo falls back to when the variable is absent**, and compare against that. The baseline is per slice, and this is the part that is easy to get backwards:
+
+| Slice        | Baseline                                                                                     |
+| ------------ | -------------------------------------------------------------------------------------------- |
+| Page, stack  | `control.override` (the page's saved value), falling back to `function.expression`           |
+| Card details | `function.expression` only, since this slice's `override` mirrors the value that was applied |
+
+Two traps behind that table:
+
+- **`override` means different things per slice.** On the page and stack slices it is the saved fallback and the live value lives in the values map. On a card details page the control has no `override` until one is applied, and then it holds the live value, so using it as a baseline there compares a value against itself.
+- **A page's saved value can differ from the variable's own default**, so `function.expression` is not a universal baseline. Using it on a page whose saved value is something else would drop a variable the user deliberately set to the variable's default.
+
+`function.expression` is a bare literal (`'TOTAL'`, `42`). Treat anything more complex as unknown and let the value through rather than risking a wrong drop.
+
+One variable can drive several controls (a page-level one plus one per card), all sharing a `function.id`, so dedupe by that.

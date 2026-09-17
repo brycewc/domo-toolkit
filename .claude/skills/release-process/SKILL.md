@@ -1,6 +1,6 @@
 ---
 name: release-process
-description: "Domo Toolkit's release lifecycle, start to finish: starting a new development cycle (wiping release notes to a WIP list and bumping package.json), maintaining that WIP list while features land, and then cutting the release by hand (finalizing the notes, adding the releases.js entry, building the zips, tagging the GitHub Release, and uploading to the Chrome and Edge stores). Use whenever a release comes up: cutting, shipping, or publishing a version, bumping or choosing a version number, starting the next version's branch, finalizing or wiping release notes, adding a releases.js entry, running yarn release, tagging vX.Y.Z, or uploading to the web stores. Keywords: release, ship, publish, version bump, semver, release notes, WIP notes, releases.js, GitHub Release, Chrome Web Store, Edge Add-ons."
+description: "Domo Toolkit's release lifecycle, start to finish: starting a new development cycle (wiping release notes to a WIP list and bumping package.json), maintaining that WIP list while features land, and then cutting the release (finalizing the notes, adding the releases.js entry, and pushing a vX.Y.Z tag, which builds the zips, creates the GitHub Release, and uploads to the Chrome and Edge stores). Use whenever a release comes up: cutting, shipping, or publishing a version, bumping or choosing a version number, starting the next version's branch, finalizing or wiping release notes, adding a releases.js entry, running yarn release, tagging vX.Y.Z, or uploading to the web stores. Keywords: release, ship, publish, version bump, semver, release notes, WIP notes, releases.js, GitHub Release, Chrome Web Store, Edge Add-ons, release workflow."
 ---
 
 # Release Process
@@ -140,54 +140,59 @@ At this point the file already exists as a WIP list accumulated during developme
 - Resolve all inline `TODO` and `_(may have...)_` uncertainties; verify against `git log` and either confirm, correct, or remove
 - Only include this version's notes (not accumulated across versions). GitHub Release workflow uses this file as the release body.
 
-## 5. Build and package locally
+## 5. Optionally build locally first
 
-Run `yarn release` (runs `vite build` then `scripts/release.js`):
+Tagging builds on CI, so a local build is only for checking the packaging by hand. To do it, run `yarn release` (runs `vite build` then `scripts/release.js`):
 
 - Creates `release/chrome-domo-toolkit-{version}.zip`
 - Creates `release/edge-domo-toolkit-{version}.zip` (strips `key` from manifest)
 
 **Stop `yarn dev` first.** Both commands write to `dist/`, so building over a live dev server corrupts the CRXJS dev loader. `rm -rf dist release` before the build, and expect to restart `yarn dev` afterward. Details in `local-testing.md`.
 
-## 6. Publish (all manual)
+## 6. Publish
 
-**There is no release automation.** The `release.yml` and `publish.yml` workflows described here previously were deleted in `a47ea53` (2026-05-14), before v1.4.0. Pushing to `main` tags nothing, creates no release, and uploads nothing to either store. Every release from v1.4.0 onward has been cut by hand with the steps below.
+`.github/workflows/release.yml` does the whole publish. Pushing a `v*` tag builds the extension, cuts the GitHub Release, and uploads to both stores. Releases v1.4.0 through v1.6.0 were cut by hand while the store listing copy and screenshots were still changing every release; the workflow came back for v1.7.0 once those settled.
 
-### 6a. Push and cut the GitHub Release
+### 6a. Merge and push
 
 ```bash
-git push origin main
-cp release/chrome-domo-toolkit-X.Y.Z.zip release/domo-toolkit-X.Y.Z.zip
-gh release create vX.Y.Z \
-  release/domo-toolkit-X.Y.Z.zip \
-  --title vX.Y.Z \
-  --notes-file docs/RELEASE_NOTES.md \
-  --target main
+git checkout main && git merge --ff-only X.Y.Z && git push origin main
 ```
 
-Conventions to match the existing releases:
+Pushing a branch triggers nothing. Only a `v*` tag does.
 
-- Release title is the bare tag (`v1.6.0`), not a descriptive name.
-- Body is the whole of `docs/RELEASE_NOTES.md`.
-- **One asset only, the Chrome build with the `chrome-` prefix dropped**, so `domo-toolkit-X.Y.Z.zip`. The Edge zip is not attached; it only exists for the Edge store upload.
-- Push before creating the release, since the tag is cut from the pushed `main`.
-- `--target` takes a branch name or a full 40-character SHA. An abbreviated SHA fails with `HTTP 422: Release.target_commitish is invalid`.
+### 6b. Optional dry run
 
-### 6b. Upload to the stores
+`workflow_dispatch` on the Actions tab runs the same build without tagging:
 
-Upload by hand, using the prefixed zips left in `release/`:
+- **`mode: check-credentials`** with `target: chrome` verifies the Chrome Web Store OAuth credentials and uploads nothing. Worth running when the refresh token has sat unused for months, since Google expires an unused one after six.
+- **`mode: upload`** pushes the build to both stores as a draft, leaving the submit button to you.
 
-- Chrome Web Store: `release/chrome-domo-toolkit-X.Y.Z.zip`
-- Edge Add-ons: `release/edge-domo-toolkit-X.Y.Z.zip` (the one with `key` stripped)
+The dispatch menu only lists a workflow that exists on `main`, so 6a comes first. It then runs against whichever ref you pick.
+
+### 6c. Tag
+
+```bash
+git tag vX.Y.Z && git push origin vX.Y.Z
+```
+
+The build job refuses to go further when the tag disagrees with `package.json`, when `docs/RELEASE_NOTES.md` is still titled `(WIP)`, or when `releases.js` has no entry for the version, so a mistake in steps 1, 2, or 4 stops the release before anything is published.
+
+The release the workflow cuts matches the hand-cut ones: title is the bare tag (`v1.6.0`), body is the whole of `docs/RELEASE_NOTES.md`, and the single asset is the Chrome build with the `chrome-` prefix dropped (`domo-toolkit-X.Y.Z.zip`). The Edge zip is never attached; it only goes to the Edge store.
+
+### 6d. Store review
+
+Both stores take days to review. The Edge listing's screenshots and description are still edited by hand in Partner Center when they need to change.
 
 ## Validation checklist
 
 - [ ] `version` in `package.json` (set at cycle start) matches the `releases.js` entry and the version being tagged
 - [ ] `githubUrl` format: `https://github.com/brycewc/domo-toolkit/releases/tag/vX.Y.Z`
-- [ ] `yarn dev` stopped, then `yarn release` builds and packages successfully
-- [ ] Both zips report the right version, and only the Edge one has `key` stripped
-- [ ] `main` pushed, then the release cut with the tag and a single `domo-toolkit-X.Y.Z.zip` asset
-- [ ] Both store uploads done by hand
+- [ ] `docs/RELEASE_NOTES.md` no longer says `(WIP)`
+- [ ] `main` fast-forwarded to the version branch and pushed
+- [ ] `vX.Y.Z` tag pushed, and all four workflow jobs green
+- [ ] GitHub Release carries exactly one asset, `domo-toolkit-X.Y.Z.zip`
+- [ ] Both store submissions show the new version as in review
 
 ## After shipping
 

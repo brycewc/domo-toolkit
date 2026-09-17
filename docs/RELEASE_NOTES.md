@@ -1,58 +1,40 @@
-# Domo Toolkit v1.7.0 Release Notes (WIP)
+# Domo Toolkit v1.7.0 Release Notes
 
 ## New Features and Improvements
 
-- The Current Context footer now shows the name of a dashboard, App Page, or Worksheet View you don't have access to, and Navigate to Copied Object recognizes such a dashboard's ID.
+- The Current Context footer and Navigate to Copied Object button now work fully for dashboards you don't have access to.
 - The Current Context footer on a dataset produced by a Jupyter Workspace now has a Jupyter Workspace tab naming the workspace that produced it.
 - Open All now warns when a list has more than 50 items and opens only the first 50.
 - Share All is now much faster on a long list of pages, App Studio Apps, or Worksheets.
 - The API Errors list now includes Magic ETL preview failures.
 - An approval template with no dataset now has a Create DataSet button.
-- Certification Processes now support Objects Owned and Transfer Ownership.
-- Domo Everywhere Publications now support Objects Owned and Transfer Ownership.
-- Governance Toolkit Jobs now support Objects Owned and Transfer Ownership, listed under the application that holds them.
-- Governance Toolkit Jobs and applications now open straight from a copied ID, a row in a list, or a link you share.
+- Copy Filters now also captures the page's variables in the copied link.
+
+- Objects Owned and Transfer Ownership now support Domo Everywhere Publications, Certification Processes, Governance Toolkit Jobs, and Scheduled Reports.
+- Governance Toolkit Jobs and applications now link directly through Navigate to Copied Object and data list rows.
 - Drill Paths can now be opened from a copied ID in Navigate to Copied Object.
-- Scheduled Reports now support Objects Owned and Transfer Ownership.
-- Data Models are now recognized as their own type.
-- Views and Data Fusions are now recognized as their own types instead of being treated as plain DataSets.
-- The Current Context footer on a data model, view, or data fusion now has a Definition tab showing how it is built.
-- Data models now support Get Data Model Inputs.
-
-### Reports
-
-- Reports now support Objects Owned and Transfer Ownership, and transferring a report also moves its deliveries to the new owner.
-- A report you have open in Report Builder is now recognized as the current object.
-- The Current Context footer now shows a report's Studio App, report page, and deliveries, a scheduled report's report and Studio App, and a Reports tab on a Studio App.
-- The Copy button on a report now offers to copy its App ID and its report page ID.
+- Data Models and Report Builder Reports are now supported.
+- Views and Data Fusions are now recognized as their own types instead of being treated as plain DataSets, with JSON tabs for their definitions.
 
 ### Beast Modes
 
 - Beast Modes now support Get Cards, Get Card Pages, Get Beast Modes, Manage Card Owners, and Manage Card Locks.
-- Beast Modes now support Migrate Content, repointing the cards, drills, and Beast Modes that use one onto a different Beast Mode or a column on the same dataset and deleting the original once nothing uses it.
-- Deleting a Beast Mode now lists the cards, drills, and Beast Modes that still use it, and blocks the delete until nothing does.
+- Beast Modes now support Migrate Content, repointing the cards, drills, and Beast Modes that use one onto a different Beast Mode or a column on the same dataset.
+- Delete now supports listing dependencies and blocks until there are none.
 - The Current Context footer on a Beast Mode now shows its dataset and the cards using it, and the Copy button offers to copy its DataSet ID.
-
-### Code Engine Packages
-
-- Code Engine Packages now support Get Usage, listing the workflows and custom apps that use them, marking each workflow version Active or Inactive, and narrowing to just the active versions or the package version you are viewing.
-- Code Engine Packages now support Delete, removing the package and every version it has from either the package or one of its versions.
-- Deleting a Code Engine Package now lists the workflows and custom apps that use it, and blocks the delete until nothing live does.
-- The Current Context footer on a Code Engine Package now has Workflows, App Designs, and Custom Apps tabs.
-- A Code Engine tile selected in a workflow now has an Open in Code Engine button that opens its package page in a new tab.
 
 ### Migrate Content and Remap Columns
 
 - Migrate Content and Remap Columns can now drop a column that a dataset view only selects, naming the output columns that go away with it, instead of forcing a remap.
-- Migrate Content now moves the Jupyter Workspaces that read a dataset onto the new dataset when you press Check Jupyter Workspaces, warning that a moved workspace's notebook code still names the old columns.
-- Migrate Content now warns before you migrate that a nested Beast Mode can't be created when the Beast Mode it nests is already nested on the target, and names the one to bring a copy of instead.
-- Migrate Content now has a Set All button that applies one choice to every Beast Mode conflict at once, and a Refresh button on the page where you pick the target dataset.
-- Migrate Content now opens faster on datasets with a lot of Beast Modes.
-- Remap Columns now reloads the dataset's Cards page if you are still on it when the remap finishes.
+- Added support for Jupyter Workspace dependencies.
+
+- Migrate Content now opens faster on datasets with lots of Beast Modes.
+
+- Fixed several bugs for complex scenerios and made other usability improvements.
 
 ### Delete
 
-- DataSets other than a dataflow's outputs now support Delete, listing the cards, alerts, Beast Modes, and PDP policies that go with one, and blocking the delete while a dataset view is built on it.
+- DataSets, Beast Modes, and Workflows now list dependencies.
 - Deleting a dataset or dataflow can now search for the Jupyter Workspaces that read or write it when you press Check Jupyter Workspaces, and names the places the dependency check doesn't look, such as workflows, Code Engine Packages, and Domo Everywhere Publications.
 - Deleting a dataflow and its inputs now lets you pick which inputs go, says why an input can't be deleted with it, and lists the Beast Modes on its output datasets.
 - Deleting a workflow now lists the datasets, forms, Task Center Queues, Code Engine Packages, subflows, pages, and Jupyter Workspaces it uses, and names anything the check couldn't read.

@@ -1,0 +1,152 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which stores to send the build to'
+        required: true
+        type: choice
+        options:
+          - both
+          - chrome
+          - edge
+        default: both
+      mode:
+        description: 'publish, upload (review in the store dashboard), or check-credentials'
+        required: true
+        type: choice
+        options:
+          - publish
+          - upload
+          - check-credentials
+        default: publish
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.current }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - run: corepack enable
+
+      - run: yarn install --immutable
+
+      - name: Resolve version
+        id: version
+        run: |
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "${{ github.event_name }}" = "push" ] && [ "$PKG" != "${GITHUB_REF_NAME#v}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${PKG}."
+            exit 1
+          fi
+          echo "current=${PKG}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate release metadata
+        if: github.event_name == 'push'
+        env:
+          VERSION: ${{ steps.version.outputs.current }}
+        run: |
+          if grep -q '(WIP)' docs/RELEASE_NOTES.md; then
+            echo "::error::docs/RELEASE_NOTES.md is still titled (WIP)."
+            exit 1
+          fi
+          node -e "
+            import('./src/data/releases.js').then(({ releases }) => {
+              const version = process.env.VERSION;
+              const entry = releases.find((r) => r.version === version);
+              if (!entry) {
+                console.error('::error::src/data/releases.js has no entry for ' + version + '.');
+                process.exit(1);
+              }
+              const expected = 'https://github.com/brycewc/domo-toolkit/releases/tag/v' + version;
+              if (entry.githubUrl !== expected) {
+                console.error('::error::releases.js githubUrl for ' + version + ' should be ' + expected + '.');
+                process.exit(1);
+              }
+            });
+          "
+
+      - run: yarn release
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-zips
+          path: release/*.zip
+          retention-days: 30
+
+  github-release:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-zips
+          path: release
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp "release/chrome-domo-toolkit-${VERSION}.zip" "release/domo-toolkit-${VERSION}.zip"
+          gh release create "v${VERSION}" \
+            "release/domo-toolkit-${VERSION}.zip" \
+            --title "v${VERSION}" \
+            --notes-file docs/RELEASE_NOTES.md
+
+  publish-chrome:
+    needs: build
+    if: github.event_name == 'push' || inputs.target == 'chrome' || inputs.target == 'both'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-zips
+          path: release
+
+      - uses: wdzeng/chrome-extension@v2
+        with:
+          extension-id: gagcendhhghphglhcgjakkkocbliekaj
+          zip-path: release/chrome-domo-toolkit-${{ needs.build.outputs.version }}.zip
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          action: ${{ github.event_name == 'push' && 'publish' || inputs.mode }}
+
+  publish-edge:
+    needs: build
+    if: >-
+      (github.event_name == 'push' || inputs.target == 'edge' || inputs.target == 'both')
+      && inputs.mode != 'check-credentials'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-zips
+          path: release
+
+      - uses: wdzeng/edge-addon@v2
+        with:
+          product-id: a9171c4d-2ffd-44c8-916f-174617c08c9f
+          zip-path: release/edge-domo-toolkit-${{ needs.build.outputs.version }}.zip
+          api-key: ${{ secrets.EDGE_API_KEY }}
+          client-id: ${{ secrets.EDGE_CLIENT_ID }}
+          upload-only: ${{ inputs.mode == 'upload' }}
