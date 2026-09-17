@@ -1573,10 +1573,22 @@ async function detectAndStoreContext(tabId) {
       if (refinedTypeId !== detected.typeId) {
         detected.typeId = refinedTypeId;
         detected.parentId = appId;
-        typeModel = getObjectType(refinedTypeId);
-        // A bare /page/{id} that resolves to an App Studio page is Domo's broken
-        // "must be viewed within its app" dead-end; flag it for redirect below.
-        isBrokenAppStudioPageUrl = refinedTypeId === 'DATA_APP_VIEW';
+        typeModel = getObjectType('DATA_APP_VIEW');
+        // A BARE /page/{id} that resolves to an App Studio page is Domo's broken
+        // "must be viewed within its app" dead-end — redirect it into the app.
+        // But functional sub-routes of that same page must be left alone:
+        // card details (/page/{id}/kpis/details/{card}) and, critically,
+        // drill paths (/page/{id}/kpis/{card}/drillpath/{n}). Redirecting those
+        // yanks the user out mid-flow — e.g. clicking "Edit Drill Path" on a card
+        // opened within an app hard-navigated back to the app's landing page.
+        // Gate the redirect to the bare page URL only.
+        let isBarePageUrl = false;
+        try {
+          isBarePageUrl = /^\/page\/[^/]+\/?$/.test(new URL(detected.url).pathname);
+        } catch {
+          isBarePageUrl = false;
+        }
+        isBrokenAppStudioPageUrl = isBarePageUrl;
       }
     }
 
