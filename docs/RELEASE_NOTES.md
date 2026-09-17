@@ -117,6 +117,7 @@
 - Opening a group or a role from an admin list now keeps its name in the browser tab instead of falling back to the section name.
 - Actions that depend on your permissions no longer stay hidden on a tab the extension couldn't read your account on when it loaded.
 - Download Code on a Code Engine Package version no longer repeats the version number in the file name.
+- Editing a card's drill path on an App Studio page no longer bounces you back to the app's landing page.
 
 ### Activity Log
 
