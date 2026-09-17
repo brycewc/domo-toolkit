@@ -1,3 +1,4 @@
+import { deleteQueryParam, setDomoJsonParam } from '@/utils/domoQueryParam';
 import { executeInAllFrames, executeInPage } from '@/utils/executeInPage';
 
 import { getCardDatasets } from './cards';
@@ -24,15 +25,14 @@ export function buildPfilterUrl(baseUrl, objectId, filters) {
     const urlObj = new URL(baseUrl);
 
     // Remove existing pfilters if present
-    urlObj.searchParams.delete('pfilters');
+    deleteQueryParam(urlObj, 'pfilters');
 
     // Add new pfilters if we have filters
     if (Array.isArray(filters) && filters.length > 0) {
       // Drop dataSetId, then collapse the duplicate bare entries that stripping
       // per-dataset variants of the same column can produce.
       const bareFilters = dedupeFilters(filters.map(stripDatasetId));
-      const encoded = encodeFilters(bareFilters);
-      urlObj.searchParams.set('pfilters', decodeURIComponent(encoded));
+      setDomoJsonParam(urlObj, 'pfilters', bareFilters);
     }
 
     return urlObj.toString();

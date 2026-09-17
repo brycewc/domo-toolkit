@@ -1,38 +1,34 @@
+import { deleteQueryParam, setDomoJsonParam } from '@/utils/domoQueryParam';
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
- * Add a pvariables parameter to a URL, in Domo's name-keyed format
+ * Add a pvariables parameter to a URL, keyed by variable name
  *
- * Composes onto a URL that may already carry pfilters, so it only ever touches
- * its own parameter. The name-keyed format is portable between instances; the
- * id-keyed format Domo emits itself is not, since its keys are function template
- * IDs. Domo classifies the payload as name-keyed only when every value is a
- * string or a number, so a value that cannot be reduced to one is dropped rather
- * than allowed to discard the whole payload.
+ * Domo falls back to its instance-specific parser as soon as one value is not a
+ * string or number, and then discards the payload, so anything else is dropped.
  * @param {string} baseUrl - URL to add the parameter to
- * @param {Object} variables - Map of variable name to value
+ * @param {Object} variables - Variable name to primitive value
  * @returns {string} URL with the pvariables parameter, or without it when there is nothing to set
  */
 export function buildPvariablesUrl(baseUrl, variables) {
   try {
     const urlObj = new URL(baseUrl);
 
-    urlObj.searchParams.delete('pvariables');
+    deleteQueryParam(urlObj, 'pvariables');
 
+    const entries = variables && typeof variables === 'object' ? Object.entries(variables) : [];
     const payload = {};
-    if (variables && typeof variables === 'object') {
-      Object.entries(variables).forEach(([name, value]) => {
-        const sanitized = sanitizeVariableValue(value);
-        if (sanitized !== null) {
-          payload[name] = sanitized;
-        }
-      });
-    }
+    entries.forEach(([key, value]) => {
+      const sanitized = sanitizeVariableValue(value);
+      if (sanitized !== null) {
+        payload[key] = sanitized;
+      }
+    });
 
     // An empty object is not a no-op: it still routes the page to the
     // query-string loader, which bypasses the page's saved filters.
     if (Object.keys(payload).length > 0) {
-      urlObj.searchParams.set('pvariables', JSON.stringify(payload));
+      setDomoJsonParam(urlObj, 'pvariables', payload);
     }
 
     return urlObj.toString();
@@ -119,9 +115,9 @@ export async function getPageVariables({ cardId = null, pageId, tabId = null }) 
           const overrides = entry.functionOverrides || {};
           return {
             controls,
-            // This slice's `override` mirrors the applied value rather than the
-            // fallback, so only the variable's own expression can serve as one.
-            defaultFor: (control) => readExpression(control.function?.expression),
+            // This slice's `override` can carry the value applied from the page,
+            // so the variable's own expression is the safer baseline here.
+            defaultFor: (control) => readExpression(control.function?.expression) ?? readValue(control.override),
             ids: Object.keys(controls),
             valueFor: (control) => overrides[String(control.function?.id)]
           };
@@ -191,9 +187,23 @@ export async function getPageVariables({ cardId = null, pageId, tabId = null }) 
         if (!store) return empty;
 
         const state = store.getState();
-        const sources = [readPageSlice(state), readStackSlice(state), readCardSlice(state)].filter(Boolean);
+        // A card page also loads the surrounding page's slice, with controls but
+        // no values, so a slice carrying an override beats one that merely has
+        // controls.
+        const hasOverride = (entry) =>
+          entry.ids.some((id) => {
+            const control = entry.controls[id];
+            return control ? entry.valueFor(control, id) !== undefined : false;
+          });
+        const sources = (
+          cardId
+            ? [readCardSlice(state), readPageSlice(state), readStackSlice(state)]
+            : [readPageSlice(state), readStackSlice(state), readCardSlice(state)]
+        ).filter(Boolean);
         const source =
-          sources.find((entry) => entry.ids.length > 0) || sources.find((entry) => Object.keys(entry.controls).length > 0);
+          sources.find(hasOverride) ||
+          sources.find((entry) => entry.ids.length > 0) ||
+          sources.find((entry) => Object.keys(entry.controls).length > 0);
         if (!source) return empty;
 
         const controlIds = source.ids.length > 0 ? source.ids : Object.keys(source.controls);
@@ -244,12 +254,15 @@ export async function getPageVariables({ cardId = null, pageId, tabId = null }) 
         const variables = Array.from(byVariable.values());
         const changedVariables = {};
         variables.forEach((variable) => {
-          if (!variable.isDefault && variable.value !== null && variable.value !== undefined) {
-            changedVariables[variable.name] = variable.value;
-          }
+          if (variable.isDefault || variable.value === null || variable.value === undefined) return;
+          changedVariables[variable.name] = variable.value;
         });
 
-        return { changedVariables, hasVariables: Object.keys(changedVariables).length > 0, variables };
+        return {
+          changedVariables,
+          hasVariables: Object.keys(changedVariables).length > 0,
+          variables
+        };
       },
       [pageId, cardId],
       tabId

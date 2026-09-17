@@ -339,7 +339,7 @@ function findStore() {
 
 ### Page Variable State
 
-Variable state lives in a different slice on each surface, leaving the others empty, so read all three and use whichever is populated.
+Variable state lives in a different slice on each surface, so read all three and use whichever is populated. **"Populated" means carrying an override, not merely holding controls:** a card page loads the surrounding page's slice as well, with its controls but an empty values map, so picking the first slice that simply has controls reads the wrong one and reports nothing as changed.
 
 | Surface               | Slice                                              | Controls                 | Current values                                        | Keyed by             |
 | --------------------- | -------------------------------------------------- | ------------------------ | ----------------------------------------------------- | -------------------- |
@@ -387,3 +387,24 @@ Two traps behind that table:
 `function.expression` is a bare literal (`'TOTAL'`, `42`). Treat anything more complex as unknown and let the value through rather than risking a wrong drop.
 
 One variable can drive several controls (a page-level one plus one per card), all sharing a `function.id`, so dedupe by that.
+
+### Which `pvariables` format a link needs
+
+**The name-keyed form works on every surface, cards included.** Emit it and nothing else; the id-keyed form is instance-specific and buys nothing.
+
+`normalizePVariables` resolves a name only against the controls the target surface declares, and drops silently when nothing matches, which makes cards look like a problem. They are not: a card that uses a Beast Mode referencing a variable carries its own `VARIABLE` control (`entityType: 'CARD'`) in the card definition, and `loadCardDetails` matches against that definition's `controls` straight off the API, not against the Redux slice.
+
+**Do not judge this from `dataControlsByCardURN[cardId].dataControls`.** `CARD__DETAILS_LOAD_STARTED` writes that entry with only `functionOverrides` and no controls, so a read before `CARD__DETAILS_LOAD_FINISHED` shows an empty control list on a card that does declare one. Verified applying `?pvariables={"Health Monitor Summary":"Domain"}` on `/page/:id/kpis/details/:card`, `/app-studio/:app/pages/:view/kpis/details/:card` and the bare `/kpis/details/:card`: all three land it in `functionOverrides`.
+
+All three of those routes render the card, so the app-scoped one is real, contrary to what this file said before.
+
+### How to encode `pfilters` and `pvariables`
+
+**`encodeURI(JSON.stringify(payload))`, not `URLSearchParams`.** Domo canonicalizes the address bar to the `encodeURI` form on arrival, so a param carrying `+` for a space, `%3A` or `%2C` gets visibly rewritten a moment after the page loads. Matching Domo's form means the URL that is opened is the URL that stays. `encodeURI` keeps `:` and `,` literal while still escaping the space, `"`, `{`, `}`, `[` and `]`.
+
+Two traps in building it:
+
+- **`URLSearchParams` re-serializes the entire query on any access**, including a `delete`, so setting one param through it silently reverts an already-encoded sibling. Split and rejoin `url.search` as a string instead. `src/utils/domoQueryParam.js` does both sides of this.
+- **`encodeURI` leaves `#`, `&` and `+` alone**, which would end the param, split it, or decode back to a space. Escape those three by hand. Domo does not, so a value containing one still gets rewritten, but the link arrives intact.
+
+**Do not check this in the address bar.** The omnibox renders `%22` as `"` and `%20` as a space, so a correctly encoded link looks like it was decoded on arrival. Nothing can put a literal `"` in a query anyway: the URL parser escapes `"` and space on parse, while leaving `{` and `}` alone, which is why a hand-typed raw JSON param still gets rewritten. To see what really happened, wrap `history.replaceState` before navigating and read the URL it is handed; no call at all means the encoding already matched.

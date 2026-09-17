@@ -131,6 +131,7 @@
 
 ### Copy Filters
 
+- A link copied by Copy Filters no longer rewrites itself in the address bar when you open it.
 - Copy Filters now names a Beast Mode filter instead of copying its ID.
 - Copy Filters no longer copies one filter several times when cards match it against a mix of columns and Beast Modes.
 
