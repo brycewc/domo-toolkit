@@ -5,17 +5,13 @@ export const releases = [
     highlights: [
       'Variable support in Copy Filters',
       'Beast Modes now work like a first-class object, with Get Cards, Get Card Pages, Get Beast Modes, Manage Card Owners, and Manage Card Locks across the cards that use one, plus Migrate Content to repoint everything onto a different Beast Mode or column',
-      "DataSets other than a dataflow's outputs now support Delete, listing the cards, alerts, Beast Modes, and PDP policies that go with one and blocking while a dataset view is built on it",
-      'Task Center Tasks can now be voided, cancelling the workflow execution waiting on one first, and Task Center Queues can be shared with yourself to grant admin',
-      "Reports now support Objects Owned and Transfer Ownership, which also moves a report's deliveries to the new owner, and a report open in Report Builder is recognized as the current object",
       'Data Models, Views, and Data Fusions are recognized as their own types, each with a Definition tab showing how it is built',
-      'People and groups now support an activity log across every card they own and the pages those cards appear on',
-      'Migrate Content now supports moving Jupyter Workspace dependencies of a dataset and huge improvements to existing migration workflows',
-      'Objects Owned and Transfer Ownership now cover Certification Processes, Domo Everywhere Publications, Governance Toolkit Jobs, and Scheduled Reports'
+      'Tons of bug fixes and improvements to Migrate Content',
+      'Objects Owned and Transfer Ownership now support Certification Processes, Domo Everywhere Publications, Governance Toolkit Jobs, and Scheduled Reports'
     ],
     notify: 'fullPage',
     summary:
-      'Feature release making Beast Modes a first-class object, adding Get Usage and Delete for Code Engine Packages, Delete for datasets, Task Center task voiding, report and data model support, and a large reliability pass on Migrate Content and Remap Columns.',
+      'Feature release adding variable support in Copy Filters, making Beast Modes a first-class object, recognizing Data Models, Views, and Data Fusions, and improving Migrate Content and ownership tools.',
     version: '1.7.0'
   },
   {
