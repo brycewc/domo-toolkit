@@ -8,7 +8,7 @@ import IconCard from '@icons/card.svg?react';
 // Types that have cards pre-fetched in background
 const PRE_FETCHED_TYPES = ['DATA_APP_VIEW', 'DATA_FUSION', 'DATA_MODEL', 'DATA_SOURCE', 'PAGE', 'VIEW', 'WORKSHEET_VIEW'];
 
-const FORMS_AND_QUEUES_TYPES = ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW'];
+const PAGE_CONTENT_TYPES = ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW'];
 
 export function GetCards({ currentContext, isDisabled, onStatusUpdate }) {
   const { isPending, launch } = useLaunchView();
@@ -61,15 +61,20 @@ export function GetCards({ currentContext, isDisabled, onStatusUpdate }) {
                 ? async () => {
                     const result = await waitForCards(currentContext);
                     if (!result.success) return null;
-                    if (result.cards?.length === 0 && result.forms?.length === 0 && result.queues?.length === 0) {
+                    if (
+                      result.cards?.length === 0 &&
+                      result.forms?.length === 0 &&
+                      result.queues?.length === 0 &&
+                      result.workflows?.length === 0
+                    ) {
                       const typeName = currentContext.domoObject.typeName?.toLowerCase() || 'object';
-                      const hasFormsAndQueues = FORMS_AND_QUEUES_TYPES.includes(objectType);
+                      const hasPageContent = PAGE_CONTENT_TYPES.includes(objectType);
                       return {
                         empty: true,
-                        message: hasFormsAndQueues
-                          ? `No cards, forms, or queues found on this ${typeName}.`
+                        message: hasPageContent
+                          ? `No cards, forms, workflows, or queues found on this ${typeName}.`
                           : `No cards found on this ${typeName}.`,
-                        title: hasFormsAndQueues ? 'No Items Found' : 'No Cards Found'
+                        title: hasPageContent ? 'No Items Found' : 'No Cards Found'
                       };
                     }
                     return null;

@@ -4,7 +4,7 @@ import { DATASET_TYPE_IDS } from '@/utils/datasetTypes';
 import { executeInPage } from '@/utils/executeInPage';
 
 import { getAppDbCollectionPermission } from './appDb';
-import { extractPageContentIds, getFormsForPage, getQueuesForPage } from './appStudio';
+import { extractPageContentIds, getFormsForPage, getQueuesForPage, getWorkflowsForPage } from './appStudio';
 import { getCardsForObject } from './cards';
 import { getAppInstance } from './customApps';
 import { getDataflowPermission } from './dataflows';
@@ -151,9 +151,9 @@ const ENRICHMENTS = [
     contentGroup: 'forms',
     fallback: [],
     fetch: ({ enrichedMetadata, tabId }) => {
-      const { formWidgetIds } = extractPageContentIds(enrichedMetadata.details);
-      if (formWidgetIds.length === 0) return [];
-      return getFormsForPage({ formWidgetIds, tabId });
+      const { formRefs } = extractPageContentIds(enrichedMetadata.details);
+      if (formRefs.length === 0) return [];
+      return getFormsForPage({ formRefs, tabId });
     },
     id: 'page-forms',
     storePath: 'context.forms',
@@ -165,12 +165,26 @@ const ENRICHMENTS = [
     contentGroup: 'queues',
     fallback: [],
     fetch: ({ enrichedMetadata, tabId }) => {
-      const { queueWidgetIds } = extractPageContentIds(enrichedMetadata.details);
-      if (queueWidgetIds.length === 0) return [];
-      return getQueuesForPage({ queueWidgetIds, tabId });
+      const { queueWidgetRefs } = extractPageContentIds(enrichedMetadata.details);
+      if (queueWidgetRefs.length === 0) return [];
+      return getQueuesForPage({ queueWidgetRefs, tabId });
     },
     id: 'page-queues',
     storePath: 'context.queues',
+    types: ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW']
+  },
+
+  // Workflows for page-like types
+  {
+    contentGroup: 'workflows',
+    fallback: [],
+    fetch: ({ enrichedMetadata, tabId }) => {
+      const { workflowModelRefs, workflowWidgetRefs } = extractPageContentIds(enrichedMetadata.details);
+      if (workflowModelRefs.length === 0 && workflowWidgetRefs.length === 0) return [];
+      return getWorkflowsForPage({ tabId, workflowModelRefs, workflowWidgetRefs });
+    },
+    id: 'page-workflows',
+    storePath: 'context.workflows',
     types: ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW']
   },
 
@@ -302,8 +316,8 @@ const ENRICHMENTS = [
 
 /**
  * Page content composition types and groups.
- * When all three groups (cards, forms, queues) have resolved for a page-like type,
- * the orchestrator builds a combined content array.
+ * When all four groups (cards, forms, workflows, queues) have resolved for a
+ * page-like type, the orchestrator builds a combined content array.
  */
 const PAGE_CONTENT_TYPES = new Set(['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW']);
 
@@ -329,7 +343,7 @@ export function runEnrichments(ctx) {
   if (matching.length === 0) return;
 
   /**
-   * Build combined content array when all three groups have resolved.
+   * Build combined content array when all four groups have resolved.
    * Only applies to page-like types.
    */
   function updatePageContent() {
@@ -337,13 +351,17 @@ export function runEnrichments(ctx) {
     const currentCtx = getTabContext(tabId);
     const ctxMeta = currentCtx?.domoObject?.metadata?.context;
     if (!ctxMeta) return;
-    if (ctxMeta.cards == null || ctxMeta.forms == null || ctxMeta.queues == null) {
+    if (ctxMeta.cards == null || ctxMeta.forms == null || ctxMeta.queues == null || ctxMeta.workflows == null) {
       return;
     }
 
     const content = [];
-    for (const card of ctxMeta.cards) content.push({ ...card, type: 'CARD' });
+    // Cards arrive from the stacks cards endpoint rather than the layout walk,
+    // but a card only ever reaches a page as a CARD element, so the source type
+    // is a constant here where the other groups carry theirs through resolution.
+    for (const card of ctxMeta.cards) content.push({ ...card, contentType: 'CARD', type: 'CARD' });
     for (const form of ctxMeta.forms) content.push({ ...form, type: 'ENIGMA_FORM' });
+    for (const workflow of ctxMeta.workflows) content.push({ ...workflow, type: 'WORKFLOW_MODEL' });
     for (const queue of ctxMeta.queues) content.push({ ...queue, type: 'HOPPER_QUEUE' });
     ctxMeta.content = content;
     setTabContext(tabId, currentCtx);

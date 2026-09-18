@@ -3,7 +3,7 @@ import { DEPENDENCY_FETCH_CONCURRENCY, EXPORT_FORMATS } from '@/utils/constants'
 import { isDatasetTypeId } from '@/utils/datasetTypes';
 import { executeInPage } from '@/utils/executeInPage';
 
-import { extractPageContentIds, getFormsForPage, getQueuesForPage } from './appStudio';
+import { extractPageContentIds, getFormsForPage, getQueuesForPage, getWorkflowsForPage } from './appStudio';
 import { getFunctionTemplate } from './functions';
 
 /**
@@ -429,7 +429,7 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
 }
 
 /**
- * Fetch all content (cards, forms, queues) across every view on a parent
+ * Fetch all content (cards, forms, workflows, queues) across every view on a parent
  * DATA_APP or WORKSHEET, grouped by view. Both types share the same backend
  * endpoint, so the parent type doesn't need to be passed in.
  *
@@ -443,7 +443,8 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
  *     viewName: string,
  *     cards: Array,
  *     forms: Array,
- *     queues: Array
+ *     queues: Array,
+ *     workflows: Array
  *   }>
  * }>}
  */
@@ -468,9 +469,9 @@ export async function getCardsForParent({ parentId, tabId = null }) {
     tabId
   );
 
-  // 2. For each view, fetch details + cards in parallel, then forms/queues
-  //    from widget IDs in the layout. Per-view errors are isolated so one
-  //    failing view doesn't take down the whole result.
+  // 2. For each view, fetch details + cards in parallel, then the forms,
+  //    workflows, and queues its layout references. Per-view errors are
+  //    isolated so one failing view doesn't take down the whole result.
   const viewGroups = await Promise.all(
     parentData.views.map(async ({ viewId, viewName }) => {
       try {
@@ -483,23 +484,28 @@ export async function getCardsForParent({ parentId, tabId = null }) {
           }).catch(() => [])
         ]);
 
-        const { formWidgetIds, queueWidgetIds } = extractPageContentIds(details);
+        const { formRefs, queueWidgetRefs, workflowModelRefs, workflowWidgetRefs } = extractPageContentIds(details);
 
-        const [forms, queues] = await Promise.all([
-          formWidgetIds.length > 0 ? getFormsForPage({ formWidgetIds, tabId }).catch(() => []) : Promise.resolve([]),
-          queueWidgetIds.length > 0 ? getQueuesForPage({ queueWidgetIds, tabId }).catch(() => []) : Promise.resolve([])
+        const [forms, queues, workflows] = await Promise.all([
+          formRefs.length > 0 ? getFormsForPage({ formRefs, tabId }).catch(() => []) : Promise.resolve([]),
+          queueWidgetRefs.length > 0 ? getQueuesForPage({ queueWidgetRefs, tabId }).catch(() => []) : Promise.resolve([]),
+          workflowModelRefs.length > 0 || workflowWidgetRefs.length > 0
+            ? getWorkflowsForPage({ tabId, workflowModelRefs, workflowWidgetRefs }).catch(() => [])
+            : Promise.resolve([])
         ]);
 
-        return { cards, forms, queues, viewId, viewName };
+        return { cards, forms, queues, viewId, viewName, workflows };
       } catch (error) {
         console.warn(`Error fetching content for view ${viewId}:`, error);
-        return { cards: [], forms: [], queues: [], viewId, viewName };
+        return { cards: [], forms: [], queues: [], viewId, viewName, workflows: [] };
       }
     })
   );
 
   // 3. Drop views that ended up with no content -- keeps the grouped list clean.
-  const nonEmpty = viewGroups.filter((vg) => vg.cards.length > 0 || vg.forms.length > 0 || vg.queues.length > 0);
+  const nonEmpty = viewGroups.filter(
+    (vg) => vg.cards.length > 0 || vg.forms.length > 0 || vg.queues.length > 0 || vg.workflows.length > 0
+  );
 
   return { parentName: parentData.name, viewGroups: nonEmpty };
 }

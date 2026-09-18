@@ -1,25 +1,37 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
- * Extract form and queue widget IDs from page layout content.
- * The pageLayoutV4.content array contains all elements on an App Studio page,
- * including cards, forms (type: 'WORKFLOW'), and queues (type: 'QUEUE').
+ * Extract the objects referenced by an App Studio page's layout. A FORM or
+ * BUTTON element carries its object's own ID inline; a WORKFLOW or QUEUE
+ * carries a widget ID that has to be resolved against the API first. Every ref
+ * keeps the layout element type it came from as `contentType`, which the
+ * resolvers pass through so a row can say whether it is a tile or a button.
  * @param {Object} details - The metadata.details object from the stacks API
- * @returns {{ formWidgetIds: string[], queueWidgetIds: string[] }}
+ * @returns {{ formRefs: Array<{contentType: string, id: string}>, queueWidgetRefs: Array<{contentType: string, id: string}>, workflowModelRefs: Array<{contentType: string, id: string, version: string|null}>, workflowWidgetRefs: Array<{contentType: string, id: string}> }}
  */
 export function extractPageContentIds(details) {
   const content = details?.pageLayoutV4?.content;
-  if (!Array.isArray(content)) return { formWidgetIds: [], queueWidgetIds: [] };
-
-  const formWidgetIds = [];
-  const queueWidgetIds = [];
+  const formRefs = [];
+  const queueWidgetRefs = [];
+  const workflowModelRefs = [];
+  const workflowWidgetRefs = [];
+  if (!Array.isArray(content)) return { formRefs, queueWidgetRefs, workflowModelRefs, workflowWidgetRefs };
 
   function walk(items) {
     for (const item of items) {
-      if (item.type === 'WORKFLOW' && item.workflowId) {
-        formWidgetIds.push(item.workflowId);
+      if (item.type === 'FORM' && item.formInstanceId) {
+        formRefs.push({ contentType: item.type, id: item.formInstanceId });
       } else if (item.type === 'QUEUE' && item.queueWidgetId) {
-        queueWidgetIds.push(item.queueWidgetId);
+        queueWidgetRefs.push({ contentType: item.type, id: item.queueWidgetId });
+      } else if (item.type === 'WORKFLOW' && item.workflowId) {
+        workflowWidgetRefs.push({ contentType: item.type, id: item.workflowId });
+      } else if (item.type === 'BUTTON') {
+        const config = item.interaction?.config;
+        if (item.interaction?.type === 'FORM_MODAL' && config?.formInstanceId) {
+          formRefs.push({ contentType: item.type, id: config.formInstanceId });
+        } else if (item.interaction?.type === 'WORKFLOW_START' && config?.modelId) {
+          workflowModelRefs.push({ contentType: item.type, id: config.modelId, version: config.modelVersion || null });
+        }
       }
       if (item.children) walk(item.children);
       if (item.columns) walk(item.columns);
@@ -28,46 +40,27 @@ export function extractPageContentIds(details) {
   }
 
   walk(content);
-  return { formWidgetIds, queueWidgetIds };
+  return { formRefs, queueWidgetRefs, workflowModelRefs, workflowWidgetRefs };
 }
 
 /**
- * Fetch enriched form details for forms on an App Studio page.
- * Each form on a page is referenced by a workflow widget ID. The enrichment
- * resolves widget → workflow model → form ID → form title.
+ * Fetch names for the forms placed on an App Studio page. A layout carries each
+ * form's own ID, so one request per form is the whole resolution.
  * @param {Object} params
- * @param {string[]} params.formWidgetIds - Workflow widget IDs from pageLayoutV4.content
+ * @param {Array<{contentType: string, id: string}>} params.formRefs - Form refs from pageLayoutV4.content
  * @param {number|null} [params.tabId=null] - Target tab for executeInPage
- * @returns {Promise<Array<{ id: string, modelVersion: string, title: string, workflowModelId: string, workflowWidgetId: string }>>}
+ * @returns {Promise<Array<{ contentType: string, id: string, title: string|null }>>}
  */
-export async function getFormsForPage({ formWidgetIds, tabId = null }) {
+export async function getFormsForPage({ formRefs, tabId = null }) {
   return executeInPage(
-    async (formWidgetIds) => {
+    async (formRefs) => {
       const results = await Promise.all(
-        formWidgetIds.map(async (widgetId) => {
+        formRefs.map(async (ref) => {
           try {
-            // Step 1: Resolve widget to workflow model and form ID
-            const widgetResponse = await fetch(`/api/workflow/v1/models/widget/${widgetId}`);
-            if (!widgetResponse.ok) return null;
-            const widget = await widgetResponse.json();
-
-            const formId = widget.startModel?.form?.id;
-            const modelId = widget.modelId;
-            const modelVersion = widget.modelVersion;
-            if (!formId) return null;
-
-            // Step 2: Fetch form details for the title
-            const formResponse = await fetch(`/api/forms/v2/${formId}`);
-            if (!formResponse.ok) return null;
-            const form = await formResponse.json();
-
-            return {
-              id: formId,
-              modelVersion: modelVersion || null,
-              title: form.name || null,
-              workflowModelId: modelId || null,
-              workflowWidgetId: widgetId
-            };
+            const response = await fetch(`/api/forms/v2/${ref.id}?parts=all`);
+            if (!response.ok) return null;
+            const form = await response.json();
+            return { contentType: ref.contentType, id: ref.id, title: form.name || null };
           } catch {
             return null;
           }
@@ -75,7 +68,7 @@ export async function getFormsForPage({ formWidgetIds, tabId = null }) {
       );
       return results.filter(Boolean);
     },
-    [formWidgetIds],
+    [formRefs],
     tabId
   );
 }
@@ -118,46 +111,142 @@ export async function getOwnedWorksheets(ownerId, tabId = null, ownerType = 'USE
 }
 
 /**
- * Fetch enriched queue details for queues on an App Studio page.
- * Each queue on a page is referenced by a queue widget ID. The enrichment
- * resolves widget → queue ID → queue name.
+ * Fetch details for the queues placed on an App Studio page. Resolves each
+ * widget to its queue ID, then names them all in one search query.
  * @param {Object} params
- * @param {string[]} params.queueWidgetIds - Queue widget IDs from pageLayoutV4.content
+ * @param {Array<{contentType: string, id: string}>} params.queueWidgetRefs - Queue widget refs from pageLayoutV4.content
  * @param {number|null} [params.tabId=null] - Target tab for executeInPage
- * @returns {Promise<Array<{ id: string, name: string, queueWidgetId: string }>>}
+ * @returns {Promise<Array<{ contentType: string, id: string, name: string|null, queueWidgetId: string }>>}
  */
-export async function getQueuesForPage({ queueWidgetIds, tabId = null }) {
+export async function getQueuesForPage({ queueWidgetRefs, tabId = null }) {
   return executeInPage(
-    async (queueWidgetIds) => {
-      const results = await Promise.all(
-        queueWidgetIds.map(async (widgetId) => {
+    async (queueWidgetRefs) => {
+      const refs = await Promise.all(
+        queueWidgetRefs.map(async (ref) => {
           try {
-            // Step 1: Resolve widget to actual queue ID
-            const widgetResponse = await fetch(`/api/queues/v1/widget/${widgetId}`);
-            if (!widgetResponse.ok) return null;
-            const widget = await widgetResponse.json();
+            const response = await fetch(`/api/queues/v1/widget/${ref.id}`);
+            if (!response.ok) return null;
+            const widget = await response.json();
+            return widget.queueId
+              ? { contentType: ref.contentType, id: widget.queueId, queueWidgetId: ref.id }
+              : null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      const found = refs.filter(Boolean);
+      if (found.length === 0) return [];
 
-            const queueId = widget.queueId;
-            if (!queueId) return null;
+      // A queue's own endpoint 403s unless the caller is shared on that queue,
+      // which drops queues off pages an admin can otherwise read in full. The
+      // search index answers for them, so names come from there instead.
+      const uuids = [...new Set(found.map((queue) => queue.id))];
+      const names = new Map();
+      try {
+        const response = await fetch('/api/search/v1/query', {
+          body: JSON.stringify({
+            combineResults: false,
+            count: uuids.length,
+            entityList: [['queue']],
+            facetValuesToInclude: [],
+            filters: [{ field: 'uuid', filterType: 'term', not: false, values: uuids }],
+            hideSearchObjects: true,
+            offset: 0,
+            query: '**',
+            queryProfile: 'GLOBAL'
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          for (const hit of data.searchResultsMap?.queue || []) {
+            if (hit.uuid) names.set(hit.uuid, hit.name || null);
+          }
+        }
+      } catch {
+        // A failed lookup leaves every queue unnamed rather than dropping them.
+      }
 
-            // Step 2: Fetch queue details for the name
-            const queueResponse = await fetch(`/api/queues/v1/${queueId}`);
-            if (!queueResponse.ok) return null;
-            const queue = await queueResponse.json();
+      return found.map((queue) => ({
+        contentType: queue.contentType,
+        id: queue.id,
+        name: names.get(queue.id) ?? null,
+        queueWidgetId: queue.queueWidgetId
+      }));
+    },
+    [queueWidgetRefs],
+    tabId
+  );
+}
 
+/**
+ * Fetch details for the workflows placed on an App Studio page. A WORKFLOW
+ * element resolves through its widget; a WORKFLOW_START button carries the
+ * model ID already. One row per placement, but each model is named once.
+ * @param {Object} params
+ * @param {number|null} [params.tabId=null] - Target tab for executeInPage
+ * @param {Array<{contentType: string, id: string, version: string|null}>} params.workflowModelRefs - Direct model refs
+ * @param {Array<{contentType: string, id: string}>} params.workflowWidgetRefs - Workflow widget refs
+ * @returns {Promise<Array<{ contentType: string, id: string, name: string|null, version: string|null, workflowWidgetId: string|null }>>}
+ */
+export async function getWorkflowsForPage({ tabId = null, workflowModelRefs, workflowWidgetRefs }) {
+  return executeInPage(
+    async (workflowWidgetRefs, workflowModelRefs) => {
+      const fromWidgets = await Promise.all(
+        workflowWidgetRefs.map(async (ref) => {
+          try {
+            const response = await fetch(`/api/workflow/v1/models/widget/${ref.id}`);
+            if (!response.ok) return null;
+            const widget = await response.json();
+            if (!widget.modelId) return null;
             return {
-              id: queueId,
-              name: queue.name || null,
-              queueWidgetId: widgetId
+              contentType: ref.contentType,
+              id: widget.modelId,
+              version: widget.modelVersion || null,
+              workflowWidgetId: ref.id
             };
           } catch {
             return null;
           }
         })
       );
-      return results.filter(Boolean);
+
+      const refs = [
+        ...fromWidgets.filter(Boolean),
+        ...workflowModelRefs.map((model) => ({
+          contentType: model.contentType,
+          id: model.id,
+          version: model.version,
+          workflowWidgetId: null
+        }))
+      ];
+      if (refs.length === 0) return [];
+
+      const names = new Map();
+      await Promise.all(
+        [...new Set(refs.map((ref) => ref.id))].map(async (modelId) => {
+          try {
+            const response = await fetch(`/api/workflow/v1/models/${modelId}`);
+            if (!response.ok) return;
+            const model = await response.json();
+            names.set(modelId, model.name || null);
+          } catch {
+            // Leave the workflow unnamed rather than dropping the row.
+          }
+        })
+      );
+
+      return refs.map((ref) => ({
+        contentType: ref.contentType,
+        id: ref.id,
+        name: names.get(ref.id) ?? null,
+        version: ref.version,
+        workflowWidgetId: ref.workflowWidgetId
+      }));
     },
-    [queueWidgetIds],
+    [workflowWidgetRefs, workflowModelRefs],
     tabId
   );
 }

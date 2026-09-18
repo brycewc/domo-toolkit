@@ -280,14 +280,14 @@ export function ActionButtons({
                 {availableActions.has('remapColumns') && (
                   <RemapColumns currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
+                {availableActions.has('duplicate') && (
+                  <Duplicate currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
+                )}
                 {availableActions.has('getOwnedObjects') && (
                   <GetOwnedObjects currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('transferOwnership') && (
                   <TransferOwnership currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
-                )}
-                {availableActions.has('duplicate') && (
-                  <Duplicate currentContext={currentContext} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('export') && (
                   <Export currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />

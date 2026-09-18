@@ -7,7 +7,7 @@ import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
-import { extractPageContentIds, getFormsForPage, getQueuesForPage } from '@/services/appStudio';
+import { extractPageContentIds, getFormsForPage, getQueuesForPage, getWorkflowsForPage } from '@/services/appStudio';
 import { getBeastModeUsageForObject } from '@/services/beastModes';
 import { getCardsForObject, getCardsForParent } from '@/services/cards';
 import { DRILL_ONLY_NOTE, groupBeastModeUsageByCard } from '@/utils/beastModeLinks';
@@ -38,7 +38,8 @@ export function GetCardsView({
   const [itemCounts, setItemCounts] = useState({
     cards: 0,
     forms: 0,
-    queues: 0
+    queues: 0,
+    workflows: 0
   });
   const [viewData, setViewData] = useState(null);
 
@@ -92,23 +93,28 @@ export function GetCardsView({
 
       const parentId = domoObject.parentId || null;
 
-      // Extract widget IDs from metadata for refresh support
-      const { formWidgetIds, queueWidgetIds } = extractPageContentIds(domoObject.metadata?.details);
+      // Extract layout references from metadata for refresh support
+      const { formRefs, queueWidgetRefs, workflowModelRefs, workflowWidgetRefs } = extractPageContentIds(
+        domoObject.metadata?.details
+      );
 
       setViewData({
-        formWidgetIds,
+        formRefs,
         instance,
         objectId,
         objectName,
         objectType,
         origin,
         parentId,
-        queueWidgetIds
+        queueWidgetRefs,
+        workflowModelRefs,
+        workflowWidgetRefs
       });
 
       let cards = data.cards;
       let forms = data.forms || [];
       let queues = data.queues || [];
+      let workflows = data.workflows || [];
 
       if (!cards && !forceRefresh) {
         // No pre-fetched cards (popup handoff) -- fetch fresh
@@ -121,11 +127,15 @@ export function GetCardsView({
             cards = result.cards;
           }
         } else {
+          // A page can hold forms, workflows, or queues and no cards at all, so
+          // gating on a non-empty card list would drop that content into the
+          // card-only fallback below and lose it.
           const waitResult = await waitForCards(context);
-          if (waitResult.success && waitResult.cards?.length) {
+          if (waitResult.success) {
             cards = waitResult.cards;
             forms = waitResult.forms;
             queues = waitResult.queues;
+            workflows = waitResult.workflows;
           } else {
             const tabId = await getValidTabForInstance(instance);
             cards = await getCardsForObject({ objectId, objectType, tabId });
@@ -143,14 +153,18 @@ export function GetCardsView({
             cards = result.cards;
           }
         } else {
-          const [refreshedCards, refreshedForms, refreshedQueues] = await Promise.all([
+          const [refreshedCards, refreshedForms, refreshedQueues, refreshedWorkflows] = await Promise.all([
             getCardsForObject({ objectId, objectType, tabId }),
-            formWidgetIds.length > 0 ? getFormsForPage({ formWidgetIds, tabId }) : Promise.resolve([]),
-            queueWidgetIds.length > 0 ? getQueuesForPage({ queueWidgetIds, tabId }) : Promise.resolve([])
+            formRefs.length > 0 ? getFormsForPage({ formRefs, tabId }) : Promise.resolve([]),
+            queueWidgetRefs.length > 0 ? getQueuesForPage({ queueWidgetRefs, tabId }) : Promise.resolve([]),
+            workflowModelRefs.length > 0 || workflowWidgetRefs.length > 0
+              ? getWorkflowsForPage({ tabId, workflowModelRefs, workflowWidgetRefs })
+              : Promise.resolve([])
           ]);
           cards = refreshedCards;
           forms = refreshedForms;
           queues = refreshedQueues;
+          workflows = refreshedWorkflows;
         }
       }
 
@@ -161,16 +175,17 @@ export function GetCardsView({
       setItemCounts({
         cards: cards.length,
         forms: forms.length,
-        queues: queues.length
+        queues: queues.length,
+        workflows: workflows.length
       });
 
-      if (cards.length === 0 && forms.length === 0 && queues.length === 0) {
+      if (cards.length === 0 && forms.length === 0 && queues.length === 0 && workflows.length === 0) {
         const typeName = domoObject.typeName?.toLowerCase() || 'object';
-        const hasFormsAndQueues = ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW'].includes(objectType);
+        const hasPageContent = ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW'].includes(objectType);
         onStatusUpdate?.(
-          hasFormsAndQueues ? 'No Items Found' : 'No Cards Found',
-          hasFormsAndQueues
-            ? `No cards, forms, or queues found on this ${typeName}.`
+          hasPageContent ? 'No Items Found' : 'No Cards Found',
+          hasPageContent
+            ? `No cards, forms, workflows, or queues found on this ${typeName}.`
             : `No cards found on this ${typeName}.`,
           'warning',
           3000
@@ -182,7 +197,7 @@ export function GetCardsView({
       const transformedItems =
         objectType === 'DATAFLOW_TYPE' && data.outputDatasets
           ? transformDataflowItems(data.outputDatasets, origin)
-          : transformPageItems(cards, forms, queues, origin, objectType, objectId, parentId);
+          : transformPageItems({ cards, forms, objectId, objectType, origin, parentId, queues, workflows });
       setError(null);
       setItems(transformedItems);
     } catch (err) {
@@ -217,7 +232,7 @@ export function GetCardsView({
       origin,
       parentId: null
     });
-    setItemCounts({ cards: cards.length, forms: 0, queues: 0 });
+    setItemCounts({ cards: cards.length, forms: 0, queues: 0, workflows: 0 });
 
     if (cards.length === 0 && orphanDrills.length === 0) {
       onStatusUpdate?.('No Cards Found', 'No cards or drills use this Beast Mode.', 'warning', 3000);
@@ -251,6 +266,7 @@ export function GetCardsView({
     const totalCards = viewGroups.reduce((s, v) => s + v.cards.length, 0);
     const totalForms = viewGroups.reduce((s, v) => s + v.forms.length, 0);
     const totalQueues = viewGroups.reduce((s, v) => s + v.queues.length, 0);
+    const totalWorkflows = viewGroups.reduce((s, v) => s + v.workflows.length, 0);
 
     setViewData({
       instance,
@@ -266,14 +282,15 @@ export function GetCardsView({
     setItemCounts({
       cards: totalCards,
       forms: totalForms,
-      queues: totalQueues
+      queues: totalQueues,
+      workflows: totalWorkflows
     });
 
     if (viewGroups.length === 0) {
       const parentLabel = parentTypeId === 'WORKSHEET' ? 'worksheet' : 'app';
       onStatusUpdate?.(
         'No Items Found',
-        `No cards, forms, or queues found across any view on this ${parentLabel}.`,
+        `No cards, forms, workflows, or queues found across any view on this ${parentLabel}.`,
         'warning',
         3000
       );
@@ -298,9 +315,11 @@ export function GetCardsView({
     }
   };
 
-  const hasMultipleTypes = [itemCounts.cards > 0, itemCounts.forms > 0, itemCounts.queues > 0].filter(Boolean).length > 1;
+  const hasMultipleTypes =
+    [itemCounts.cards > 0, itemCounts.forms > 0, itemCounts.queues > 0, itemCounts.workflows > 0].filter(Boolean).length >
+    1;
 
-  const totalItems = itemCounts.cards + itemCounts.forms + itemCounts.queues;
+  const totalItems = itemCounts.cards + itemCounts.forms + itemCounts.queues + itemCounts.workflows;
 
   const titlePrefix = hasMultipleTypes ? 'Items for' : 'Cards for';
 
@@ -409,12 +428,13 @@ async function fetchCardsForOutputDatasets(outputs, tabId) {
   return { cards: allCards, outputDatasets };
 }
 
-// Canonical content categories for an App Studio page, in display order. Forms
-// and queues only exist on App Studio pages, so each always renders -- empty
-// ones as muted, non-expandable `(0)` rows.
+// Every category always renders on an App Studio page, empty ones as muted,
+// non-expandable `(0)` rows, so absence is explicit. DataList sorts groups by
+// label, so this order only drives the back-fill, not the display.
 const APP_PAGE_CONTENT_GROUPS = [
   { childTypeId: 'CARD', id: 'cards_group', label: 'Cards' },
   { childTypeId: 'ENIGMA_FORM', id: 'forms_group', label: 'Forms' },
+  { childTypeId: 'WORKFLOW_MODEL', id: 'workflows_group', label: 'Workflows' },
   { childTypeId: 'HOPPER_QUEUE', id: 'queues_group', label: 'Queues' }
 ];
 
@@ -520,20 +540,34 @@ function transformDataflowItems(outputDatasets, origin) {
 }
 
 /**
- * Transform cards, forms, and queues into DataListItems.
+ * Transform an App Studio page's forms into DataListItems.
+ * @param {Array<{id: string, title: string|null}>} forms
+ * @param {string} origin - The base URL origin
+ * @returns {DataListItem[]}
+ */
+function transformFormsToItems(forms, origin) {
+  return forms
+    .slice()
+    .sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+    .map((form) => DataListItem.fromDomoObject(new DomoObject('ENIGMA_FORM', form.id, origin, { name: form.title })));
+}
+
+/**
+ * Transform cards, forms, workflows, and queues into DataListItems.
  *
- * For App Studio pages (DATA_APP_VIEW) -- the only scope where forms and queues
- * apply -- always renders Cards, Forms, and Queues headers, with empty ones as
+ * For App Studio pages (DATA_APP_VIEW) -- the only scope where the non-card
+ * types apply -- always renders every canonical header, with empty ones as
  * muted `(0)` rows so absence is explicit. For every other object type, only
  * cards apply: a single type stays a flat list, multiple types group under
  * disclosure headers (existing behavior).
  */
-function transformPageItems(cards, forms, queues, origin, objectType, objectId, parentId) {
+function transformPageItems({ cards, forms, objectId, objectType, origin, parentId, queues, workflows }) {
   const isAppStudioPage = objectType === 'DATA_APP_VIEW';
-  const hasMultipleTypes = [cards.length > 0, forms.length > 0, queues.length > 0].filter(Boolean).length > 1;
+  const hasMultipleTypes =
+    [cards.length > 0, forms.length > 0, queues.length > 0, workflows.length > 0].filter(Boolean).length > 1;
 
   // Non-App-Studio with a single type: preserve flat list behavior. App Studio
-  // pages skip the shortcut so the canonical Cards/Forms/Queues set always shows.
+  // pages skip the shortcut so the canonical group set always shows.
   if (!isAppStudioPage && !hasMultipleTypes && cards.length > 0) {
     return transformCardsToItems(cards, origin, objectType, objectId, parentId);
   }
@@ -554,21 +588,9 @@ function transformPageItems(cards, forms, queues, origin, objectType, objectId, 
   }
 
   if (forms.length > 0) {
-    const formItems = forms
-      .sort((a, b) => (a.title || '').localeCompare(b.title || ''))
-      .map((form) => {
-        const domoObject = new DomoObject('ENIGMA_FORM', form.id, origin, {
-          name: form.title
-        });
-        // Link to the workflow version that triggers this form
-        if (form.workflowModelId && form.modelVersion) {
-          domoObject.url = `${origin}/workflows/models/${form.workflowModelId}/${form.modelVersion}?_wfv=view`;
-        }
-        return DataListItem.fromDomoObject(domoObject);
-      });
     items.push(
       DataListItem.createGroup({
-        children: formItems,
+        children: transformFormsToItems(forms, origin),
         childTypeId: 'ENIGMA_FORM',
         id: 'forms_group',
         label: 'Forms',
@@ -577,18 +599,22 @@ function transformPageItems(cards, forms, queues, origin, objectType, objectId, 
     );
   }
 
-  if (queues.length > 0) {
-    const queueItems = queues
-      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-      .map((queue) => {
-        const domoObject = new DomoObject('HOPPER_QUEUE', queue.id, origin, {
-          name: queue.name
-        });
-        return DataListItem.fromDomoObject(domoObject);
-      });
+  if (workflows.length > 0) {
     items.push(
       DataListItem.createGroup({
-        children: queueItems,
+        children: transformWorkflowsToItems(workflows, origin),
+        childTypeId: 'WORKFLOW_MODEL',
+        id: 'workflows_group',
+        label: 'Workflows',
+        metadata: `${workflows.length} workflow${workflows.length !== 1 ? 's' : ''}`
+      })
+    );
+  }
+
+  if (queues.length > 0) {
+    items.push(
+      DataListItem.createGroup({
+        children: transformQueuesToItems(queues, origin),
         childTypeId: 'HOPPER_QUEUE',
         id: 'queues_group',
         label: 'Queues',
@@ -603,9 +629,9 @@ function transformPageItems(cards, forms, queues, origin, objectType, objectId, 
 /**
  * Transform parent-scope view groups into DataListItems.
  * Each view becomes a navigable parent (clicking opens the view) with its
- * cards, forms, and queues as children. Same card appearing on multiple
- * views shows up under each view -- duplication is the point of the grouping.
- * @param {Array<{viewId: string, viewName: string, cards: Array, forms: Array, queues: Array}>} viewGroups
+ * cards, forms, workflows, and queues as children. Same card appearing on
+ * multiple views shows up under each view -- duplication is the point.
+ * @param {Array<{viewId: string, viewName: string, cards: Array, forms: Array, queues: Array, workflows: Array}>} viewGroups
  * @param {string} origin - The base URL origin
  * @param {string|number} parentId - Parent DATA_APP or WORKSHEET ID (for view URLs)
  * @param {'DATA_APP_VIEW'|'WORKSHEET_VIEW'} childTypeId - Type of each view
@@ -615,32 +641,12 @@ function transformParentScopeItems(viewGroups, origin, parentId, childTypeId) {
   return viewGroups
     .sort((a, b) => (a.viewName || '').localeCompare(b.viewName || ''))
     .map((vg) => {
-      const cardChildren = transformCardsToItems(vg.cards, origin, childTypeId, vg.viewId, parentId);
-
-      const formChildren = vg.forms
-        .slice()
-        .sort((a, b) => (a.title || '').localeCompare(b.title || ''))
-        .map((form) => {
-          const domoObject = new DomoObject('ENIGMA_FORM', form.id, origin, {
-            name: form.title
-          });
-          if (form.workflowModelId && form.modelVersion) {
-            domoObject.url = `${origin}/workflows/models/${form.workflowModelId}/${form.modelVersion}?_wfv=view`;
-          }
-          return DataListItem.fromDomoObject(domoObject);
-        });
-
-      const queueChildren = vg.queues
-        .slice()
-        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-        .map((queue) => {
-          const domoObject = new DomoObject('HOPPER_QUEUE', queue.id, origin, {
-            name: queue.name
-          });
-          return DataListItem.fromDomoObject(domoObject);
-        });
-
-      const allChildren = [...cardChildren, ...formChildren, ...queueChildren];
+      const allChildren = [
+        ...transformCardsToItems(vg.cards, origin, childTypeId, vg.viewId, parentId),
+        ...transformFormsToItems(vg.forms, origin),
+        ...transformWorkflowsToItems(vg.workflows, origin),
+        ...transformQueuesToItems(vg.queues, origin)
+      ];
 
       const viewDomoObject = new DomoObject(childTypeId, vg.viewId, origin, {
         name: vg.viewName
@@ -653,6 +659,46 @@ function transformParentScopeItems(viewGroups, origin, parentId, childTypeId) {
         children: allChildren,
         count: allChildren.length,
         countLabel: allChildren.length === 1 ? 'item' : 'items'
+      });
+    });
+}
+
+/**
+ * Transform an App Studio page's queues into DataListItems. A queue the user
+ * isn't shared on resolves without a name, so it falls back to its ID.
+ * @param {Array<{id: string, name: string|null}>} queues
+ * @param {string} origin - The base URL origin
+ * @returns {DataListItem[]}
+ */
+function transformQueuesToItems(queues, origin) {
+  return queues
+    .slice()
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .map((queue) => DataListItem.fromDomoObject(new DomoObject('HOPPER_QUEUE', queue.id, origin, { name: queue.name })));
+}
+
+/**
+ * Transform an App Studio page's workflows into DataListItems. Each placement
+ * pins its own version, and several placements of one workflow share a name and
+ * an ID, so the version rides a chip where it stays visible.
+ * @param {Array<{id: string, name: string|null, version: string|null}>} workflows
+ * @param {string} origin - The base URL origin
+ * @returns {DataListItem[]}
+ */
+function transformWorkflowsToItems(workflows, origin) {
+  return workflows
+    .slice()
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .map((workflow) => {
+      const domoObject = new DomoObject('WORKFLOW_MODEL', workflow.id, origin, { name: workflow.name });
+      return new DataListItem({
+        chip: workflow.version ? { label: `v${workflow.version}` } : null,
+        domoObject,
+        id: workflow.id,
+        label: workflow.name || `Workflow ${workflow.id}`,
+        metadata: `ID: ${workflow.id}`,
+        typeId: 'WORKFLOW_MODEL',
+        url: domoObject.url
       });
     });
 }
