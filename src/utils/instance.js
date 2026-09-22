@@ -36,7 +36,7 @@
  * candidate is really Domo requires the in-page `window.bootstrap` probe the
  * background runs (see `isVerifiedDomoOrigin` in `background.js`). Bare
  * `localhost` is excluded outright so our own Vite dev server on
- * `localhost:5173` is never a candidate. A rig host needs no such probe, since
+ * `localhost:31573` is never a candidate. A rig host needs no such probe, since
  * `domorig.io` is Domo's own domain and hosts nothing else.
  */
 

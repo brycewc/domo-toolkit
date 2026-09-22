@@ -8,7 +8,7 @@ description: How to test UI changes against the localhost dev server before clai
 
 ## Standalone dev routes
 
-`yarn dev` starts a Vite dev server at `http://localhost:5173` with HMR. Two custom middleware routes mount individual components for fast iteration:
+`yarn dev` starts a Vite dev server at `http://localhost:31573` with HMR. Two custom middleware routes mount individual components for fast iteration:
 
 | Route               | Mounts                 | Use for                          |
 | ------------------- | ---------------------- | -------------------------------- |
@@ -38,9 +38,9 @@ Vite proxies `/api/*` to `VITE_DOMO_BASE_URL` and injects `X-Domo-Developer-Toke
 
 1. **Compile / HMR check**: Start `yarn dev` in the background (Bash with `run_in_background: true`) and tail its output. Any syntax error, bad import, or invalid JSX surfaces here within ~1s of saving the file. Use this for every UI change as a baseline.
 
-2. **Route smoke check**: `curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5173/dev-activity-log` should return `200`. Confirms the middleware and entry file resolved without a 500.
+2. **Route smoke check**: `curl -s -o /dev/null -w "%{http_code}\n" http://localhost:31573/dev-activity-log` should return `200`. Confirms the middleware and entry file resolved without a 500.
 
-3. **Visual verification via Playwriter**: Use the `playwriter` skill to drive the user's actual Chrome to `http://localhost:5173/dev-activity-log` (or `/dev-lineage`) and screenshot. This is the real visual test for layout, colors, responsive breakpoints, and interactions. Run before claiming a visual change "looks right." Before starting `yarn dev`, check `lsof -nP -iTCP:5173 -sTCP:LISTEN` (macOS; `ss -tln | grep 5173` on Linux/WSL); the user often has it already running, and a duplicate just lands on 5174.
+3. **Visual verification via Playwriter**: Use the `playwriter` skill to drive the user's actual Chrome to `http://localhost:31573/dev-activity-log` (or `/dev-lineage`) and screenshot. This is the real visual test for layout, colors, responsive breakpoints, and interactions. Run before claiming a visual change "looks right." Before starting `yarn dev`, check `lsof -nP -iTCP:31573 -sTCP:LISTEN` (macOS; `ss -tln | grep 31573` on Linux/WSL); the user often has it already running, and a duplicate just lands on 31574.
 
    **Playwriter's default (extension relay) mode cannot open `chrome-extension://` pages, but direct CDP mode can.** In the default mode the Playwriter extension attaches via `chrome.debugger`, which Chrome forbids from attaching to another extension's pages, so navigating to a `chrome-extension://` URL fails with `Protocol error (Page.navigate): Detached while handling command`. That is the limitation, not the `chrome-extension://` scheme itself. Direct CDP mode (`playwriter session new --direct`) connects to the browser's own DevTools endpoint instead, bypassing `chrome.debugger`, and reaches every extension surface. So the popup, side panel, and options page ARE visually verifiable through Playwriter after all. See "[Driving extension pages via direct CDP](#driving-extension-pages-via-direct-cdp)" below for the recipe and the `scripts/ext-shot.js` helper. The `/dev-*` routes are still handy for fast component iteration, but they are no longer the only Playwriter path to the extension surfaces.
 
@@ -141,7 +141,7 @@ So the popup/side panel/options/content scripts are **not** coverable by the sta
 
 ### The maintainer is almost always running `yarn dev` already
 
-Assume a dev server is live on `5173` and the unpacked `dist/` is loaded in Chrome whenever you're prompted. Two consequences:
+Assume a dev server is live on `31573` and the unpacked `dist/` is loaded in Chrome whenever you're prompted. Two consequences:
 
 - **Don't run `yarn build` to "test" a change.** HMR has already applied your edit to every surface; verify via ESLint plus the running dev server, not a production build. Reserve `yarn build` / `yarn release` for actually cutting a release.
 - **Both `yarn dev` and `yarn build` write to `dist/`.** Running a production build into `dist/` while the dev server is serving it corrupts the CRXJS dev loader: it rewrites each surface's `index.html` into a tiny loader that boots from the dev server, and bundled `assets/` written over that leave the loader referencing files that don't line up, so the popup/side panel render `"An unknown error occurred. Failed to load the script."` If a surface ever shows that error, suspect a polluted `dist/`: stop everything, `rm -rf dist`, then run a single mode.

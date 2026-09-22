@@ -207,10 +207,12 @@ export default defineConfig(({ mode }) => {
       },
       hmr: {
         host: 'localhost',
-        port: 5173,
+        port: 31573,
         protocol: 'ws'
       },
-      port: 5173,
+      // Must stay in step with hmr.port above, which the chrome-extension://
+      // surfaces cannot infer and so is spelled out rather than inherited.
+      port: 31573,
       proxy,
       watch: {
         // Only src/ and public/ feed the extension bundle. Everything else here

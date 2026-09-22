@@ -192,7 +192,7 @@ When adding support for a new `DomoObjectType` to any button component, immediat
 
 ## Configuration Files
 
-- **vite.config.js** — Dev server on port 5173, path alias `@/` → `src/`, CRXJS plugin
+- **vite.config.js** — Dev server on port 31573, path alias `@/` → `src/`, CRXJS plugin
 - **manifest.config.js** — Chrome extension manifest v3 with permissions, content scripts, side panel
 - **.prettierrc** — Code formatting rules (single quotes, no trailing commas)
 - **src/assets/global.css** — Tailwind and global styles, theme colors in OKLch
