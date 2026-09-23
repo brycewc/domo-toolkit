@@ -118,32 +118,6 @@ export async function getColorRules(datasetId, tabId = null) {
 }
 
 /**
- * A dataflow's own stored downstream impact, in the shape of
- * `getDatasetImpactBreakdowns`. `nocompute` skips the recompute that makes the
- * plain impacts endpoint take ten seconds.
- * @param {Object} params
- * @param {string|number} params.dataflowId - The dataflow ID
- * @param {number|null} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<{alerts: number, cards: number, dataflows: number, datasets: number, total: number}|null>}
- *   `null` when the counts can't be read
- */
-export async function getDataflowImpactBreakdown({ dataflowId, tabId = null }) {
-  const record = await executeInPage(
-    async (dataflowId) => {
-      try {
-        const response = await fetch(`/api/data/v1/impacts/DATAFLOW/${dataflowId}/nocompute`, { credentials: 'include' });
-        return response.ok ? await response.json() : null;
-      } catch {
-        return null;
-      }
-    },
-    [String(dataflowId)],
-    tabId
-  );
-  return record ? toImpactBreakdown(record) : null;
-}
-
-/**
  * Get a dataset's Beast Mode (calculated column) definitions.
  * Each value is keyed by its `calculation_<uuid>` id and includes at least a
  * `name`. Used by the color-rules duplicator to remap rule references between
@@ -343,6 +317,123 @@ export async function getDatasetImpactBreakdowns({ datasetIds, tabId = null }) {
 export async function getDatasetImpactCounts({ datasetIds, tabId = null }) {
   const breakdowns = await getDatasetImpactBreakdowns({ datasetIds, tabId });
   return Object.fromEntries(Object.entries(breakdowns || {}).map(([id, impact]) => [id, impact?.total ?? null]));
+}
+
+/**
+ * Downstream impact of each dataset with one dataflow taken out of its lineage,
+ * rebuilt from its own cards plus each other direct child's stored impact. A
+ * dataset's own stored impact can't be corrected by subtracting the dataflow's:
+ * it can be stale, and for a recursive output it follows the loop only partway.
+ * @param {Object} params
+ * @param {string[]} params.datasetIds - The datasource IDs to read
+ * @param {string|number} params.excludeDataflowId - The dataflow whose loop is ignored
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object<string, {alerts: number, cards: number, dataflows: number, datasets: number, total: number}|null>>}
+ *   Impact keyed by dataset ID, `null` where any part of it couldn't be read
+ */
+export async function getDatasetImpactsExcludingDataflow({ datasetIds, excludeDataflowId, tabId = null }) {
+  if (!datasetIds || datasetIds.length === 0) return {};
+
+  const rawImpacts = await executeInPage(
+    async (datasetIds, excludeDataflowId, concurrency) => {
+      const childrenById = {};
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: Math.min(concurrency, datasetIds.length) }, async () => {
+          while (next < datasetIds.length) {
+            const datasetId = datasetIds[next++];
+            try {
+              const response = await fetch(
+                `/api/data/v1/lineage/DATA_SOURCE/${datasetId}?maxDepth=1&requestEntities=DATA_SOURCE,DATAFLOW&traverseUp=false`,
+                { credentials: 'include' }
+              );
+              if (!response.ok) continue;
+              const lineage = await response.json();
+              childrenById[datasetId] = (lineage[`DATA_SOURCE${datasetId}`]?.children || []).filter(
+                (child) =>
+                  child &&
+                  !(child.type === 'DATAFLOW' && String(child.id) === excludeDataflowId) &&
+                  !(child.type === 'DATA_SOURCE' && String(child.id) === datasetId)
+              );
+            } catch {
+              // Its lineage stays unknown, so its impact comes back null.
+            }
+          }
+        })
+      );
+
+      const children = Object.values(childrenById).flat();
+      const childDatasetIds = [...new Set(children.filter((c) => c.type === 'DATA_SOURCE').map((c) => String(c.id)))];
+      const childDataflowIds = [...new Set(children.filter((c) => c.type === 'DATAFLOW').map((c) => String(c.id)))];
+
+      const records = {};
+      const bulkIds = [...datasetIds, ...childDatasetIds];
+      for (let i = 0; i < bulkIds.length; i += 100) {
+        try {
+          const response = await fetch(
+            '/api/data/v3/datasources/bulk?includePrivate=true&part=core,impactcounts&includeFormulas=false',
+            {
+              body: JSON.stringify(bulkIds.slice(i, i + 100)),
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            }
+          );
+          if (!response.ok) continue;
+          for (const record of (await response.json()).dataSources || []) records[`DATA_SOURCE:${record.id}`] = record;
+        } catch {
+          // Missing records leave their parents' impact null.
+        }
+      }
+      await Promise.all(
+        childDataflowIds.map(async (dataflowId) => {
+          try {
+            const response = await fetch(`/api/data/v1/impacts/DATAFLOW/${dataflowId}/nocompute`, {
+              credentials: 'include'
+            });
+            if (response.ok) records[`DATAFLOW:${dataflowId}`] = await response.json();
+          } catch {
+            // As above.
+          }
+        })
+      );
+
+      const impacts = {};
+      for (const datasetId of datasetIds) {
+        const own = records[`DATA_SOURCE:${datasetId}`];
+        const direct = childrenById[datasetId];
+        if (!own || !direct) {
+          impacts[datasetId] = null;
+          continue;
+        }
+        const impact = { alerts: 0, cards: own.cardCount || 0, dataflows: 0, datasets: 0 };
+        for (const child of direct) {
+          const record = records[`${child.type}:${child.id}`];
+          if (!record || typeof record.impactCardCount !== 'number') {
+            impacts[datasetId] = null;
+            break;
+          }
+          if (child.type === 'DATAFLOW') impact.dataflows += 1;
+          else impact.datasets += 1;
+          impact.alerts += record.impactAlertCount || 0;
+          impact.cards += record.impactCardCount || 0;
+          impact.dataflows += record.impactDataFlowCount || 0;
+          impact.datasets += record.impactDataSourceCount || 0;
+        }
+        if (impacts[datasetId] !== null) impacts[datasetId] = impact;
+      }
+      return impacts;
+    },
+    [datasetIds.map(String), String(excludeDataflowId), DEPENDENCY_FETCH_CONCURRENCY],
+    tabId
+  );
+
+  return Object.fromEntries(
+    datasetIds.map((id) => {
+      const impact = rawImpacts?.[String(id)] ?? null;
+      return [String(id), impact && { ...impact, total: impact.alerts + impact.cards + impact.dataflows + impact.datasets }];
+    })
+  );
 }
 
 /**

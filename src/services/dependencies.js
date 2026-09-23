@@ -15,14 +15,13 @@ import { getCardsForObject } from './cards';
 import { getCodeEnginePackageVersions, getCodeEngineUsageSummary } from './codeEngine';
 import { getAppContentSummary } from './customApps';
 import {
-  getDataflowImpactBreakdown,
   getDatasetDependentCount,
   getDatasetDetailsForList,
   getDatasetImpactBreakdowns,
   getDatasetImpactCounts,
+  getDatasetImpactsExcludingDataflow,
   getDownstreamViewsForDatasets,
-  searchDatasets,
-  toImpactBreakdown
+  searchDatasets
 } from './datasets';
 import { getDatasetFunctions, getDatasetFunctionsForDatasets } from './functions';
 import { getDownstreamCardsRaw, getDownstreamLineage } from './migrateDownstreamContent';
@@ -399,13 +398,16 @@ function normalizeDependencyResult(fetched) {
   // the view reads: `appSummary` (app-wide page/card totals for the cascade
   // delete), `onlyHereCardIds` / `appOnlyCardIds` (cards living only on this page,
   // and only in this app, for the alternate deletes' count previews), `clearNote`
-  // (the all-clear banner's sentence), and `otherNote` (the Other Dependencies note).
+  // (the all-clear banner's sentence), `otherNote` (the Other Dependencies note),
+  // and `subjectImpact` (the deleted object's own downstream impact, `null` when
+  // unreadable and absent for types that don't read one).
   const allGroups = Array.isArray(fetched) ? fetched : fetched.groups;
   const appOnlyCardIds = Array.isArray(fetched) ? null : (fetched.appOnlyCardIds ?? null);
   const appSummary = Array.isArray(fetched) ? null : (fetched.appSummary ?? null);
   const clearNote = Array.isArray(fetched) ? null : (fetched.clearNote ?? null);
   const onlyHereCardIds = Array.isArray(fetched) ? null : (fetched.onlyHereCardIds ?? null);
   const otherNote = Array.isArray(fetched) ? null : (fetched.otherNote ?? null);
+  const subjectImpact = Array.isArray(fetched) ? undefined : fetched.subjectImpact;
 
   return {
     appOnlyCardCount: appOnlyCardIds == null ? null : appOnlyCardIds.length,
@@ -413,28 +415,10 @@ function normalizeDependencyResult(fetched) {
     clearNote,
     onlyHereCardCount: onlyHereCardIds == null ? null : onlyHereCardIds.length,
     otherNote,
+    subjectImpact,
     supported: true,
     ...countDependencyGroups(allGroups)
   };
-}
-
-/**
- * An input's impact beyond the dataflow being deleted. Stored impact counts are
- * deduplicated, so the input's reach minus the dataflow itself and everything
- * below it is exactly what the input reaches some other way.
- * @param {Object|null} inputImpact - The input's `toImpactBreakdown`
- * @param {Object|null} dataflowImpact - The dataflow's `toImpactBreakdown`
- * @returns {{alerts: number, cards: number, dataflows: number, datasets: number, total: number}|null}
- *   `null` when either is unknown, or when they disagree enough to go negative
- */
-function otherImpactOf(inputImpact, dataflowImpact) {
-  if (!inputImpact || !dataflowImpact) return null;
-  const alerts = inputImpact.alerts - dataflowImpact.alerts;
-  const cards = inputImpact.cards - dataflowImpact.cards;
-  const dataflows = inputImpact.dataflows - dataflowImpact.dataflows - 1;
-  const datasets = inputImpact.datasets - dataflowImpact.datasets;
-  if (Math.min(alerts, cards, dataflows, datasets) < 0) return null;
-  return { alerts, cards, dataflows, datasets, total: alerts + cards + dataflows + datasets };
 }
 
 /**
@@ -703,7 +687,7 @@ const FETCHERS = {
   // itself rejects. Everything else either goes with the dataset or survives it
   // and breaks, which is listed rather than gated.
   DATA_SOURCE: async ({ id, origin }, tabId) => {
-    const [rawCards, alerts, functions, pdpPolicies, downstream, lineage] = await Promise.all([
+    const [rawCards, alerts, functions, pdpPolicies, downstream, lineage, ownImpacts] = await Promise.all([
       getDownstreamCardsRaw(id, tabId).catch(() => []),
       getDownstreamAlertsForDatasets([id], tabId).catch(() => []),
       getDatasetFunctions(id, tabId).catch(() => []),
@@ -712,7 +696,8 @@ const FETCHERS = {
       // rejection would read as "nothing blocks" and let through a delete Domo
       // refuses; the lineage read would silently report no dataflow reads this.
       getDownstreamViewsForDatasets([id], tabId),
-      getDownstreamLineage(id, tabId)
+      getDownstreamLineage(id, tabId),
+      getDatasetImpactBreakdowns({ datasetIds: [String(id)], tabId }).catch(() => ({}))
     ]);
 
     const viewIds = downstream.views.map((v) => String(v.id));
@@ -845,7 +830,8 @@ const FETCHERS = {
 
     return {
       groups: buildGroups(viewImpacts),
-      otherNote: OTHER_SURVIVES_NOTE
+      otherNote: OTHER_SURVIVES_NOTE,
+      subjectImpact: ownImpacts[String(id)] ?? null
     };
   },
   DATAFLOW_TYPE: async ({ id, metadata, origin }, tabId) => {
@@ -862,11 +848,14 @@ const FETCHERS = {
       seenInputIds.add(inputId);
       return true;
     });
+    const rawInputIds = new Set((metadata?.details?.inputs || []).map((i) => String(i.dataSourceId)));
+    const recursiveOutputIds = outputIds.map(String).filter((outputId) => rawInputIds.has(outputId));
     // Cards, alerts, and Beast Modes all hang off the output datasets and are all
     // removed when those datasets are deleted, so fetch them together. Downstream
     // views built on the outputs are fetched alongside: Domo blocks deleting a
     // dataset a view sits on, so they must block this delete rather than cascade.
-    const [cards, alerts, functions, downstream, inputDetails, outputImpacts, dataflowImpact] = await Promise.all([
+    const loopFreeIds = [...recursiveOutputIds, ...inputs.map((i) => String(i.dataSourceId))];
+    const [cards, alerts, functions, downstream, inputDetails, outputImpacts, loopFreeImpacts] = await Promise.all([
       getCardsForObject({
         metadata,
         objectId: id,
@@ -878,7 +867,9 @@ const FETCHERS = {
       getDownstreamViewsForDatasets(outputIds, tabId),
       inputs.length > 0 ? getDatasetDetailsForList({ datasets: inputs, tabId }).catch(() => []) : Promise.resolve([]),
       getDatasetImpactBreakdowns({ datasetIds: outputIds.map(String), tabId }).catch(() => ({})),
-      inputs.length > 0 ? getDataflowImpactBreakdown({ dataflowId: id, tabId }).catch(() => null) : Promise.resolve(null)
+      getDatasetImpactsExcludingDataflow({ datasetIds: loopFreeIds, excludeDataflowId: id, tabId }).catch(() =>
+        Object.fromEntries(loopFreeIds.map((datasetId) => [datasetId, null]))
+      )
     ]);
     const outputNameById = new Map(outputs.map((o) => [String(o.dataSourceId), o.dataSourceName || String(o.dataSourceId)]));
 
@@ -896,13 +887,18 @@ const FETCHERS = {
       const groups = [
         {
           blocking: false,
+          defaultExpanded: outputs.length === 1,
           deleted: true,
           // Each output carries its total downstream impact, so how far the delete
           // reaches is visible without opening anything.
           items: outputs.map((o) => {
-            const impact = outputImpacts[String(o.dataSourceId)] ?? null;
+            const outputId = String(o.dataSourceId);
+            const impact = outputImpacts[outputId] ?? null;
             return {
               ...countBadge(impact?.total, 'impact', 'impact'),
+              // What the delete reaches beyond this dataflow, which for a
+              // recursive output leaves out the loop back into it.
+              downstreamImpact: outputId in loopFreeImpacts ? loopFreeImpacts[outputId] : impact,
               id: o.dataSourceId,
               impact,
               label: o.dataSourceName || o.dataSourceId,
@@ -959,7 +955,7 @@ const FETCHERS = {
         const unselectableReasons = {};
         const inputItems = connectorInputs.map((i) => {
           const id = String(i.dataSourceId);
-          const otherImpact = otherImpactOf(toImpactBreakdown(detailsById[id]), dataflowImpact);
+          const otherImpact = loopFreeImpacts[id] ?? null;
           const reason = inputExclusionReason(otherImpact);
           if (reason) unselectableReasons[id] = reason;
           else deletableIds.push(id);
@@ -1389,6 +1385,9 @@ const FETCHERS = {
   },
   WORKSHEET_VIEW: fetchAppPageDependencies
 };
+FETCHERS.DATA_FUSION = FETCHERS.DATA_SOURCE;
+FETCHERS.DATA_MODEL = FETCHERS.DATA_SOURCE;
+FETCHERS.VIEW = FETCHERS.DATA_SOURCE;
 
 const OTHER_SURVIVES_NOTE = 'These are not deleted with the DataSet, but they stop working without it.';
 

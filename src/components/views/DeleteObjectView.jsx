@@ -70,8 +70,9 @@ import { DataList } from './DataList';
  * which is why the prompt's button waits for that to land.
  *
  * `confirmNotice({ deps })` adds a notice to the confirm dialog, for primary and
- * cascade deletes alike, and `holdToConfirm` (a boolean, or a function of
- * `{ deps }`) makes its confirm button a hold-to-fire one instead of a click.
+ * cascade deletes alike, and `holdToConfirm` makes its confirm button a
+ * hold-to-fire one instead of a click: `true` for the button's default hold, or
+ * a function of `{ deps }` returning the hold in milliseconds (0 for none).
  *
  * A type whose removal isn't a deletion overrides the view's verb with `feature`
  * (the header), `actionIcon` (header and buttons), `confirmActionLabel` (the
@@ -81,7 +82,9 @@ import { DataList } from './DataList';
  * button), and `loadingMessage`.
  */
 
+const FULL_HOLD_DURATION = 5000;
 const MAX_IMPACTED_OUTPUTS_SHOWN = 5;
+const SHORT_HOLD_DURATION = 2500;
 
 const alwaysUncheckedForDatasets = [
   'Workflows',
@@ -150,7 +153,9 @@ const deletersByType = {
   },
   DATA_SOURCE: {
     caveat: datasetCaveat,
+    confirmNotice: datasetImpactNotice,
     confirmSuffix: '',
+    holdToConfirm: datasetHoldDuration,
     onDemandChecks: [
       jupyterWorkspacesCheck({
         datasetsFor: ({ context }) => [{ id: context.domoObject.id, name: context.domoObject.metadata?.name }],
@@ -263,7 +268,7 @@ const deletersByType = {
     confirmNotice: dataflowOutputImpactNotice,
     confirmSuffix: ({ outputCount }) =>
       outputCount > 0 ? ` and ${outputCount} output dataset${outputCount !== 1 ? 's' : ''}` : '',
-    holdToConfirm: dataflowOutputsNeedHold,
+    holdToConfirm: dataflowOutputsHoldDuration,
     onDemandChecks: [
       {
         ...jupyterWorkspacesCheck({
@@ -877,7 +882,7 @@ export function DeleteObjectView({
   const hasDepsError = !!depsError;
   const outputCount = domoObject.metadata?.details?.outputs?.length || 0;
   const deletedCount = (deps?.groups || []).filter((g) => g.deleted).reduce((n, g) => n + g.items.length, 0);
-  const requiresHold = typeof config.holdToConfirm === 'function' ? config.holdToConfirm({ deps }) : !!config.holdToConfirm;
+  const hold = typeof config.holdToConfirm === 'function' ? config.holdToConfirm({ deps }) : config.holdToConfirm;
 
   const primaryLabel =
     typeof config.primaryLabel === 'function' ? config.primaryLabel({ outputCount }) : config.primaryLabel;
@@ -926,7 +931,11 @@ export function DeleteObjectView({
       })
     );
   }
-  const expandedGroupIds = dependencyItems.map((item) => item.id);
+  const expandedGroupIds = [
+    ...dependencyItems.map((item) => item.id),
+    ...deletedGroups.flatMap((g, idx) => (g.defaultExpanded ? [`deleted-group-${idx}`] : [])),
+    ...otherGroups.flatMap((g, idx) => (g.defaultExpanded ? [`other-group-${idx}`] : []))
+  ];
   // Checkboxes on the one group a cascade delete can be narrowed to; every other
   // row keeps the blank leading spacer. Actions stay on, since deciding what to
   // delete often means opening a row first.
@@ -1208,8 +1217,13 @@ export function DeleteObjectView({
                 <Button isDisabled={isDeleting} size='sm' slot='close' variant='tertiary'>
                   {config.dismissLabel ?? 'Cancel'}
                 </Button>
-                {requiresHold ? (
-                  <HoldToConfirmButton isPending={isDeleting} size='sm' onConfirm={() => performDelete(pendingAction)}>
+                {hold ? (
+                  <HoldToConfirmButton
+                    duration={typeof hold === 'number' ? hold : undefined}
+                    isPending={isDeleting}
+                    size='sm'
+                    onConfirm={() => performDelete(pendingAction)}
+                  >
                     Hold to {config.confirmActionLabel ?? 'Delete'}
                   </HoldToConfirmButton>
                 ) : (
@@ -1455,84 +1469,64 @@ function collectScopedSectionIds(items, pickerAncestors) {
 }
 
 /**
- * The confirm dialog's warning about what reads from a dataflow's outputs, which
- * never blocks the delete, so the notice says as much.
+ * The confirm dialog's warning about what reads from a dataflow's outputs.
  * @param {{deps: Object|null}} params
  * @returns {React.ReactNode|null}
  */
 function dataflowOutputImpactNotice({ deps }) {
   const outputs = findDataflowOutputs(deps);
-  const failedCount = outputs.filter((o) => o.impact === null).length;
-  const affected = outputs.filter((o) => o.impact?.total > 0).sort((a, b) => b.impact.total - a.impact.total);
+  const failedCount = outputs.filter((o) => o.downstreamImpact === null).length;
+  const affected = outputs
+    .filter((o) => o.downstreamImpact?.total > 0)
+    .sort((a, b) => b.downstreamImpact.total - a.downstreamImpact.total);
   if (failedCount === 0 && affected.length === 0) return null;
 
-  // Impact counts are transitive per output and overlap between outputs, so they
-  // are listed per output rather than summed into a misleading total.
-  const describeImpact = (impact) =>
-    new Intl.ListFormat('en', { type: 'conjunction' }).format(
-      [
-        ['dataflows', 'dataflow'],
-        ['datasets', 'dataset'],
-        ['cards', 'card'],
-        ['alerts', 'alert']
-      ]
-        .filter(([key]) => impact[key] > 0)
-        .map(([key, noun]) => `${impact[key].toLocaleString()} ${noun}${impact[key] !== 1 ? 's' : ''}`)
-    );
-  const breaksDataflows = affected.some((output) => output.impact.dataflows > 0);
+  const breaksDataflows = affected.some((output) => output.downstreamImpact.dataflows > 0);
   const shown = affected.slice(0, MAX_IMPACTED_OUTPUTS_SHOWN);
   const hiddenCount = affected.length - shown.length;
   const outputWord = (count) => `output dataset${count !== 1 ? 's' : ''}`;
 
-  return (
-    <Alert className='mt-3 w-full' status={affected.length > 0 ? 'warning' : 'accent'} variant='transparent'>
-      <Alert.Content>
-        <Alert.Title className='flex items-center gap-1'>
-          <AlertStatusIcon />
-          {affected.length > 0 ? 'Outputs Have Downstream Dependencies' : 'Downstream Dependencies Not Checked'}
-        </Alert.Title>
-        <div className='flex flex-col gap-1'>
-          {affected.length > 0 && (
-            <>
-              <Alert.Description>
-                {parseMarkdownBold(
-                  `**${affected.length} of ${outputs.length} ${outputWord(outputs.length)}** have downstream dependencies.${breaksDataflows ? ' Dataflows reading from them will fail on their next run.' : ''}`
-                )}
-              </Alert.Description>
-              <ul className='list-disc pl-4 text-sm text-muted'>
-                {shown.map((output) => (
-                  <li key={output.id}>
-                    <span className='font-medium text-foreground'>{output.label}</span>: {describeImpact(output.impact)}
-                  </li>
-                ))}
-                {hiddenCount > 0 && (
-                  <li>
-                    and {hiddenCount} more {outputWord(hiddenCount)}
-                  </li>
-                )}
-              </ul>
-            </>
-          )}
-          {failedCount > 0 && (
+  return impactAlert({
+    children: (
+      <>
+        {affected.length > 0 && (
+          <>
             <Alert.Description>
-              Downstream dependencies could not be checked for {failedCount} {outputWord(failedCount)}.
+              {parseMarkdownBold(
+                `**${affected.length} of ${outputs.length} output datasets** have downstream dependencies.${breaksDataflows ? ' Dataflows reading from them will fail on their next run.' : ''}`
+              )}
             </Alert.Description>
-          )}
-          <Alert.Description>This does not block the delete.</Alert.Description>
-        </div>
-      </Alert.Content>
-    </Alert>
-  );
+            {/* Impact counts are transitive per output and overlap between outputs,
+                so they are listed per output rather than summed into a misleading total. */}
+            <ul className='list-disc pl-4 text-sm text-muted'>
+              {shown.map((output) => (
+                <li key={output.id}>
+                  <span className='font-medium text-foreground'>{output.label}</span>:{' '}
+                  {describeImpact(output.downstreamImpact)}
+                </li>
+              ))}
+              {hiddenCount > 0 && (
+                <li>
+                  and {hiddenCount} more {outputWord(hiddenCount)}
+                </li>
+              )}
+            </ul>
+          </>
+        )}
+        {failedCount > 0 && (
+          <Alert.Description>
+            Downstream dependencies could not be checked for {failedCount} {outputWord(failedCount)}.
+          </Alert.Description>
+        )}
+      </>
+    ),
+    hasImpact: affected.length > 0,
+    title: 'Outputs Have Downstream Dependencies'
+  });
 }
 
-/**
- * Hold-to-delete guards a dataflow delete that reaches past its own outputs, or
- * whose reach is unknown because an output's lookup failed.
- * @param {{deps: Object|null}} params
- * @returns {boolean}
- */
-function dataflowOutputsNeedHold({ deps }) {
-  return findDataflowOutputs(deps).some((o) => o.impact === null || o.impact.total > 0);
+function dataflowOutputsHoldDuration({ deps }) {
+  return holdDurationForImpacts(findDataflowOutputs(deps).map((o) => o.downstreamImpact));
 }
 
 // Jupyter Workspaces drop off the list once the opt-in check has found them, so
@@ -1543,6 +1537,49 @@ function datasetCaveat({ checkResults }) {
       ? alwaysUncheckedForDatasets
       : ['Jupyter Workspaces', ...alwaysUncheckedForDatasets];
   return `This check does not cover ${areas.slice(0, -1).join(', ')}, or ${areas.at(-1)}. Verify those manually before deleting.`;
+}
+
+// `subjectImpact` is absent only when the dependency check never read one (it
+// failed or isn't loaded), which is no reason to demand a hold on its own.
+function datasetHoldDuration({ deps }) {
+  return deps?.subjectImpact === undefined ? 0 : holdDurationForImpacts([deps.subjectImpact]);
+}
+
+/**
+ * The confirm dialog's warning about what depends on the dataset being deleted.
+ * @param {{deps: Object|null}} params
+ * @returns {React.ReactNode|null}
+ */
+function datasetImpactNotice({ deps }) {
+  const impact = deps?.subjectImpact;
+  if (impact === undefined || (impact !== null && impact.total === 0)) return null;
+  return impactAlert({
+    children:
+      impact === null ? (
+        <Alert.Description>Downstream dependencies could not be checked.</Alert.Description>
+      ) : (
+        <Alert.Description>
+          {parseMarkdownBold(
+            `**${describeImpact(impact)}** depend on it.${impact.dataflows > 0 ? ' Dataflows reading from it will fail on their next run.' : ''}`
+          )}
+        </Alert.Description>
+      ),
+    hasImpact: impact !== null,
+    title: 'Downstream Dependencies'
+  });
+}
+
+function describeImpact(impact) {
+  return new Intl.ListFormat('en', { type: 'conjunction' }).format(
+    [
+      ['dataflows', 'dataflow'],
+      ['datasets', 'dataset'],
+      ['cards', 'card'],
+      ['alerts', 'alert']
+    ]
+      .filter(([key]) => impact[key] > 0)
+      .map(([key, noun]) => `${impact[key].toLocaleString()} ${noun}${impact[key] !== 1 ? 's' : ''}`)
+  );
 }
 
 function findDataflowInputGroup(deps) {
@@ -1566,6 +1603,34 @@ function findRelatedDataset(deps) {
 
 function findSourceExecution(deps) {
   return deps?.groups?.find((g) => g.key === 'sourceExecution') || null;
+}
+
+/**
+ * How long a delete must be held given the downstream impact of what it removes:
+ * the full hold when a dataflow or dataset depends on it, or when any impact is
+ * unknown, and a shorter one when only cards and alerts do.
+ * @param {Array<Object|null>} impacts - Impact breakdowns, `null` where unreadable
+ * @returns {number} Milliseconds, or 0 for a plain click
+ */
+function holdDurationForImpacts(impacts) {
+  if (impacts.some((impact) => impact === null || impact.dataflows > 0 || impact.datasets > 0)) {
+    return FULL_HOLD_DURATION;
+  }
+  return impacts.some((impact) => impact.total > 0) ? SHORT_HOLD_DURATION : 0;
+}
+
+function impactAlert({ children, hasImpact, title }) {
+  return (
+    <Alert className='mt-3 w-full' status={hasImpact ? 'warning' : 'accent'} variant='transparent'>
+      <Alert.Content>
+        <Alert.Title className='flex items-center gap-1'>
+          <AlertStatusIcon />
+          {hasImpact ? title : 'Downstream Dependencies Not Checked'}
+        </Alert.Title>
+        <div className='flex flex-col gap-1'>{children}</div>
+      </Alert.Content>
+    </Alert>
+  );
 }
 
 // A workspace reading the DataSet loses an input; one writing it loses its
