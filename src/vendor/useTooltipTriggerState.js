@@ -16,8 +16,9 @@
 //
 // Wired in via a Vite resolve.alias on 'react-stately/useTooltipTriggerState'
 // (the specifier react-aria-components, and therefore HeroUI's Tooltip, imports
-// from). See vite.config.js. Pinned against react-stately 3.46.0; revisit if
-// that package upgrades and changes this hook.
+// from). See vite.config.js. Last compared against react-stately 3.50.0; revisit
+// if that package upgrades and changes this hook. Upstream's `shouldSkipAnimation`
+// flag is left out on purpose, since HeroUI's Tooltip forces it off anyway.
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useOverlayTriggerState } from 'react-stately';

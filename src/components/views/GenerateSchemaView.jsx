@@ -320,9 +320,15 @@ function classifyValue(value) {
 function ColumnRow({ column, isDisabled, onChangeName, onChangeType, onRemove }) {
   return (
     <div className='flex items-end gap-1'>
-      <TextField className='min-w-0 flex-1' id={`col-name-${column.id}`} name='columnName' variant='secondary'>
+      <TextField
+        className='min-w-0 flex-1'
+        id={`col-name-${column.id}`}
+        isDisabled={isDisabled}
+        name='columnName'
+        variant='secondary'
+      >
         <Label className='text-xs'>Name</Label>
-        <Input className='h-8' isDisabled={isDisabled} value={column.name} onChange={(e) => onChangeName(e.target.value)} />
+        <Input className='h-8' value={column.name} onChange={(e) => onChangeName(e.target.value)} />
       </TextField>
       <div className='flex w-32 flex-col gap-1'>
         <Label className='text-xs'>Type</Label>

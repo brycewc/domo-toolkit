@@ -15,12 +15,14 @@ import { getCardsForObject } from './cards';
 import { getCodeEnginePackageVersions, getCodeEngineUsageSummary } from './codeEngine';
 import { getAppContentSummary } from './customApps';
 import {
+  getDataflowImpactBreakdown,
   getDatasetDependentCount,
   getDatasetDetailsForList,
+  getDatasetImpactBreakdowns,
   getDatasetImpactCounts,
   getDownstreamViewsForDatasets,
-  getOtherDependentCountsForDatasets,
-  searchDatasets
+  searchDatasets,
+  toImpactBreakdown
 } from './datasets';
 import { getDatasetFunctions, getDatasetFunctionsForDatasets } from './functions';
 import { getDownstreamCardsRaw, getDownstreamLineage } from './migrateDownstreamContent';
@@ -212,13 +214,6 @@ function buildWorkflowReferenceRows({ entries, origin, summaries }) {
 }
 
 /**
- * Why a connector input dataset can't be deleted alongside its dataflow, or null
- * when it can. A dataset we couldn't check comes first, since its counts aren't
- * trustworthy enough to report.
- * @param {{cards: number, dataflows: number, unverified: boolean, views: number}} [dependents]
- * @returns {string|null}
- */
-/**
  * Drop the groups with nothing in them and tally what is left. Shared by the
  * normalizer and by `withExtraDependencyGroups`, so an opt-in check's groups are
  * counted exactly the way a fetcher's own are.
@@ -376,13 +371,20 @@ async function fetchAppPageDependencies({ id, origin, parentId, typeId }, tabId)
   };
 }
 
-function inputExclusionReason(dependents) {
-  if (!dependents || dependents.unverified) return 'Its other uses could not be checked.';
+/**
+ * Why a connector input dataset can't be deleted alongside its dataflow, or null
+ * when it can. An input whose other impact is unknown is never offered.
+ * @param {{alerts: number, cards: number, dataflows: number, datasets: number, total: number}|null} otherImpact
+ * @returns {string|null}
+ */
+function inputExclusionReason(otherImpact) {
+  if (!otherImpact) return 'Its other impact could not be checked.';
   const parts = [];
-  if (dependents.cards > 0) parts.push(`${dependents.cards} card${dependents.cards !== 1 ? 's' : ''}`);
-  if (dependents.dataflows > 0) parts.push(`${dependents.dataflows} dataflow${dependents.dataflows !== 1 ? 's' : ''}`);
-  if (dependents.views > 0) parts.push(`${dependents.views} dataset view${dependents.views !== 1 ? 's' : ''}`);
-  if (parts.length > 0) return `Also used by ${parts.join(', ')}.`;
+  if (otherImpact.dataflows > 0) parts.push(`${otherImpact.dataflows} dataflow${otherImpact.dataflows !== 1 ? 's' : ''}`);
+  if (otherImpact.datasets > 0) parts.push(`${otherImpact.datasets} dataset${otherImpact.datasets !== 1 ? 's' : ''}`);
+  if (otherImpact.cards > 0) parts.push(`${otherImpact.cards} card${otherImpact.cards !== 1 ? 's' : ''}`);
+  if (otherImpact.alerts > 0) parts.push(`${otherImpact.alerts} alert${otherImpact.alerts !== 1 ? 's' : ''}`);
+  if (parts.length > 0) return `Also impacts ${parts.join(', ')}.`;
   return null;
 }
 
@@ -417,13 +419,22 @@ function normalizeDependencyResult(fetched) {
 }
 
 /**
- * Sum one dataset's other-dependent counts, or null when the lookup failed.
- * @param {{cards: number, dataflows: number, unverified: boolean, views: number}} [dependents]
- * @returns {number|null}
+ * An input's impact beyond the dataflow being deleted. Stored impact counts are
+ * deduplicated, so the input's reach minus the dataflow itself and everything
+ * below it is exactly what the input reaches some other way.
+ * @param {Object|null} inputImpact - The input's `toImpactBreakdown`
+ * @param {Object|null} dataflowImpact - The dataflow's `toImpactBreakdown`
+ * @returns {{alerts: number, cards: number, dataflows: number, datasets: number, total: number}|null}
+ *   `null` when either is unknown, or when they disagree enough to go negative
  */
-function otherDependentTotal(dependents) {
-  if (!dependents || dependents.unverified) return null;
-  return dependents.cards + dependents.dataflows + dependents.views;
+function otherImpactOf(inputImpact, dataflowImpact) {
+  if (!inputImpact || !dataflowImpact) return null;
+  const alerts = inputImpact.alerts - dataflowImpact.alerts;
+  const cards = inputImpact.cards - dataflowImpact.cards;
+  const dataflows = inputImpact.dataflows - dataflowImpact.dataflows - 1;
+  const datasets = inputImpact.datasets - dataflowImpact.datasets;
+  if (Math.min(alerts, cards, dataflows, datasets) < 0) return null;
+  return { alerts, cards, dataflows, datasets, total: alerts + cards + dataflows + datasets };
 }
 
 /**
@@ -704,10 +715,8 @@ const FETCHERS = {
       getDownstreamLineage(id, tabId)
     ]);
 
-    // Ten seconds per dataset on a large instance, and it only decorates each
-    // view row with a badge, so it is handed back as `deferred`.
     const viewIds = downstream.views.map((v) => String(v.id));
-    const impacts = getDatasetImpactCounts({ datasetIds: viewIds, tabId }).catch(() => ({}));
+    const viewImpacts = await getDatasetImpactCounts({ datasetIds: viewIds, tabId }).catch(() => ({}));
 
     const readingDataflows = lineage.dataflows || [];
 
@@ -794,7 +803,7 @@ const FETCHERS = {
 
       if (downstream.views.length > 0 || downstream.unverifiedOutputIds.length > 0) {
         const viewItems = downstream.views.map((v) => ({
-          ...countBadge(viewImpacts[String(v.id)], 'dependency', 'dependencies'),
+          ...countBadge(viewImpacts[String(v.id)], 'impact', 'impact'),
           id: v.id,
           label: v.name || `DataSet ${v.id}`,
           typeId: 'DATA_SOURCE',
@@ -835,11 +844,7 @@ const FETCHERS = {
     };
 
     return {
-      deferred: impacts.then((viewImpacts) => ({
-        groups: buildGroups(viewImpacts),
-        otherNote: OTHER_SURVIVES_NOTE
-      })),
-      groups: buildGroups({}),
+      groups: buildGroups(viewImpacts),
       otherNote: OTHER_SURVIVES_NOTE
     };
   },
@@ -857,16 +862,11 @@ const FETCHERS = {
       seenInputIds.add(inputId);
       return true;
     });
-    // Ten seconds per dataset on a large instance, and it only decorates each
-    // output row with a badge, so it is handed back as `deferred` instead of
-    // holding the listing. A failed lookup leaves the counts unknown.
-    const impacts = getDatasetImpactCounts({ datasetIds: outputIds.map(String), tabId }).catch(() => ({}));
-
     // Cards, alerts, and Beast Modes all hang off the output datasets and are all
     // removed when those datasets are deleted, so fetch them together. Downstream
     // views built on the outputs are fetched alongside: Domo blocks deleting a
     // dataset a view sits on, so they must block this delete rather than cascade.
-    const [cards, alerts, functions, downstream, inputDetails] = await Promise.all([
+    const [cards, alerts, functions, downstream, inputDetails, outputImpacts, dataflowImpact] = await Promise.all([
       getCardsForObject({
         metadata,
         objectId: id,
@@ -876,43 +876,41 @@ const FETCHERS = {
       getDownstreamAlertsForDatasets(outputIds, tabId),
       getDatasetFunctionsForDatasets(outputIds, tabId).catch(() => []),
       getDownstreamViewsForDatasets(outputIds, tabId),
-      inputs.length > 0 ? getDatasetDetailsForList({ datasets: inputs, tabId }).catch(() => []) : Promise.resolve([])
+      inputs.length > 0 ? getDatasetDetailsForList({ datasets: inputs, tabId }).catch(() => []) : Promise.resolve([]),
+      getDatasetImpactBreakdowns({ datasetIds: outputIds.map(String), tabId }).catch(() => ({})),
+      inputs.length > 0 ? getDataflowImpactBreakdown({ dataflowId: id, tabId }).catch(() => null) : Promise.resolve(null)
     ]);
     const outputNameById = new Map(outputs.map((o) => [String(o.dataSourceId), o.dataSourceName || String(o.dataSourceId)]));
 
     // Only connector-backed inputs are listed. A dataflow output, view, or fusion
     // could never be deleted from here (Domo has no fallback, so the dataflow or
-    // view that produces it just breaks), and skipping them means no dependency
-    // lookup runs for them either. An input whose details didn't come back is
-    // left out too, since an unclassifiable dataset is not a known-safe one.
+    // view that produces it just breaks). An input whose details didn't come back
+    // is left out too, since an unclassifiable dataset is not a known-safe one.
     const detailsById = {};
     for (const ds of inputDetails) detailsById[String(ds.id)] = ds;
     const connectorInputs = inputs.filter((i) => {
       const details = detailsById[String(i.dataSourceId)];
       return details && !isTransformDataset(details);
     });
-    const inputDependents =
-      connectorInputs.length > 0
-        ? await getOtherDependentCountsForDatasets({
-            datasetIds: connectorInputs.map((i) => String(i.dataSourceId)),
-            excludeDataflowId: id,
-            tabId
-          }).catch(() => ({}))
-        : {};
-    const buildGroups = (outputImpacts) => {
+    const buildGroups = () => {
       const groups = [
         {
           blocking: false,
           deleted: true,
           // Each output carries its total downstream impact, so how far the delete
           // reaches is visible without opening anything.
-          items: outputs.map((o) => ({
-            ...countBadge(outputImpacts[String(o.dataSourceId)], 'dependency', 'dependencies'),
-            id: o.dataSourceId,
-            label: o.dataSourceName || o.dataSourceId,
-            typeId: 'DATA_SOURCE',
-            url: `${origin}/datasources/${o.dataSourceId}/details/overview`
-          })),
+          items: outputs.map((o) => {
+            const impact = outputImpacts[String(o.dataSourceId)] ?? null;
+            return {
+              ...countBadge(impact?.total, 'impact', 'impact'),
+              id: o.dataSourceId,
+              impact,
+              label: o.dataSourceName || o.dataSourceId,
+              typeId: 'DATA_SOURCE',
+              url: `${origin}/datasources/${o.dataSourceId}/details/overview`
+            };
+          }),
+          key: 'dataflowOutputs',
           label: 'Output DataSets'
         },
         {
@@ -961,12 +959,12 @@ const FETCHERS = {
         const unselectableReasons = {};
         const inputItems = connectorInputs.map((i) => {
           const id = String(i.dataSourceId);
-          const dependents = inputDependents[id];
-          const reason = inputExclusionReason(dependents);
+          const otherImpact = otherImpactOf(toImpactBreakdown(detailsById[id]), dataflowImpact);
+          const reason = inputExclusionReason(otherImpact);
           if (reason) unselectableReasons[id] = reason;
           else deletableIds.push(id);
           return {
-            ...countBadge(otherDependentTotal(dependents), 'other dependency', 'other dependencies'),
+            ...countBadge(otherImpact?.total, 'other impact', 'other impact'),
             id: i.dataSourceId,
             label: i.dataSourceName || i.dataSourceId,
             typeId: 'DATA_SOURCE',
@@ -1029,10 +1027,7 @@ const FETCHERS = {
       return groups;
     };
 
-    return {
-      deferred: impacts.then((outputImpacts) => ({ groups: buildGroups(outputImpacts) })),
-      groups: buildGroups({})
-    };
+    return { groups: buildGroups() };
   },
   // Nothing here blocks: voiding a task removes no other object. The rows are
   // context for the person deciding, above all the workflow that is waiting on it.
@@ -1131,7 +1126,7 @@ const FETCHERS = {
     ]);
     const groups = [];
     // The synced dataset isn't deleted with the collection, so it's advisory. Its
-    // downstream dependent count shows on the row as a "(N dependencies)" badge.
+    // downstream dependent count shows on the row as a "(N impact)" badge.
     if (datasetId) {
       groups.push({
         blocking: false,
@@ -1140,7 +1135,7 @@ const FETCHERS = {
         items: [
           {
             count: datasetDependents,
-            countLabel: datasetDependents === 1 ? 'dependency' : 'dependencies',
+            countLabel: 'impact',
             id: datasetId,
             label: datasetInfo?.datasets?.[0]?.name || `DataSet ${datasetId}`,
             typeId: 'DATA_SOURCE',
@@ -1257,7 +1252,7 @@ const FETCHERS = {
 
     // Related dataset: listed inline (1:1 with the template), never blocks the
     // plain template delete. Its downstream dependent count shows on the row as
-    // a "(N dependencies)" badge and drives the combined-delete block.
+    // a "(N impact)" badge and drives the combined-delete block.
     if (datasetId) {
       groups.push({
         blocking: false,
@@ -1266,7 +1261,7 @@ const FETCHERS = {
         items: [
           {
             count: dependentCount,
-            countLabel: dependentCount === 1 ? 'dependency' : 'dependencies',
+            countLabel: 'impact',
             id: datasetId,
             label: datasetInfo?.datasets?.[0]?.name || `DataSet ${datasetId}`,
             typeId: 'DATA_SOURCE',
@@ -1497,7 +1492,7 @@ export function withExtraDependencyGroups(result, groups) {
 /**
  * Fold Jupyter Workspace usage into the connector input rows. An input a
  * Jupyter Workspace reads or writes is used elsewhere, so it stops being
- * offered for deletion and its other-dependency count grows, exactly as a card
+ * offered for deletion and its other impact count grows, exactly as a card
  * or dataflow using it would. A result with no input group (every type but a
  * dataflow's) comes back untouched.
  * @param {Object} result - A result from `getDependenciesForDelete`
@@ -1522,7 +1517,7 @@ export function withInputJupyterWorkspaceUsage(result, jupyterWorkspaceCounts) {
     // An unverified count stays absent rather than becoming a total that was
     // only partly counted.
     if (item.count == null) return item;
-    return { ...item, ...countBadge(item.count + used, 'other dependency', 'other dependencies') };
+    return { ...item, ...countBadge(item.count + used, 'other impact', 'other impact') };
   });
   const deletableIds = items.map((item) => String(item.id)).filter((id) => !unselectableReasons[id]);
 

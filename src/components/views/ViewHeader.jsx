@@ -93,7 +93,7 @@ export function ViewHeader({
               )}
             </div>
             {actions?.length > 0 && (
-              <ButtonGroup hideSeparator className='flex shrink-0' size='sm' variant='ghost'>
+              <ButtonGroup className='flex shrink-0' size='sm' variant='ghost'>
                 {actions.map(renderAction)}
               </ButtonGroup>
             )}

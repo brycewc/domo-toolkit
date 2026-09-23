@@ -118,6 +118,32 @@ export async function getColorRules(datasetId, tabId = null) {
 }
 
 /**
+ * A dataflow's own stored downstream impact, in the shape of
+ * `getDatasetImpactBreakdowns`. `nocompute` skips the recompute that makes the
+ * plain impacts endpoint take ten seconds.
+ * @param {Object} params
+ * @param {string|number} params.dataflowId - The dataflow ID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<{alerts: number, cards: number, dataflows: number, datasets: number, total: number}|null>}
+ *   `null` when the counts can't be read
+ */
+export async function getDataflowImpactBreakdown({ dataflowId, tabId = null }) {
+  const record = await executeInPage(
+    async (dataflowId) => {
+      try {
+        const response = await fetch(`/api/data/v1/impacts/DATAFLOW/${dataflowId}/nocompute`, { credentials: 'include' });
+        return response.ok ? await response.json() : null;
+      } catch {
+        return null;
+      }
+    },
+    [String(dataflowId)],
+    tabId
+  );
+  return record ? toImpactBreakdown(record) : null;
+}
+
+/**
  * Get a dataset's Beast Mode (calculated column) definitions.
  * Each value is keyed by its `calculation_<uuid>` id and includes at least a
  * `name`. Used by the color-rules duplicator to remap rule references between
@@ -196,8 +222,8 @@ export async function getDatasetDefinition({ datasetId, tabId }) {
 
 /**
  * Count the objects downstream of a dataset, used to decide whether deleting it
- * is safe. Reads Domo's precomputed impact endpoint, which already rolls up the
- * full downstream blast radius, and sums the impact counts (every dataflow,
+ * is safe. Reads Domo's stored impact counts, which already roll up the full
+ * downstream blast radius, and sums them (every dataflow,
  * dataset, card, and alert that ultimately depends on this dataset). The
  * `impact*` fields are the transitive totals; the unprefixed counts are direct
  * children only.
@@ -252,52 +278,71 @@ export async function getDatasetDetailsForList({ datasets, tabId }) {
 }
 
 /**
- * Total downstream impact for each of several datasets, in one page round-trip.
- * The list variant of `getDatasetDependentCount`: same precomputed impact
- * endpoint, same rolled-up total (every dataflow, dataset, card, and alert that
- * ultimately depends on the dataset), read for a whole list at once.
+ * Downstream impact for each of several datasets, split by type. The `impact*`
+ * fields are transitive totals (everything that ultimately depends on the
+ * dataset).
  *
- * A dataset whose lookup fails comes back as `null` rather than 0, so an
+ * Reads the stored counts off the bulk endpoint: `/api/data/v1/impacts` recomputes
+ * on every call and times out after ten seconds into those same stored counts.
+ *
+ * A dataset whose lookup fails comes back as `null` rather than zeros, so an
  * unreadable impact never renders as a safe-looking zero.
  * @param {Object} params
  * @param {string[]} params.datasetIds - The datasource IDs to read
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<Object<string, number|null>>} Total impact keyed by dataset ID
+ * @returns {Promise<Object<string, {alerts: number, cards: number, dataflows: number, datasets: number, total: number}|null>>}
+ *   Impact keyed by dataset ID
  */
-export async function getDatasetImpactCounts({ datasetIds, tabId = null }) {
+export async function getDatasetImpactBreakdowns({ datasetIds, tabId = null }) {
   if (!datasetIds || datasetIds.length === 0) return {};
 
-  return executeInPage(
-    async (datasetIds, concurrency) => {
-      const totals = {};
+  const records = await executeInPage(
+    async (datasetIds) => {
+      const BULK_LIMIT = 100;
+      const records = [];
 
-      const readImpact = async (datasetId) => {
+      for (let i = 0; i < datasetIds.length; i += BULK_LIMIT) {
         try {
-          const response = await fetch(`/api/data/v1/impacts/DATA_SOURCE/${datasetId}`, { credentials: 'include' });
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const impact = await response.json();
-          totals[String(datasetId)] =
-            (impact.impactCardCount || 0) +
-            (impact.impactDataFlowCount || 0) +
-            (impact.impactDataSourceCount || 0) +
-            (impact.impactAlertCount || 0);
+          const response = await fetch(
+            '/api/data/v3/datasources/bulk?includePrivate=true&part=core,impactcounts&includeFormulas=false',
+            {
+              body: JSON.stringify(datasetIds.slice(i, i + BULK_LIMIT)),
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              method: 'POST'
+            }
+          );
+          if (!response.ok) continue;
+          const data = await response.json();
+          records.push(...(data.dataSources || []));
         } catch {
-          totals[String(datasetId)] = null;
+          // The chunk's datasets stay null.
         }
-      };
+      }
 
-      let next = 0;
-      await Promise.all(
-        Array.from({ length: Math.min(concurrency, datasetIds.length) }, async () => {
-          while (next < datasetIds.length) await readImpact(datasetIds[next++]);
-        })
-      );
-
-      return totals;
+      return records;
     },
-    [datasetIds, DEPENDENCY_FETCH_CONCURRENCY],
+    [datasetIds.map(String)],
     tabId
   );
+
+  const breakdowns = Object.fromEntries(datasetIds.map((id) => [String(id), null]));
+  for (const record of records || []) breakdowns[String(record.id)] = toImpactBreakdown(record);
+  return breakdowns;
+}
+
+/**
+ * Total downstream impact for each of several datasets: the list variant of
+ * `getDatasetDependentCount`, with every dataflow, dataset, card, and alert that
+ * ultimately depends on the dataset rolled into one number.
+ * @param {Object} params
+ * @param {string[]} params.datasetIds - The datasource IDs to read
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<Object<string, number|null>>} Total impact keyed by dataset ID, `null` where the lookup failed
+ */
+export async function getDatasetImpactCounts({ datasetIds, tabId = null }) {
+  const breakdowns = await getDatasetImpactBreakdowns({ datasetIds, tabId });
+  return Object.fromEntries(Object.entries(breakdowns || {}).map(([id, impact]) => [id, impact?.total ?? null]));
 }
 
 /**
@@ -653,86 +698,6 @@ export async function getDownstreamViewsForDatasets(datasetIds, tabId = null) {
 }
 
 /**
- * Count what else depends on each of the given datasets, ignoring one dataflow.
- * Used before deleting a dataflow's input datasets: an input that only feeds the
- * dataflow being deleted is safe to remove, while one that also feeds other
- * dataflows, dataset views, or cards takes that content down with it (and a view
- * built on it makes Domo reject the delete outright).
- *
- * Counts only the DIRECT downstream neighbors of each dataset, since anything
- * further out is downstream of those, not of the input itself. Runs in one page
- * round-trip for the whole list. A dataset whose lookup fails comes back with
- * `unverified: true` rather than a misleading zero.
- * @param {Object} params
- * @param {string[]} params.datasetIds - The datasource IDs to check
- * @param {string|null} [params.excludeDataflowId] - DataFlow to leave out of the counts
- * @param {number|null} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<Object<string, {cards: number, dataflows: number, unverified: boolean, views: number}>>}
- *   Keyed by dataset ID
- */
-export async function getOtherDependentCountsForDatasets({ datasetIds, excludeDataflowId = null, tabId = null }) {
-  if (!datasetIds || datasetIds.length === 0) return {};
-
-  return executeInPage(
-    async (datasetIds, excludeDataflowId, concurrency) => {
-      const counts = {};
-
-      const fetchJson = async (url) => {
-        const response = await fetch(url, { credentials: 'include' });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json();
-      };
-
-      const countOne = async (datasetId) => {
-        const entry = { cards: 0, dataflows: 0, unverified: false, views: 0 };
-        counts[String(datasetId)] = entry;
-
-        const [lineage, cards] = await Promise.allSettled([
-          fetchJson(
-            `/api/data/v1/lineage/DATA_SOURCE/${datasetId}?maxDepth=1&requestEntities=DATA_SOURCE,DATAFLOW&traverseUp=false`
-          ),
-          fetchJson(`/api/content/v1/datasources/${datasetId}/cards`)
-        ]);
-
-        if (lineage.status === 'fulfilled') {
-          const children = lineage.value?.[`DATA_SOURCE${datasetId}`]?.children || [];
-          for (const child of children) {
-            if (!child) continue;
-            if (child.type === 'DATAFLOW') {
-              // The dataflow being deleted doesn't count: the input is only
-              // shared if something else reads it too.
-              if (excludeDataflowId && String(child.id) === String(excludeDataflowId)) continue;
-              entry.dataflows += 1;
-            } else if (child.type === 'DATA_SOURCE' && String(child.id) !== String(datasetId)) {
-              entry.views += 1;
-            }
-          }
-        } else {
-          entry.unverified = true;
-        }
-
-        if (cards.status === 'fulfilled') {
-          entry.cards = Array.isArray(cards.value) ? cards.value.length : 0;
-        } else {
-          entry.unverified = true;
-        }
-      };
-
-      let next = 0;
-      await Promise.all(
-        Array.from({ length: Math.min(concurrency, datasetIds.length) }, async () => {
-          while (next < datasetIds.length) await countOne(datasetIds[next++]);
-        })
-      );
-
-      return counts;
-    },
-    [datasetIds, excludeDataflowId, DEPENDENCY_FETCH_CONCURRENCY],
-    tabId
-  );
-}
-
-/**
  * Get all datasets owned by a user or group.
  * @param {number} ownerId - The Domo user or group ID
  * @param {number|null} tabId - Optional Chrome tab ID
@@ -1039,6 +1004,22 @@ export async function setStreamScheduleToManual({ streamId, tabId }) {
     tabId
   );
   if (!result?.ok) throw new Error(result?.error || 'Failed to update stream schedule');
+}
+
+/**
+ * Sum a stored impact row into its per-type transitive totals. Takes either a
+ * bulk dataset record or an impacts endpoint response, which name the fields alike.
+ * @param {Object} record - Carries `impactAlertCount`, `impactCardCount`, `impactDataFlowCount`, `impactDataSourceCount`
+ * @returns {{alerts: number, cards: number, dataflows: number, datasets: number, total: number}|null}
+ *   `null` when the record carries no impact counts, so a missing part never reads as zero
+ */
+export function toImpactBreakdown(record) {
+  if (typeof record?.impactCardCount !== 'number') return null;
+  const alerts = record.impactAlertCount || 0;
+  const cards = record.impactCardCount || 0;
+  const dataflows = record.impactDataFlowCount || 0;
+  const datasets = record.impactDataSourceCount || 0;
+  return { alerts, cards, dataflows, datasets, total: alerts + cards + dataflows + datasets };
 }
 
 /**

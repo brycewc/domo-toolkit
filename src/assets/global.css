@@ -349,10 +349,13 @@
   }
 
   /* That nested indicator shares its column with the description underneath,
-     so HeroUI's `p-1` on it pushes the icon out of line with that text. Drop
-     only the left padding; the rest still spaces the icon off the title. */
+     so its padding (HeroUI's `p-1`, or AlertStatusIcon's `p-0.5!`) pushes the
+     icon out of line with that text. Drop only the left padding; the rest still
+     spaces the icon off the title. `!important` in this layer outranks the
+     utilities layer's `!important`, since important layers resolve in reverse. */
+  .alert__title > .alert__indicator,
   .toast__title > .toast__indicator {
-    padding-left: 0;
+    padding-left: 0 !important;
   }
 
   /* Give the indicator the height of one title line (HeroUI's own line-heights:

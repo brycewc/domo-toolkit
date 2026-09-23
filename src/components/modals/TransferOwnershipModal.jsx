@@ -200,140 +200,138 @@ export function TransferOwnershipModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Backdrop>
-        <Modal.Container className='p-1' placement='center' scroll='outside'>
-          <Modal.Dialog className='p-2'>
-            <Modal.CloseTrigger className='absolute top-2 right-2' variant='ghost'>
-              <IconX />
-            </Modal.CloseTrigger>
-            <Form id='transfer-ownership-form' onSubmit={handleSubmit}>
-              <Modal.Header>
-                <Modal.Heading>Transfer Ownership</Modal.Heading>
-              </Modal.Header>
-              <Modal.Body className='flex flex-col gap-2'>
-                <TextField isReadOnly className='pointer-events-none'>
-                  <Label>Transfer From</Label>
-                  <Input value={sourceUser?.name || (isGroup ? 'Unknown Group' : 'Unknown User')} variant='secondary' />
-                </TextField>
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container className='p-1' placement='center' scroll='outside'>
+        <Modal.Dialog className='p-2'>
+          <Modal.CloseTrigger className='absolute top-2 right-2' variant='ghost'>
+            <IconX />
+          </Modal.CloseTrigger>
+          <Form id='transfer-ownership-form' onSubmit={handleSubmit}>
+            <Modal.Header>
+              <Modal.Heading>Transfer Ownership</Modal.Heading>
+            </Modal.Header>
+            <Modal.Body className='flex flex-col gap-2'>
+              <TextField isReadOnly className='pointer-events-none'>
+                <Label>Transfer From</Label>
+                <Input value={sourceUser?.name || (isGroup ? 'Unknown Group' : 'Unknown User')} variant='secondary' />
+              </TextField>
 
-                <div className='flex items-end gap-1'>
-                  <OwnerComboBox
-                    avatarBaseUrl={currentContext?.domoObject?.baseUrl}
-                    className='min-w-0 flex-1'
-                    isActive={isOpen}
-                    label='Transfer To'
-                    selectedDisplayName={selectedDisplayName}
-                    selectedKey={selectedOwnerId}
-                    sources={[isGroup ? 'GROUP' : 'USER']}
-                    tabId={currentContext?.tabId}
-                    onSelectionChange={handleDestinationChange}
-                  />
-                  {!isGroup && (
-                    <Tooltip>
-                      <Button
-                        isIconOnly
-                        isDisabled={!manager || !manager.active}
-                        size='md'
-                        variant='tertiary'
-                        onPress={() => {
-                          if (!manager?.id) return;
-                          setSelectedOwnerId(manager.id);
-                          setSelectedDisplayName(manager.name);
-                        }}
-                      >
-                        <IconPerson />
-                      </Button>
-                      <Tooltip.Content className='max-w-60'>
-                        {manager?.active
-                          ? `Transfer to manager: ${manager.name}`
-                          : manager
-                            ? `Manager ${manager.name} is inactive`
-                            : 'No manager assigned'}
-                      </Tooltip.Content>
-                    </Tooltip>
-                  )}
-                </div>
-
+              <div className='flex items-end gap-1'>
+                <OwnerComboBox
+                  avatarBaseUrl={currentContext?.domoObject?.baseUrl}
+                  className='min-w-0 flex-1'
+                  isActive={isOpen}
+                  label='Transfer To'
+                  selectedDisplayName={selectedDisplayName}
+                  selectedKey={selectedOwnerId}
+                  sources={[isGroup ? 'GROUP' : 'USER']}
+                  tabId={currentContext?.tabId}
+                  onSelectionChange={handleDestinationChange}
+                />
                 {!isGroup && (
-                  <Switch isSelected={emailNewOwner} onChange={setEmailNewOwner}>
-                    <Switch.Content>
-                      <Switch.Control>
-                        <Switch.Thumb />
-                      </Switch.Control>
-                      Email new owner with summary
-                    </Switch.Content>
-                    <Description>
-                      {!selectedOwnerId
-                        ? 'Sends an Excel attachment to the new owner'
-                        : target?.email
-                          ? `Sends an Excel attachment to ${target.email}`
-                          : 'Email unavailable for selected user'}
-                    </Description>
-                  </Switch>
+                  <Tooltip>
+                    <Button
+                      isIconOnly
+                      isDisabled={!manager || !manager.active}
+                      size='md'
+                      variant='tertiary'
+                      onPress={() => {
+                        if (!manager?.id) return;
+                        setSelectedOwnerId(manager.id);
+                        setSelectedDisplayName(manager.name);
+                      }}
+                    >
+                      <IconPerson />
+                    </Button>
+                    <Tooltip.Content className='max-w-60'>
+                      {manager?.active
+                        ? `Transfer to manager: ${manager.name}`
+                        : manager
+                          ? `Manager ${manager.name} is inactive`
+                          : 'No manager assigned'}
+                    </Tooltip.Content>
+                  </Tooltip>
                 )}
+              </div>
 
-                <Switch isSelected={emailCurrentUser} onChange={setEmailCurrentUser}>
+              {!isGroup && (
+                <Switch isSelected={emailNewOwner} onChange={setEmailNewOwner}>
                   <Switch.Content>
                     <Switch.Control>
                       <Switch.Thumb />
                     </Switch.Control>
-                    Email me with summary
+                    Email new owner with summary
                   </Switch.Content>
                   <Description>
-                    {currentUser?.email
-                      ? `Sends an Excel attachment to ${currentUser.email}`
-                      : 'Sends an Excel attachment to you'}
+                    {!selectedOwnerId
+                      ? 'Sends an Excel attachment to the new owner'
+                      : target?.email
+                        ? `Sends an Excel attachment to ${target.email}`
+                        : 'Email unavailable for selected user'}
                   </Description>
                 </Switch>
+              )}
 
-                {canDeleteUsers && (
-                  <Switch isSelected={deleteAfterTransfer} onChange={setDeleteAfterTransfer}>
-                    {({ isSelected }) => (
-                      <>
-                        <Switch.Content>
-                          <Switch.Control className={isSelected ? 'bg-danger' : ''}>
-                            <Switch.Thumb />
-                          </Switch.Control>
-                          Delete user after transfer
-                        </Switch.Content>
-                        <Description>Only if all transfers succeed</Description>
-                      </>
-                    )}
-                  </Switch>
-                )}
+              <Switch isSelected={emailCurrentUser} onChange={setEmailCurrentUser}>
+                <Switch.Content>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  Email me with summary
+                </Switch.Content>
+                <Description>
+                  {currentUser?.email
+                    ? `Sends an Excel attachment to ${currentUser.email}`
+                    : 'Sends an Excel attachment to you'}
+                </Description>
+              </Switch>
 
-                {notices.map((notice) => (
-                  <Alert className='w-full' key={notice} status='warning' variant='transparent'>
-                    <Alert.Content>
-                      <Alert.Title className='flex items-center gap-1'>
-                        <AlertStatusIcon />
-                        Before You Transfer
-                      </Alert.Title>
-                      <Alert.Description className='text-xs'>{notice}</Alert.Description>
-                    </Alert.Content>
-                  </Alert>
-                ))}
+              {canDeleteUsers && (
+                <Switch isSelected={deleteAfterTransfer} onChange={setDeleteAfterTransfer}>
+                  {({ isSelected }) => (
+                    <>
+                      <Switch.Content>
+                        <Switch.Control className={isSelected ? 'bg-danger' : ''}>
+                          <Switch.Thumb />
+                        </Switch.Control>
+                        Delete user after transfer
+                      </Switch.Content>
+                      <Description>Only if all transfers succeed</Description>
+                    </>
+                  )}
+                </Switch>
+              )}
 
-                <p className='text-xs text-muted'>
-                  <span className='font-medium text-foreground'>{selectedTypeCount}</span> type
-                  {selectedTypeCount !== 1 ? 's' : ''},{' '}
-                  <span className='font-medium text-foreground'>{selectedObjectCount}</span> object
-                  {selectedObjectCount !== 1 ? 's' : ''} selected
-                </p>
-              </Modal.Body>
-              <Modal.Footer className='flex justify-end gap-2'>
-                <Button size='sm' slot='close' variant='tertiary'>
-                  Cancel
-                </Button>
-                <Button isDisabled={!selectedOwnerId || selectedTypeCount === 0} size='sm' type='submit' variant='primary'>
-                  Transfer
-                </Button>
-              </Modal.Footer>
-            </Form>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+              {notices.map((notice) => (
+                <Alert className='w-full' key={notice} status='warning' variant='transparent'>
+                  <Alert.Content>
+                    <Alert.Title className='flex items-center gap-1'>
+                      <AlertStatusIcon />
+                      Before You Transfer
+                    </Alert.Title>
+                    <Alert.Description className='text-xs'>{notice}</Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              ))}
+
+              <p className='text-xs text-muted'>
+                <span className='font-medium text-foreground'>{selectedTypeCount}</span> type
+                {selectedTypeCount !== 1 ? 's' : ''},{' '}
+                <span className='font-medium text-foreground'>{selectedObjectCount}</span> object
+                {selectedObjectCount !== 1 ? 's' : ''} selected
+              </p>
+            </Modal.Body>
+            <Modal.Footer className='flex justify-end gap-2'>
+              <Button size='sm' slot='close' variant='tertiary'>
+                Cancel
+              </Button>
+              <Button isDisabled={!selectedOwnerId || selectedTypeCount === 0} size='sm' type='submit' variant='primary'>
+                Transfer
+              </Button>
+            </Modal.Footer>
+          </Form>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }

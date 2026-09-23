@@ -1,15 +1,59 @@
+import { getObjectType } from '@/models/DomoObjectType';
+import { getActivityLogTarget, launchActivityLogForOrigin } from '@/utils/activityLog';
 import { getAvailableActions } from '@/utils/availableActions';
+import { instanceKeyFromUrl } from '@/utils/instance';
 import { launchView } from '@/utils/sidepanel';
+import IconListSearch from '@icons/list-search.svg?react';
 import IconReset from '@icons/reset.svg?react';
 import IconSync from '@icons/sync.svg?react';
 
-// Shared builders for the standard "reload" and "refresh" header actions. Both
+// Shared builders for the standard "activity log", "reload" and "refresh" header actions. Both
 // DataList and the custom-header views feed the resulting specs into
 // `ViewHeader`'s `actions` array, so reload/refresh look and behave identically
 // everywhere. Each returns the generic action shape ViewHeader understands:
 // `{ key, icon, tooltip, onPress, isActive?, isDisabled?, disabledReason?, ariaLabel? }`.
 // A truthy `disabledReason` routes the button through DisabledTooltip (disabled
 // but still hoverable, so the explanation shows).
+
+// Only a context on the object's instance can speak to the Audit right; with none,
+// the button stays enabled and the log itself reports a permission failure.
+export function buildActivityLogAction({ contexts = [], domoObject, onStatusUpdate }) {
+  const target = getActivityLogTarget(domoObject);
+  const instance = instanceKeyFromUrl(domoObject.baseUrl);
+  const userRights = contexts.find((context) => instance && context?.instance === instance && context.user)?.user
+    ?.metadata?.USER_RIGHTS;
+  const parentTypeName = getObjectType(getObjectType(domoObject.typeId)?.parents?.[0])?.name;
+  const disabledReason = !target
+    ? `Could not determine the parent ${parentTypeName ?? 'object'}`
+    : userRights && !userRights.includes('audit')
+      ? 'You need the Audit permission to view activity logs'
+      : null;
+  return {
+    ariaLabel: 'View Activity Log',
+    disabledReason,
+    icon: <IconListSearch />,
+    key: 'activityLog',
+    onPress: async () => {
+      try {
+        const launched = await launchActivityLogForOrigin({
+          objects: target.objects,
+          origin: domoObject.baseUrl,
+          type: target.type
+        });
+        if (!launched) throw new Error('Could not determine the Domo instance for this object');
+        onStatusUpdate?.(
+          'Opening Activity Log',
+          `Navigating to activity log for **${domoObject.metadata?.name || domoObject.id}**`,
+          'success'
+        );
+      } catch (err) {
+        console.error('[headerActions] Error opening activity log:', err);
+        onStatusUpdate?.('Error', `Failed to open activity log: ${err.message}`, 'danger', 5000);
+      }
+    },
+    tooltip: disabledReason ?? 'View activity log'
+  };
+}
 
 /**
  * Refresh re-fetches the current object's data in place. The caller owns the

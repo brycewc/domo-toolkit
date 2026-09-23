@@ -2,6 +2,7 @@ import { AlertDialog, Button, Card, Disclosure, Separator, Spinner, Tooltip } fr
 import { useEffect, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
+import { HoldToConfirmButton } from '@/components/buttons/HoldToConfirmButton';
 import { DisabledTooltip } from '@/components/DisabledTooltip';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { useViewReady } from '@/hooks/useViewReady';
@@ -68,6 +69,10 @@ import { DataList } from './DataList';
  * check could never find anything for. `deps` throughout is the automatic result,
  * which is why the prompt's button waits for that to land.
  *
+ * `confirmNotice({ deps })` adds a notice to the confirm dialog, for primary and
+ * cascade deletes alike, and `holdToConfirm` (a boolean, or a function of
+ * `{ deps }`) makes its confirm button a hold-to-fire one instead of a click.
+ *
  * A type whose removal isn't a deletion overrides the view's verb with `feature`
  * (the header), `actionIcon` (header and buttons), `confirmActionLabel` (the
  * dialog's confirm button, which also supplies the verb in the failure toast),
@@ -75,6 +80,8 @@ import { DataList } from './DataList';
  * rendered through `parseMarkdownBold`), `dismissLabel` (the dialog's cancel
  * button), and `loadingMessage`.
  */
+
+const MAX_IMPACTED_OUTPUTS_SHOWN = 5;
 
 const alwaysUncheckedForDatasets = [
   'Workflows',
@@ -253,8 +260,10 @@ const deletersByType = {
       }
     ],
     caveat: datasetCaveat,
+    confirmNotice: dataflowOutputImpactNotice,
     confirmSuffix: ({ outputCount }) =>
       outputCount > 0 ? ` and ${outputCount} output dataset${outputCount !== 1 ? 's' : ''}` : '',
+    holdToConfirm: dataflowOutputsNeedHold,
     onDemandChecks: [
       {
         ...jupyterWorkspacesCheck({
@@ -716,8 +725,8 @@ export function DeleteObjectView({
         setAutoDeps(result);
         setDepsSeed(result);
       }
-      // A count too slow to hold the list behind (a dataflow output's downstream
-      // impact) lands here, so the rows gain their badges once it arrives.
+      // A count too slow to hold the list behind (an app page's app-only cards)
+      // lands here, so the rows gain their badges once it arrives.
       result.deferred
         ?.then((updated) => {
           if (isCurrent()) setAutoDeps(updated);
@@ -868,6 +877,7 @@ export function DeleteObjectView({
   const hasDepsError = !!depsError;
   const outputCount = domoObject.metadata?.details?.outputs?.length || 0;
   const deletedCount = (deps?.groups || []).filter((g) => g.deleted).reduce((n, g) => n + g.items.length, 0);
+  const requiresHold = typeof config.holdToConfirm === 'function' ? config.holdToConfirm({ deps }) : !!config.holdToConfirm;
 
   const primaryLabel =
     typeof config.primaryLabel === 'function' ? config.primaryLabel({ outputCount }) : config.primaryLabel;
@@ -1192,14 +1202,21 @@ export function DeleteObjectView({
                     )}
                   </>
                 )}
+                {config.confirmNotice?.({ deps })}
               </AlertDialog.Body>
               <AlertDialog.Footer>
                 <Button isDisabled={isDeleting} size='sm' slot='close' variant='tertiary'>
                   {config.dismissLabel ?? 'Cancel'}
                 </Button>
-                <Button isDisabled={isDeleting} size='sm' variant='danger' onPress={() => performDelete(pendingAction)}>
-                  {config.confirmActionLabel ?? 'Delete'}
-                </Button>
+                {requiresHold ? (
+                  <HoldToConfirmButton isPending={isDeleting} size='sm' onConfirm={() => performDelete(pendingAction)}>
+                    Hold to {config.confirmActionLabel ?? 'Delete'}
+                  </HoldToConfirmButton>
+                ) : (
+                  <Button isDisabled={isDeleting} size='sm' variant='danger' onPress={() => performDelete(pendingAction)}>
+                    {config.confirmActionLabel ?? 'Delete'}
+                  </Button>
+                )}
               </AlertDialog.Footer>
             </AlertDialog.Dialog>
           </AlertDialog.Container>
@@ -1437,6 +1454,87 @@ function collectScopedSectionIds(items, pickerAncestors) {
   return scoped;
 }
 
+/**
+ * The confirm dialog's warning about what reads from a dataflow's outputs, which
+ * never blocks the delete, so the notice says as much.
+ * @param {{deps: Object|null}} params
+ * @returns {React.ReactNode|null}
+ */
+function dataflowOutputImpactNotice({ deps }) {
+  const outputs = findDataflowOutputs(deps);
+  const failedCount = outputs.filter((o) => o.impact === null).length;
+  const affected = outputs.filter((o) => o.impact?.total > 0).sort((a, b) => b.impact.total - a.impact.total);
+  if (failedCount === 0 && affected.length === 0) return null;
+
+  // Impact counts are transitive per output and overlap between outputs, so they
+  // are listed per output rather than summed into a misleading total.
+  const describeImpact = (impact) =>
+    new Intl.ListFormat('en', { type: 'conjunction' }).format(
+      [
+        ['dataflows', 'dataflow'],
+        ['datasets', 'dataset'],
+        ['cards', 'card'],
+        ['alerts', 'alert']
+      ]
+        .filter(([key]) => impact[key] > 0)
+        .map(([key, noun]) => `${impact[key].toLocaleString()} ${noun}${impact[key] !== 1 ? 's' : ''}`)
+    );
+  const breaksDataflows = affected.some((output) => output.impact.dataflows > 0);
+  const shown = affected.slice(0, MAX_IMPACTED_OUTPUTS_SHOWN);
+  const hiddenCount = affected.length - shown.length;
+  const outputWord = (count) => `output dataset${count !== 1 ? 's' : ''}`;
+
+  return (
+    <Alert className='mt-3 w-full' status={affected.length > 0 ? 'warning' : 'accent'} variant='transparent'>
+      <Alert.Content>
+        <Alert.Title className='flex items-center gap-1'>
+          <AlertStatusIcon />
+          {affected.length > 0 ? 'Outputs Have Downstream Dependencies' : 'Downstream Dependencies Not Checked'}
+        </Alert.Title>
+        <div className='flex flex-col gap-1'>
+          {affected.length > 0 && (
+            <>
+              <Alert.Description>
+                {parseMarkdownBold(
+                  `**${affected.length} of ${outputs.length} ${outputWord(outputs.length)}** have downstream dependencies.${breaksDataflows ? ' Dataflows reading from them will fail on their next run.' : ''}`
+                )}
+              </Alert.Description>
+              <ul className='list-disc pl-4 text-sm text-muted'>
+                {shown.map((output) => (
+                  <li key={output.id}>
+                    <span className='font-medium text-foreground'>{output.label}</span>: {describeImpact(output.impact)}
+                  </li>
+                ))}
+                {hiddenCount > 0 && (
+                  <li>
+                    and {hiddenCount} more {outputWord(hiddenCount)}
+                  </li>
+                )}
+              </ul>
+            </>
+          )}
+          {failedCount > 0 && (
+            <Alert.Description>
+              Downstream dependencies could not be checked for {failedCount} {outputWord(failedCount)}.
+            </Alert.Description>
+          )}
+          <Alert.Description>This does not block the delete.</Alert.Description>
+        </div>
+      </Alert.Content>
+    </Alert>
+  );
+}
+
+/**
+ * Hold-to-delete guards a dataflow delete that reaches past its own outputs, or
+ * whose reach is unknown because an output's lookup failed.
+ * @param {{deps: Object|null}} params
+ * @returns {boolean}
+ */
+function dataflowOutputsNeedHold({ deps }) {
+  return findDataflowOutputs(deps).some((o) => o.impact === null || o.impact.total > 0);
+}
+
 // Jupyter Workspaces drop off the list once the opt-in check has found them, so
 // the note never claims they went unchecked right above the ones it turned up.
 function datasetCaveat({ checkResults }) {
@@ -1456,6 +1554,10 @@ function findDataflowInputGroup(deps) {
 // can be shorter than the dataflow's own input list.
 function findDataflowInputs(deps) {
   return findDataflowInputGroup(deps)?.items || [];
+}
+
+function findDataflowOutputs(deps) {
+  return deps?.groups?.find((g) => g.key === 'dataflowOutputs')?.items || [];
 }
 
 function findRelatedDataset(deps) {

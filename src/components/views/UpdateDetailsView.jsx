@@ -362,9 +362,15 @@ function FieldRow({
 }) {
   if (field.kind === 'text') {
     return (
-      <TextField id={`update-${field.key}`} isRequired={field.required} name={field.key} variant='secondary'>
+      <TextField
+        id={`update-${field.key}`}
+        isDisabled={isDisabled}
+        isRequired={field.required}
+        name={field.key}
+        variant='secondary'
+      >
         <Label>{field.label}</Label>
-        <Input className='h-8' isDisabled={isDisabled} value={value} onChange={(e) => onChange(e.target.value)} />
+        <Input className='h-8' value={value} onChange={(e) => onChange(e.target.value)} />
       </TextField>
     );
   }
@@ -374,16 +380,16 @@ function FieldRow({
     const isSyncDisabled = isDisabled || !syncValue || value === syncValue;
     return (
       <div className='flex flex-col gap-1'>
-        <TextField id={`update-${field.key}`} isRequired={field.required} name={field.key} variant='secondary'>
+        <TextField
+          id={`update-${field.key}`}
+          isDisabled={isDisabled}
+          isRequired={field.required}
+          name={field.key}
+          variant='secondary'
+        >
           <Label>{field.label}</Label>
           <div className='flex items-center gap-1'>
-            <Input
-              className='h-8 flex-1'
-              isDisabled={isDisabled}
-              type='email'
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-            />
+            <Input className='h-8 flex-1' type='email' value={value} onChange={(e) => onChange(e.target.value)} />
             {showSyncButton && (
               <Tooltip>
                 <Button
@@ -412,8 +418,8 @@ function FieldRow({
       <div className='flex flex-col gap-2'>
         <Label>{field.label}</Label>
         <TextArea
+          disabled={isDisabled}
           id={`update-${field.key}`}
-          isDisabled={isDisabled}
           name={field.key}
           resize='vertical'
           rows={2}

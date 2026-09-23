@@ -7,7 +7,13 @@ import { useLongPress } from '@/hooks/useLongPress';
 import { getObjectType } from '@/models/DomoObjectType';
 import { getCardsForObject, getOwnedCards } from '@/services/cards';
 import { getPagesForCards, getSubpageIds } from '@/services/pages';
-import { launchActivityLog } from '@/utils/activityLog';
+import {
+  COMBINED_PARENT_LOG_TYPES,
+  getActivityLogParent,
+  getActivityLogTarget,
+  launchActivityLog,
+  PARENT_ONLY_LOG_TYPES
+} from '@/utils/activityLog';
 import { isDatasetTypeId } from '@/utils/datasetTypes';
 import { waitForChildPages } from '@/utils/pageHelpers';
 import IconChartBarBox from '@icons/chart-bar-box.svg?react';
@@ -35,17 +41,8 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
   const longPressEnabled = !isDisabled && (hasCards || ownsCards);
   const typeLabel = currentContext?.domoObject?.typeName?.toLowerCase() || 'object';
   const hasChildPages = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
-  // App pages and worksheet views hang off a parent Studio App / Worksheet, whose
-  // activity log is frequently what the user actually wants. Detection already
-  // resolves the parent ID and name onto the context via getParent, so the
-  // parent option needs no extra fetch. The parent type comes straight from the
-  // registry so the two view types stay in sync with their declared parents.
-  const hasParent = ['DATA_APP_VIEW', 'WORKSHEET_VIEW'].includes(typeId);
-  // Code Engine package versions are never written to the activity log; only the
-  // parent package is. So a version's Activity Log button launches the parent
-  // package's log instead of the (empty) version log. Unlike hasParent above,
-  // this redirects to the parent rather than producing a combined object-and-parent log.
-  const usesParentLog = typeId === 'CODEENGINE_PACKAGE_VERSION';
+  const hasParent = COMBINED_PARENT_LOG_TYPES.includes(typeId);
+  const usesParentLog = PARENT_ONLY_LOG_TYPES.includes(typeId);
   const parentTypeId = hasParent || usesParentLog ? getObjectType(typeId)?.parents?.[0] : null;
   const parentTypeName = parentTypeId ? getObjectType(parentTypeId)?.name : null;
 
@@ -191,9 +188,9 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           break;
         }
         case 'parent': {
-          const parentId = currentContext?.domoObject?.parentId ?? currentContext?.domoObject?.metadata?.parent?.id;
+          const parent = getActivityLogParent(currentContext.domoObject);
 
-          if (!parentId) {
+          if (!parent) {
             onStatusUpdate?.(
               'No Parent Found',
               `Could not determine the parent ${parentTypeName?.toLowerCase() || 'object'} for ${objectName}`,
@@ -204,56 +201,18 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
             return;
           }
 
-          const parentName = currentContext?.domoObject?.metadata?.parent?.name;
-          activityLogObjects = [
-            {
-              id: String(parentId),
-              name: parentName || '',
-              type: parentTypeId,
-              typeName: parentTypeName
-            }
-          ];
+          activityLogObjects = [parent];
           activityLogType = 'single-object';
-          message = `Navigating to activity log for ${parentTypeName?.toLowerCase()} **${parentName ? `"${parentName}"` : parentId}**`;
+          message = `Navigating to activity log for ${parentTypeName?.toLowerCase()} **${parent.name ? `"${parent.name}"` : parent.id}**`;
           break;
         }
         default: {
-          // App pages and worksheet views default (single-click) to a combined log
-          // covering both the view and its parent Studio App / Worksheet. There is
-          // intentionally no view-only option: the parent rows can be filtered out by
-          // object type in the log itself. Every other type keeps a plain single-object
-          // log. parentId is resolved at detection time, so no extra lookup is needed.
-          const parentId =
-            hasParent && (currentContext?.domoObject?.parentId ?? currentContext?.domoObject?.metadata?.parent?.id);
-
-          // A type whose events Domo splits across several audit types (a view and a
-          // data model log their edits as VIEW and the rest as DATA_SOURCE) needs one
-          // entry each, or the log silently omits whichever set it didn't ask for.
-          const self = (getObjectType(typeId)?.activityLogTypes ?? [typeId]).map((auditType) => ({
-            id: currentContext?.domoObject.id,
-            name: currentContext?.domoObject.metadata?.name || '',
-            type: auditType,
-            typeName: currentContext?.domoObject.typeName
-          }));
-
-          if (parentId) {
-            const parentName = currentContext?.domoObject?.metadata?.parent?.name;
-            activityLogObjects = [
-              ...self,
-              {
-                id: String(parentId),
-                name: parentName || '',
-                type: parentTypeId,
-                typeName: parentTypeName
-              }
-            ];
-            activityLogType = 'object-and-parent';
-            message = `Navigating to activity log for ${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}** and its parent ${parentTypeName?.toLowerCase()}`;
-          } else {
-            activityLogObjects = self;
-            activityLogType = 'single-object';
-            message = `Navigating to activity log for ${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}**`;
-          }
+          // There is intentionally no view-only option for App Studio pages and
+          // worksheet views: the parent rows can be filtered out in the log itself.
+          const target = getActivityLogTarget(currentContext.domoObject);
+          activityLogObjects = target.objects;
+          activityLogType = target.type;
+          message = `Navigating to activity log for ${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}**${target.type === 'object-and-parent' ? ` and its parent ${parentTypeName?.toLowerCase()}` : ''}`;
           break;
         }
       }

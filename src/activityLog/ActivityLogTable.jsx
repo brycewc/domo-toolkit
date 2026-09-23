@@ -20,6 +20,7 @@ import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
+import { AlertStatusIcon } from '@/components/AlertStatusIcon';
 import { AnimatedCheck } from '@/components/AnimatedCheck';
 import { CloseButton } from '@/components/CloseButton';
 import { InactiveUserOverlay } from '@/components/InactiveUserOverlay';
@@ -34,8 +35,6 @@ import { ACTION_COLOR_PATTERNS } from '@/utils/constants';
 import { formatRelativeTime, formatTimestamp, getInitials } from '@/utils/general';
 import { instanceOriginFromKey } from '@/utils/instance';
 import IconCalendar from '@icons/calendar.svg?react';
-import IconCheckCircle from '@icons/check-circle.svg?react';
-import IconExclamationPointCircle from '@icons/exclamation-point-circle.svg?react';
 import IconFunnel from '@icons/funnel.svg?react';
 
 import { DataTable } from './components/DataTable';
@@ -1100,9 +1099,7 @@ export function ActivityLogTable() {
           <Alert status='warning'>
             <Alert.Content>
               <Alert.Title className='flex items-center gap-1'>
-                <Alert.Indicator>
-                  <IconExclamationPointCircle data-slot='alert-default-icon' />
-                </Alert.Indicator>
+                <AlertStatusIcon />
                 Activity Log API Only Retains the Past Year
               </Alert.Title>
               <Alert.Description>
@@ -1126,9 +1123,7 @@ export function ActivityLogTable() {
           <Alert status='success'>
             <Alert.Content>
               <Alert.Title className='flex items-center gap-1'>
-                <Alert.Indicator>
-                  <IconCheckCircle data-slot='alert-default-icon' />
-                </Alert.Indicator>
+                <AlertStatusIcon />
                 Using{' '}
                 {datasetUrl ? (
                   <Link
@@ -1178,9 +1173,7 @@ export function ActivityLogTable() {
           <Alert status='danger'>
             <Alert.Content>
               <Alert.Title className='flex items-center gap-1'>
-                <Alert.Indicator>
-                  <IconExclamationPointCircle data-slot='alert-default-icon' />
-                </Alert.Indicator>
+                <AlertStatusIcon />
                 Couldn&apos;t Load from the DomoStats DataSet
               </Alert.Title>
               <Alert.Description>{datasetFetchError}</Alert.Description>
@@ -1275,9 +1268,7 @@ export function ActivityLogTable() {
         <Alert status='danger'>
           <Alert.Content>
             <Alert.Title className='flex items-center gap-1'>
-              <Alert.Indicator>
-                <IconExclamationPointCircle data-slot='alert-default-icon' />
-              </Alert.Indicator>
+              <AlertStatusIcon />
               Error Loading Activity Log
             </Alert.Title>
             <Alert.Description>{error}</Alert.Description>

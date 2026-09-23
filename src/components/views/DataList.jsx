@@ -23,7 +23,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { getObjectType, getPluralTypeName } from '@/models/DomoObjectType';
 import { shareObjectsWithSelf, shareWithSelf } from '@/services/share';
-import { launchActivityLog } from '@/utils/activityLog';
+import { launchActivityLogForOrigin } from '@/utils/activityLog';
 import { MAX_OPEN_ALL_TABS } from '@/utils/constants';
 import { copyToClipboard } from '@/utils/copyToClipboard';
 import { getValidTabForInstance } from '@/utils/currentObject';
@@ -272,12 +272,11 @@ export function DataList({
         switch (actionType) {
           case 'activityLogAll': {
             if (headerLogObjects.length === 0) break;
-            const origin = activityLogBaseUrlFor(items) ?? currentContext?.origin ?? null;
-            const instance = origin ? instanceKeyFromUrl(origin) : null;
-            if (instance) {
-              const tabId = await getValidTabForInstance(instance);
-              await launchActivityLog({ instance, objects: headerLogObjects, origin, tabId, type: 'multi-object' });
-            }
+            await launchActivityLogForOrigin({
+              objects: headerLogObjects,
+              origin: activityLogBaseUrlFor(items) ?? currentContext?.origin,
+              type: 'multi-object'
+            });
             break;
           }
 
@@ -358,25 +357,15 @@ export function DataList({
             onStatusUpdate?.('No Objects', 'No loggable objects found here', 'warning', 3000);
             return;
           }
-          const origin = activityLogBaseUrlFor([item]);
-          const instance = origin ? instanceKeyFromUrl(origin) : null;
-          if (instance) {
-            const tabId = await getValidTabForInstance(instance);
-            await launchActivityLog({ instance, objects, origin, tabId, type: 'multi-object' });
-          }
+          await launchActivityLogForOrigin({ objects, origin: activityLogBaseUrlFor([item]), type: 'multi-object' });
           return;
         }
         switch (actionType) {
           case 'activityLog': {
-            const origin = item.domoObject?.baseUrl ?? null;
-            const instance = origin ? instanceKeyFromUrl(origin) : null;
-            if (item.id && item.typeId && instance) {
-              const tabId = await getValidTabForInstance(instance);
-              await launchActivityLog({
-                instance,
+            if (item.id && item.typeId) {
+              await launchActivityLogForOrigin({
                 objects: [{ id: String(item.originalId ?? item.id), name: item.label ?? '', type: item.typeId }],
-                origin,
-                tabId,
+                origin: item.domoObject?.baseUrl,
                 type: 'single-object'
               });
             }
@@ -388,12 +377,7 @@ export function DataList({
               onStatusUpdate?.('No Objects', 'No loggable objects found here', 'warning', 3000);
               break;
             }
-            const origin = activityLogBaseUrlFor([item]);
-            const instance = origin ? instanceKeyFromUrl(origin) : null;
-            if (instance) {
-              const tabId = await getValidTabForInstance(instance);
-              await launchActivityLog({ instance, objects, origin, tabId, type: 'multi-object' });
-            }
+            await launchActivityLogForOrigin({ objects, origin: activityLogBaseUrlFor([item]), type: 'multi-object' });
             break;
           }
           case 'copy': {
@@ -723,38 +707,36 @@ export function DataList({
           </>
         )}
       </Card>
-      <AlertDialog
+      <AlertDialog.Backdrop
         isOpen={pendingOpenAllUrls !== null && isActive}
         onOpenChange={(open) => {
           if (!open) setPendingOpenAllUrls(null);
         }}
       >
-        <AlertDialog.Backdrop>
-          <AlertDialog.Container className='p-1'>
-            <AlertDialog.Dialog className='p-2 pt-3'>
-              <div className='absolute top-0 left-0 h-1.25 w-full bg-warning' />
-              <AlertDialog.CloseTrigger className='absolute top-3 right-2' variant='ghost'>
-                <IconX />
-              </AlertDialog.CloseTrigger>
-              <AlertDialog.Header>
-                <AlertDialog.Heading>Open All in New Tabs</AlertDialog.Heading>
-              </AlertDialog.Header>
-              <AlertDialog.Body>
-                Opening all <strong>{pendingOpenAllUrls?.length ?? 0}</strong> {itemLabel}s would exceed the{' '}
-                {MAX_OPEN_ALL_TABS} tab limit. Only the first {MAX_OPEN_ALL_TABS} will open, in the order shown.
-              </AlertDialog.Body>
-              <AlertDialog.Footer>
-                <Button size='sm' slot='close' variant='tertiary'>
-                  Cancel
-                </Button>
-                <Button size='sm' variant='primary' onPress={confirmOpenAll}>
-                  Open First {MAX_OPEN_ALL_TABS}
-                </Button>
-              </AlertDialog.Footer>
-            </AlertDialog.Dialog>
-          </AlertDialog.Container>
-        </AlertDialog.Backdrop>
-      </AlertDialog>
+        <AlertDialog.Container className='p-1'>
+          <AlertDialog.Dialog className='p-2 pt-3'>
+            <div className='absolute top-0 left-0 h-1.25 w-full bg-warning' />
+            <AlertDialog.CloseTrigger className='absolute top-3 right-2' variant='ghost'>
+              <IconX />
+            </AlertDialog.CloseTrigger>
+            <AlertDialog.Header>
+              <AlertDialog.Heading>Open All in New Tabs</AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body>
+              Opening all <strong>{pendingOpenAllUrls?.length ?? 0}</strong> {itemLabel}s would exceed the{' '}
+              {MAX_OPEN_ALL_TABS} tab limit. Only the first {MAX_OPEN_ALL_TABS} will open, in the order shown.
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button size='sm' slot='close' variant='tertiary'>
+                Cancel
+              </Button>
+              <Button size='sm' variant='primary' onPress={confirmOpenAll}>
+                Open First {MAX_OPEN_ALL_TABS}
+              </Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
     </>
   );
 }

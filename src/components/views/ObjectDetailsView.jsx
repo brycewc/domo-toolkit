@@ -11,7 +11,7 @@ import { useViewReady } from '@/hooks/useViewReady';
 import { DomoObject } from '@/models/DomoObject';
 import { copyJsonNode, copyToClipboard } from '@/utils/copyToClipboard';
 import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
-import { buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
+import { buildActivityLogAction, buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
 import IconClipboardCopy from '@icons/clipboard-copy.svg?react';
@@ -56,6 +56,7 @@ export function ObjectDetailsView({ instance = null, liveContext = null, onBackT
   const [error, setError] = useState(null);
   const [domoObject, setDomoObject] = useState(null);
   const [keyFields, setKeyFields] = useState([]);
+  const [launchContext, setLaunchContext] = useState(null);
 
   const groupMap = useGroupLookup(domoObject?.metadata?.details);
   const userMap = useUserLookup(domoObject?.metadata?.details);
@@ -96,6 +97,7 @@ export function ObjectDetailsView({ instance = null, liveContext = null, onBackT
       const obj = DomoObject.fromJSON(data.domoObject);
       setError(null);
       setDomoObject(obj);
+      setLaunchContext(data.currentContext ?? null);
 
       // Extract key fields from metadata details, with the authoritative creation date
       // (grabbed like name, on metadata.created) prepended ahead of anything in the raw details.
@@ -171,6 +173,7 @@ export function ObjectDetailsView({ instance = null, liveContext = null, onBackT
         onClose={onBackToDefault}
         actions={[
           { ariaLabel: 'Copy ID', icon: <IconClipboardCopy />, key: 'copyId', onPress: handleCopyId, tooltip: 'Copy ID' },
+          buildActivityLogAction({ contexts: [liveContext, launchContext], domoObject, onStatusUpdate }),
           buildReloadAction({
             currentContext: liveContext,
             objectId: domoObject?.id,

@@ -87,35 +87,43 @@ All PRs are reviewed before merging. You may be asked to make changes -- this is
 
 | Category             | Technology         | Version |
 | -------------------- | ------------------ | ------- |
-| **Framework**        | React              | 19.2.5  |
-| **Bundler**          | Vite               | 7.3.2   |
-| **Extension Plugin** | @crxjs/vite-plugin | 2.4.0   |
-| **UI Library**       | @heroui/react      | 3.0.3   |
-| **CSS**              | Tailwind CSS       | 4.2.2   |
-| **Graph Layout**     | @dagrejs/dagre     | 2.0.4   |
-| **Linter**           | ESLint             | 10.2.1  |
+| **Framework**        | React              | 19.2.7  |
+| **Bundler**          | Vite               | 8.0.16  |
+| **Extension Plugin** | @crxjs/vite-plugin | 2.5.0   |
+| **UI Library**       | @heroui/react      | 3.2.6   |
+| **CSS**              | Tailwind CSS       | 4.3.0   |
+| **Graph Layout**     | @dagrejs/dagre     | 3.0.0   |
+| **Linter**           | ESLint             | 10.4.1  |
 | **Formatter**        | Prettier           | 3.8.3   |
 
 ### Project Structure
 
 ```text
 src/
+├── activityLog/        # Activity log viewer (table, filters, audit and DomoStats sources)
 ├── assets/             # Static assets and CSS
 ├── components/         # Shared React components
-│   ├── functions/      # Action button implementations
+│   ├── buttons/        # Action button implementations
+│   ├── icons/          # React icon components (SVG icons live in assets/icons)
+│   ├── modals/         # Standalone modal dialogs
 │   ├── options/        # Settings page components
-│   ├── lineage/        # Lineage graph visualization components
+│   ├── pickers/        # Adapters for searchable object pickers
 │   └── views/          # View components used in side panel for data discovery features
 ├── data/               # Release information used for new release badge and page
+├── dev/                # Chrome API polyfill and entries for the /dev-* localhost routes
 ├── hooks/              # Custom React hooks
+├── lineage/            # Lineage graph viewer
 ├── models/             # Data classes (DomoObject, DomoContext, DomoObjectType)
 ├── options/            # Settings/options page
 ├── popup/              # Popup UI (click on extension icon)
 ├── services/           # Domo API service functions
 ├── sidepanel/          # Side panel UI (contextual panel alongside pages)
 ├── utils/              # Utility functions
+├── vendor/             # Patched copies of third-party code, wired in via Vite aliases
+├── apiErrorCapture.js  # Content script (all frames) that records failed Domo API requests
 ├── background.js       # Service worker (background script)
-└── contentScript.js    # Content script (injected into Domo pages)
+├── contentScript.js    # Content script (injected into Domo pages)
+└── faviconModifier.js  # Applies favicon rules to Domo tabs
 ```
 
 ### Architecture
