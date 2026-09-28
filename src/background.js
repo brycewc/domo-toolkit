@@ -162,18 +162,45 @@ async function ensureContentScript(tabId) {
   try {
     await chrome.tabs.sendMessage(tabId, { type: 'PING' });
   } catch {
-    // Use the manifest-registered content script path. CRXJS transforms
-    // the source file into a loader at build time, so we read the actual
-    // path from the manifest to stay in sync.
-    const manifest = chrome.runtime.getManifest();
-    const file = manifest.content_scripts?.[0]?.js?.[0];
-    if (file) {
-      await chrome.scripting.executeScript({
-        files: [file],
-        target: { tabId }
-      });
+    // Use the manifest-registered content script paths. CRXJS transforms
+    // the source files into loaders at build time, so we read the actual
+    // paths from the manifest to stay in sync.
+    const entries = chrome.runtime.getManifest().content_scripts || [];
+    for (const { all_frames: allFrames, js } of entries) {
+      if (!js?.length) continue;
+      const target = { tabId };
+      if (allFrames) {
+        target.frameIds = await getApiErrorFrameIds(tabId);
+        if (!target.frameIds.length) continue;
+      }
+      await chrome.scripting.executeScript({ files: js, target });
     }
   }
+}
+
+async function ensureContentScriptsInOpenTabs() {
+  const tabs = await chrome.tabs.query({ url: DOMO_MATCH_PATTERNS });
+  for (const tab of tabs) {
+    if (tab.url && isActionableDomoUrl(tab.url)) {
+      await ensureContentScript(tab.id).catch(() => {});
+    }
+  }
+}
+
+// Mirrors the all-frames manifest entry's matches and exclude_matches, which
+// executeScript does not apply on its own.
+async function getApiErrorFrameIds(tabId) {
+  const frames = (await chrome.webNavigation.getAllFrames({ tabId })) || [];
+  return frames
+    .filter(({ url }) => {
+      try {
+        const { hostname, protocol } = new URL(url);
+        return protocol === 'https:' && hostname.endsWith('.domo.com') && !EXCLUDED_HOSTNAMES.includes(hostname);
+      } catch {
+        return false;
+      }
+    })
+    .map(({ frameId }) => frameId);
 }
 
 /**
@@ -218,6 +245,8 @@ const PERSIST_MAX_WAIT_MS = 1000;
 // Session storage keys
 const SESSION_STORAGE_KEY = 'tabContextsBackup';
 const APPLIED_TITLES_KEY = 'appliedTitlesBackup';
+const API_ERRORS_KEY = 'apiErrorsBackup';
+const LAST_CONTEXTS_KEY = 'lastContextsBackup';
 const INSTANCE_USERS_KEY = 'instanceUsersBackup';
 const VERIFIED_LOCAL_ORIGINS_KEY = 'verifiedLocalOrigins';
 
@@ -527,6 +556,7 @@ function addApiError(tabId, error) {
   }
 
   broadcastApiErrors(tabId);
+  sessionBackup.schedule();
 }
 
 function broadcastApiErrors(tabId) {
@@ -590,6 +620,7 @@ function buildAllowedTitles(domoObject) {
 function clearApiErrors(tabId) {
   tabApiErrors.delete(tabId);
   broadcastApiErrors(tabId);
+  sessionBackup.schedule();
 }
 
 /**
@@ -756,7 +787,9 @@ async function persistToSession() {
     // Pairs rather than an object: tab IDs are numbers, and object keys would
     // come back as strings that no tabId lookup ever matches.
     await chrome.storage.session.set({
+      [API_ERRORS_KEY]: Array.from(tabApiErrors),
       [APPLIED_TITLES_KEY]: Array.from(tabAppliedTitles),
+      [LAST_CONTEXTS_KEY]: Array.from(tabLastContext),
       [SESSION_STORAGE_KEY]: contextsArray
     });
   } catch (error) {
@@ -791,7 +824,22 @@ async function restoreFromSession() {
     await restoreInstanceUsers();
     await restoreVerifiedLocalOrigins();
 
-    const result = await chrome.storage.session.get([APPLIED_TITLES_KEY, SESSION_STORAGE_KEY]);
+    const result = await chrome.storage.session.get([
+      API_ERRORS_KEY,
+      APPLIED_TITLES_KEY,
+      LAST_CONTEXTS_KEY,
+      SESSION_STORAGE_KEY
+    ]);
+    for (const [tabId, errors] of result[API_ERRORS_KEY] || []) {
+      if (!tabApiErrors.has(tabId)) {
+        tabApiErrors.set(tabId, errors);
+      }
+    }
+    for (const [tabId, lastContext] of result[LAST_CONTEXTS_KEY] || []) {
+      if (!tabLastContext.has(tabId)) {
+        tabLastContext.set(tabId, lastContext);
+      }
+    }
     for (const [tabId, title] of result[APPLIED_TITLES_KEY] || []) {
       // A wake event can apply a title before this restore lands, and that one is
       // newer than the backup's.
@@ -1001,6 +1049,7 @@ function updateTabContextKey(tabId, { objectKey, url }) {
     clearApiErrors(tabId);
   }
   tabLastContext.set(tabId, { objectKey, url: urlPath });
+  sessionBackup.schedule();
 }
 
 // Handle extension installation
@@ -1009,6 +1058,8 @@ chrome.runtime.onInstalled.addListener((details) => {
 
   migrateClearCookiesSetting();
   applyIconFromStorage();
+  // Page-side hooks outlive a reload, but the content scripts relaying from them do not.
+  ensureContentScriptsInOpenTabs();
 
   if (details.reason === 'install') {
     chrome.tabs.create({
@@ -1930,6 +1981,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'API_ERROR_DETECTED': {
           const sourceTabId = sender.tab?.id;
           if (sourceTabId) {
+            await sessionRestore;
             addApiError(sourceTabId, message.error);
           }
           sendResponse({ success: true });
@@ -1937,6 +1989,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'CLEAR_API_ERRORS': {
+          await sessionRestore;
           clearApiErrors(message.tabId);
           sendResponse({ success: true });
           break;
@@ -1955,6 +2008,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'GET_API_ERRORS': {
+          await sessionRestore;
           const errors = getApiErrors(message.tabId);
           sendResponse({ errors, success: true });
           break;

@@ -24,3 +24,5 @@
 - Update Details and Generate Schema now lock their text fields while saving.
 - Views can be deleted again.
 - Deleting a view, data fusion, or data model now lists its downstream dependencies instead of reporting that they aren't supported.
+- API Errors now captures failed requests on tabs that were already open when the extension updated.
+- API Errors no longer loses its captured errors after the browser sits idle for a short while.
