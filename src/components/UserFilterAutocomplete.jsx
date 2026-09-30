@@ -9,17 +9,14 @@ import {
   Popover,
   SearchField,
   Spinner,
-  Tag,
-  TagGroup,
   ToggleButton,
   ToggleButtonGroup
 } from '@heroui/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { FittedTagGroup } from '@/components/FittedTagGroup';
 import { getCustomAvatarUserIds, searchUsers } from '@/services/users';
 import { getInitials } from '@/utils/general';
-
-const MAX_VISIBLE_TAGS = 5;
 
 /**
  * UserFilterAutocomplete Component
@@ -260,31 +257,19 @@ export function UserFilterAutocomplete({
       onOpenChange={setIsOpen}
     >
       <Autocomplete.Trigger aria-label='User autocomplete trigger'>
-        <Autocomplete.Value aria-label='Selected users'>
+        <Autocomplete.Value aria-label='Selected users' className='min-w-0 flex-1 overflow-hidden'>
           {({ defaultChildren }) => {
             if (value.length === 0) {
               return defaultChildren;
             }
-            const visibleKeys = value.slice(0, MAX_VISIBLE_TAGS);
-            const overflowCount = value.length - visibleKeys.length;
             return (
-              <div className='flex min-w-0 flex-row items-center gap-1'>
+              <div className='flex w-full min-w-0 flex-row items-center gap-1'>
                 <span className='shrink-0 text-xs font-medium text-muted'>{mode === 'exclude' ? 'not in' : 'in'}</span>
-                <TagGroup
-                  className='flex min-w-0 flex-row items-center gap-1'
-                  size='sm'
-                  variant='surface'
+                <FittedTagGroup
+                  ariaLabel='Selected users'
+                  items={value.map((key) => ({ id: key, label: String(getUserName(key)) }))}
                   onRemove={handleRemoveTags}
-                >
-                  <TagGroup.List className='flex-nowrap'>
-                    {visibleKeys.map((key) => (
-                      <Tag id={key} key={key}>
-                        <span className='truncate text-xs'>{getUserName(key)}</span>
-                      </Tag>
-                    ))}
-                  </TagGroup.List>
-                  {overflowCount > 0 && <span className='shrink-0 text-xs text-muted'>+{overflowCount} more</span>}
-                </TagGroup>
+                />
               </div>
             );
           }}

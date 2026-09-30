@@ -3,12 +3,9 @@ import {
   AvatarFallback,
   AvatarImage,
   Button,
-  ButtonGroup,
   Chip,
   DateField,
   DateRangePicker,
-  Dropdown,
-  Label,
   Link,
   RangeCalendar,
   Skeleton,
@@ -16,14 +13,13 @@ import {
   Tooltip
 } from '@heroui/react';
 import { getLocalTimeZone, parseDate, today } from '@internationalized/date';
-import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
 import { AlertStatusIcon } from '@/components/AlertStatusIcon';
-import { AnimatedCheck } from '@/components/AnimatedCheck';
 import { CloseButton } from '@/components/CloseButton';
 import { InactiveUserOverlay } from '@/components/InactiveUserOverlay';
+import { OptionFilterAutocomplete } from '@/components/OptionFilterAutocomplete';
 import { UserFilterAutocomplete } from '@/components/UserFilterAutocomplete';
 import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
 import { useResolveTabId } from '@/hooks/useResolveTabId';
@@ -35,7 +31,6 @@ import { ACTION_COLOR_PATTERNS } from '@/utils/constants';
 import { formatRelativeTime, formatTimestamp, getInitials } from '@/utils/general';
 import { instanceOriginFromKey } from '@/utils/instance';
 import IconCalendar from '@icons/calendar.svg?react';
-import IconFunnel from '@icons/funnel.svg?react';
 
 import { DataTable } from './components/DataTable';
 import { getActivityLogForObject, getEventTypesForObjectType } from './services/activityLog';
@@ -247,6 +242,11 @@ export function ActivityLogTable() {
       });
   }, [tabId, objects]);
 
+  const actionFilterOptions = useMemo(
+    () => actionOptions.map((action) => ({ id: action.type, label: action.translation })),
+    [actionOptions]
+  );
+
   // Check which users have custom avatars (non-blocking, incremental)
   useEffect(() => {
     if (!tabId || events.length === 0) return;
@@ -352,6 +352,11 @@ export function ActivityLogTable() {
     prevObjectTypeOptionsRef.current = next;
     return next;
   }, [events, activityLogType, spansOneObjectType]);
+
+  const objectTypeFilterOptions = useMemo(
+    () => objectTypeOptions.map((type) => ({ id: type, label: type })),
+    [objectTypeOptions]
+  );
 
   // Filter events locally (object type is client-side only)
   const filteredEvents = useMemo(() => {
@@ -940,7 +945,7 @@ export function ActivityLogTable() {
   // Memoize filter toolbar so it doesn't re-render during event fetches
   const customFilters = useMemo(
     () => (
-      <div className='flex w-full flex-row flex-wrap items-center justify-start gap-1 sm:flex-nowrap'>
+      <>
         {/* Date Range Filter */}
         <DateRangePicker
           shouldForceLeadingZeros
@@ -995,90 +1000,58 @@ export function ActivityLogTable() {
             </RangeCalendar>
           </DateRangePicker.Popover>
         </DateRangePicker>
-        <ButtonGroup className='w-72' variant='tertiary'>
-          {/* Action Filter */}
-          <Dropdown>
-            <Button fullWidth className='min-w-0 flex-1' isDisabled={actionOptions.length === 0} variant='tertiary'>
-              <IconFunnel />
-              Action
-            </Button>
-            <Dropdown.Popover className='max-h-120! overflow-y-auto'>
-              <Dropdown.Menu
-                selectedKeys={actionFilter}
-                selectionMode='multiple'
-                onSelectionChange={handleActionFilterChange}
-              >
-                {actionOptions.map((action) => {
-                  const color = getActionColor(action.type);
-                  return (
-                    <Dropdown.Item id={action.type} key={action.type} textValue={action.translation}>
-                      <Dropdown.ItemIndicator>
-                        {({ isSelected }) => (
-                          <AnimatePresence>{isSelected && <AnimatedCheck className='text-muted' />}</AnimatePresence>
-                        )}
-                      </Dropdown.ItemIndicator>
-                      <Label>
-                        <Chip color={color} variant='soft'>
-                          {action.translation}
-                        </Chip>
-                      </Label>
-                    </Dropdown.Item>
-                  );
-                })}
-              </Dropdown.Menu>
-            </Dropdown.Popover>
-          </Dropdown>
-
-          {/* Object Type Filter — hidden only when every row is the same object type */}
-          {(activityLogType !== 'single-object' || !spansOneObjectType) && (
-            <Dropdown>
-              <Button fullWidth className='min-w-0 flex-1' isDisabled={objectTypeOptions.length === 0} variant='tertiary'>
-                <IconFunnel />
-                Object Type
-              </Button>
-              <Dropdown.Popover className='max-h-64 overflow-y-auto'>
-                <Dropdown.Menu
-                  selectedKeys={objectTypeFilter}
-                  selectionMode='multiple'
-                  onSelectionChange={setObjectTypeFilter}
-                >
-                  {objectTypeOptions.map((type) => (
-                    <Dropdown.Item id={type} key={type} textValue={type}>
-                      <Dropdown.ItemIndicator>
-                        {({ isSelected }) => (
-                          <AnimatePresence>{isSelected && <AnimatedCheck className='text-muted' />}</AnimatePresence>
-                        )}
-                      </Dropdown.ItemIndicator>
-                      <Label>{type}</Label>
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown.Menu>
-              </Dropdown.Popover>
-            </Dropdown>
+        <OptionFilterAutocomplete
+          className='w-full sm:w-96'
+          getTagClassName={getActionTagClassName}
+          isDisabled={actionFilterOptions.length === 0}
+          label='Action'
+          options={actionFilterOptions}
+          placeholder='Filter by actions...'
+          value={actionFilter}
+          onChange={handleActionFilterChange}
+          renderOption={(option) => (
+            <Chip color={getActionColor(option.id)} variant='soft'>
+              {option.label}
+            </Chip>
           )}
-        </ButtonGroup>
-        <UserFilterAutocomplete
-          domoOrigin={domoOrigin}
-          mode={userFilterMode}
-          tabId={tabId}
-          value={userFilter}
-          onChange={setUserFilter}
-          onModeChange={setUserFilterMode}
         />
-      </div>
+        {/* Hidden only when every row is the same object type */}
+        {(activityLogType !== 'single-object' || !spansOneObjectType) && (
+          <OptionFilterAutocomplete
+            className='w-full sm:w-64'
+            isDisabled={objectTypeFilterOptions.length === 0}
+            label='Object type'
+            options={objectTypeFilterOptions}
+            placeholder='Filter by object types...'
+            value={objectTypeFilter}
+            onChange={setObjectTypeFilter}
+          />
+        )}
+      </>
     ),
     [
       activityLogType,
       dateRange,
       actionFilter,
-      actionOptions,
-      objectTypeOptions,
-      objectTypeFilter,
-      domoOrigin,
-      tabId,
-      userFilter,
-      userFilterMode
+      actionFilterOptions,
+      handleActionFilterChange,
+      objectTypeFilterOptions,
+      objectTypeFilter
     ]
+  );
+
+  const userFilterControl = useMemo(
+    () => (
+      <UserFilterAutocomplete
+        domoOrigin={domoOrigin}
+        mode={userFilterMode}
+        tabId={tabId}
+        value={userFilter}
+        onChange={setUserFilter}
+        onModeChange={setUserFilterMode}
+      />
+    ),
+    [domoOrigin, tabId, userFilter, userFilterMode]
   );
 
   // Memoize export config to avoid new object reference each render
@@ -1293,16 +1266,16 @@ export function ActivityLogTable() {
         </div>
 
         {/* Filter row */}
-        <div className='flex w-full items-center justify-between gap-1'>
-          <div className='flex flex-1 flex-row flex-wrap items-center gap-1'>
-            <Skeleton animationType='none' className='h-9 w-72 rounded-xl' />
-            <Skeleton animationType='none' className='h-9 w-72 rounded-xl' />
+        <div className='flex w-full flex-row flex-wrap items-center gap-1'>
+          <Skeleton animationType='none' className='h-9 w-72 rounded-xl' />
+          <Skeleton animationType='none' className='h-9 w-72 rounded-xl' />
+          <div className='flex flex-1 flex-row items-center justify-end gap-1'>
             <Skeleton animationType='none' className='h-9 min-w-72 flex-1 rounded-xl' />
-          </div>
-          <div className='flex flex-row items-center gap-1'>
-            <Skeleton animationType='none' className='h-9 w-28 rounded-xl' />
-            <Skeleton animationType='none' className='h-9 w-9 rounded-xl' />
-            <Skeleton animationType='none' className='h-9 w-9 rounded-xl' />
+            <div className='flex flex-row items-center gap-1'>
+              <Skeleton animationType='none' className='h-9 w-28 rounded-xl' />
+              <Skeleton animationType='none' className='h-9 w-9 rounded-xl' />
+              <Skeleton animationType='none' className='h-9 w-9 rounded-xl' />
+            </div>
           </div>
         </div>
 
@@ -1332,6 +1305,7 @@ export function ActivityLogTable() {
       initialColumnVisibility={initialColumnVisibility}
       isRefreshing={isInitialLoad || isSearching}
       sortDescriptor={sortDescriptor}
+      trailingFilter={userFilterControl}
       onLoadMore={fetchMoreEvents}
       onRefresh={handleRefresh}
       onSortChange={setSortDescriptor}
@@ -1661,6 +1635,22 @@ function getActionColor(action) {
   }
 
   return 'accent';
+}
+
+/** Soft chip colors for an action's filter tag, written out whole so Tailwind picks them up. */
+function getActionTagClassName(action) {
+  switch (getActionColor(action)) {
+    case 'danger':
+      return 'bg-danger-soft text-danger-soft-foreground hover:bg-danger-soft-hover';
+    case 'default':
+      return 'bg-default-soft text-default-soft-foreground hover:bg-default-soft-hover';
+    case 'success':
+      return 'bg-success-soft text-success-soft-foreground hover:bg-success-soft-hover';
+    case 'warning':
+      return 'bg-warning-soft text-warning-soft-foreground hover:bg-warning-soft-hover';
+    default:
+      return 'bg-accent-soft text-accent-soft-foreground hover:bg-accent-soft-hover';
+  }
 }
 
 function getShortTimezone() {

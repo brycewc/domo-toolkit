@@ -5,6 +5,7 @@
 - Get Cards now lists the workflows on an App Studio page, in their own Workflows group.
 - Get Cards now lists the forms placed directly on an App Studio page, and the forms and workflows behind its buttons.
 - The object details view now has an Activity Log button in its header.
+- A new Get Collections button lists the AppDB collections used by an app card, the app cards on a page or App Studio app, every instance of an app design, or a Jupyter workspace, including collections borrowed from other apps.
 
 ## UI Improvements
 
@@ -14,6 +15,7 @@
 - The dataflow and dataset delete confirmations now warn about downstream dependencies.
 - Deleting a dataflow or dataset with downstream dependencies now requires holding the Delete button, for 5 seconds when dataflows or datasets depend on it and 2.5 seconds when only cards and alerts do.
 - The dataflow delete view now opens the Output DataSets group automatically when the dataflow has only one output.
+- The Action and Object Type filters in the activity log are now searchable fields that show your selections as removable tags.
 - Menus, selects, and buttons that open a popover no longer show a focus ring after a mouse click. _(TODO: from the HeroUI 3.2.6 upgrade; confirm 1.7.0 actually showed one, else drop)_
 
 ## Bug Fixes

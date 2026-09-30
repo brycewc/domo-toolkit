@@ -17,6 +17,7 @@ import { GetBeastModes } from '@/components/buttons/GetBeastModes';
 import { GetCardPages } from '@/components/buttons/GetCardPages';
 import { GetCards } from '@/components/buttons/GetCards';
 import { GetChildPages } from '@/components/buttons/GetChildPages';
+import { GetCollections } from '@/components/buttons/GetCollections';
 import { GetDatasets } from '@/components/buttons/GetDatasets';
 import { GetOwnedObjects } from '@/components/buttons/GetOwnedObjects';
 import { GetUsage } from '@/components/buttons/GetUsage';
@@ -227,6 +228,9 @@ export function ActionButtons({
                 )}
                 {availableActions.has('getCardPages') && (
                   <GetCardPages currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('getCollections') && (
+                  <GetCollections currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('getBeastModes') && (
                   <GetBeastModes currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />

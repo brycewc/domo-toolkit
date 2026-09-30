@@ -42,6 +42,15 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
   }
 
   if (
+    ['APP', 'DATA_APP_VIEW', 'DATA_SCIENCE_NOTEBOOK', 'MAGNUM_COLLECTION', 'PAGE', 'RYUU_APP', 'WORKSHEET_VIEW'].includes(
+      typeId
+    ) ||
+    (typeId === 'CARD' && details?.type === 'domoapp')
+  ) {
+    actions.add('getCollections');
+  }
+
+  if (
     isDataset ||
     ['BEAST_MODE_FORMULA', 'CARD', 'DATA_APP_VIEW', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)
   ) {

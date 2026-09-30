@@ -50,6 +50,7 @@ const HEADING_HEIGHT = 40;
  * @param {Object} props.sortDescriptor - Controlled sort state (pair with onSortChange)
  * @param {Function} props.onSortChange - Controlled sort change handler
  * @param {React.ReactNode} props.customFilters - Custom filter components
+ * @param {React.ReactNode} props.trailingFilter - Filter kept on the same row as the toolbar buttons when the row wraps
  * @param {Object} props.exportConfig - Export configuration
  * @param {Function} props.onRefresh - Refresh callback
  * @param {Boolean} props.isRefreshing - Whether refreshing
@@ -74,7 +75,8 @@ export function DataTable({
   onLoadMore,
   onRefresh = null,
   onSortChange,
-  sortDescriptor: controlledSortDescriptor
+  sortDescriptor: controlledSortDescriptor,
+  trailingFilter = null
 }) {
   const [uncontrolledSortDescriptor, setUncontrolledSortDescriptor] = useState(initialSorting);
   const isSortControlled = controlledSortDescriptor !== undefined && onSortChange !== undefined;
@@ -158,87 +160,92 @@ export function DataTable({
   return (
     <div className='flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 p-4'>
       <div className='p-1'>{header}</div>
-      <div className='items-between flex w-full flex-col justify-center gap-1 sm:flex-row sm:items-center sm:justify-between'>
-        <div className='flex w-full items-center gap-1 sm:justify-between'>
-          <div className='flex flex-1 flex-row flex-wrap justify-start gap-1'>{customFilters}</div>
-        </div>
-        <div className='flex flex-row items-center justify-end gap-1'>
-          {/* Column Visibility Dropdown */}
-          <Dropdown>
-            <Button variant='tertiary'>
-              <IconAddColumn />
-              Columns
-              <Chip color='accent' size='sm' variant='soft'>
-                {toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).length}/{toggleableColumns.length}
-              </Chip>
-            </Button>
-            <Dropdown.Popover>
-              <Dropdown.Menu
-                selectedKeys={new Set(toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).map((c) => c.id))}
-                selectionMode='multiple'
-                onSelectionChange={(keys) => {
-                  setHiddenColumns(new Set(toggleableColumns.filter((c) => !keys.has(c.id)).map((c) => c.id)));
-                }}
-              >
-                {toggleableColumns.map((col) => (
-                  <Dropdown.Item id={col.id} key={col.id} textValue={col.header}>
-                    <Dropdown.ItemIndicator>
-                      {({ isSelected }) => (
-                        <AnimatePresence>
-                          {isSelected && <AnimatedCheck className='text-muted' />}
-                        </AnimatePresence>
-                      )}
-                    </Dropdown.ItemIndicator>
-                    <Label>{col.header}</Label>
-                  </Dropdown.Item>
-                ))}
-              </Dropdown.Menu>
-            </Dropdown.Popover>
-          </Dropdown>
-
-          {/* Export Dropdown */}
-          {exportConfig?.enabled && (
-            <Tooltip>
-              <Dropdown>
-                <Button isIconOnly isDisabled={isExporting || data.length === 0} isPending={isExporting} variant='tertiary'>
-                  {({ isPending }) => (isPending ? <Spinner color='currentColor' size='sm' /> : <IconDownload />)}
-                </Button>
-                <Dropdown.Popover>
-                  <Dropdown.Menu onAction={(key) => handleExport(key)}>
-                    <Dropdown.Item id='csv' textValue='Export as CSV'>
-                      <IconCsv />
-                      <Label>Export as CSV</Label>
-                    </Dropdown.Item>
-                    <Dropdown.Item id='xlsx' textValue='Export as Excel'>
-                      <IconExcel />
-                      <Label>Export as Excel</Label>
-                    </Dropdown.Item>
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
-              <Tooltip.Content>Export</Tooltip.Content>
-            </Tooltip>
-          )}
-
-          {/* Refresh Button */}
-          {onRefresh && (
-            <Tooltip>
-              <Button isIconOnly isDisabled={isRefreshing} isPending={isRefreshing} variant='tertiary' onPress={onRefresh}>
-                {({ isPending }) => (isPending ? <Spinner color='currentColor' size='sm' /> : <IconSync />)}
+      <div className='flex w-full flex-row flex-wrap items-center gap-1'>
+        {customFilters}
+        {/* Must not wrap internally, or the buttons stop moving to a new row with the trailing filter */}
+        <div className='flex flex-1 flex-row items-center justify-end gap-1'>
+          {trailingFilter}
+          <div className='flex flex-row items-center justify-end gap-1'>
+            {/* Column Visibility Dropdown */}
+            <Dropdown>
+              <Button variant='tertiary'>
+                <IconAddColumn />
+                Columns
+                <Chip color='accent' size='sm' variant='soft'>
+                  {toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).length}/{toggleableColumns.length}
+                </Chip>
               </Button>
-              <Tooltip.Content>Refresh</Tooltip.Content>
-            </Tooltip>
+              <Dropdown.Popover>
+                <Dropdown.Menu
+                  selectedKeys={new Set(toggleableColumns.filter((c) => !hiddenColumns.has(c.id)).map((c) => c.id))}
+                  selectionMode='multiple'
+                  onSelectionChange={(keys) => {
+                    setHiddenColumns(new Set(toggleableColumns.filter((c) => !keys.has(c.id)).map((c) => c.id)));
+                  }}
+                >
+                  {toggleableColumns.map((col) => (
+                    <Dropdown.Item id={col.id} key={col.id} textValue={col.header}>
+                      <Dropdown.ItemIndicator>
+                        {({ isSelected }) => (
+                          <AnimatePresence>{isSelected && <AnimatedCheck className='text-muted' />}</AnimatePresence>
+                        )}
+                      </Dropdown.ItemIndicator>
+                      <Label>{col.header}</Label>
+                    </Dropdown.Item>
+                  ))}
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
+
+            {/* Export Dropdown */}
+            {exportConfig?.enabled && (
+              <Tooltip>
+                <Dropdown>
+                  <Button
+                    isIconOnly
+                    isDisabled={isExporting || data.length === 0}
+                    isPending={isExporting}
+                    variant='tertiary'
+                  >
+                    {({ isPending }) => (isPending ? <Spinner color='currentColor' size='sm' /> : <IconDownload />)}
+                  </Button>
+                  <Dropdown.Popover>
+                    <Dropdown.Menu onAction={(key) => handleExport(key)}>
+                      <Dropdown.Item id='csv' textValue='Export as CSV'>
+                        <IconCsv />
+                        <Label>Export as CSV</Label>
+                      </Dropdown.Item>
+                      <Dropdown.Item id='xlsx' textValue='Export as Excel'>
+                        <IconExcel />
+                        <Label>Export as Excel</Label>
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
+                <Tooltip.Content>Export</Tooltip.Content>
+              </Tooltip>
+            )}
+
+            {/* Refresh Button */}
+            {onRefresh && (
+              <Tooltip>
+                <Button isIconOnly isDisabled={isRefreshing} isPending={isRefreshing} variant='tertiary' onPress={onRefresh}>
+                  {({ isPending }) => (isPending ? <Spinner color='currentColor' size='sm' /> : <IconSync />)}
+                </Button>
+                <Tooltip.Content>Refresh</Tooltip.Content>
+              </Tooltip>
+            )}
+          </div>
+
+          {onAdd && (
+            <div className='flex items-center gap-1'>
+              <Button onPress={onAdd}>
+                <IconPlus />
+                Add New
+              </Button>
+            </div>
           )}
         </div>
-
-        {onAdd && (
-          <div className='flex items-center gap-1'>
-            <Button onPress={onAdd}>
-              <IconPlus />
-              Add New
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* min-w-0 lets this flex item shrink to its parent's width instead of growing to the

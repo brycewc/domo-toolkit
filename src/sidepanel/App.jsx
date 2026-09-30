@@ -12,6 +12,7 @@ import { GeneratePackageDefinitionFromJSDocView } from '@/components/views/Gener
 import { GenerateSchemaView } from '@/components/views/GenerateSchemaView';
 import { GetBeastModesView } from '@/components/views/GetBeastModesView';
 import { GetCardsView } from '@/components/views/GetCardsView';
+import { GetCollectionsView } from '@/components/views/GetCollectionsView';
 import { GetDatasetsView } from '@/components/views/GetDatasetsView';
 import { GetPagesView } from '@/components/views/GetPagesView';
 import { GetUsageView } from '@/components/views/GetUsageView';
@@ -324,6 +325,17 @@ export default function App() {
 
         {slot.type === 'getDatasets' && (
           <GetDatasetsView
+            currentContext={currentContext}
+            instance={instance}
+            isActive={isActive}
+            key={slot.viewKey}
+            onBackToDefault={backToDefault}
+            onStatusUpdate={showStatus}
+          />
+        )}
+
+        {slot.type === 'getCollections' && (
+          <GetCollectionsView
             currentContext={currentContext}
             instance={instance}
             isActive={isActive}

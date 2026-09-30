@@ -48,7 +48,8 @@ export function AlertStatusIcon(props) {
   const Icon = STATUS_ICONS[status];
 
   return (
-    <AlertIndicator className='p-0.5!'>
+    // A span, since call sites nest this inside Alert.Title, which renders a <p>
+    <AlertIndicator className='p-0.5!' render={(props) => <span {...props} />}>
       <Icon data-slot='alert-default-icon' ref={ref} {...props} />
     </AlertIndicator>
   );

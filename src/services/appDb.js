@@ -93,7 +93,9 @@ export async function getAppDbCollectionPermission(collectionId, tabId = null) {
 }
 
 /**
- * List the AppDB collections associated with a Custom App instance.
+ * List the AppDB collections stored in a Custom App instance's own datastore.
+ * Collections the app borrows from another app's datastore are not included;
+ * use `resolveAppInstanceCollections` for everything an app actually uses.
  * @param {Object} params
  * @param {string} params.appInstanceId - The Custom App instance ID
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
@@ -102,7 +104,7 @@ export async function getAppDbCollectionPermission(collectionId, tabId = null) {
 export async function getAppInstanceCollections({ appInstanceId, tabId = null }) {
   return executeInPage(
     async (appInstanceId) => {
-      const response = await fetch(`/api/datastores/v1/${appInstanceId}/collections`);
+      const response = await fetch(`/api/datastores/v1/collections?datastoreId=${appInstanceId}`);
       if (!response.ok) return [];
       const data = await response.json();
       return Array.isArray(data) ? data : [];
@@ -150,6 +152,85 @@ export async function getCollectionConnectedApps({ collectionId, tabId = null })
     [collectionId],
     tabId
   );
+}
+
+/**
+ * Read AppDB collections by ID, each tagged with the app card whose datastore holds it.
+ * An unreadable ID comes back as `inaccessible`, labeled by its alias.
+ * @param {{entries: Array<{alias?: string, id: string}>, tabId?: number|null}} params
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getCollectionsByIds({ entries, tabId = null }) {
+  const unique = [];
+  const seen = new Set();
+  for (const entry of entries || []) {
+    const id = entry?.id ? String(entry.id) : null;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    unique.push({ alias: entry.alias || null, id });
+  }
+  if (unique.length === 0) return [];
+
+  const result = await executeInPage(
+    async (entries) => {
+      const collections = new Array(entries.length);
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: Math.min(6, entries.length) }, async () => {
+          while (next < entries.length) {
+            const index = next++;
+            const { alias, id } = entries[index];
+            try {
+              const response = await fetch(`/api/datastores/v1/collections/${id}`);
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const collection = await response.json();
+              collections[index] = {
+                alias,
+                datastoreId: collection.datastoreId || null,
+                id,
+                inaccessible: false,
+                name: collection.name || alias || id,
+                syncEnabled: !!collection.syncEnabled
+              };
+            } catch {
+              collections[index] = {
+                alias,
+                datastoreId: null,
+                id,
+                inaccessible: true,
+                name: alias || id,
+                syncEnabled: false
+              };
+            }
+          }
+        })
+      );
+
+      const datastoreIds = [...new Set(collections.map((c) => c.datastoreId).filter(Boolean))];
+      const ownerCards = {};
+      if (datastoreIds.length > 0) {
+        try {
+          const response = await fetch('/domoapps/apps/v2/card', {
+            body: JSON.stringify(datastoreIds),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
+          if (response.ok) {
+            for (const [instanceId, card] of Object.entries((await response.json()) || {})) {
+              if (card?.id) ownerCards[instanceId] = { id: card.id, title: card.title || `App ${card.id}` };
+            }
+          }
+        } catch {
+          // Owner cards only label the rows; the collections still list without them.
+        }
+      }
+
+      return collections.map((c) => ({ ...c, ownerCard: (c.datastoreId && ownerCards[c.datastoreId]) || null }));
+    },
+    [unique],
+    tabId
+  );
+  return Array.isArray(result) ? result : [];
 }
 
 /**
@@ -260,6 +341,26 @@ export async function renameAppDbCollection({ collectionId, name, tabId = null }
     [collectionId, name],
     tabId
   );
+}
+
+/**
+ * Resolve every AppDB collection the given Custom App instances use.
+ * @param {{instanceIds: string[], tabId?: number|null}} params
+ * @returns {Promise<Array<{card: Object|null, collections: Array<Object>, instanceId: string}>>}
+ */
+export async function resolveAppInstanceCollections({ instanceIds, tabId = null }) {
+  const ids = [...new Set((instanceIds || []).filter(Boolean).map(String))];
+  if (ids.length === 0) return [];
+  return resolveCollections({ instanceIds: ids, tabId });
+}
+
+/**
+ * Resolve every AppDB collection used by each instance of a Custom App design.
+ * @param {{designId: string, tabId?: number|null}} params
+ * @returns {Promise<Array<{card: Object|null, collections: Array<Object>, instanceId: string}>>}
+ */
+export async function resolveDesignCollections({ designId, tabId = null }) {
+  return resolveCollections({ designId, tabId });
 }
 
 /**
@@ -392,4 +493,162 @@ export async function updateAppDbCollectionSchema({ collectionId, columns, tabId
     [collectionId, columns],
     tabId
   );
+}
+
+// Mirrors ryuu's resolveCollectionsMapping: context mapping, then manifest entries with an id
+// for aliases the context lacks, then the own datastore. Only the first two can borrow.
+async function resolveCollections({ designId = null, instanceIds = [], tabId = null }) {
+  const result = await executeInPage(
+    async (designId, instanceIds) => {
+      const readJson = async (url) => {
+        try {
+          const response = await fetch(url);
+          return response.ok ? await response.json() : null;
+        } catch {
+          return null;
+        }
+      };
+      const mapLimit = async (list, fn) => {
+        const out = new Array(list.length);
+        let next = 0;
+        await Promise.all(
+          Array.from({ length: Math.min(6, list.length) }, async () => {
+            while (next < list.length) {
+              const index = next++;
+              out[index] = await fn(list[index]);
+            }
+          })
+        );
+        return out;
+      };
+
+      const designs = {};
+      const cardByInstance = {};
+      let instances;
+      if (designId) {
+        const design = await readJson(`/api/apps/v1/designs/${designId}?parts=apps,cards,versions`);
+        if (!design) return { error: 'Failed to load the app design', ok: false };
+        designs[designId] = design;
+        // Domo never creates collections for a temporary (preview) instance.
+        instances = (design.instances || []).filter((instance) => instance?.id && !instance.temporary);
+        for (const card of design.referencingCards || []) {
+          const instanceId = card.domoapp?.id;
+          if (instanceId && card.id && !cardByInstance[instanceId]) {
+            cardByInstance[instanceId] = { id: card.id, title: card.title || `App ${card.id}` };
+          }
+        }
+      } else {
+        const fetched = await mapLimit(instanceIds, (id) => readJson(`/api/apps/v1/instances/${id}`));
+        instances = instanceIds.map((id, index) => ({ ...(fetched[index] || {}), id }));
+        const designIds = [...new Set(instances.map((instance) => instance.designId).filter(Boolean))];
+        const fetchedDesigns = await mapLimit(designIds, (id) => readJson(`/api/apps/v1/designs/${id}?parts=versions`));
+        designIds.forEach((id, index) => {
+          if (fetchedDesigns[index]) designs[id] = fetchedDesigns[index];
+        });
+      }
+
+      const manifestMappingFor = (instance) => {
+        const design = designs[instance.designId];
+        if (!design) return [];
+        const version = instance.designVersion || design.latestVersion;
+        return (design.versions || []).find((v) => v.version === version)?.collectionsMapping || [];
+      };
+
+      const ownLists = await mapLimit(instances, (instance) =>
+        readJson(`/api/datastores/v1/collections?datastoreId=${instance.id}`)
+      );
+      const resolved = instances.map((instance, index) => {
+        const byId = new Map();
+        for (const c of Array.isArray(ownLists[index]) ? ownLists[index] : []) {
+          if (!c?.id) continue;
+          byId.set(c.id, {
+            alias: null,
+            datastoreId: c.datastoreId || instance.id,
+            id: c.id,
+            inaccessible: false,
+            name: c.name || c.id,
+            syncEnabled: !!c.syncEnabled
+          });
+        }
+        const contextMapping = instance.collectionsMapping || [];
+        const contextAliases = new Set(contextMapping.map((m) => m?.name));
+        const mapped = [...contextMapping, ...manifestMappingFor(instance).filter((m) => !contextAliases.has(m?.name))];
+        const external = [];
+        for (const m of mapped) {
+          if (!m?.id) continue;
+          const own = byId.get(m.id);
+          if (own) own.alias = m.name || null;
+          else if (!external.some((e) => e.id === m.id)) external.push({ alias: m.name || null, id: m.id });
+        }
+        return { byId, external, instance };
+      });
+
+      const externalIds = [...new Set(resolved.flatMap((r) => r.external.map((e) => e.id)))];
+      const externalFetched = await mapLimit(externalIds, (id) => readJson(`/api/datastores/v1/collections/${id}`));
+      const externalById = {};
+      externalIds.forEach((id, index) => {
+        externalById[id] = externalFetched[index];
+      });
+
+      for (const { byId, external } of resolved) {
+        for (const { alias, id } of external) {
+          const c = externalById[id];
+          byId.set(
+            id,
+            c
+              ? {
+                  alias,
+                  datastoreId: c.datastoreId || null,
+                  id,
+                  inaccessible: false,
+                  name: c.name || alias || id,
+                  syncEnabled: !!c.syncEnabled
+                }
+              : { alias, datastoreId: null, id, inaccessible: true, name: alias || id, syncEnabled: false }
+          );
+        }
+      }
+
+      const borrowedDatastoreIds = [
+        ...new Set(
+          resolved.flatMap(({ byId, instance }) =>
+            [...byId.values()].map((c) => c.datastoreId).filter((dsId) => dsId && dsId !== instance.id)
+          )
+        )
+      ];
+      const ownerCards = {};
+      if (borrowedDatastoreIds.length > 0) {
+        try {
+          const response = await fetch('/domoapps/apps/v2/card', {
+            body: JSON.stringify(borrowedDatastoreIds),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
+          if (response.ok) {
+            for (const [instanceId, card] of Object.entries((await response.json()) || {})) {
+              if (card?.id) ownerCards[instanceId] = { id: card.id, title: card.title || `App ${card.id}` };
+            }
+          }
+        } catch {
+          // Owner cards only label borrowed rows; the collections still list without them.
+        }
+      }
+
+      return {
+        instances: resolved.map(({ byId, instance }) => ({
+          card: cardByInstance[instance.id] || null,
+          collections: [...byId.values()].map((c) => {
+            const borrowed = !!c.datastoreId && c.datastoreId !== instance.id;
+            return { ...c, borrowed, ownerCard: borrowed ? ownerCards[c.datastoreId] || null : null };
+          }),
+          instanceId: instance.id
+        })),
+        ok: true
+      };
+    },
+    [designId, instanceIds],
+    tabId
+  );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to load AppDB collections');
+  return result.instances;
 }
