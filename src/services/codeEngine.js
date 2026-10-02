@@ -353,10 +353,11 @@ export async function getCodeEnginePackageVersions(packageId, tabId = null) {
  * appear in `items` with `entityId`, `name`, and `version` null, so usage is
  * `totalCount`, never `items.length`. `workflows` returns one row per model
  * version, drafts and deactivated deployments included: cross-reference
- * `getWorkflowVersions` to tell which are live.
+ * `getWorkflowVersions` to tell which are live. A `toolkits` row's `version` is
+ * the package version the toolkit pins.
  *
  * @param {Object} params
- * @param {'designs'|'instances'|'workflows'} params.kind - Which consumer kind to list
+ * @param {'designs'|'instances'|'toolkits'|'workflows'} params.kind - Which consumer kind to list
  * @param {string} params.packageId - Code Engine package UUID
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @param {string|null} [params.version] - Restrict to one package version (exact string match)
@@ -403,21 +404,23 @@ export async function getCodeEngineUsage({ kind, packageId, tabId = null, versio
  * @param {Object} params
  * @param {string} params.packageId - Code Engine package UUID
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<{activeByModel: Map<string, Set<string>>, designs: Object, instances: Object, workflows: Object}>}
+ * @returns {Promise<{activeByModel: Map<string, Set<string>>, designs: Object, instances: Object,
+ *   toolkits: Object, workflows: Object}>}
  */
 export async function getCodeEngineUsageSummary({ packageId, tabId = null }) {
   const settled = await Promise.allSettled([
     getCodeEngineUsage({ kind: 'designs', packageId, tabId }),
     getCodeEngineUsage({ kind: 'instances', packageId, tabId }),
+    getCodeEngineUsage({ kind: 'toolkits', packageId, tabId }),
     getCodeEngineUsage({ kind: 'workflows', packageId, tabId })
   ]);
-  const [designs, instances, workflows] = settled.map((result) =>
+  const [designs, instances, toolkits, workflows] = settled.map((result) =>
     result.status === 'fulfilled'
       ? result.value
       : { error: result.reason?.message || 'Failed to load usage', items: [], privateCount: 0, totalCount: 0 }
   );
   const activeByModel = await getActiveWorkflowVersionsByModel(workflows.items, tabId);
-  return { activeByModel, designs, instances, workflows };
+  return { activeByModel, designs, instances, toolkits, workflows };
 }
 
 /**
@@ -605,5 +608,6 @@ export async function transferCodeEnginePackages(packageIds, fromUserId, toUserI
 const USAGE_PATH_BY_KIND = {
   designs: '/api/apps/v1/designs/usage',
   instances: '/api/apps/v1/instances/usage',
+  toolkits: '/api/ai/v1/toolkits/usage',
   workflows: '/api/workflow/v2/models/usage'
 };

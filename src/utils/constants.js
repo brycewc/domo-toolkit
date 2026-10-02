@@ -17,7 +17,8 @@ export const EXCLUDED_HOSTNAMES = [
   'wikidev.domo.com',
   'onjira.domo.com',
   'developer.domo.com',
-  'adminprod.domo.com'
+  'adminprod.domo.com',
+  'learndomo.domo.com'
 ];
 
 // Get excluded instances (without .domo.com suffix)

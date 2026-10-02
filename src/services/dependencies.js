@@ -532,10 +532,10 @@ const FETCHERS = {
     return groups;
   },
   // Deleting a package takes every version with it, so what matters is whether
-  // anything live still calls into it. Active workflow versions and deployed
-  // custom apps block; app designs only reference the source, so they don't.
+  // anything live still calls into it. Active workflow versions, deployed custom
+  // apps, and AI toolkits block; app designs only reference the source, so they don't.
   CODEENGINE_PACKAGE: async ({ id, origin }, tabId) => {
-    const [{ activeByModel, designs, instances, workflows }, packageInfo] = await Promise.all([
+    const [{ activeByModel, designs, instances, toolkits, workflows }, packageInfo] = await Promise.all([
       getCodeEngineUsageSummary({ packageId: id, tabId }),
       // Best-effort: the delete re-reads the version list in the page anyway, so
       // a failed lookup costs the preview, not the delete.
@@ -553,6 +553,14 @@ const FETCHERS = {
         // link instead; it is null when no card shows the app.
         url: item.link || null
       }));
+    const toolkitRows = toolkits.items
+      .filter((item) => item.entityId)
+      .map((item) => ({
+        id: item.entityId,
+        label: item.name || `Toolkit ${item.entityId}`,
+        typeId: 'AI_TOOLKIT',
+        url: item.link || `${origin}/ai-library/toolkits/${item.entityId}`
+      }));
     const designRows = designs.items
       .filter((item) => item.entityId)
       .map((item) => ({
@@ -562,13 +570,19 @@ const FETCHERS = {
         url: `${origin}/assetlibrary/${item.entityId}/overview`
       }));
 
-    const hiddenCount = (workflows.privateCount || 0) + (instances.privateCount || 0);
+    const hiddenCount = (workflows.privateCount || 0) + (instances.privateCount || 0) + (toolkits.privateCount || 0);
     // A designs lookup that failed changes nothing, since designs never block.
-    const blockingFailures = [workflows.error ? 'workflow' : null, instances.error ? 'custom app' : null].filter(Boolean);
+    const blockingFailures = [
+      workflows.error ? 'workflow' : null,
+      instances.error ? 'custom app' : null,
+      toolkits.error ? 'AI toolkit' : null
+    ].filter(Boolean);
     const usedByParts = [];
     if (activeCount > 0) usedByParts.push(`${activeCount} active workflow version${activeCount !== 1 ? 's' : ''}`);
     if (instanceRows.length > 0)
       usedByParts.push(`${instanceRows.length} custom app${instanceRows.length !== 1 ? 's' : ''}`);
+    if (toolkitRows.length > 0)
+      usedByParts.push(`${toolkitRows.length} AI toolkit${toolkitRows.length !== 1 ? 's' : ''}`);
     if (hiddenCount > 0) usedByParts.push(`${hiddenCount} object${hiddenCount !== 1 ? 's' : ''} you can't see`);
     const sentences = [];
     if (usedByParts.length > 0) {
@@ -578,13 +592,14 @@ const FETCHERS = {
     }
     if (blockingFailures.length > 0) {
       sentences.push(
-        `Its ${blockingFailures.join(' and ')} usage could not be checked, so there is no way to tell what deleting it would break.`
+        `Its ${new Intl.ListFormat('en', { type: 'conjunction' }).format(blockingFailures)} usage could not be checked, so there is no way to tell what deleting it would break.`
       );
     }
     // One combined reason on every blocking group, since only the first reaches the banner.
     const blockingReason = sentences.join(' ') || null;
     const workflowsBlock = activeCount > 0 || (workflows.privateCount || 0) > 0 || !!workflows.error;
     const instancesBlock = instanceRows.length > 0 || (instances.privateCount || 0) > 0 || !!instances.error;
+    const toolkitsBlock = toolkitRows.length > 0 || (toolkits.privateCount || 0) > 0 || !!toolkits.error;
 
     const versions = (packageInfo?.versions || []).filter((v) => v.version);
     const deployedCount = versions.filter((v) => v.released != null).length;
@@ -625,6 +640,14 @@ const FETCHERS = {
         label: 'Custom Apps Using This Package'
       },
       {
+        blocking: toolkitsBlock,
+        blockingReason,
+        deleted: false,
+        items: toolkitRows,
+        key: 'usageToolkits',
+        label: 'AI Toolkits Using This Package'
+      },
+      {
         annotation: "A design references the package but isn't running, so it doesn't block the delete.",
         blocking: false,
         deleted: false,
@@ -639,6 +662,7 @@ const FETCHERS = {
     for (const [kind, label, summaryTypeId, noun, usage, blocking] of [
       ['hiddenWorkflows', "Workflows You Can't See", 'WORKFLOW_MODEL', 'workflow version', workflows, true],
       ['hiddenInstances', "Custom Apps You Can't See", 'APP_INSTANCE', 'custom app', instances, true],
+      ['hiddenToolkits', "AI Toolkits You Can't See", 'AI_TOOLKIT', 'AI toolkit', toolkits, true],
       ['hiddenDesigns', "Custom App Designs You Can't See", 'RYUU_APP', 'app design', designs, false]
     ]) {
       const count = usage.privateCount || 0;
@@ -656,7 +680,7 @@ const FETCHERS = {
       });
     }
 
-    const failedKinds = [workflows.error, instances.error, designs.error].filter(Boolean);
+    const failedKinds = [workflows.error, instances.error, toolkits.error, designs.error].filter(Boolean);
     if (failedKinds.length > 0) {
       groups.push({
         annotation: failedKinds.join(', '),
@@ -675,10 +699,10 @@ const FETCHERS = {
     // The versions group always has rows, so the generic "nothing found" banner
     // can never fire here and the user would be left guessing whether usage was
     // checked at all. `totalCount` covers the hidden consumers too.
-    const nothingUses = [designs, instances, workflows].every((usage) => !usage.totalCount && !usage.error);
+    const nothingUses = [designs, instances, toolkits, workflows].every((usage) => !usage.totalCount && !usage.error);
 
     return {
-      clearNote: nothingUses ? 'No workflows, custom apps, or app designs use this package.' : null,
+      clearNote: nothingUses ? 'No workflows, custom apps, AI toolkits, or app designs use this package.' : null,
       groups
     };
   },

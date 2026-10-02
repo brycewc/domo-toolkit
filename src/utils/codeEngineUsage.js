@@ -8,15 +8,19 @@ export const INACTIVE_CHIP = { color: 'danger', label: 'Inactive' };
 
 // The workflow endpoint returns a row per model version, so its totals count
 // versions rather than workflows. Shared by the group subtext and the header.
-export const USAGE_NOUNS = { designs: 'app design', instances: 'custom app', workflows: 'workflow version' };
+export const USAGE_NOUNS = {
+  designs: 'app design',
+  instances: 'custom app',
+  toolkits: 'AI toolkit',
+  workflows: 'workflow version'
+};
 
 /**
- * Build the three Code Engine usage groups, applying the client-side version filter.
+ * Build the Code Engine usage groups, applying the client-side version filter.
  *
- * Only workflows carry a version, so only they can be filtered. Domo records no
- * version for a design or an app instance, and dropping those would wrongly
- * report them as not using the version, so they stay listed under every version
- * with a note saying why.
+ * A workflow row's `version` is the workflow's own, so workflows narrow by using
+ * `versionWorkflows` instead; a toolkit row's is the package's, so it filters here.
+ * Designs and app instances record no version, so they stay listed with a note.
  *
  * @param {Object} params
  * @param {Map<string, Set<string>>} params.activeByModel - Live versions per workflow model
@@ -25,6 +29,8 @@ export const USAGE_NOUNS = { designs: 'app design', instances: 'custom app', wor
  * @param {Object} params.instances - Usage result for deployed app instances
  * @param {string} params.origin - The instance origin (https://<instance>.domo.com)
  * @param {Object<string, string>} params.ownerNames - userId -> display name
+ * @param {Object} params.toolkits - Usage result for AI toolkits
+ * @param {Object|null} [params.versionWorkflows] - Workflow usage of `filterToVersion` alone
  * @param {Object} params.workflows - Usage result for workflows
  * @returns {{counts: Object, items: DataListItem[]}} Group rows and their per-kind totals
  */
@@ -36,17 +42,19 @@ export function buildUsageItems({
   instances,
   origin,
   ownerNames,
-  workflows
+  toolkits,
+  versionWorkflows = null,
+  workflows: allWorkflows
 }) {
   const counts = {};
   const hidden = {};
   const items = [];
   const versionlessNote = filterToVersion ? NO_VERSION_NOTE : null;
+  const workflows = filterToVersion ? versionWorkflows : allWorkflows;
 
   const workflowRows = buildWorkflowRows({
     activeByModel,
     activeOnly,
-    filterToVersion,
     origin,
     ownerNames,
     usage: workflows
@@ -65,8 +73,16 @@ export function buildUsageItems({
     typeId: 'APP_INSTANCE',
     usage: instances
   });
+  const toolkitRows = buildSimpleRows({
+    filterToVersion,
+    origin,
+    ownerNames,
+    typeId: 'AI_TOOLKIT',
+    usage: toolkits
+  });
 
   for (const [id, key, label, rows, result, isVersioned] of [
+    ['toolkits_group', 'toolkits', 'AI Toolkits', toolkitRows, toolkits, true],
     ['designs_group', 'designs', 'Custom App Designs', designRows, designs, false],
     ['instances_group', 'instances', 'Custom Apps', instanceRows, instances, false],
     ['workflows_group', 'workflows', 'Workflows', workflowRows, workflows, true]
@@ -75,7 +91,7 @@ export function buildUsageItems({
     // A filter that applies narrows the count to what's visible; otherwise
     // totalCount is the honest answer, since it includes rows nulled out by
     // permissions that never become children.
-    const isNarrowed = Boolean(filterToVersion || activeOnly) && isVersioned;
+    const isNarrowed = key === 'workflows' ? activeOnly : isVersioned && Boolean(filterToVersion);
     const count = isNarrowed ? countObjects(rows) : result.totalCount;
     counts[key] = count;
     hidden[key] = result.privateCount || 0;
@@ -92,7 +108,7 @@ export function buildUsageItems({
         countLabel: groupCountLabel({
           count,
           privateCount: isNarrowed ? 0 : result.privateCount,
-          unit: isVersioned ? 'version' : null
+          unit: key === 'workflows' ? 'version' : null
         }),
         error: result.error,
         id,
@@ -105,29 +121,32 @@ export function buildUsageItems({
   return { counts, hidden, items: withCanonicalGroups(items, USAGE_GROUPS) };
 }
 
+const FALLBACK_LABEL_BY_TYPE = { AI_TOOLKIT: 'Toolkit', APP_INSTANCE: 'App', RYUU_APP: 'Design' };
+
 const NO_LINK_NOTE = 'No card shows this app, so there is nowhere to open it.';
 
 const NO_VERSION_NOTE = "Domo doesn't record which package version this uses, so it is listed under every version.";
 
 // Rendered order comes from DataList's alphabetical sort, so this matches it.
 const USAGE_GROUPS = [
+  { childTypeId: 'AI_TOOLKIT', id: 'toolkits_group', label: 'AI Toolkits' },
   { childTypeId: 'RYUU_APP', id: 'designs_group', label: 'Custom App Designs' },
   { childTypeId: 'APP_INSTANCE', id: 'instances_group', label: 'Custom Apps' },
   { childTypeId: 'WORKFLOW_MODEL', id: 'workflows_group', label: 'Workflows' }
 ];
 
 /**
- * Rows for a usage kind that maps one item to one object (designs, app instances).
- * Rows whose `entityId` is null are consumers the caller can't read; they are
- * dropped here and reported through the group's count and metadata instead.
+ * Rows for a usage kind that maps one item to one object (designs, app instances,
+ * toolkits). Rows whose `entityId` is null are consumers the caller can't read;
+ * they are dropped here and reported through the group's count and metadata instead.
  * @param {Object} params
  * @returns {DataListItem[]}
  */
-function buildSimpleRows({ annotation = null, origin, ownerNames, typeId, usage }) {
+function buildSimpleRows({ annotation = null, filterToVersion = null, origin, ownerNames, typeId, usage }) {
   return usage.items
-    .filter((item) => item.entityId)
+    .filter((item) => item.entityId && (!filterToVersion || item.version === filterToVersion))
     .map((item) => {
-      const label = item.name || `${typeId === 'RYUU_APP' ? 'Design' : 'App'} ${item.entityId}`;
+      const label = item.name || `${FALLBACK_LABEL_BY_TYPE[typeId]} ${item.entityId}`;
       const domoObject = new DomoObject(typeId, item.entityId, origin, { name: label });
       // A deployed instance has no page of its own, so the endpoint hands back a
       // card link instead; it is null when no card references the instance.
@@ -151,11 +170,10 @@ function buildSimpleRows({ annotation = null, origin, ownerNames, typeId, usage 
  * @param {Object} params
  * @returns {DataListItem[]}
  */
-function buildWorkflowRows({ activeByModel, activeOnly, filterToVersion, origin, ownerNames, usage }) {
+function buildWorkflowRows({ activeByModel, activeOnly, origin, ownerNames, usage }) {
   const byModel = new Map();
   for (const item of usage.items) {
     if (!item.entityId) continue;
-    if (filterToVersion && item.version !== filterToVersion) continue;
     let entry = byModel.get(item.entityId);
     if (!entry) {
       entry = { name: item.name, owner: item.owner, versions: [] };

@@ -6,6 +6,8 @@
 - Get Cards now lists the forms placed directly on an App Studio page, and the forms and workflows behind its buttons.
 - The object details view now has an Activity Log button in its header.
 - A new Get Collections button lists the AppDB collections used by an app card, the app cards on a page or App Studio app, every instance of an app design, or a Jupyter workspace, including collections borrowed from other apps.
+- Get Usage on a Code Engine Package now lists the AI toolkits that use it, and the Current Context footer has an AI Toolkits tab.
+- Deleting a Code Engine Package is now blocked while an AI toolkit uses it.
 
 ## UI Improvements
 
@@ -16,7 +18,6 @@
 - Deleting a dataflow or dataset with downstream dependencies now requires holding the Delete button, for 5 seconds when dataflows or datasets depend on it and 2.5 seconds when only cards and alerts do.
 - The dataflow delete view now opens the Output DataSets group automatically when the dataflow has only one output.
 - The Action and Object Type filters in the activity log are now searchable fields that show your selections as removable tags.
-- Menus, selects, and buttons that open a popover no longer show a focus ring after a mouse click. _(TODO: from the HeroUI 3.2.6 upgrade; confirm 1.7.0 actually showed one, else drop)_
 
 ## Bug Fixes
 
@@ -29,3 +30,4 @@
 - API Errors now captures failed requests on tabs that were already open when the extension updated.
 - API Errors no longer loses its captured errors after the browser sits idle for a short while.
 - Errors returned by Domo now show up as errors instead of being reported as success or as finding nothing.
+- Get Usage's filter to the current Code Engine Package Version now shows the workflows that use that version.

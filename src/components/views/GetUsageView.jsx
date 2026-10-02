@@ -5,7 +5,7 @@ import { Alert } from '@/components/Alert';
 import { CloseButton } from '@/components/CloseButton';
 import { useViewReady } from '@/hooks/useViewReady';
 import { DomoContext } from '@/models/DomoContext';
-import { getCodeEngineUsageSummary } from '@/services/codeEngine';
+import { getCodeEngineUsage, getCodeEngineUsageSummary } from '@/services/codeEngine';
 import { fetchUserDisplayNames } from '@/services/users';
 import { buildUsageItems, USAGE_NOUNS } from '@/utils/codeEngineUsage';
 import { getValidTabForInstance } from '@/utils/currentObject';
@@ -107,22 +107,35 @@ export function GetUsageView({
       });
 
       const tabId = await getValidTabForInstance(instance);
-      const { activeByModel, designs, instances, workflows } = await getCodeEngineUsageSummary({ packageId, tabId });
+      const [{ activeByModel, designs, instances, toolkits, workflows }, versionWorkflows] = await Promise.all([
+        getCodeEngineUsageSummary({ packageId, tabId }),
+        // Fetched up front so the version filter toggles without a wait. Its rows
+        // are a subset of `workflows`, so the active and owner lookups cover them.
+        isVersion
+          ? getCodeEngineUsage({ kind: 'workflows', packageId, tabId, version: domoObject.id }).catch((err) => ({
+              error: err.message || 'Failed to load usage',
+              items: [],
+              privateCount: 0,
+              totalCount: 0
+            }))
+          : null
+      ]);
 
-      const nothingFound = [designs, instances, workflows].every((result) => !result.totalCount && !result.error);
+      const results = [designs, instances, toolkits, workflows];
+      const nothingFound = results.every((result) => !result.totalCount && !result.error);
       if (nothingFound) {
         if (!mountedRef.current) return;
-        onStatusUpdate?.('No Usage Found', 'No workflows or custom apps use this package.', 'warning', 3000);
+        onStatusUpdate?.('No Usage Found', 'No workflows, custom apps, or AI toolkits use this package.', 'warning', 3000);
         onBackToDefault?.();
         setIsLoading(false);
         return;
       }
 
-      const ownerNames = await fetchOwnerNames([designs, instances, workflows], tabId);
+      const ownerNames = await fetchOwnerNames(results, tabId);
 
       if (!mountedRef.current) return;
       setError(null);
-      setUsage({ activeByModel, designs, instances, ownerNames, workflows });
+      setUsage({ activeByModel, designs, instances, ownerNames, toolkits, versionWorkflows, workflows });
     } catch (err) {
       console.error('Error loading Code Engine usage:', err);
       setError(err.message || 'Failed to load usage');
@@ -186,13 +199,12 @@ export function GetUsageView({
   ];
 
   const renderSubtext = () => {
-    const parts = ['workflows', 'designs', 'instances']
+    const parts = ['workflows', 'designs', 'instances', 'toolkits']
       .map((key) => pluralize(counts[key], USAGE_NOUNS[key]))
       .filter(Boolean);
     const summary = parts.join(', ');
     const hiddenTotal = Object.values(hidden).reduce((total, n) => total + n, 0);
-    const hiddenText = activeVersionFilter ? `${hiddenTotal} you can't see on any version` : `${hiddenTotal} you can't see`;
-    const segments = [summary || null, hiddenTotal ? hiddenText : null];
+    const segments = [summary || null, hiddenTotal ? `${hiddenTotal} you can't see` : null];
     if (activeOnly) segments.push('active only');
     if (currentVersion) segments.push(activeVersionFilter ? `version ${activeVersionFilter}` : 'all versions');
     return segments.filter(Boolean).join(' · ') || null;

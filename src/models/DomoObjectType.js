@@ -636,6 +636,13 @@ export const ObjectTypeRegistry = {
         itemIdField: 'entityId',
         itemTypeId: 'APP_INSTANCE',
         label: 'Custom Apps'
+      },
+      {
+        fetcher: 'codeEngineToolkitUsage',
+        isArray: true,
+        itemIdField: 'entityId',
+        itemTypeId: 'AI_TOOLKIT',
+        label: 'AI Toolkits'
       }
     ],
     urlPath: '/codeengine/{id}'
@@ -698,6 +705,13 @@ export const ObjectTypeRegistry = {
         itemIdField: 'entityId',
         itemTypeId: 'APP_INSTANCE',
         label: 'Custom Apps'
+      },
+      {
+        fetcher: 'codeEngineToolkitUsage',
+        isArray: true,
+        itemIdField: 'entityId',
+        itemTypeId: 'AI_TOOLKIT',
+        label: 'AI Toolkits'
       }
     ]
   }),
