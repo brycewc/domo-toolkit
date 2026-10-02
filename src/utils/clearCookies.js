@@ -19,7 +19,7 @@ export async function clearCookies({ daSidsToPreserve = [], domains = null, excl
     if (domains && domains.length > 0 && !excludeDomains && tabId) {
       const data = await executeInPage(
         async () => {
-          return window.bootstrap.data;
+          return window.bootstrap?.data;
         },
         [],
         tabId

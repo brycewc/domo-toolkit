@@ -1403,7 +1403,12 @@ async function resolveBeastModeFilterNames(filters, { cardId, pageId, tabId }) {
     }
 
     if ((cardId || pageId) && unresolved.some((filter) => !namesByLegacyId[filter.column])) {
-      const objectDatasets = cardId ? await getCardDatasets({ cardId, tabId }) : await getDatasetsForPage({ pageId, tabId });
+      const objectDatasets = await (cardId ? getCardDatasets({ cardId, tabId }) : getDatasetsForPage({ pageId, tabId })).catch(
+        (error) => {
+          console.warn('Failed to load datasets for Beast Mode filter names:', error);
+          return [];
+        }
+      );
       const widerIds = (objectDatasets || [])
         .map((ds) => ds.id || ds.dataSourceId || ds.datasetId)
         .filter((id) => id && !searched.has(String(id)));

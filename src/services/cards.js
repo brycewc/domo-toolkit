@@ -144,7 +144,9 @@ export async function exportCard({ cardId, cardTitle, format = 'excel', tabId = 
       });
 
       if (!response.ok) {
-        throw new Error(`Export failed – HTTP ${response.status}`);
+        const error = new Error(`Export failed - HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
 
       // ── 4. Trigger browser download ──
@@ -170,7 +172,9 @@ export async function getCardDatasets({ cardId, tabId = null }) {
     async (cardId) => {
       const response = await fetch(`/api/content/v1/cards?urns=${cardId}&includeFiltered=true&parts=datasources`);
       if (!response.ok) {
-        throw new Error(`Failed to fetch card datasets for ${cardId}. HTTP status: ${response.status}`);
+        const error = new Error(`Failed to fetch card datasets for ${cardId}. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const cards = await response.json();
       return [].concat(cards).flatMap((c) => c.datasources || []);
@@ -181,9 +185,6 @@ export async function getCardDatasets({ cardId, tabId = null }) {
 }
 
 export async function getCardDefinition({ cardId, tabId = null }) {
-  // Domo's own reason rides back in the result rather than a throw: a throw
-  // inside the injected function reaches the caller as a null definition,
-  // which then surfaced as a "reading 'columns' of null" further down.
   const result = await executeInPage(
     async (cardId) => {
       const response = await fetch('/api/content/v3/cards/kpi/definition', {
@@ -245,9 +246,6 @@ export async function getCardOwners({ cardIds, tabId = null }) {
 
   const ownersByCardId = {};
   for (const batch of batches) {
-    // Return a structured result rather than throwing inside the page: Chrome
-    // swallows a rejected promise from an async injected function (null result,
-    // no error), which would make every card look ownerless and block the save.
     const result = await executeInPage(
       async (batch) => {
         const params = new URLSearchParams();
@@ -298,9 +296,6 @@ export async function getCardsByIds({ cardIds, parts = 'metadata', tabId = null 
 
   const cards = [];
   for (const batch of batches) {
-    // Return a structured result rather than throwing inside the page: Chrome
-    // swallows a rejected promise from an async injected function (null result,
-    // no error), which would silently read as "this Beast Mode is used nowhere".
     const result = await executeInPage(
       async (batch, parts) => {
         const params = new URLSearchParams();
@@ -396,7 +391,9 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
             : `/api/content/v3/stacks/${objectId}/cards`;
           const response = await fetch(url);
           if (!response.ok) {
-            throw new Error(`Failed to fetch cards for ${objectType} ${objectId}. HTTP status: ${response.status}`);
+            const error = new Error(`Failed to fetch cards for ${objectType} ${objectId}. HTTP status: ${response.status}`);
+            error.status = response.status;
+            throw error;
           }
           const page = await response.json();
           const cards = page.cards || [];
@@ -406,7 +403,9 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
         case 'DATA_SOURCE': {
           const response = await fetch(`/api/content/v1/datasources/${objectId}/cards`);
           if (!response.ok) {
-            throw new Error(`Failed to fetch cards for DataSet ${objectId}. HTTP status: ${response.status}`);
+            const error = new Error(`Failed to fetch cards for DataSet ${objectId}. HTTP status: ${response.status}`);
+            error.status = response.status;
+            throw error;
           }
           const cards = await response.json();
           if (!cards.length) return [];
@@ -454,7 +453,9 @@ export async function getCardsForParent({ parentId, tabId = null }) {
     async (parentId) => {
       const response = await fetch(`/api/content/v1/dataapps/${parentId}`);
       if (!response.ok) {
-        throw new Error(`Failed to fetch parent ${parentId}. HTTP status: ${response.status}`);
+        const error = new Error(`Failed to fetch parent ${parentId}. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const data = await response.json();
       return {
@@ -514,7 +515,9 @@ export async function getDrillParentCardId(drillViewId, inPageContext = false, t
   const fetchLogic = async (drillViewId) => {
     const response = await fetch(`/api/content/v1/cards/${drillViewId}/urn`);
     if (!response.ok) {
-      throw new Error(`Failed to fetch Drill Path ${drillViewId}. HTTP status: ${response.status}`);
+      const error = new Error(`Failed to fetch Drill Path ${drillViewId}. HTTP status: ${response.status}`);
+      error.status = response.status;
+      throw error;
     }
     const card = await response.json();
     return card.rootId;
@@ -540,7 +543,9 @@ export async function getNotebookCardText({ cardId, tabId = null }) {
     async (cardId) => {
       const response = await fetch(`/api/content/v1/cards/notebook/${cardId}`);
       if (!response.ok) {
-        throw new Error(`Failed to fetch notebook card ${cardId}. HTTP status: ${response.status}`);
+        const error = new Error(`Failed to fetch notebook card ${cardId}. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       return response.json();
     },
@@ -585,7 +590,11 @@ export async function getOwnedCards(ownerId, tabId = null, ownerType = 'USER') {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         if (data.searchObjects && data.searchObjects.length > 0) {
@@ -668,10 +677,6 @@ export async function setCardsLocked({ cardIds, locked, tabId = null }) {
 
   for (const batch of batches) {
     try {
-      // Return a structured result rather than throwing: Chrome swallows a
-      // rejected promise from an async injected function (null result, no
-      // error), which would bypass the failed-batch accounting below and make a
-      // failed lock/unlock report success. See executeInPage.
       const result = await executeInPage(
         async (batch, locked) => {
           let response;
@@ -735,7 +740,11 @@ export async function transferCards(cardIds, fromOwnerId, toOwnerId, tabId = nul
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!addResponse.ok) throw new Error(`HTTP ${addResponse.status}`);
+        if (!addResponse.ok) {
+          const error = new Error(`HTTP ${addResponse.status}`);
+          error.status = addResponse.status;
+          throw error;
+        }
 
         // Remove old owner
         const removeResponse = await fetch('/api/content/v1/cards/owners/remove', {
@@ -746,7 +755,11 @@ export async function transferCards(cardIds, fromOwnerId, toOwnerId, tabId = nul
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!removeResponse.ok) throw new Error(`HTTP ${removeResponse.status}`);
+        if (!removeResponse.ok) {
+          const error = new Error(`HTTP ${removeResponse.status}`);
+          error.status = removeResponse.status;
+          throw error;
+        }
 
         return { errors: [], failed: 0, succeeded: cardIds.length };
       } catch (error) {
@@ -807,10 +820,6 @@ export async function updateCardDefinition({ cardId, definition, tabId = null })
     };
   }
 
-  // Update the card with the modifications.
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed card update report success. See executeInPage.
   const result = await executeInPage(
     async (cardId, definition) => {
       const response = await fetch(`/api/content/v3/cards/kpi/${cardId}`, {
@@ -872,10 +881,6 @@ export async function updateCardOwners({ addOwners = [], cardIds, removeOwners =
 
   for (const batch of batches) {
     try {
-      // Return a structured result rather than throwing: Chrome swallows a
-      // rejected promise from an async injected function (null result, no
-      // error), which would make a failed owner change report success. See
-      // executeInPage.
       const result = await executeInPage(
         async (cardIds, addOwners, removeOwners) => {
           if (addOwners.length > 0) {

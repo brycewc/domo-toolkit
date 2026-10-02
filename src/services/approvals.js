@@ -53,9 +53,6 @@ export async function createTemplateDataset({ tabId = null, templateId }) {
  *   a GraphQL response missing `success`
  */
 export async function deleteApprovalTemplate({ tabId = null, templateId }) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed archive report success. See executeInPage.
   const result = await executeInPage(
     async (templateId) => {
       const response = await fetch('/api/synapse/approval/graphql', {
@@ -111,7 +108,11 @@ export async function getOwnedApprovals(userId, tabId = null) {
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       const data = await response.json();
 
       const edges = data?.data?.workflowSearch?.edges || [];
@@ -165,7 +166,11 @@ export async function getOwnedApprovalTemplates(userId, tabId = null) {
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       const data = await response.json();
 
       const edges = data?.data?.templateConnection?.edges || [];
@@ -216,7 +221,11 @@ export async function getOwnedCertificationProcesses(userId, tabId = null) {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         const connection = data?.data?.templateConnection;
@@ -279,7 +288,11 @@ export async function getTemplateApprovalCount(templateId, tabId = null) {
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       const data = await response.json();
       return data?.data?.workflowSearch?.totalCount ?? null;
     },
@@ -289,8 +302,8 @@ export async function getTemplateApprovalCount(templateId, tabId = null) {
 
   if (typeof total === 'number') return total;
 
-  const approvals = await getTemplateApprovals(templateId, tabId);
-  return approvals.length;
+  const approvals = await getTemplateApprovals(templateId, tabId).catch(() => null);
+  return Array.isArray(approvals) ? approvals.length : null;
 }
 
 /**
@@ -346,7 +359,11 @@ export async function getTemplateApprovals(templateId, tabId = null) {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         const search = data?.data?.workflowSearch;

@@ -95,7 +95,7 @@ export async function remapDatasetColumns({
           droppedColumns,
           tabId,
           targetColumnTypes
-        });
+        }).catch((err) => ({ error: err?.message || String(err), success: false }));
         if (resp?.success) {
           succeeded++;
           // SQL dataflow statements we couldn't safely rewrite (origin SELECT *,

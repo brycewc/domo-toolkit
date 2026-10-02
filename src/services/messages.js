@@ -38,9 +38,6 @@ export async function sendEmail(
 
   const emailsParam = Array.isArray(recipientEmails) ? recipientEmails.join(',') : recipientEmails || '';
 
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed send report success. See executeInPage.
   const result = await executeInPage(
     async (payload, emailsParam) => {
       const url = `/api/social/v3/messages/domoWrapperNew:plainText/send?route=recipients&method=EMAIL&recipients=${encodeURIComponent(emailsParam)}`;

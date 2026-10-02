@@ -18,7 +18,11 @@ export async function getOwnedProjectsAndTasks(userId, tabId = null) {
       // Get projects owned by user
       while (moreData) {
         const response = await fetch(`/api/content/v2/users/${userId}/projects?limit=${limit}&offset=${offset}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
         const projects = Array.isArray(data) ? data : data?.projects || [];
 

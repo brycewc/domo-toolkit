@@ -1239,7 +1239,7 @@ const FETCHERS = {
     const datasetId = metadata?.details?.datasetId || null;
 
     const [datasetInfo, dependentCount, approvalCount] = await Promise.all([
-      datasetId ? searchDatasets(datasetId, tabId) : Promise.resolve(null),
+      datasetId ? searchDatasets(datasetId, tabId).catch(() => null) : Promise.resolve(null),
       datasetId ? getDatasetDependentCount({ datasetId, tabId }).catch(() => 0) : Promise.resolve(0),
       getTemplateApprovalCount(id, tabId).catch(() => null)
     ]);

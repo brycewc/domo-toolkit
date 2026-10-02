@@ -477,7 +477,7 @@ function UserForm({ context, isSubmitting, options, resetProgress, setOption, se
       return;
     }
     setTarget({ active: true, displayName: '', id: key });
-    const details = await getUserDetails(key, context?.tabId);
+    const details = await getUserDetails(key, context?.tabId).catch(() => null);
     if (!mountedRef.current) return;
     setTarget({
       active: details?.active !== false,

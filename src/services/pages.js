@@ -130,7 +130,9 @@ export async function deletePageAndAllCards({
             });
 
             if (!deleteCardsResponse.ok) {
-              throw new Error(`Failed to delete cards for page ${pageId}. HTTP status: ${deleteCardsResponse.status}`);
+              const error = new Error(`Failed to delete cards for page ${pageId}. HTTP status: ${deleteCardsResponse.status}`);
+              error.status = deleteCardsResponse.status;
+              throw error;
             }
           }
 
@@ -264,7 +266,9 @@ export async function getAppStudioPageParent(appPageId, inPageContext = false, t
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch App Studio Page ${appPageId}. HTTP status: ${response.status}`);
+      const error = new Error(`Failed to fetch App Studio Page ${appPageId}. HTTP status: ${response.status}`);
+      error.status = response.status;
+      throw error;
     }
 
     const data = await response.json();
@@ -321,7 +325,9 @@ export async function getChildPages({ appId = null, includeGrandchildren = false
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch pages (HTTP ${response.status})`);
+          const error = new Error(`Failed to fetch pages (HTTP ${response.status})`);
+          error.status = response.status;
+          throw error;
         }
 
         const adminSummaryResponse = await response.json();
@@ -373,7 +379,9 @@ export async function getChildPages({ appId = null, includeGrandchildren = false
         const appResponse = await fetch(`/api/content/v1/dataapps/${appId}`);
 
         if (!appResponse.ok) {
-          throw new Error(`Failed to fetch app studio app ${appId} (HTTP ${appResponse.status})`);
+          const error = new Error(`Failed to fetch app studio app ${appId} (HTTP ${appResponse.status})`);
+          error.status = appResponse.status;
+          throw error;
         }
 
         const appData = await appResponse.json();
@@ -450,7 +458,11 @@ export async function getOwnedPages(ownerId, tabId = null, ownerType = 'USER') {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         const summaries = data.pageAdminSummaries;
@@ -676,7 +688,9 @@ export async function getSubpageIds({ pageId, tabId = null }) {
     async (pageId) => {
       const response = await fetch(`/api/content/v1/pages/${pageId}/subpages`);
       if (!response.ok) {
-        throw new Error(`Failed to fetch subpages (HTTP ${response.status})`);
+        const error = new Error(`Failed to fetch subpages (HTTP ${response.status})`);
+        error.status = response.status;
+        throw error;
       }
       return response.json();
     },
@@ -693,10 +707,6 @@ export async function sharePages({ pageIds, tabId, userId }) {
     throw new Error('No valid pages to share (all page IDs are negative)');
   }
 
-  // Execute fetch in page context to use authenticated session.
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed share report success. See executeInPage.
   const result = await executeInPage(
     async (pageIds, userId, concurrency) => {
       // Build request body
@@ -781,7 +791,11 @@ export async function transferPages(pageIds, fromOwnerId, toOwnerId, tabId = nul
           headers: { 'Content-Type': 'application/json' },
           method: 'PUT'
         });
-        if (!addResponse.ok) throw new Error(`HTTP ${addResponse.status}`);
+        if (!addResponse.ok) {
+          const error = new Error(`HTTP ${addResponse.status}`);
+          error.status = addResponse.status;
+          throw error;
+        }
 
         // Remove old owner
         const removeResponse = await fetch('/api/content/v1/pages/bulk/owners/remove', {
@@ -792,7 +806,11 @@ export async function transferPages(pageIds, fromOwnerId, toOwnerId, tabId = nul
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!removeResponse.ok) throw new Error(`HTTP ${removeResponse.status}`);
+        if (!removeResponse.ok) {
+          const error = new Error(`HTTP ${removeResponse.status}`);
+          error.status = removeResponse.status;
+          throw error;
+        }
 
         return { errors: [], failed: 0, succeeded: pageIds.length };
       } catch (error) {

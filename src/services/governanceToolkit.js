@@ -118,7 +118,11 @@ export async function getOwnedGovernanceToolkitJobs(ownerId, tabId = null) {
       // access at all, should read as "owns none" rather than painting an error
       // row on every user browsed.
       if (applicationsResponse.status === 403 || applicationsResponse.status === 404) return [];
-      if (!applicationsResponse.ok) throw new Error(`HTTP ${applicationsResponse.status}`);
+      if (!applicationsResponse.ok) {
+        const error = new Error(`HTTP ${applicationsResponse.status}`);
+        error.status = applicationsResponse.status;
+        throw error;
+      }
 
       const body = await applicationsResponse.json();
       const applications = Array.isArray(body) ? body : (body?.applications ?? []);
@@ -139,7 +143,11 @@ export async function getOwnedGovernanceToolkitJobs(ownerId, tabId = null) {
           const response = await fetch(
             `/api/executor/v2/applications/${applicationId}/jobs?limit=${jobPageSize}&offset=${offset}`
           );
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          if (!response.ok) {
+            const error = new Error(`HTTP ${response.status}`);
+            error.status = response.status;
+            throw error;
+          }
           const collection = await response.json();
           const jobs = Array.isArray(collection?.jobs) ? collection.jobs : [];
           if (jobs.length === 0) return;

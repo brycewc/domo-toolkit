@@ -100,7 +100,9 @@ export async function getCodeEngineCode({ packageId, tabId, version }) {
 
       const response = await fetch(`/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`);
       if (!response.ok) {
-        throw new Error(`Failed to fetch package code. HTTP status: ${response.status}`);
+        const error = new Error(`Failed to fetch package code. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
 
       const data = await response.json();
@@ -221,7 +223,11 @@ export async function getCodeEngineEditorSource({ packageId, tabId }) {
 
       if (!version) {
         const infoResp = await fetch(`/api/codeengine/v2/packages/${packageId}?parts=versions`);
-        if (!infoResp.ok) throw new Error(`HTTP ${infoResp.status} fetching package info`);
+        if (!infoResp.ok) {
+          const error = new Error(`HTTP ${infoResp.status} fetching package info`);
+          error.status = infoResp.status;
+          throw error;
+        }
         const info = await infoResp.json();
         const versions = (info.versions || [])
           .map((v) => v.version)
@@ -239,7 +245,11 @@ export async function getCodeEngineEditorSource({ packageId, tabId }) {
       if (!version) throw new Error('Could not determine package version for fallback');
 
       const codeResp = await fetch(`/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=code`);
-      if (!codeResp.ok) throw new Error(`HTTP ${codeResp.status} fetching saved code`);
+      if (!codeResp.ok) {
+        const error = new Error(`HTTP ${codeResp.status} fetching saved code`);
+        error.status = codeResp.status;
+        throw error;
+      }
       const data = await codeResp.json();
       return { code: data.code || '', source: 'api', version };
     },
@@ -265,7 +275,9 @@ export async function getCodeEnginePackageInfo(packageId, tabId = null) {
         `/api/codeengine/v2/packages/${packageId}?parts=versions,functions,configuration,privateFunctions`
       );
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       return response.json();
     },
@@ -291,7 +303,11 @@ export async function getCodeEnginePackageVersion(packageId, version, tabId = nu
       const response = await fetch(
         `/api/codeengine/v2/packages/${packageId}/versions/${version}?parts=functions,code,privateFunctions`
       );
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       return response.json();
     },
     [packageId, version],
@@ -316,7 +332,11 @@ export async function getCodeEnginePackageVersions(packageId, tabId = null) {
   return executeInPage(
     async (packageId) => {
       const response = await fetch(`/api/codeengine/v2/packages/${packageId}?parts=versions,configuration`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       return response.json();
     },
     [packageId],
@@ -386,11 +406,16 @@ export async function getCodeEngineUsage({ kind, packageId, tabId = null, versio
  * @returns {Promise<{activeByModel: Map<string, Set<string>>, designs: Object, instances: Object, workflows: Object}>}
  */
 export async function getCodeEngineUsageSummary({ packageId, tabId = null }) {
-  const [designs, instances, workflows] = await Promise.all([
+  const settled = await Promise.allSettled([
     getCodeEngineUsage({ kind: 'designs', packageId, tabId }),
     getCodeEngineUsage({ kind: 'instances', packageId, tabId }),
     getCodeEngineUsage({ kind: 'workflows', packageId, tabId })
   ]);
+  const [designs, instances, workflows] = settled.map((result) =>
+    result.status === 'fulfilled'
+      ? result.value
+      : { error: result.reason?.message || 'Failed to load usage', items: [], privateCount: 0, totalCount: 0 }
+  );
   const activeByModel = await getActiveWorkflowVersionsByModel(workflows.items, tabId);
   return { activeByModel, designs, instances, workflows };
 }
@@ -429,7 +454,11 @@ export async function getOwnedCodeEnginePackages(userId, tabId = null) {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         const packages = data.searchResultsMap?.package || [];
@@ -456,9 +485,6 @@ export async function getOwnedCodeEnginePackages(userId, tabId = null) {
  * @returns {Promise<Object>} Server response with new version info
  */
 export async function postCodeEnginePackageVersion(definition, tabId = null) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed create report success. See executeInPage.
   const result = await executeInPage(
     async (definition) => {
       const response = await fetch('/api/codeengine/v2/packages', {
@@ -489,9 +515,6 @@ export async function postCodeEnginePackageVersion(definition, tabId = null) {
  * @returns {Promise<void>}
  */
 export async function releaseCodeEnginePackageVersion(packageId, version, tabId = null) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed release report success. See executeInPage.
   const result = await executeInPage(
     async (packageId, version) => {
       const response = await fetch(`/api/codeengine/v2/packages/${packageId}/versions/${version}/release`, {

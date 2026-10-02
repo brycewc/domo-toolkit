@@ -13,7 +13,11 @@ export async function getOwnedSubscriptions(userId, tabId = null) {
 
       // Get all subscription summaries
       const response = await fetch('/api/publish/v2/subscriptions/summaries');
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       const summaries = await response.json();
 
       if (!summaries || summaries.length === 0) return [];

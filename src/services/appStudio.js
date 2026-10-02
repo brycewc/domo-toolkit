@@ -263,9 +263,6 @@ export async function getWorkflowsForPage({ tabId = null, workflowModelRefs, wor
  */
 export async function shareStudioApps({ appIds, tabId = null, userId }) {
   if (!appIds.length) return { failures: [] };
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed share report success. See executeInPage.
   const result = await executeInPage(
     async (appIds, userId) => {
       const response = await fetch('/api/content/v1/dataapps/share?sendEmail=false', {
@@ -361,7 +358,11 @@ function searchOwnedDataApps(ownerId, entity, tabId, ownerType = 'USER') {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         const apps = data.searchResultsMap?.[entity] || [];
@@ -412,7 +413,11 @@ function transferDataApps(ids, fromOwnerId, toOwnerId, tabId, ownerType = 'USER'
           headers: { 'Content-Type': 'application/json' },
           method: 'PUT'
         });
-        if (!addResponse.ok) throw new Error(`HTTP ${addResponse.status}`);
+        if (!addResponse.ok) {
+          const error = new Error(`HTTP ${addResponse.status}`);
+          error.status = addResponse.status;
+          throw error;
+        }
 
         // Remove old owner
         const removeResponse = await fetch('/api/content/v1/dataapps/bulk/owners/remove', {
@@ -423,7 +428,11 @@ function transferDataApps(ids, fromOwnerId, toOwnerId, tabId, ownerType = 'USER'
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!removeResponse.ok) throw new Error(`HTTP ${removeResponse.status}`);
+        if (!removeResponse.ok) {
+          const error = new Error(`HTTP ${removeResponse.status}`);
+          error.status = removeResponse.status;
+          throw error;
+        }
 
         return { errors: [], failed: 0, succeeded: ids.length };
       } catch (error) {

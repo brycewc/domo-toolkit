@@ -101,39 +101,38 @@ does the registration and re-detects local tabs either way.
 **Critical pattern:** Background, popup, and sidepanel run in isolated contexts (no page access). Services must use `executeInPage()` to run in the MAIN world with Domo's auth:
 
 ```javascript
-import { executeInPage } from '@/utils';
+import { executeInPage } from '@/utils/executeInPage';
 
 const result = await executeInPage(
-  (arg1, arg2) => {
-    // Runs in MAIN world — has page's auth cookies
-    return fetch('/api/endpoint').then((r) => r.json());
+  async (id) => {
+    // Runs in the MAIN world, with the page's auth cookies
+    const response = await fetch(`/api/endpoint/${id}`);
+    if (!response.ok) {
+      const error = new Error(`Failed to fetch ${id}: HTTP ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+    return response.json();
   },
-  [arg1, arg2],
+  [id],
   tabId // Optional, defaults to active tab
 );
 ```
 
 **Rules:**
 
-- Functions are serialized — no closure variables allowed
+- Functions are serialized by source, so no closure variables and no imports
 - Pass all needed data as arguments
-- Import from `@/utils`, not `@/utils/executeInPage`
-- **Never `throw` inside the injected function to signal a failure the caller acts on.** Chrome does not propagate a rejected promise from an async injected function: it returns `{ result: null }` with no `error`, so `executeInPage` returns `null` instead of throwing and the rejection is silently swallowed. For a void mutation that means a failed operation looks exactly like success. Instead, **return a structured result** and throw in the outer service function:
+- **Throwing inside the injected function works.** The thrown error reaches the caller as an `Error` with the same `message`, `name`, and `status`. Set `error.status = response.status` when throwing on a failed fetch, so callers (and retries) can branch on it.
+- Returning a structured `{ ok, error }` result and throwing in the outer function also works. Existing services that do this can stay as they are.
+- A function that returns nothing comes back as `undefined`; a real `null` comes back as `null`.
 
-  ```javascript
-  const result = await executeInPage(
-    async (id) => {
-      const res = await fetch(`/api/...`, { method: 'DELETE' });
-      if (!res.ok) return { error: `HTTP ${res.status}`, ok: false };
-      return { ok: true };
-    },
-    [id],
-    tabId
-  );
-  if (!result?.ok) throw new Error(result?.error || 'Failed to ...');
-  ```
+**How errors get back (the envelope).** Chrome reports any throw or rejection inside an injected function as `{ result: null }` with no `error`, so on its own a failed call is indistinguishable from `return null`. `executeInPage` therefore never injects `func` directly. It injects a fixed runner, `runInPage(source, args)`, which evals `func.toString()` in the page and returns `{ __dtk: 'ok', value }` or `{ __dtk: 'error', message, name, status }`, and unpacks that on the extension side. `executeInAllFrames` does the same per frame, logging and skipping frames that threw so one restricted iframe does not drop the rest.
 
-  This is why `deleteWorkflow`, `deleteDataset`, `sharePages`, `transferDatasets`, `deleteDataflowAndOutputs`, etc. all return an `{ ok, ... }`-style object rather than throwing inside the page. A read whose return value the caller consumes can still `throw` inside (a swallowed throw surfaces as a `null` the caller handles), but any mutation, or any failure the caller branches on, must use the return-and-throw pattern above.
+- The eval runs in the MAIN world, so the Domo page's CSP governs it, not the extension's. If an instance ever forbids eval, the runner returns `{ __dtk: 'evalBlocked' }`, the origin is remembered, and calls fall back to injecting `func` directly with a one-time console warning. In that fallback, throws are swallowed again.
+- Do not try to fix this by overriding `func.toString` or by wrapping `func` in a closure. Chrome serializes with the built-in `Function.prototype.toString`, and a closure's captured `func` is lost in serialization.
+- **A literal NUL byte anywhere in an injected function's source** makes `chrome.scripting.executeScript` fail before the function runs, so no envelope comes back and `executeInPage` throws "No result from script execution". Write NUL as the `\u0000` escape (see `migrateDownstreamContent.js`).
+- The dev-mode path (no `chrome.scripting`, on the `/dev-*` routes) calls `func` directly, so throws always propagated there. That is why this bug never showed on the dev routes.
 
 ## Services Pattern
 

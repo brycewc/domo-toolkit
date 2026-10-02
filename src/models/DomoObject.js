@@ -193,7 +193,9 @@ export class DomoObject {
             const response = await fetch(url, options);
 
             if (!response.ok) {
-              throw new Error(`HTTP ${response.status}`);
+              const error = new Error(`HTTP ${response.status}`);
+              error.status = response.status;
+              throw error;
             }
 
             const data = await response.json();

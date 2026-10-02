@@ -53,10 +53,14 @@ export async function getActivityLogForObject({
       ]);
 
       if (!countResponse.ok) {
-        throw new Error(`Failed to fetch activity log count. HTTP status: ${countResponse.status}`);
+        const error = new Error(`Failed to fetch activity log count. HTTP status: ${countResponse.status}`);
+        error.status = countResponse.status;
+        throw error;
       }
       if (!eventsResponse.ok) {
-        throw new Error(`Failed to fetch activity log events. HTTP status: ${eventsResponse.status}`);
+        const error = new Error(`Failed to fetch activity log events. HTTP status: ${eventsResponse.status}`);
+        error.status = eventsResponse.status;
+        throw error;
       }
 
       const countData = await countResponse.json();
@@ -85,7 +89,9 @@ export async function getEventTypesForObjectType(objectType, tabId) {
     async (objectType) => {
       const response = await fetch(`/api/audit/v1/user-audits/objectTypes/${encodeURIComponent(objectType)}/eventTypes`);
       if (!response.ok) {
-        throw new Error(`Failed to fetch event types. HTTP status: ${response.status}`);
+        const error = new Error(`Failed to fetch event types. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       return response.json();
     },

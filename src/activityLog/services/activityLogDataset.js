@@ -118,10 +118,6 @@ export async function getActivityLogFromDataset({
         querySource: 'judoTable-rowCount'
       };
 
-      // Errors thrown inside an injected MAIN-world function are not propagated
-      // back by chrome.scripting (the frame result is serialized as null), which
-      // would surface downstream as a cryptic destructure crash. Return failures
-      // as a structured { error } object so the real HTTP status survives.
       try {
         const [countResp, pageResp] = await Promise.all([
           fetch(url, { ...init, body: JSON.stringify(countBody) }),

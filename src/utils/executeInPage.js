@@ -1,6 +1,8 @@
 import { isDomoUrl } from './currentObject';
 import { canActOnHost } from './internalInstance';
 
+const evalBlockedOrigins = new Set();
+
 /**
  * Execute a function in ALL frames in the page context (MAIN world)
  * Used to access filter state in nested iframes (like Domo embedded apps)
@@ -10,7 +12,7 @@ import { canActOnHost } from './internalInstance';
  * @returns {Promise<Array>} - Array of results from all frames that returned valid data
  */
 export async function executeInAllFrames(func, args = [], tabId = null) {
-  // Dev mode: call function directly — Vite proxy handles API routing
+  // Dev mode: call function directly, since the Vite proxy handles API routing
   if (import.meta.env.DEV && !globalThis.chrome?.scripting) {
     const result = await func(...args);
     if (result == null) return [];
@@ -49,7 +51,7 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
     const mainFrameTarget = { tabId: targetTabId };
 
     // Mark extension-initiated requests so apiErrors.js bypasses interception.
-    // Only target the main frame — apiErrors.js only runs there, and using
+    // Only target the main frame: apiErrors.js only runs there, and using
     // allFrames can fail if an iframe is restricted, leaking the counter.
     await chrome.scripting.executeScript({
       func: () => {
@@ -60,29 +62,25 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
     });
 
     try {
-      // Execute function in ALL frames in the page context
-      const results = await chrome.scripting.executeScript({
-        args,
-        func,
-        target: allFramesTarget,
-        world: 'MAIN'
-      });
+      const { envelopes, raw } = await injectWithEnvelope(func, args, allFramesTarget, new URL(tab.url).origin);
 
-      // Collect all valid results from frames
       const validResults = [];
-      if (results && Array.isArray(results)) {
-        results.forEach((frameResult) => {
-          if (frameResult && frameResult.result !== undefined && frameResult.result !== null) {
-            // For array results, only include non-empty arrays
-            if (Array.isArray(frameResult.result)) {
-              if (frameResult.result.length > 0) {
-                validResults.push(...frameResult.result);
-              }
-            } else {
-              validResults.push(frameResult.result);
-            }
+      for (const { envelope, frameId } of envelopes) {
+        let value = envelope;
+        if (!raw) {
+          if (envelope?.__dtk === 'error') {
+            // One frame failing (often a restricted iframe) must not drop the others.
+            console.warn(`Script failed in frame ${frameId}:`, toError(envelope));
+            continue;
           }
-        });
+          value = envelope?.value;
+        }
+        if (value === undefined || value === null) continue;
+        if (Array.isArray(value)) {
+          validResults.push(...value);
+        } else {
+          validResults.push(value);
+        }
       }
 
       return validResults;
@@ -96,7 +94,7 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
           world: 'MAIN'
         });
       } catch {
-        // Decrement failed (tab closed/navigated) — not recoverable
+        // Decrement failed (tab closed/navigated), not recoverable
       }
     }
   } catch (error) {
@@ -114,7 +112,7 @@ export async function executeInAllFrames(func, args = [], tabId = null) {
  * @returns {Promise<any>} - The result from the executed function
  */
 export async function executeInPage(func, args = [], tabId = null) {
-  // Dev mode: call function directly — Vite proxy handles API routing
+  // Dev mode: call function directly, since the Vite proxy handles API routing
   if (import.meta.env.DEV && !globalThis.chrome?.scripting) {
     return func(...args);
   }
@@ -158,27 +156,17 @@ export async function executeInPage(func, args = [], tabId = null) {
   });
 
   try {
-    // Execute function in the page context
-    const result = await chrome.scripting.executeScript({
-      args,
-      func,
-      target,
-      world: 'MAIN'
-    });
+    const { envelopes, raw } = await injectWithEnvelope(func, args, target, new URL(tab.url).origin);
+    const envelope = envelopes[0]?.envelope;
 
-    // When the injected function throws, Chrome reports the thrown value in
-    // `error` and leaves `result` as null. Surface that error instead of
-    // returning the null, which would otherwise mask the real failure (e.g. a
-    // caller reading `.length` on it and crashing with a misleading message).
-    const injection = result?.[0];
-    if (injection?.error) {
-      throw new Error(injection.error.message || String(injection.error));
+    if (raw) {
+      if (envelope !== undefined) return envelope;
+      throw new Error('No result from script execution');
     }
-
-    if (injection && injection.result !== undefined) {
-      return injection.result;
-    }
-
+    if (envelope?.__dtk === 'ok') return envelope.value;
+    if (envelope?.__dtk === 'error') throw toError(envelope);
+    // No envelope at all means the injection itself failed before running, for
+    // example on a literal NUL byte in the function source.
     throw new Error('No result from script execution');
   } finally {
     try {
@@ -193,4 +181,61 @@ export async function executeInPage(func, args = [], tabId = null) {
       // Decrement failed (tab closed/navigated), not recoverable
     }
   }
+}
+
+// `raw` means the page's CSP forbids eval, so the results are bare return values.
+async function injectWithEnvelope(func, args, target, origin) {
+  if (!evalBlockedOrigins.has(origin)) {
+    const results = await chrome.scripting.executeScript({
+      args: [func.toString(), args],
+      func: runInPage,
+      target,
+      world: 'MAIN'
+    });
+    const blocked = results?.find((frame) => frame?.result?.__dtk === 'evalBlocked');
+    if (!blocked) {
+      return {
+        envelopes: (results || []).map((frame) => ({ envelope: frame?.result ?? null, frameId: frame?.frameId })),
+        raw: false
+      };
+    }
+    evalBlockedOrigins.add(origin);
+    console.warn(
+      `[Domo Toolkit] ${origin} blocks eval (${blocked.result.message}), so errors thrown inside page scripts will read as null results.`
+    );
+  }
+
+  const results = await chrome.scripting.executeScript({ args, func, target, world: 'MAIN' });
+  return {
+    envelopes: (results || []).map((frame) => ({ envelope: frame?.result, frameId: frame?.frameId })),
+    raw: true
+  };
+}
+
+// Chrome reports a throw or rejection from an injected function as `{ result: null }`
+// with no `error`, so the function runs inside this envelope to carry the outcome back.
+async function runInPage(source, args) {
+  let fn;
+  try {
+    fn = (0, eval)(`(${source})`);
+  } catch (error) {
+    return { __dtk: 'evalBlocked', message: String(error?.message ?? error) };
+  }
+  try {
+    return { __dtk: 'ok', value: await fn(...args) };
+  } catch (error) {
+    return {
+      __dtk: 'error',
+      message: String(error?.message ?? error),
+      name: error?.name,
+      status: error?.status
+    };
+  }
+}
+
+function toError(envelope) {
+  const error = new Error(envelope.message || 'Script execution failed');
+  if (envelope.name) error.name = envelope.name;
+  if (envelope.status != null) error.status = envelope.status;
+  return error;
 }

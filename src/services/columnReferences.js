@@ -459,7 +459,11 @@ export async function fetchDatasetSchemaColumns(datasetId, tabId) {
       const res = await fetch(`/api/data/v2/datasources/${datasetId}/schemas/latest`, {
         credentials: 'include'
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const error = new Error(`HTTP ${res.status}`);
+        error.status = res.status;
+        throw error;
+      }
       const data = await res.json();
       return (data?.schema?.columns || []).map((c) => ({ name: c.name, type: c.type }));
     },
@@ -482,7 +486,11 @@ export async function fetchDatasetViewDefinition(viewId, tabId) {
       const response = await fetch(`/api/query/v1/datasources/${viewId}/schema/indexed`, {
         credentials: 'include'
       });
-      if (!response.ok) throw new Error(`GET view schema HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`GET view schema HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       return response.json();
     },
     [viewId],
@@ -862,7 +870,11 @@ async function fetchAlertDefinition(alertId, tabId) {
   return executeInPage(
     async (alertId) => {
       const response = await fetch(`/api/social/v4/alerts/${alertId}?fields=all`, { credentials: 'include' });
-      if (!response.ok) throw new Error(`GET alert HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`GET alert HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       return response.json();
     },
     [alertId],
@@ -877,7 +889,11 @@ async function fetchDataflowDefinition(dataflowId, tabId) {
         `/api/dataprocessing/v2/dataflows/${dataflowId}?hydrationState=VISUALIZATION&validationType=SAVE`,
         { credentials: 'include' }
       );
-      if (!response.ok) throw new Error(`GET dataflow HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`GET dataflow HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       return response.json();
     },
     [dataflowId],

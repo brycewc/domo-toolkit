@@ -42,11 +42,6 @@ export async function cancelWorkflowExecution({ executionId, tabId = null }) {
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
 export async function deleteWorkflow({ modelId, tabId = null }) {
-  // The injected function reports failure by returning a structured result
-  // rather than throwing: Chrome does not propagate a rejected promise from an
-  // async injected function to the InjectionResult (it returns a null result
-  // with no error), so a thrown failure here would be silently swallowed and
-  // the delete would report success. See executeInPage for the same reason.
   const result = await executeInPage(
     async (modelId) => {
       const versionsRes = await fetch(`/api/workflow/v2/models/${modelId}/versions`);
@@ -97,9 +92,9 @@ export async function deleteWorkflow({ modelId, tabId = null }) {
 export async function ensureWorkflowVersionEditable({ modelId, tabId = null, versionNumber }) {
   return executeInPage(
     async (modelId, versionNumber) => {
-      const lockRes = await fetch(`/api/workflow/v1/models/${modelId}/versions/${versionNumber}/lock`);
+      const lockRes = await fetch(`/api/workflow/v1/models/${modelId}/versions/${versionNumber}/lock`).catch(() => null);
       // If we can't read the lock, don't block editing.
-      if (!lockRes.ok) return true;
+      if (!lockRes?.ok) return true;
       const lock = await lockRes.json().catch(() => null);
       const lockedBy = lock?.lockedBy != null ? String(lock.lockedBy) : null;
       // Not locked: editable as-is.
@@ -160,7 +155,11 @@ export async function getOwnedWorkflows(userId, tabId = null) {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         if (data.searchObjects && data.searchObjects.length > 0) {
@@ -191,7 +190,9 @@ export async function getVersionDefinition(modelId, versionNumber, tabId = null)
         headers: { 'Content-Type': 'application/json;charset=utf-8' }
       });
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       return response.json();
     },
@@ -238,7 +239,11 @@ export async function getWorkflowModelInfo(modelId, tabId = null) {
   return executeInPage(
     async (modelId) => {
       const response = await fetch(`/api/workflow/v1/models/${modelId}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       const model = await response.json();
       return {
         name: model?.name ?? null,
@@ -266,7 +271,7 @@ export async function getWorkflowModelName(modelId, tabId = null) {
     },
     [modelId],
     tabId
-  );
+  ).catch(() => null);
 }
 
 export async function getWorkflowPermission(modelId, userId, tabId = null) {
@@ -311,7 +316,11 @@ export async function getWorkflowTriggers(modelId, { tabId = null, types = null 
   return executeInPage(
     async (modelId, types) => {
       const response = await fetch(`/api/workflow/v2/triggers/model/${modelId}?types=${types.join(',')}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       const triggers = await response.json();
       return Array.isArray(triggers) ? triggers : [];
     },
@@ -330,7 +339,11 @@ export async function getWorkflowVersions(modelId, tabId = null) {
   return executeInPage(
     async (modelId) => {
       const response = await fetch(`/api/workflow/v1/models/${modelId}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       const model = await response.json();
       return Array.isArray(model?.versions) ? model.versions : [];
     },
@@ -389,7 +402,9 @@ export async function updateVersionDefinition(modelId, versionNumber, definition
         method: 'PUT'
       });
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       return response.json();
     },
@@ -414,7 +429,11 @@ export async function updateWorkflowOwner({ modelId, newOwnerId, tabId = null })
         headers: { 'Content-Type': 'application/json' },
         method: 'PUT'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
     },
     [modelId, newOwnerId],
     tabId

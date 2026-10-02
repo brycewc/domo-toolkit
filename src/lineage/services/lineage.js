@@ -369,7 +369,9 @@ export async function getLineage(entityType, entityId, maxDepth = 4, tabId = nul
           method: 'GET'
         });
         if (!response.ok) {
-          throw new Error(`Failed to fetch lineage: HTTP ${response.status}`);
+          const error = new Error(`Failed to fetch lineage: HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
         }
         return response.json();
       },

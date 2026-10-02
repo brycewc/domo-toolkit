@@ -28,3 +28,4 @@
 - Deleting a view, data fusion, or data model now lists its downstream dependencies instead of reporting that they aren't supported.
 - API Errors now captures failed requests on tabs that were already open when the extension updated.
 - API Errors no longer loses its captured errors after the browser sits idle for a short while.
+- Errors returned by Domo now show up as errors instead of being reported as success or as finding nothing.

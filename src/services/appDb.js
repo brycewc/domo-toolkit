@@ -8,9 +8,6 @@ import { executeInPage } from '@/utils/executeInPage';
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
 export async function deleteAppDbCollection({ collectionId, tabId = null }) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed delete report success. See executeInPage.
   const result = await executeInPage(
     async (collectionId) => {
       const response = await fetch(`/api/datastores/v1/collections/${collectionId}`, { method: 'DELETE' });
@@ -151,7 +148,7 @@ export async function getCollectionConnectedApps({ collectionId, tabId = null })
     },
     [collectionId],
     tabId
-  );
+  ).catch(() => []);
 }
 
 /**
@@ -263,7 +260,11 @@ export async function getOwnedAppDbCollections(userId, tabId = null) {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         if (data.collections && data.collections.length > 0) {
@@ -308,7 +309,11 @@ export async function queryAppDbCollectionDocuments({ collectionId, tabId = null
           method: 'POST'
         }
       );
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       const data = await response.json();
       return Array.isArray(data) ? data : [];
     },
@@ -336,7 +341,11 @@ export async function renameAppDbCollection({ collectionId, name, tabId = null }
         headers: { 'Content-Type': 'application/json' },
         method: 'PUT'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
     },
     [collectionId, name],
     tabId
@@ -381,7 +390,11 @@ export async function setAppDbCollectionSyncEnabled({ collectionId, syncEnabled,
         headers: { 'Content-Type': 'application/json' },
         method: 'PUT'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
     },
     [collectionId, syncEnabled],
     tabId
@@ -407,7 +420,11 @@ export async function shareAppDbCollection({ collectionId, permissions, tabId = 
         `/api/datastores/v1/collections/${collectionId}/permission/USER/${userId}?overwrite=true&permissions=${permissions}`,
         { method: 'PUT' }
       );
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
     },
     [collectionId, userId, permissions],
     tabId
@@ -428,7 +445,11 @@ export async function syncAppDbDatastore({ datastoreId, tabId = null }) {
       const response = await fetch(`/api/datastores/v1/export/${datastoreId}`, {
         method: 'POST'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
     },
     [datastoreId],
     tabId
@@ -488,7 +509,11 @@ export async function updateAppDbCollectionSchema({ collectionId, columns, tabId
         headers: { 'Content-Type': 'application/json' },
         method: 'PUT'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
     },
     [collectionId, columns],
     tabId

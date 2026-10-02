@@ -80,9 +80,13 @@ export async function getReportAppContext({ details, objectId, parentId = null, 
 export async function getReportBuilderReport({ reportId, tabId = null }) {
   return executeInPage(
     async (reportId) => {
-      const response = await fetch(`/api/content/v1/reportbuilder/${reportId}?includeViewIds=true`);
-      if (!response.ok) return null;
-      return response.json();
+      try {
+        const response = await fetch(`/api/content/v1/reportbuilder/${reportId}?includeViewIds=true`);
+        if (!response.ok) return null;
+        return await response.json();
+      } catch {
+        return null;
+      }
     },
     [reportId],
     tabId
@@ -201,9 +205,13 @@ export async function getReportsForApp({ dataAppId, tabId = null }) {
 export async function getReportView({ reportViewId, tabId = null }) {
   return executeInPage(
     async (reportViewId) => {
-      const response = await fetch(`/api/content/v1/reportbuilder/views/${reportViewId}`);
-      if (!response.ok) return null;
-      return response.json();
+      try {
+        const response = await fetch(`/api/content/v1/reportbuilder/views/${reportViewId}`);
+        if (!response.ok) return null;
+        return await response.json();
+      } catch {
+        return null;
+      }
     },
     [reportViewId],
     tabId

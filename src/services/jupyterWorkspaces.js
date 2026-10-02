@@ -65,14 +65,19 @@ export async function getJupyterWorkspaceDatasets({ entries, tabId = null }) {
       const ids = entries.map((entry) => entry.dataSourceId).filter(Boolean);
       if (ids.length === 0) return entries;
 
-      const response = await fetch('/api/data/v3/datasources/bulk?includePrivate=true&part=core', {
-        body: JSON.stringify(ids),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST'
-      });
       // Fall back to the raw configuration entries when enrichment fails
-      if (!response.ok) return entries;
-      const data = await response.json();
+      let data;
+      try {
+        const response = await fetch('/api/data/v3/datasources/bulk?includePrivate=true&part=core', {
+          body: JSON.stringify(ids),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) return entries;
+        data = await response.json();
+      } catch {
+        return entries;
+      }
 
       const byId = {};
       for (const dataset of data.dataSources || []) {
@@ -218,7 +223,11 @@ export async function getOwnedJupyterWorkspaces(userId, tabId = null) {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         if (data.workspaces && data.workspaces.length > 0) {

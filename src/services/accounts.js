@@ -95,7 +95,11 @@ export async function getAccountsForProvider(dataProviderKey, tabId = null) {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         const results = data.searchResultsMap?.account || [];
@@ -173,7 +177,11 @@ export async function getOwnedAccounts(ownerId, tabId = null, ownerType = 'USER'
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         const accounts = data.searchResultsMap?.account || [];
@@ -228,9 +236,6 @@ export function isLegacyAccountStructure(domoObject) {
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
 export async function shareAccount({ accessLevel = 'CAN_VIEW', accountId, tabId = null, userId }) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed share report success. See executeInPage.
   const result = await executeInPage(
     async (accountId, userId, accessLevel) => {
       const response = await fetch(`/api/data/v2/accounts/share/${accountId}`, {
@@ -273,7 +278,11 @@ export async function transferAccounts(accountIds, fromOwnerId, toOwnerId, tabId
             headers: { 'Content-Type': 'application/json' },
             method: 'PUT'
           });
-          if (!grantResp.ok) throw new Error(`Grant new owner HTTP ${grantResp.status}`);
+          if (!grantResp.ok) {
+            const error = new Error(`Grant new owner HTTP ${grantResp.status}`);
+            error.status = grantResp.status;
+            throw error;
+          }
 
           const revokeResp = await fetch(`/api/data/v2/accounts/share/${id}`, {
             body: JSON.stringify({
@@ -285,9 +294,11 @@ export async function transferAccounts(accountIds, fromOwnerId, toOwnerId, tabId
             method: 'PUT'
           });
           if (!revokeResp.ok) {
-            throw new Error(
+            const error = new Error(
               `Revoke previous owner HTTP ${revokeResp.status} (new owner was added; previous owner still has access)`
             );
+            error.status = revokeResp.status;
+            throw error;
           }
 
           succeeded++;

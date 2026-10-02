@@ -268,7 +268,11 @@ async function fetchDownstreamCardsRaw(datasetId, tabId) {
       const response = await fetch(`/api/content/v1/datasources/${datasetId}/cards?drill=true`, {
         credentials: 'include'
       });
-      if (!response.ok) throw new Error(`Failed to fetch cards for dataset ${datasetId}: HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`Failed to fetch cards for dataset ${datasetId}: HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       return (await response.json()) || [];
     },
     [datasetId],
@@ -290,7 +294,11 @@ async function resolveAppInstances(appCards, datasetId, tabId) {
         `/api/content/v1/cards?urns=${ids.join(',')}&parts=metadata,domoapp&includeFiltered=true`,
         { credentials: 'include' }
       );
-      if (!metaRes.ok) throw new Error(`Failed to fetch app card metadata: HTTP ${metaRes.status}`);
+      if (!metaRes.ok) {
+        const error = new Error(`Failed to fetch app card metadata: HTTP ${metaRes.status}`);
+        error.status = metaRes.status;
+        throw error;
+      }
       const metaCards = (await metaRes.json()) || [];
       const metaById = new Map();
       for (const m of metaCards) {

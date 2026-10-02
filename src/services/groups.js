@@ -63,7 +63,11 @@ export async function getOwnedGroups(ownerId, tabId = null, ownerType = 'USER') 
         const response = await fetch(
           `/api/content/v2/groups/grouplist?limit=${limit}&offset=${offset}&owner=${ownerId}&ownerType=${ownerType}`
         );
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         if (data && data.length > 0) {
@@ -108,7 +112,11 @@ export async function searchGroups(text, tabId = null, offset = 0) {
         sort: 'name'
       });
       const response = await fetch(`/api/content/v2/groups/grouplist?${params.toString()}`);
-      if (!response.ok) throw new Error(`Failed to search groups. Status: ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`Failed to search groups. Status: ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       const data = await response.json();
       const groups = (Array.isArray(data) ? data : []).map((g) => ({
         id: g.groupId,
@@ -146,7 +154,11 @@ export async function transferGroups(groupIds, fromOwnerId, toOwnerId, tabId = n
           headers: { 'Content-Type': 'application/json' },
           method: 'PUT'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         return { errors: [], failed: 0, succeeded: groupIds.length };
       } catch (error) {
         return {

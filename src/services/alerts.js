@@ -119,7 +119,11 @@ export async function getDownstreamAlerts(datasetId, tabId = null) {
         const response = await fetch(
           `/api/social/v4/alerts?dataSetId=${datasetId}&fields=all&limit=${limit}&offset=${offset}`
         );
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         if (Array.isArray(data) && data.length > 0) {
@@ -169,7 +173,11 @@ export async function getDownstreamAlertsForDatasets(datasetIds, tabId = null) {
           const response = await fetch(
             `/api/social/v4/alerts?dataSetId=${datasetId}&fields=all&limit=${limit}&offset=${offset}`
           );
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          if (!response.ok) {
+            const error = new Error(`HTTP ${response.status}`);
+            error.status = response.status;
+            throw error;
+          }
           const data = await response.json();
 
           if (Array.isArray(data) && data.length > 0) {
@@ -226,7 +234,11 @@ export async function getOwnedAlerts(userId, tabId = null) {
 
       while (moreData) {
         const response = await fetch(`/api/social/v4/alerts?limit=${limit}&offset=${offset}&ownerId=${userId}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         if (data && data.length > 0) {
@@ -262,7 +274,11 @@ export async function getRowPdpPolicies(datasetId, tabId = null) {
       const response = await fetch(
         `/api/query/v1/data-control/${datasetId}/filter-groups?options=load_associations,include_open_policy,load_filters,sort`
       );
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       const data = await response.json();
       // The endpoint may return a bare array or wrap the list; tolerate both.
       const groups = Array.isArray(data) ? data : data?.filterGroups || data?.groups || [];
@@ -769,9 +785,6 @@ export async function transferAlerts(alertIds, fromUserId, toUserId, tabId = nul
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
 export async function updateAlertOwner({ alertId, newOwnerId, tabId = null }) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed owner update report success. See executeInPage.
   const result = await executeInPage(
     async (alertId, newOwnerId) => {
       const response = await fetch(`/api/social/v4/alerts/${alertId}`, {

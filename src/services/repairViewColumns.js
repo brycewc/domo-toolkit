@@ -220,7 +220,11 @@ async function fetchDatasetNames(ids, tabId) {
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
       });
-      if (!response.ok) throw new Error(`bulk datasources HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`bulk datasources HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       const data = await response.json();
       return (data?.dataSources || []).map((d) => ({ id: d.id, name: d.name }));
     },

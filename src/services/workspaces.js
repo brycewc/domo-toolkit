@@ -40,7 +40,11 @@ export async function getOwnedWorkspaces(ownerId, tabId = null, ownerType = 'USE
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         const workspaces = data.searchResultsMap?.workspace || [];
@@ -89,7 +93,9 @@ export async function getWorkspacesForEntity({ entityId, entityType, limit = 100
         );
         if (response.status === 404) break;
         if (!response.ok) {
-          throw new Error(`Failed to fetch workspaces for ${entityType}/${entityId} (HTTP ${response.status})`);
+          const error = new Error(`Failed to fetch workspaces for ${entityType}/${entityId} (HTTP ${response.status})`);
+          error.status = response.status;
+          throw error;
         }
 
         const data = await response.json();

@@ -284,7 +284,11 @@ async function fetchDatasetFunctionsRaw(datasetId, tabId) {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
         const results = data?.results || [];
         for (const f of results) {

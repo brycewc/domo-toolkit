@@ -43,7 +43,10 @@ export async function getIndividualSharesForUser(userId, tabId = null) {
 
   const [accessInfo, userGroupsRich] = await Promise.all([
     fetchUserAccess(numericUserId, tabId),
-    getUserGroups(numericUserId, tabId)
+    getUserGroups(numericUserId, tabId).catch((err) => {
+      console.warn('[userIndividualShares] Group lookup failed, treating user as in no groups', err);
+      return [];
+    })
   ]);
 
   // All group types contribute to Workspace-derived access (system/dynamic
@@ -128,7 +131,9 @@ async function fetchUserAccess(userId, tabId) {
     async (userId) => {
       const response = await fetch(`/api/content/v1/access/users/${userId}`);
       if (!response.ok) {
-        throw new Error(`Failed to fetch access info for user ${userId} (HTTP ${response.status})`);
+        const error = new Error(`Failed to fetch access info for user ${userId} (HTTP ${response.status})`);
+        error.status = response.status;
+        throw error;
       }
       return response.json();
     },
@@ -142,7 +147,9 @@ async function fetchWorkspaceMembers(guid, tabId) {
     async (guid) => {
       const response = await fetch(`/api/nav/v1/workspaces/${guid}/members`);
       if (!response.ok) {
-        throw new Error(`getWorkspaceMembers ${guid} returned HTTP ${response.status}`);
+        const error = new Error(`getWorkspaceMembers ${guid} returned HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const data = await response.json();
       return Array.isArray(data) ? data : [];
@@ -160,7 +167,9 @@ async function fetchWorkspacesByEntity(entityType, entityId, tabId) {
       );
       if (response.status === 404) return [];
       if (!response.ok) {
-        throw new Error(`workspacesByEntity ${entityType}/${entityId} returned HTTP ${response.status}`);
+        const error = new Error(`workspacesByEntity ${entityType}/${entityId} returned HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const data = await response.json();
       return Array.isArray(data?.results) ? data.results : [];

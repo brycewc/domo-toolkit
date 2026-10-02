@@ -23,7 +23,9 @@ export async function cancelStreamExecution({ streamId, tabId }) {
     async (streamId) => {
       const stateResponse = await fetch(`/api/data/v1/streams/state/${streamId}`);
       if (!stateResponse.ok) {
-        throw new Error(`Failed to fetch stream state for stream ${streamId}. HTTP status: ${stateResponse.status}`);
+        const error = new Error(`Failed to fetch stream state for stream ${streamId}. HTTP status: ${stateResponse.status}`);
+        error.status = stateResponse.status;
+        throw error;
       }
       const stateData = await stateResponse.json();
       const limit = 100;
@@ -32,7 +34,9 @@ export async function cancelStreamExecution({ streamId, tabId }) {
 
       const listResponse = await fetch(`/api/data/v1/streams/${streamId}/executions?limit=${limit}&offset=${offset}`);
       if (!listResponse.ok) {
-        throw new Error(`Failed to fetch executions for stream ${streamId}. HTTP status: ${listResponse.status}`);
+        const error = new Error(`Failed to fetch executions for stream ${streamId}. HTTP status: ${listResponse.status}`);
+        error.status = listResponse.status;
+        throw error;
       }
       const executions = await listResponse.json();
       const running = executions.filter((execution) => execution.currentState === 'ACTIVE');
@@ -75,9 +79,6 @@ export async function cancelStreamExecution({ streamId, tabId }) {
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
 export async function deleteDataset({ datasetId, tabId = null }) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed delete report success. See executeInPage.
   const result = await executeInPage(
     async (datasetId) => {
       const response = await fetch(`/api/data/v3/datasources/${datasetId}`, {
@@ -107,7 +108,9 @@ export async function getColorRules(datasetId, tabId = null) {
         method: 'POST'
       });
       if (!response.ok) {
-        throw new Error(`Failed to fetch color rules. HTTP status: ${response.status}`);
+        const error = new Error(`Failed to fetch color rules. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const data = await response.json();
       return data?.[id] || [];
@@ -133,7 +136,9 @@ export async function getDatasetBeastModes(datasetId, tabId = null) {
         credentials: 'include'
       });
       if (!response.ok) {
-        throw new Error(`Failed to fetch dataset definition. HTTP status: ${response.status}`);
+        const error = new Error(`Failed to fetch dataset definition. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const data = await response.json();
       return data?.properties?.formulas?.formulas || {};
@@ -157,7 +162,9 @@ export async function getDatasetColumns({ datasetId, tabId }) {
         credentials: 'include'
       });
       if (!response.ok) {
-        throw new Error(`Failed to fetch schema: HTTP ${response.status}`);
+        const error = new Error(`Failed to fetch schema: HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const schema = await response.json();
       return schema.tables?.[0]?.columns || [];
@@ -184,7 +191,9 @@ export async function getDatasetDefinition({ datasetId, tabId }) {
         credentials: 'include'
       });
       if (!response.ok) {
-        throw new Error(`Failed to fetch definition for datasource ${datasetId}. HTTP status: ${response.status}`);
+        const error = new Error(`Failed to fetch definition for datasource ${datasetId}. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const { name: _name, tables: _tables, ...definition } = await response.json();
       return definition;
@@ -241,7 +250,9 @@ export async function getDatasetDetailsForList({ datasets, tabId }) {
         method: 'POST'
       });
       if (!response.ok) {
-        throw new Error(`Failed to fetch dataset details. HTTP status: ${response.status}`);
+        const error = new Error(`Failed to fetch dataset details. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const data = await response.json();
       return data.dataSources || [];
@@ -474,7 +485,9 @@ export async function getDatasetPreview(datasetId, tabId = null, limit = 100) {
         method: 'POST'
       });
       if (!response.ok) {
-        throw new Error(`Failed to fetch preview: HTTP ${response.status}`);
+        const error = new Error(`Failed to fetch preview: HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
 
       const data = await response.json();
@@ -499,7 +512,9 @@ export async function getDatasetsForAccount({ accountId, tabId }) {
     async (accountId) => {
       const response = await fetch(`/api/data/v2/datasources/account/${accountId}`);
       if (!response.ok) {
-        throw new Error(`Failed to fetch datasets for account ${accountId}. HTTP status: ${response.status}`);
+        const error = new Error(`Failed to fetch datasets for account ${accountId}. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       return response.json();
     },
@@ -520,7 +535,9 @@ export async function getDatasetsForApp({ appId, tabId }) {
     const response = await fetch(`/api/content/v1/dataapps/${appId}/dataSources`);
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch datasets for app ${appId}. HTTP status: ${response.status}`);
+      const error = new Error(`Failed to fetch datasets for app ${appId}. HTTP status: ${response.status}`);
+      error.status = response.status;
+      throw error;
     }
 
     return response.json();
@@ -580,7 +597,9 @@ export async function getDatasetsForPage({ pageId, tabId }) {
     const response = await fetch(`/api/content/v1/datasources/pages/${pageId}`);
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch datasets for page ${pageId}. HTTP status: ${response.status}`);
+      const error = new Error(`Failed to fetch datasets for page ${pageId}. HTTP status: ${response.status}`);
+      error.status = response.status;
+      throw error;
     }
 
     const data = await response.json();
@@ -603,7 +622,9 @@ export async function getDatasetsForView({ datasetId, tabId }) {
     const schemaResponse = await fetch(`/api/query/v1/datasources/${datasetId}/schema/indexed?includeHidden=true`);
 
     if (!schemaResponse.ok) {
-      throw new Error(`Failed to fetch schema for datasource ${datasetId}. HTTP status: ${schemaResponse.status}`);
+      const error = new Error(`Failed to fetch schema for datasource ${datasetId}. HTTP status: ${schemaResponse.status}`);
+      error.status = schemaResponse.status;
+      throw error;
     }
 
     const schema = await schemaResponse.json();
@@ -677,7 +698,9 @@ export async function getDependentDatasets({ datasetId, tabId }) {
     );
 
     if (!lineageResponse.ok) {
-      throw new Error(`Failed to fetch lineage for dataset ${datasetId}. HTTP status: ${lineageResponse.status}`);
+      const error = new Error(`Failed to fetch lineage for dataset ${datasetId}. HTTP status: ${lineageResponse.status}`);
+      error.status = lineageResponse.status;
+      throw error;
     }
 
     const lineageData = await lineageResponse.json();
@@ -803,7 +826,11 @@ export async function getOwnedDatasets(ownerId, tabId = null, ownerType = 'USER'
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       const data = await response.json();
 
       const ids = data && data.length > 0 && data[0].dataSourceIds ? data[0].dataSourceIds : [];
@@ -840,7 +867,11 @@ export async function getOwnedDatasets(ownerId, tabId = null, ownerType = 'USER'
 export async function getProviders() {
   return executeInPage(async () => {
     const res = await fetch('/api/data/v1/providers');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const error = new Error(`HTTP ${res.status}`);
+      error.status = res.status;
+      throw error;
+    }
     return res.json();
   }, []);
 }
@@ -858,7 +889,9 @@ export async function getStreamDefinition({ streamId, tabId }) {
     async (streamId) => {
       const response = await fetch(`/api/data/v1/streams/${streamId}?fields=all`);
       if (!response.ok) {
-        throw new Error(`Failed to fetch stream ${streamId}. HTTP status: ${response.status}`);
+        const error = new Error(`Failed to fetch stream ${streamId}. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       return response.json();
     },
@@ -880,7 +913,11 @@ export async function getStreamExecution({ executionId, streamId, tabId }) {
     async (streamId, executionId) => {
       const response = await fetch(`/api/data/v1/streams/${streamId}/executions/${executionId}`);
       if (!response.ok) {
-        throw new Error(`Failed to fetch execution ${executionId} for stream ${streamId}. HTTP status: ${response.status}`);
+        const error = new Error(
+          `Failed to fetch execution ${executionId} for stream ${streamId}. HTTP status: ${response.status}`
+        );
+        error.status = response.status;
+        throw error;
       }
       return response.json();
     },
@@ -894,14 +931,18 @@ export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
     async (streamId, limit) => {
       const stateResponse = await fetch(`/api/data/v1/streams/state/${streamId}`);
       if (!stateResponse.ok) {
-        throw new Error(`Failed to fetch stream state for stream ${streamId}. HTTP status: ${stateResponse.status}`);
+        const error = new Error(`Failed to fetch stream state for stream ${streamId}. HTTP status: ${stateResponse.status}`);
+        error.status = stateResponse.status;
+        throw error;
       }
       const stateData = await stateResponse.json();
       const offset = stateData[0].executionId < limit ? 0 : stateData[0].executionId - limit;
 
       const response = await fetch(`/api/data/v1/streams/${streamId}/executions?limit=${limit}&offset=${offset}`);
       if (!response.ok) {
-        throw new Error(`Failed to fetch stream executions for stream ${streamId}. HTTP status: ${response.status}`);
+        const error = new Error(`Failed to fetch stream executions for stream ${streamId}. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const data = await response.json();
       return data;
@@ -923,9 +964,6 @@ export async function getStreamExecutions({ limit = 100, streamId, tabId }) {
  * @returns {Promise<Object|null>} The created execution, or null
  */
 export async function runStream({ streamId, tabId }) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed run report success. See executeInPage.
   const result = await executeInPage(
     async (streamId) => {
       const response = await fetch(`/api/data/v1/streams/${streamId}/executions`, {
@@ -995,7 +1033,9 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
         method: 'POST'
       });
       if (!response.ok) {
-        throw new Error(`Failed to search datasets. Status: ${response.status}`);
+        const error = new Error(`Failed to search datasets. Status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const data = await response.json();
       return {
@@ -1027,9 +1067,6 @@ export async function setColorRules(datasetId, rules, tabId = null) {
     condition: { ...rule.condition, dataSourceId: datasetId },
     dataSourceId: datasetId
   }));
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed save report success. See executeInPage.
   const result = await executeInPage(
     async (id, body) => {
       const response = await fetch(`/api/content/v1/datasources/conditionalFormats/${id}`, {
@@ -1063,9 +1100,6 @@ export async function setColorRules(datasetId, rules, tabId = null) {
 }
 
 export async function setStreamScheduleToManual({ streamId, tabId }) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed schedule update report success. See executeInPage.
   const result = await executeInPage(
     async (streamId) => {
       const getResponse = await fetch(`/api/data/v1/streams/${streamId}?fields=all`);
@@ -1181,9 +1215,6 @@ export async function transferDatasets(datasetIds, fromOwnerId, toOwnerId, tabId
 }
 
 export async function updateDatasetProperties(datasetId, updates) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed properties update report success. See executeInPage.
   const result = await executeInPage(
     async (id, body) => {
       const res = await fetch(`/api/data/v3/datasources/${id}/properties`, {
@@ -1221,9 +1252,6 @@ export async function updateDatasetProperties(datasetId, updates) {
  * @returns {Promise<void>} Resolves on success, throws on failure
  */
 export async function updateStreamAccounts({ accountChanges, streamId, tabId }) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed account switch report success. See executeInPage.
   const result = await executeInPage(
     async (streamId, changes) => {
       const getResponse = await fetch(`/api/data/v1/streams/${streamId}?fields=all`);

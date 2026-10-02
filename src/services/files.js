@@ -29,7 +29,9 @@ export async function uploadDataFile(blob, filename, mimeType, tabId = null) {
         method: 'POST'
       });
       if (!response.ok) {
-        throw new Error(`Upload failed: HTTP ${response.status}`);
+        const error = new Error(`Upload failed: HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const data = await response.json();
       return data.dataFileId;

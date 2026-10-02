@@ -35,7 +35,9 @@ export async function findActivityLogDataset({ tabId } = {}) {
           `/api/data/v3/datasources?limit=${datasourcesPageSize}` + `&offset=${offset}&part=core&dataProviderType=domostats`;
         const response = await fetch(url, { credentials: 'include' });
         if (!response.ok) {
-          throw new Error(`Failed to list DomoStats datasets. HTTP status: ${response.status}`);
+          const error = new Error(`Failed to list DomoStats datasets. HTTP status: ${response.status}`);
+          error.status = response.status;
+          throw error;
         }
         const data = await response.json();
         const dataSources = Array.isArray(data?.dataSources) ? data.dataSources : [];
@@ -55,7 +57,9 @@ export async function findActivityLogDataset({ tabId } = {}) {
         const url = `/api/data/v1/streams/bulk?streamId=${batch.join(',')}`;
         const response = await fetch(url, { credentials: 'include' });
         if (!response.ok) {
-          throw new Error(`Failed to fetch stream configurations. HTTP status: ${response.status}`);
+          const error = new Error(`Failed to fetch stream configurations. HTTP status: ${response.status}`);
+          error.status = response.status;
+          throw error;
         }
         const streams = await response.json();
         if (!Array.isArray(streams)) continue;

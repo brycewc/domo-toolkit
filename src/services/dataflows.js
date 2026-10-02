@@ -176,7 +176,9 @@ export async function getDataflowDetail(dataflowId, tabId = null, versionId = nu
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch dataflow: HTTP ${response.status}`);
+        const error = new Error(`Failed to fetch dataflow: HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
 
       const json = await response.json();
@@ -207,7 +209,9 @@ export async function getDataflowForOutputDataset(datasetId, tabId = null) {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch DataFlow for DataSet ${datasetId}. HTTP status: ${response.status}`);
+      const error = new Error(`Failed to fetch DataFlow for DataSet ${datasetId}. HTTP status: ${response.status}`);
+      error.status = response.status;
+      throw error;
     }
 
     const data = await response.json();
@@ -277,7 +281,11 @@ export async function getOwnedDataflows(userId, tabId = null) {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         if (data.searchObjects && data.searchObjects.length > 0) {
@@ -347,7 +355,11 @@ export async function getTagsForDataflowAndDatasets({ dataflowId, datasetIds = [
   return executeInPage(
     async (dataflowId, datasetIds) => {
       const dfResponse = await fetch(`/api/dataprocessing/v1/dataflows/${dataflowId}/tags`);
-      if (!dfResponse.ok) throw new Error(`Failed to read dataflow tags: HTTP ${dfResponse.status}`);
+      if (!dfResponse.ok) {
+        const error = new Error(`Failed to read dataflow tags: HTTP ${dfResponse.status}`);
+        error.status = dfResponse.status;
+        throw error;
+      }
       const dfData = await dfResponse.json();
       const dataflow = Array.isArray(dfData?.tags) ? dfData.tags : [];
 
@@ -358,7 +370,11 @@ export async function getTagsForDataflowAndDatasets({ dataflowId, datasetIds = [
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!dsResponse.ok) throw new Error(`Failed to read dataset tags: HTTP ${dsResponse.status}`);
+        if (!dsResponse.ok) {
+          const error = new Error(`Failed to read dataset tags: HTTP ${dsResponse.status}`);
+          error.status = dsResponse.status;
+          throw error;
+        }
         const dsData = await dsResponse.json();
         // The bulk endpoint returns each dataset's tags as an escaped JSON string
         // (e.g. "[\"Analytics\"]"), not a real array, so parse each one.
@@ -670,9 +686,6 @@ export async function transferDataflows(dataflowIds, fromUserId, toUserId, tabId
  * @returns {Promise<Object>} - The updated DataFlow object
  */
 export async function updateDataflowDetails(dataflowId, updates) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed details update report success. See executeInPage.
   const result = await executeInPage(
     async (dataflowId, updates) => {
       // Build payload from updates - allow empty string for description (to clear it)

@@ -157,7 +157,9 @@ export async function getDownstreamCardsRaw(datasetId, tabId = null) {
         credentials: 'include'
       });
       if (!response.ok) {
-        throw new Error(`Failed to fetch cards for dataset ${datasetId}: HTTP ${response.status}`);
+        const error = new Error(`Failed to fetch cards for dataset ${datasetId}: HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       return (await response.json()) || [];
     },
@@ -225,7 +227,9 @@ export async function getDownstreamLineage(datasetId, tabId = null) {
       const url = `/api/data/v1/lineage/DATA_SOURCE/${datasetId}?traverseUp=false&maxDepth=4&requestEntities=DATA_SOURCE,DATAFLOW`;
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) {
-        throw new Error(`Failed to fetch lineage: HTTP ${response.status}`);
+        const error = new Error(`Failed to fetch lineage: HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const lineage = await response.json();
 
@@ -333,7 +337,11 @@ export async function compareDatasetSchemas(originId, targetId, tabId = null) {
         const res = await fetch(`/api/data/v2/datasources/${id}/schemas/latest`, {
           credentials: 'include'
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const error = new Error(`HTTP ${res.status}`);
+          error.status = res.status;
+          throw error;
+        }
         const data = await res.json();
         return data?.schema?.columns || [];
       };
@@ -394,7 +402,9 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
         method: 'POST'
       });
       if (!response.ok) {
-        throw new Error(`Failed to search datasets: HTTP ${response.status}`);
+        const error = new Error(`Failed to search datasets: HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       const data = await response.json();
       const beans = data.searchObjects || [];
@@ -864,7 +874,11 @@ async function fetchDataflowDefinitionInPage(dataflowId, tabId) {
         `/api/dataprocessing/v2/dataflows/${dataflowId}?hydrationState=VISUALIZATION&validationType=SAVE`,
         { credentials: 'include' }
       );
-      if (!response.ok) throw new Error(`GET dataflow HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`GET dataflow HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       return response.json();
     },
     [dataflowId],
@@ -878,7 +892,11 @@ async function fetchDatasetViewDefinitionInPage(viewId, tabId) {
       const response = await fetch(`/api/query/v1/datasources/${viewId}/schema/indexed`, {
         credentials: 'include'
       });
-      if (!response.ok) throw new Error(`GET view schema HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`GET view schema HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       return response.json();
     },
     [viewId],
@@ -890,7 +908,11 @@ async function fetchFusionDefinitionInPage(fusionId, tabId) {
   return executeInPage(
     async (fusionId) => {
       const response = await fetch(`/api/query/v1/fusions/${fusionId}`, { credentials: 'include' });
-      if (!response.ok) throw new Error(`GET fusion HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`GET fusion HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       return response.json();
     },
     [fusionId],
@@ -1453,9 +1475,6 @@ export const MIGRATE_TYPES = [
   { key: 'jupyterWorkspaces', onDemand: true }
 ];
 
-// A missing result is its own failure: `executeInPage` returns null when the
-// injected function hands back nothing (a rejected promise, or an injection that
-// never ran), so the item may never have been touched.
 export function describeSwapFailure(resp, fallback = 'Failed without reporting a reason.') {
   if (resp == null) return 'No result came back from the Domo page, so the change may not have been applied.';
   return resp.error || fallback;
@@ -1606,7 +1625,7 @@ export async function migrateAllDownstreamContent({
           targetId,
           targetName,
           useFullPath
-        });
+        }).catch((err) => ({ error: err?.message || String(err), success: false }));
         if (resp?.skipped) {
           // Deliberately not written, so this is not a failure. The user was
           // warned before migrating and has to repoint it in Domo.
@@ -2140,7 +2159,7 @@ async function migrateBeastModes({
 
   // Fetch the current user's ID so we can set it as the owner on created Beast Modes.
   // The API rejects creates with owner set to another user.
-  const currentUserId = await getCurrentUserId(tabId);
+  const currentUserId = await getCurrentUserId(tabId).catch(() => null);
   if (!currentUserId) {
     return {
       errors: [{ error: 'Could not determine current user ID', id: 'all' }],

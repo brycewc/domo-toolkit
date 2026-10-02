@@ -24,7 +24,9 @@ export async function bulkDeleteFunctions({ ids, tabId = null }) {
       });
       if (!response.ok) {
         const text = await response.text().catch(() => '');
-        throw new Error(`HTTP ${response.status}: ${text}`.trim());
+        const error = new Error(`HTTP ${response.status}: ${text}`.trim());
+        error.status = response.status;
+        throw error;
       }
     },
     [ids],
@@ -57,9 +59,6 @@ export async function createDatasetFunctions({ functions, tabId = null }) {
   // collide with real (positive) function ids, and the server still assigns and
   // returns the real ids in the response (callers read them back positionally).
   const create = (functions || []).map((fn, i) => ({ ...fn, id: -(i + 1) }));
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // turn Domo's rejection of the batch into silence. See executeInPage.
   const result = await executeInPage(
     async (create) => {
       const response = await fetch('/api/query/v1/functions/bulk/template', {
@@ -94,9 +93,6 @@ export async function createDatasetFunctions({ functions, tabId = null }) {
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  */
 export async function deleteFunction({ functionId, tabId = null }) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed delete report success. See executeInPage.
   const result = await executeInPage(
     async (functionId) => {
       const response = await fetch(`/api/query/v1/functions/template/${functionId}`, { method: 'DELETE' });
@@ -161,7 +157,11 @@ export async function findUnusedFunctions({ datasetIds = [], ownerIds = [], tabI
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
         const results = data?.results || [];
         for (const fn of results) {
@@ -334,7 +334,11 @@ export async function getCardBeastModes(datasetId, tabId = null) {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
         const results = data?.results || [];
         for (const f of results) {
@@ -459,8 +463,6 @@ export async function getDatasetFunctionsForDatasets(datasetIds, tabId = null) {
     [ids],
     tabId
   );
-  // A failed search used to surface as a null return that every caller's
-  // `.catch` missed, so it read as "this dataset has no Beast Modes".
   if (!result?.functions) {
     throw new Error(result?.error ? `Could not load Beast Modes: ${result.error}` : 'Could not load Beast Modes');
   }
@@ -477,9 +479,6 @@ export async function getDatasetFunctionsForDatasets(datasetIds, tabId = null) {
  * @returns {Promise<Object>}
  */
 export async function getFunctionTemplate(functionId, tabId = null) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), so a failed
-  // fetch would arrive as a null template and crash its caller. See executeInPage.
   const result = await executeInPage(
     async (functionId) => {
       const response = await fetch(`/api/query/v1/functions/template/${functionId}?hidden=true`, {
@@ -567,7 +566,11 @@ export async function getOwnedFunctions(userId, tabId = null) {
           headers: { 'Content-Type': 'application/json' },
           method: 'POST'
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         if (data.results && data.results.length > 0) {
@@ -675,9 +678,6 @@ export async function transferFunctions(functions, fromUserId, toUserId, tabId =
  * @returns {Promise<void>} Resolves when the batch is written; throws otherwise.
  */
 export async function updateDatasetFunctions({ functions, tabId = null }) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), so a rejected
-  // batch would resolve here and be counted as written. See executeInPage.
   const result = await executeInPage(
     async (functions) => {
       const response = await fetch('/api/query/v1/functions/bulk/template', {

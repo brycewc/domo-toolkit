@@ -26,7 +26,11 @@ export async function getOwnedPublications(ownerId, tabId = null) {
           const response = await fetch(
             `/api/publish/v2/publications/summaries?limit=${limit}&offset=${offset}&sort=NAME_ASC&public=${isPublic}`
           );
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          if (!response.ok) {
+            const error = new Error(`HTTP ${response.status}`);
+            error.status = response.status;
+            throw error;
+          }
           const summaries = await response.json();
           if (!Array.isArray(summaries) || summaries.length === 0) break;
 

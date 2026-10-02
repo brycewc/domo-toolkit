@@ -8,9 +8,6 @@ import { executeInPage } from '@/utils/executeInPage';
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
 export async function deleteScheduledReport({ reportId, tabId = null }) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed delete report success. See executeInPage.
   const result = await executeInPage(
     async (reportId) => {
       const response = await fetch(`/api/content/v1/reportschedules/${reportId}`, {
@@ -63,7 +60,11 @@ export async function getOwnedScheduledReports(ownerId, tabId = null) {
           filter = 'OWNER';
           response = await fetchPage(filter);
         }
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
 
         const schedules = await response.json();
         if (!Array.isArray(schedules) || schedules.length === 0) break;

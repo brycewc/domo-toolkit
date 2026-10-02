@@ -72,7 +72,9 @@ export async function deleteAppAndAllContent({
           method: 'DELETE'
         });
         if (!res.ok) {
-          throw new Error(`Failed to delete cards. HTTP status: ${res.status}`);
+          const error = new Error(`Failed to delete cards. HTTP status: ${res.status}`);
+          error.status = res.status;
+          throw error;
         }
       },
       [ids.join(',')],
@@ -86,7 +88,9 @@ export async function deleteAppAndAllContent({
         method: 'DELETE'
       });
       if (!res.ok) {
-        throw new Error(`Failed to delete app. HTTP status: ${res.status}`);
+        const error = new Error(`Failed to delete app. HTTP status: ${res.status}`);
+        error.status = res.status;
+        throw error;
       }
     },
     [appId],
@@ -104,9 +108,6 @@ export async function deleteAppAndAllContent({
  * @returns {Promise<void>} Resolves on success, throws on HTTP failure
  */
 export async function deleteCustomApp({ designId, tabId = null }) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed delete report success. See executeInPage.
   const result = await executeInPage(
     async (designId) => {
       const response = await fetch(`/api/apps/v1/designs/${designId}`, {
@@ -141,7 +142,9 @@ export async function getAppContentSummary({ appId, tabId = null }) {
     async (appId) => {
       const res = await fetch(`/api/content/v1/dataapps/${appId}/adminsummary`);
       if (!res.ok) {
-        throw new Error(`Failed to fetch app content summary. HTTP status: ${res.status}`);
+        const error = new Error(`Failed to fetch app content summary. HTTP status: ${res.status}`);
+        error.status = res.status;
+        throw error;
       }
       const data = await res.json();
       const views = data.viewDetails || [];
@@ -180,7 +183,11 @@ export async function getAppInstance({ appInstanceId, tabId = null }) {
   return executeInPage(
     async (appInstanceId) => {
       const response = await fetch(`/api/apps/v1/instances/${appInstanceId}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       return response.json();
     },
     [appInstanceId],
@@ -210,7 +217,7 @@ export async function getDesignCards({ designId, tabId = null }) {
     },
     [designId],
     tabId
-  );
+  ).catch(() => []);
 }
 
 /**
@@ -243,7 +250,7 @@ export async function getDesignInstances({ designId, tabId = null }) {
     },
     [designId],
     tabId
-  );
+  ).catch(() => []);
 }
 
 /**
@@ -264,7 +271,11 @@ export async function getOwnedCustomApps(userId, tabId = null) {
         const response = await fetch(
           `/api/apps/v1/designs?checkAdminAuthority=true&deleted=false&limit=${limit}&offset=${offset}`
         );
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
 
         if (data && data.length > 0) {
@@ -307,7 +318,11 @@ export async function shareCustomAppDesign({ designId, permission = 'ADMIN', tab
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
     },
     [designId, permission, userId],
     tabId

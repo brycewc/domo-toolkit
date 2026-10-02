@@ -117,9 +117,6 @@ export async function createUser({ displayName, email, roleId, sendInvite = true
  * @returns {Promise<void>}
  */
 export async function deleteUser(userId, tabId = null) {
-  // Return a structured result rather than throwing: Chrome swallows a rejected
-  // promise from an async injected function (null result, no error), which would
-  // make a failed delete report success. See executeInPage.
   const result = await executeInPage(
     async (userId) => {
       const response = await fetch(`/api/identity/v1/users/${userId}`, {
@@ -369,7 +366,9 @@ export async function searchUsers(text, tabId = null, offset = 0) {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to search users. Status: ${response.status}`);
+        const error = new Error(`Failed to search users. Status: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
 
       const data = await response.json();

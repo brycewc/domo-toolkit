@@ -132,16 +132,21 @@ async function resolveObjectId(typeId, context, tabId) {
   switch (typeId) {
     case 'FILESET_FILE': {
       const { filePath, filesetId } = context;
-      return executeInPage(
-        async (filesetId, filePath) => {
-          const res = await fetch(`/api/files/v1/filesets/${filesetId}/path?path=${filePath}`);
-          if (!res.ok) return null;
-          const data = await res.json();
-          return data?.id || null;
-        },
-        [filesetId, filePath],
-        tabId
-      );
+      try {
+        return await executeInPage(
+          async (filesetId, filePath) => {
+            const res = await fetch(`/api/files/v1/filesets/${filesetId}/path?path=${filePath}`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data?.id || null;
+          },
+          [filesetId, filePath],
+          tabId
+        );
+      } catch (error) {
+        console.warn(`[Background] Could not resolve ${typeId} ID:`, error.message);
+        return null;
+      }
     }
     default:
       return null;
@@ -1561,7 +1566,10 @@ async function detectAndStoreContext(tabId) {
       });
 
     // Execute detection script in page context
-    const detected = await executeInPage(detectCurrentObject, [], tabId);
+    const detected = await executeInPage(detectCurrentObject, [], tabId).catch((error) => {
+      console.warn(`[Background] Object detection failed for tab ${tabId}:`, error.message);
+      return null;
+    });
     if (isStale()) return null;
     if (!detected) {
       if (tab.url) {
@@ -1684,8 +1692,12 @@ async function detectAndStoreContext(tabId) {
       typeId: typeModel.id
     };
 
-    // Enrich with details - throw on error for current object detection
-    const enrichedMetadata = (await executeInPage(fetchObjectDetailsInPage, [params], tabId)) || {};
+    // A failed detail fetch still leaves the object detected, just without details.
+    const enrichedMetadata =
+      (await executeInPage(fetchObjectDetailsInPage, [params], tabId).catch((error) => {
+        console.warn(`[Background] Could not fetch details for ${typeModel.id} ${objectId}:`, error.message);
+        return null;
+      })) || {};
     if (isStale()) return null;
 
     // Set parentId from API response if not already extracted from URL

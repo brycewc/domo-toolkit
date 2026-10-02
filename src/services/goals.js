@@ -15,7 +15,11 @@ export async function getOwnedGoals(ownerId, tabId = null, ownerType = 'USER') {
     async (ownerId, ownerType) => {
       // First get the current period
       const periodsResponse = await fetch('/api/social/v1/objectives/periods?all=true');
-      if (!periodsResponse.ok) throw new Error(`HTTP ${periodsResponse.status}`);
+      if (!periodsResponse.ok) {
+        const error = new Error(`HTTP ${periodsResponse.status}`);
+        error.status = periodsResponse.status;
+        throw error;
+      }
       const periods = await periodsResponse.json();
       const currentPeriod = periods.find((p) => p.current);
       if (!currentPeriod) return [];
@@ -37,7 +41,11 @@ export async function getOwnedGoals(ownerId, tabId = null, ownerType = 'USER') {
         const response = await fetch(
           `/api/social/v2/objectives/teams-profile?filterKeyResults=false&ownerId=${ownerId}&periodId=${currentPeriod.id}`
         );
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
         const data = await response.json();
         addGoals(data?.objectives);
         return allGoals;
@@ -46,7 +54,11 @@ export async function getOwnedGoals(ownerId, tabId = null, ownerType = 'USER') {
       const response = await fetch(
         `/api/social/v2/objectives/profile?filterKeyResults=false&includeSampleGoal=false&ownerId=${ownerId}&periodId=${currentPeriod.id}`
       );
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
       const data = await response.json();
 
       if (!data) return [];
