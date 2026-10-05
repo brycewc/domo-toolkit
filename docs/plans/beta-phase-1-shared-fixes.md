@@ -21,13 +21,13 @@ later item a reliable error with an HTTP status.
 
 Probed `chrome.scripting.executeScript` from the Toolkit service worker into the Domo tab:
 
-| Injected function                          | What Chrome returned                 |
-| ------------------------------------------ | ------------------------------------ |
-| sync `throw`                               | `[{ frameId: 0, result: null }]`     |
-| async reject after an `await`              | `[{ frameId: 0, result: null }]`     |
-| `fetch` that got a 4xx, then `throw`       | `[{ frameId: 0, result: null }]`     |
-| `return null`                              | `[{ frameId: 0, result: null }]`     |
-| `return undefined`                         | `[{ frameId: 0, result: null }]`     |
+| Injected function                    | What Chrome returned             |
+| ------------------------------------ | -------------------------------- |
+| sync `throw`                         | `[{ frameId: 0, result: null }]` |
+| async reject after an `await`        | `[{ frameId: 0, result: null }]` |
+| `fetch` that got a 4xx, then `throw` | `[{ frameId: 0, result: null }]` |
+| `return null`                        | `[{ frameId: 0, result: null }]` |
+| `return undefined`                   | `[{ frameId: 0, result: null }]` |
 
 `error` is never populated, so:
 
@@ -85,9 +85,9 @@ ever forbids eval.
 
 1. Add `runInPage` and the envelope unpacking to `executeInPage` and `executeInAllFrames`. Keep
    the dev-mode direct call unchanged.
-2. Attach `status` when services throw on a non-OK response (`const e = new Error(...); e.status =
-   response.status`). Add a tiny page-side convention for it rather than a helper, since injected
-   functions cannot import.
+2. Attach `status` when services throw on a non-OK response
+   (`const e = new Error(...); e.status = response.status`). Add a tiny page-side convention for
+   it rather than a helper, since injected functions cannot import.
 3. **Audit callers for the behavior change.** Calls that used to "succeed" with `null` will now
    throw. That is the point, but some callers rely on it, for example optional fetches inside
    owned-object listings that should degrade to "unavailable" rather than abort a whole view.
@@ -104,6 +104,7 @@ ever forbids eval.
 ## 1.2 Retries and concurrency
 
 With 1.1 every failure carries `status`, so retries become possible on the extension side.
+Detailed plan: [beta-phase-1-2-retries-concurrency.md](beta-phase-1-2-retries-concurrency.md).
 
 - Move `promisePool` (`src/activityLog/ActivityLogTable.jsx:1686`) to `src/utils/` and use it in
   place of the hand-rolled worker loops (`columnReferences.js:724`, `lineage.js:301`, and the
@@ -118,9 +119,10 @@ With 1.1 every failure carries `status`, so retries become possible on the exten
 ## 1.3 Change journal (audit log and rollback record)
 
 One shared journal for every mutating Beta feature.
+Detailed plan: [beta-phase-1-3-change-journal.md](beta-phase-1-3-change-journal.md).
 
-- `createRunJournal({ feature, subject })` returns a run with `record({ type, id, name, status,
-  before, after, error })` and `finish()`.
+- `createRunJournal({ feature, subject })` returns a run with
+  `record({ type, id, name, status, before, after, error })` and `finish()`.
 - Entries are written as they happen, not built at the end, so a closed panel or a crash still
   leaves a record. Status is `success`, `partial` (for add-then-remove operations such as card and
   account owners), `failed`, `skipped`.
@@ -170,23 +172,13 @@ fetched when the user opened page 2.
 - Moving long runs into the service worker so they survive the panel closing is the real fix, but
   it is an architecture change and is deferred (decision D3).
 
-## 1.7 Test harness
-
-- Add Vitest (`yarn add -D vitest`), a `yarn test` script, and `src/**/*.test.js` co-located with
-  sources.
-- Phase 1 suites: envelope unpacking in `executeInPage` (with a mocked `chrome.scripting`),
-  `promisePool`, `withRetry` (fake timers, `Retry-After`), the journal against `fake-indexeddb`.
-- The big rewriter and parser suites are Phase 3, but the harness lands now so Phase 2 fixes can
-  carry regression tests.
-
 ## Order
 
 1. 1.1 envelope plus caller audit, verified in the browser.
-2. 1.7 harness, with tests for 1.1.
-3. 1.2 pool and retry.
-4. 1.3 journal, wired into Transfer Ownership and Duplicate User logs.
-5. 1.4 fresh-read writes and 1.5 selection refresh, feature by feature.
-6. 1.6 run lock.
+2. 1.2 pool and retry.
+3. 1.3 journal, wired into Transfer Ownership and Duplicate User logs.
+4. 1.4 fresh-read writes and 1.5 selection refresh, feature by feature.
+5. 1.6 run lock.
 
 Release notes: 1.1 is a user-visible bug fix to shipped behavior ("errors from Domo now surface
 instead of being reported as success"), and the journal and run lock are user-facing. Log them per
