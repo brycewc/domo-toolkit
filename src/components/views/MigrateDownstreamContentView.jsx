@@ -1707,12 +1707,14 @@ export function MigrateDownstreamContentView({
           });
         },
         originBeastModes: beastModeItems,
+        originColumnNames: comparison?.originColumnNames,
         originId: datasetId,
         originName: datasetName,
         pdpMap,
         selectedItems,
         tabId,
         targetBeastModes,
+        targetColumnNames: comparison?.targetColumnNames,
         targetColumnTypes,
         targetId,
         targetName,
@@ -1745,11 +1747,11 @@ export function MigrateDownstreamContentView({
         totalSkipped > 0 ? ` ${totalSkipped} item${totalSkipped !== 1 ? 's' : ''} skipped, each row says why.` : '';
       const mergeNote =
         totalMerged > 0 ? ` ${totalMerged} dataflow${totalMerged !== 1 ? 's' : ''} had an input merged.` : '';
-      // A filter with no values filters nothing and blocks Domo's card write, so
-      // it comes out as part of the repoint; say so, since it edits the card.
+      // These filters block Domo's card write, so they come out as part of the
+      // repoint; say so, since it edits the card.
       const filterNote =
         totalFiltersDropped > 0
-          ? ` Removed ${totalFiltersDropped} filter${totalFiltersDropped !== 1 ? 's' : ''} that had no values.`
+          ? ` Removed ${totalFiltersDropped} filter${totalFiltersDropped !== 1 ? 's' : ''} that had no values or used a column that no longer exists.`
           : '';
 
       const targetLabel = targetName ? `**${targetName}**` : `**${targetId}**`;
@@ -1810,6 +1812,7 @@ export function MigrateDownstreamContentView({
   }, [
     beastModeItems,
     cardBeastModeResolutions,
+    comparison,
     datasetId,
     datasetName,
     hasMismatches,

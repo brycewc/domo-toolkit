@@ -49,7 +49,6 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
   const abortRef = useRef(0);
 
   const allTypes = useMemo(() => {
-    const seen = new Set();
     return getAllNavigableObjectTypes()
       .filter((type) => {
         // Types whose parent is resolvable from an ID alone (e.g. DATA_APP_VIEW)
@@ -62,15 +61,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         // would route to an empty ObjectDetailsView with no metadata fetched.
         return type.hasUrl() ? !type.requiresParentForUrl() : !type.requiresParentForApi();
       })
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .filter((type) => {
-        const key = type.urlPath || type.api?.endpoint;
-        if (!key || !seen.has(key)) {
-          if (key) seen.add(key);
-          return true;
-        }
-        return false;
-      });
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, []);
 
   const filteredTypes = useMemo(

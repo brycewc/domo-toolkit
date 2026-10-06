@@ -18,19 +18,20 @@ import {
   extractDataflowColumnRefs,
   findOriginAliases,
   isDataModelDefinition,
-  isFusionView,
+  isSchemaView,
   makeItemKey
 } from './columnReferences';
 import {
   dropDatasetViewColumns,
-  dropFusionSourceColumns,
+  dropSchemaViewSourceColumns,
   hasEffectiveMapping,
   removeCardColumns,
   rewriteBeastModeColumns,
   rewriteCardBeastModeToColumn,
   rewriteCardColumns,
   rewriteDataflowColumns,
-  rewriteDatasetViewColumns
+  rewriteDatasetViewColumns,
+  rewriteSchemaViewColumns
 } from './columnRewriter';
 import { getDataflowDetail } from './dataflows';
 import { createDatasetFunctions, getDatasetFunctions, getFunctionTemplate, updateDatasetFunctions } from './functions';
@@ -328,7 +329,7 @@ const DATASET_SEARCH_PAGE_SIZE = 50;
  * @param {string} originId
  * @param {string} targetId
  * @param {number|null} tabId
- * @returns {Promise<{compatible: boolean, missing: Array<{name: string, expectedType: string, actualType: string|null}>}>}
+ * @returns {Promise<{compatible: boolean, missing: Array<{name: string, expectedType: string, actualType: string|null}>, originColumnNames: string[], targetColumnNames: string[]}>}
  */
 export async function compareDatasetSchemas(originId, targetId, tabId = null) {
   return executeInPage(
@@ -360,7 +361,12 @@ export async function compareDatasetSchemas(originId, targetId, tabId = null) {
           });
         }
       }
-      return { compatible: missing.length === 0, missing };
+      return {
+        compatible: missing.length === 0,
+        missing,
+        originColumnNames: originCols.map((c) => c.name),
+        targetColumnNames: targetCols.map((c) => c.name)
+      };
     },
     [originId, targetId],
     tabId
@@ -463,6 +469,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
  * @param {{aggregation?: string|null, columnName: string, dropCardFormula?: boolean, originLegacyId: string, originNumericId?: string|number|null}} [params.beastModeToColumn] - Repoint one Beast Mode's references onto a physical column instead of another Beast Mode.
  * @param {Record<string, string|null>} [params.columnMap]
  * @param {Object} [params.cachedDefinition]
+ * @param {string[]} [params.knownColumnNames] - Every column on the origin or target. A filter on a column outside it is stale and gets dropped.
  * @param {Record<string, string>} [params.targetColumnTypes] - Target column name → type. Supplies the schema's exact spellings, which the write is validated against.
  * @param {boolean} [params.useFullPath] - Force the full-PUT path even with no remap. Set when the schema check found mismatches; the lightweight endpoint can't reconcile mismatched column names server-side and would error.
  * @param {number|null} [params.tabId]
@@ -478,6 +485,7 @@ export async function swapCardInput({
   cardId,
   columnMap,
   droppedColumns,
+  knownColumnNames,
   originId,
   tabId = null,
   targetColumnTypes,
@@ -567,7 +575,7 @@ export async function swapCardInput({
       rewritten = rewriteCardColumns(rewritten, caseMap);
     }
     matchLabelsToColumns(rewritten);
-    const droppedFilters = dropValuelessCardFilters(rewritten);
+    const droppedFilters = dropUnsaveableCardFilters(rewritten, knownColumnNames);
     // Filter unused columns: some chart types list every column even when not
     // used. Keep only columns with a 'mapping' key (the presence of the key
     // signals the column is actually referenced by the chart).
@@ -705,6 +713,9 @@ export async function swapDataflowInput({
  * dataset-id rewrite (recursive selectBody, column referenceDataSourceId,
  * formattedExpression mapping, final JSON sweep) before PUT.
  *
+ * Schema views are written back as a schema: `/api/query/v1/fusions` refuses any
+ * with a filter, grouping, or computed mapping.
+ *
  * @param {Object} params
  * @param {string} params.viewId
  * @param {string} params.originId
@@ -730,6 +741,11 @@ export async function swapDatasetViewInput({
     if (!definition) {
       definition = await fetchDatasetViewDefinitionInPage(viewId, tabId);
     }
+    if (isSchemaView(definition)) {
+      definition = dropSchemaViewSourceColumns(definition, droppedColumns, originId);
+      definition = rewriteSchemaViewColumns(definition, columnMap, originId, targetColumnTypes);
+      return await putSchemaViewInPage(viewId, definition, originId, targetId, tabId);
+    }
     const outputsToDrop = resolveViewDropOutputs(definition, droppedColumns, originId);
     if (outputsToDrop.length > 0) {
       definition = dropDatasetViewColumns(definition, outputsToDrop);
@@ -738,50 +754,6 @@ export async function swapDatasetViewInput({
       definition = rewriteDatasetViewColumns(definition, columnMap, originId, targetColumnTypes);
     }
     return await putDatasetViewInPage(viewId, definition, originId, targetId, targetColumnTypes, tabId);
-  } catch (err) {
-    return { error: err?.message || String(err), success: false };
-  }
-}
-
-/**
- * Swap a data fusion's input dataset, optionally rewriting column references.
- *
- * Fusions are a distinct object from template/SQL views with their own edit
- * model and endpoint (`/api/query/v1/fusions/{id}`), so this path never touches
- * the template-view PUT. It fetches the native fusion definition, repoints the
- * origin input id and rewrites only that input's column refs (join predicates
- * and `columnList[].fuseMapping`), and PUTs the native shape back. Output column
- * names and the other input's columns are preserved.
- *
- * Dropped origin columns are removed first: each one takes with it the output
- * columns whose `fuseMapping` reads it, so the fusion stops exposing a column the
- * target doesn't have.
- *
- * @param {Object} params
- * @param {string} params.fusionId
- * @param {string} params.originId
- * @param {string} params.targetId
- * @param {Record<string, string|null>} [params.columnMap]
- * @param {string[]} [params.droppedColumns] - Origin column names to remove from the fusion entirely.
- * @param {Record<string, string>} [params.targetColumnTypes] - Map of NEW column name → target type.
- * @param {number|null} [params.tabId]
- * @returns {Promise<{success: boolean, error?: string}>}
- */
-export async function swapFusionInput({
-  columnMap,
-  droppedColumns,
-  fusionId,
-  originId,
-  tabId = null,
-  targetColumnTypes,
-  targetId
-}) {
-  try {
-    let definition = await fetchFusionDefinitionInPage(fusionId, tabId);
-    if (Array.isArray(droppedColumns) && droppedColumns.length > 0) {
-      definition = dropFusionSourceColumns(definition, droppedColumns, originId);
-    }
-    return await putFusionInPage(fusionId, definition, originId, targetId, columnMap, targetColumnTypes, tabId);
   } catch (err) {
     return { error: err?.message || String(err), success: false };
   }
@@ -900,22 +872,6 @@ async function fetchDatasetViewDefinitionInPage(viewId, tabId) {
       return response.json();
     },
     [viewId],
-    tabId
-  );
-}
-
-async function fetchFusionDefinitionInPage(fusionId, tabId) {
-  return executeInPage(
-    async (fusionId) => {
-      const response = await fetch(`/api/query/v1/fusions/${fusionId}`, { credentials: 'include' });
-      if (!response.ok) {
-        const error = new Error(`GET fusion HTTP ${response.status}`);
-        error.status = response.status;
-        throw error;
-      }
-      return response.json();
-    },
-    [fusionId],
     tabId
   );
 }
@@ -1323,104 +1279,29 @@ async function putDatasetViewInPage(viewId, viewDefinition, originId, targetId, 
   );
 }
 
-/**
- * PUT a data fusion's native definition back with its input repointed and the
- * origin input's column refs rewritten. Operates on the native fusion shape
- * (`columnFuse` + `columnList`), NOT the compiled `/schema/indexed` shape the
- * template-view PUT uses, which is what broke fusions with `Invalid alias
- * 'mapping'`.
- *
- * Column rewrites are scoped to the ORIGIN input (identified by its dataSource
- * id) so the other input's columns are never touched:
- *   - `columnList[].fuseMapping.columnName` where `fuseMapping.dataSource` is the
- *     origin (and its declared `type` when the remap crosses a type boundary).
- *   - the origin side of each join predicate (`leftColumn` when
- *     `leftDataSource` is origin, else `rightColumn`).
- * Output column names (`columnList[].name`) are the view's own and stay put.
- * After the scoped rewrite, the origin input id is swept to the target (UUID, so
- * a string sweep is collision-safe) and validation is disabled on save.
- */
-async function putFusionInPage(fusionId, fusionDefinition, originId, targetId, columnMap, targetColumnTypes, tabId) {
+// `name` here is the schema's ("defaultView"), not the dataset's, so no
+// `dataSourceName` is sent; the server only renames when one is.
+async function putSchemaViewInPage(viewId, viewDefinition, originId, targetId, tabId) {
   return executeInPage(
-    async (fusionId, fusionDefinition, originId, targetId, columnMap, targetColumnTypes) => {
+    async (viewId, viewDefinition, originId, targetId) => {
       try {
-        const stripTicks = (s) =>
-          typeof s === 'string' && s.length >= 2 && s.startsWith('`') && s.endsWith('`') ? s.slice(1, -1) : s;
-        const originClean = stripTicks(originId);
-        const map = columnMap || {};
-        const types = targetColumnTypes || {};
-        const remapColumn = (name) => {
-          if (typeof name !== 'string') return name;
-          const wasTicked = name.length >= 2 && name.startsWith('`') && name.endsWith('`');
-          const bare = wasTicked ? name.slice(1, -1) : name;
-          const to = map[bare];
-          if (to == null || to === bare) return name;
-          return wasTicked ? `\`${to}\`` : to;
-        };
-
-        const payload = JSON.parse(JSON.stringify(fusionDefinition));
-
-        const rewrite = (node) => {
-          if (Array.isArray(node)) {
-            for (const item of node) rewrite(item);
-            return;
-          }
-          if (!node || typeof node !== 'object') return;
-          // columnList entry: { name, type, fuseMapping: { dataSource, columnName } }
-          if (
-            node.fuseMapping &&
-            typeof node.fuseMapping === 'object' &&
-            stripTicks(node.fuseMapping.dataSource) === originClean &&
-            typeof node.fuseMapping.columnName === 'string'
-          ) {
-            const oldCol = stripTicks(node.fuseMapping.columnName);
-            const newCol = map[oldCol];
-            if (newCol != null && newCol !== oldCol) {
-              node.fuseMapping.columnName = remapColumn(node.fuseMapping.columnName);
-              const newType = types[newCol];
-              if (newType && typeof node.type === 'string' && node.type !== newType) node.type = newType;
-            }
-          }
-          // columnFuse node: { type, leftDataSource, rightDataSource, predicates }
-          if (Array.isArray(node.predicates) && (node.leftDataSource || node.rightDataSource)) {
-            const leftIsOrigin = stripTicks(node.leftDataSource) === originClean;
-            const rightIsOrigin = stripTicks(node.rightDataSource) === originClean;
-            for (const predicate of node.predicates) {
-              if (!predicate || typeof predicate !== 'object') continue;
-              if (leftIsOrigin && typeof predicate.leftColumn === 'string') {
-                predicate.leftColumn = remapColumn(predicate.leftColumn);
-              }
-              if (rightIsOrigin && typeof predicate.rightColumn === 'string') {
-                predicate.rightColumn = remapColumn(predicate.rightColumn);
-              }
-            }
-          }
-          for (const v of Object.values(node)) rewrite(v);
-        };
-        rewrite(payload);
-
-        const updated = JSON.parse(JSON.stringify(payload).replaceAll(originId, targetId));
-        updated.validate = false;
-        // The fusion edit endpoint requires the type discriminator; default it if
-        // the GET response (which is otherwise round-tripped verbatim) omits it.
-        if (!updated.dataSourceType) updated.dataSourceType = 'datafusion';
-
-        const putResponse = await fetch(`/api/query/v1/fusions/${fusionId}`, {
-          body: JSON.stringify(updated),
+        const schema = JSON.parse(JSON.stringify(viewDefinition).replaceAll(originId, targetId));
+        const putResponse = await fetch(`/api/query/v1/views/${viewId}`, {
+          body: JSON.stringify({ schema }),
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           method: 'PUT'
         });
         if (!putResponse.ok) {
           const text = await putResponse.text().catch(() => '');
-          return { error: `PUT fusion HTTP ${putResponse.status}: ${text}`.trim(), success: false };
+          return { error: `PUT view HTTP ${putResponse.status}: ${text}`.trim(), success: false };
         }
         return { success: true };
       } catch (err) {
         return { error: err?.message || String(err), success: false };
       }
     },
-    [fusionId, fusionDefinition, originId, targetId, columnMap, targetColumnTypes],
+    [viewId, viewDefinition, originId, targetId],
     tabId
   );
 }
@@ -1502,6 +1383,8 @@ export function describeSwapFailure(resp, fallback = 'Failed without reporting a
  * @param {string[]} [params.droppedColumns] - Origin column names to remove entirely (the "drop column" choice): pruned from card definitions, from an alert's primary-key / metadata / filter column references, and from the output of any dataset view that only selects them.
  * @param {Map<string, { definition: Object }>} [params.definitionsByItemKey] - Cached content definitions from the column-reference scan, keyed by `${typeKey}:${itemId}`. Reused so we don't re-fetch.
  * @param {Function} [params.onProgress]
+ * @param {string[]} [params.originColumnNames] - With `targetColumnNames`, lets a card drop filters on a column neither dataset has.
+ * @param {string[]} [params.targetColumnNames]
  * @param {number|null} [params.tabId]
  * @returns {Promise<Map<string, {attempted: Array, count: number, errors: Array, failed: number, manualReview: Array<{id: any, name: string}>, succeeded: number}>>}
  */
@@ -1513,18 +1396,22 @@ export async function migrateAllDownstreamContent({
   droppedColumns,
   onProgress,
   originBeastModes,
+  originColumnNames,
   originId,
   originName,
   pdpMap,
   selectedItems,
   tabId,
   targetBeastModes,
+  targetColumnNames,
   targetColumnTypes,
   targetId,
   targetName,
   useFullPath = false
 }) {
   const results = new Map();
+  const knownColumnNames =
+    originColumnNames?.length && targetColumnNames?.length ? [...originColumnNames, ...targetColumnNames] : [];
 
   // Map each target Beast Mode's legacyId to its numeric template id. A column
   // remapped onto a target Beast Mode is referenced by legacyId in list/summary
@@ -1617,6 +1504,7 @@ export async function migrateAllDownstreamContent({
           cardBeastModeResolutions,
           columnMap,
           droppedColumns,
+          knownColumnNames,
           originId,
           originName,
           pdpMap,
@@ -1884,10 +1772,9 @@ function describeBeastModeCreateError(err) {
 }
 
 /**
- * Route a downstream dataset to the correct swap path. Downstream datasets are
- * always derived (template/SQL views or data-fusions); fusions need their own
- * native edit endpoint, so detect fusion-ness from the indexed schema (cached by
- * the column scan, fetched here only if absent) and branch.
+ * Route a downstream dataset to the swap, after the checks that skip it outright.
+ * Downstream datasets are always derived (views, fusions, or data models); the
+ * indexed schema is cached by the column scan and fetched here only if absent.
  */
 async function dispatchDatasetSwap(item, options) {
   let indexed = options.cachedDefinition;
@@ -1899,8 +1786,7 @@ async function dispatchDatasetSwap(item, options) {
     }
   }
   // Both sides of the join would become the same dataset under one name, and the
-  // joined side carries no alias, so its column refs stop resolving. Neither PUT
-  // reports it: the fusion save disables validation outright.
+  // joined side carries no alias, so its column refs stop resolving.
   if (options.originId !== options.targetId && enumerateViewSourceIds(indexed, item.id).includes(options.targetId)) {
     return {
       skipped: true,
@@ -1916,17 +1802,6 @@ async function dispatchDatasetSwap(item, options) {
       skipReason: 'is a data model, whose inputs this tool cannot repoint',
       success: false
     };
-  }
-  if (isFusionView(indexed)) {
-    return swapFusionInput({
-      columnMap: options.columnMap,
-      droppedColumns: options.droppedColumns,
-      fusionId: item.id,
-      originId: options.originId,
-      tabId: options.tabId,
-      targetColumnTypes: options.targetColumnTypes,
-      targetId: options.targetId
-    });
   }
   return swapDatasetViewInput({
     cachedDefinition: indexed,
@@ -1978,6 +1853,7 @@ async function dispatchSwap(typeKey, item, options) {
       cardId: item.id,
       columnMap: options.columnMap,
       droppedColumns: options.droppedColumns,
+      knownColumnNames: options.knownColumnNames,
       originId: options.originId,
       tabId: options.tabId,
       targetColumnTypes: options.targetColumnTypes,
@@ -2024,16 +1900,13 @@ async function dispatchSwap(typeKey, item, options) {
 }
 
 /**
- * Remove a card's value-less IN filters, which filter nothing and which Domo
- * rejects on any write ("INVALID_FILTER" / "INVALID_VALUES"), so a card carrying
- * one from before can never be saved. A quick filter is never one of these:
- * Domo keeps those in the card's `controls`, where selecting nothing is the
- * resting state, so a filter on a column that has one is left alone, as is one
- * fed by another card (`sourceCardURN`) and any other operand.
+ * Remove filters Domo rejects on write: value-less IN filters (except quick and
+ * card-fed ones, which rest value-less) and filters on a column neither dataset
+ * has, which Analyzer itself drops on open.
  *
  * @returns {number} How many filters were removed.
  */
-function dropValuelessCardFilters(definition) {
+function dropUnsaveableCardFilters(definition, knownColumnNames = []) {
   const subscriptions = definition?.definition?.subscriptions;
   if (!subscriptions || typeof subscriptions !== 'object') return 0;
   const controlColumns = new Set(
@@ -2041,17 +1914,31 @@ function dropValuelessCardFilters(definition) {
       .map((control) => control?.column)
       .filter((column) => typeof column === 'string')
   );
+  const knownColumns = new Set((knownColumnNames || []).map((name) => name.toLowerCase()));
+  const formulaIds = new Set(
+    (Array.isArray(definition?.definition?.formulas) ? definition.definition.formulas : [])
+      .map((formula) => formula?.id)
+      .filter(Boolean)
+  );
+  const isMissingColumn = (filter) =>
+    knownColumns.size > 0 &&
+    !filter?.formulaId &&
+    typeof filter?.column === 'string' &&
+    !filter.column.startsWith('calculation_') &&
+    !formulaIds.has(filter.column) &&
+    !knownColumns.has(filter.column.toLowerCase());
   let removed = 0;
   for (const subscription of Object.values(subscriptions)) {
     if (!Array.isArray(subscription?.filters)) continue;
     subscription.filters = subscription.filters.filter((filter) => {
-      const dead =
+      const valueless =
         filter?.filterType === 'LEGACY' &&
         (filter.operand === 'IN' || filter.operand === 'NOT_IN') &&
         Array.isArray(filter.values) &&
         filter.values.length === 0 &&
         !filter.sourceCardURN &&
         !controlColumns.has(filter.column);
+      const dead = valueless || isMissingColumn(filter);
       if (dead) removed++;
       return !dead;
     });

@@ -40,47 +40,40 @@ import { findScriptColumnConflicts } from './scriptColumns';
 import { extractDataflowSqlColumnRefs, getDataflowEngine } from './sqlColumns';
 
 /**
- * Which of an origin dataset's columns a FUSION view uses only as plain
- * passthrough output columns, mapped to the fusion output each one feeds. A
- * column here can be dropped from the fusion (its output column is removed)
+ * Which of an origin dataset's columns a schema view uses only as plain
+ * passthrough output columns, mapped to the view output each one feeds. A
+ * column here can be dropped from the view (its output column is removed)
  * instead of being remapped; a column that also appears inside a computed
- * mapping expression or a join condition is absent, because removing its output
- * would leave that expression or join reading a column the fusion no longer has.
+ * mapping expression, a join condition, a filter, a grouping, or a sort is
+ * absent, because removing its output would leave that clause reading a column
+ * the view no longer has.
  *
- * The fusion counterpart to `collectViewDroppableColumns`, reading the compiled
- * `/schema/indexed` shape (`views[].mapping[out].expr`, `views[].columnFuses`)
- * the scan already caches.
- *
- * @param {Object} viewDefinition - The `/schema/indexed` fusion definition.
+ * @param {Object} viewDefinition - The `/schema/indexed` schema-view definition.
  * @param {string} originId - The origin dataset id (no backticks).
  * @returns {Map<string, string[]>} origin column name -> output column names.
  */
-export function collectFusionDroppableColumns(viewDefinition, originId) {
+export function collectSchemaViewDroppableColumns(viewDefinition, originId) {
   const outputs = new Map();
   const blocked = new Set();
-  const origin = stripBackticks(originId);
+  const clauseOutputs = new Set();
   const views = Array.isArray(viewDefinition?.views) ? viewDefinition.views : [];
 
   for (const view of views) {
-    const mapping = view?.mapping && typeof view.mapping === 'object' ? view.mapping : {};
-    for (const [outputName, info] of Object.entries(mapping)) {
-      const expr = info?.expr;
-      if (!expr || typeof expr !== 'object') continue;
-      if (expr.exprType === 'COLUMN') {
-        if (stripBackticks(expr.table) !== origin || typeof expr.column !== 'string') continue;
-        const column = stripBackticks(expr.column);
-        if (!outputs.has(column)) outputs.set(column, new Set());
-        outputs.get(column).add(stripBackticks(outputName));
-      } else {
-        collectFusionOriginLeaves(expr, origin, (name) => blocked.add(name));
+    eachSchemaViewOriginLeaf(viewDefinition, view, originId, (leaf, { output }) => {
+      const column = stripBackticks(leaf.column);
+      if (!output) {
+        blocked.add(column);
+        return;
       }
-    }
-    collectFusionOriginLeaves(view?.columnFuses, origin, (name) => blocked.add(name));
+      if (!outputs.has(column)) outputs.set(column, new Set());
+      outputs.get(column).add(stripBackticks(output));
+    });
+    for (const name of schemaViewClauseOutputs(viewDefinition, view)) clauseOutputs.add(name);
   }
 
   const droppable = new Map();
   for (const [column, names] of outputs) {
-    if (blocked.has(column) || names.size === 0) continue;
+    if (blocked.has(column) || names.size === 0 || [...names].some((name) => clauseOutputs.has(name))) continue;
     droppable.set(column, [...names]);
   }
   return droppable;
@@ -200,6 +193,39 @@ export function collectViewDroppableColumns(viewDefinition, sourceAliases, sourc
     droppable.set(column, [...names]);
   }
   return droppable;
+}
+
+/**
+ * Mappings and joins read source columns (an unqualified leaf reads the view's `from`),
+ * but `where`/`groupBy`/`orderBy` read the view's outputs, so there a leaf naming an
+ * output is skipped. Verified on a live view that filters on a computed output.
+ */
+export function eachSchemaViewOriginLeaf(viewDefinition, view, originId, visit) {
+  if (!view || typeof view !== 'object') return;
+  const origin = stripBackticks(originId);
+  const outputs = new Set(schemaViewOutputColumns(viewDefinition));
+  const walk = (node, context, readsOutputs) => {
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item, context, readsOutputs);
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    if (node.exprType === 'COLUMN' && typeof node.column === 'string') {
+      if (readsOutputs && outputs.has(stripBackticks(node.column))) return;
+      if (stripBackticks(node.table || view.from) === origin) visit(node, context);
+      return;
+    }
+    const next = node.exprType === 'FORMATTED' ? { ...context, formatted: node } : context;
+    for (const value of Object.values(node)) walk(value, next, readsOutputs);
+  };
+  const mapping = view.mapping && typeof view.mapping === 'object' ? view.mapping : {};
+  for (const [output, info] of Object.entries(mapping)) {
+    const plain = info?.expr?.exprType === 'COLUMN';
+    walk(info?.expr, { computed: !plain, formatted: null, output: plain ? output : null }, false);
+  }
+  const { columnFuses, from: _from, mapping: _mapping, ...outputClauses } = view;
+  walk(columnFuses, { computed: false, formatted: null, output: null }, false);
+  walk(outputClauses, { computed: false, formatted: null, output: null }, true);
 }
 
 /**
@@ -397,49 +423,27 @@ export function extractDatasetViewColumnRefs(viewDefinition) {
 }
 
 /**
- * Fusion views (`views[].mapping`) store column refs differently from template
- * views: each output column is `mapping[outName].expr`, an expr tree whose leaves
- * are `{exprType: 'COLUMN', column, table}`. Join keys live in
- * `columnFuses[].on`. The template-view walker never reads these, so without this
- * a fusion view's columns are invisible to the mismatch scan (and the swap then
- * blanket-repoints the input id while leaving column names untouched, silently
- * breaking the view if origin and target columns differ).
- *
- * Collects every origin-sourced column name (leaf `table` === originId). `unsafe`
- * is set when an origin column is referenced inside a COMPUTED mapping expr (an
- * expr whose top node isn't a plain COLUMN, e.g. a function or CASE): the leaf is
- * still rewritten, but the view is flagged for manual review since the surrounding
- * computation may need attention.
+ * Origin column refs in a schema view, including outputs with no mapping entry
+ * (how a union branch selects). `unsafe` flags an origin column inside a computed
+ * mapping expr, for manual review.
  *
  * @param {Object} viewDefinition
  * @param {string} originId - The migration origin dataset id.
  * @returns {{ refs: Set<string>, unsafe: boolean }}
  */
-export function extractFusionViewColumnRefs(viewDefinition, originId) {
+export function extractSchemaViewColumnRefs(viewDefinition, originId) {
   const refs = new Set();
   let unsafe = false;
-  const origin = stripBackticks(originId);
   const views = Array.isArray(viewDefinition?.views) ? viewDefinition.views : [];
 
-  const collectOriginLeaves = (node, onLeaf) => collectFusionOriginLeaves(node, origin, onLeaf);
-
   for (const view of views) {
-    const mapping = view?.mapping && typeof view.mapping === 'object' ? view.mapping : {};
-    for (const info of Object.values(mapping)) {
-      const expr = info?.expr;
-      if (!expr || typeof expr !== 'object') continue;
-      if (expr.exprType === 'COLUMN') {
-        if (stripBackticks(expr.table) === origin && typeof expr.column === 'string') refs.add(expr.column);
-      } else {
-        // Computed expr: rewrite its origin leaves but flag the view for review.
-        collectOriginLeaves(expr, (name) => {
-          refs.add(name);
-          unsafe = true;
-        });
-      }
+    eachSchemaViewOriginLeaf(viewDefinition, view, originId, (leaf, { computed }) => {
+      refs.add(stripBackticks(leaf.column));
+      if (computed) unsafe = true;
+    });
+    if (stripBackticks(view?.from) === stripBackticks(originId)) {
+      for (const column of listSchemaViewPassthroughColumns(viewDefinition, view)) refs.add(column);
     }
-    // Join conditions are structured COLUMN leaves and rewrite cleanly.
-    collectOriginLeaves(view?.columnFuses, (name) => refs.add(name));
   }
   return { refs, unsafe };
 }
@@ -545,7 +549,7 @@ export function findOriginAliases(viewDefinition, originId) {
 
 /**
  * True when a definition is a data model's: its entities and relationships live
- * in a `model` node that neither the template nor the fusion walker can read.
+ * in a `model` node that neither the template nor the schema-view walker can read.
  *
  * @param {Object} definition
  * @returns {boolean}
@@ -555,20 +559,17 @@ export function isDataModelDefinition(definition) {
 }
 
 /**
- * True when a view definition is a fusion (`views[].mapping`) rather than the
- * template form (`viewTemplate.select.selectBody`). The two store column refs in
- * incompatible shapes, so scanning and rewriting branch on this.
- *
- * @param {Object} viewDefinition
- * @returns {boolean}
+ * True for a view stored as `views[]` (fusions, unions, and pre-template dataset
+ * views) rather than as a template `select`; the two need different walkers.
  */
-export function isFusionView(viewDefinition) {
-  return (
-    Array.isArray(viewDefinition?.views) &&
-    !!viewDefinition.views[0] &&
-    typeof viewDefinition.views[0].mapping === 'object' &&
-    viewDefinition.views[0].mapping !== null
-  );
+export function isSchemaView(viewDefinition) {
+  return Array.isArray(viewDefinition?.views) && viewDefinition.views.length > 0 && !viewDefinition.select;
+}
+
+export function listSchemaViewPassthroughColumns(viewDefinition, view) {
+  if (typeof view?.from !== 'string') return [];
+  const mapping = view.mapping && typeof view.mapping === 'object' ? view.mapping : {};
+  return schemaViewOutputColumns(viewDefinition).filter((id) => !Object.prototype.hasOwnProperty.call(mapping, id));
 }
 
 // ---------------------------------------------------------------------------
@@ -645,22 +646,22 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
         used = extractBeastModeColumnRefs(definition);
       } else if (typeKey === 'datasets') {
         definition = await fetchDatasetViewDefinition(item.id, tabId);
-        // Fusion views (views[].mapping) and template views (viewTemplate) store
-        // column refs in incompatible shapes; the template walker is blind to
-        // fusion, so route by shape. Fusion computed exprs are flagged for review.
+        // Schema views (views[]) and template views (viewTemplate) store column
+        // refs in incompatible shapes, so route by shape. Computed schema-view
+        // exprs are flagged for review.
         if (isDataModelDefinition(definition)) {
           // A data model names its columns in a `model` node neither walker reads,
           // so scanning it would report "uses no columns" and clear it wrongly.
           viewFusionWarnings.push({ id: item.id, name: item.name || String(item.id) });
           used = new Set();
-        } else if (isFusionView(definition)) {
-          const fusionScan = extractFusionViewColumnRefs(definition, originId);
-          used = fusionScan.refs;
-          if (fusionScan.unsafe) {
+        } else if (isSchemaView(definition)) {
+          const schemaScan = extractSchemaViewColumnRefs(definition, originId);
+          used = schemaScan.refs;
+          if (schemaScan.unsafe) {
             viewFusionWarnings.push({ id: item.id, name: item.name || String(item.id) });
           }
-          dropOutputsByColumn = collectFusionDroppableColumns(definition, originId);
-          // A fusion scan collects origin-sourced leaves only.
+          dropOutputsByColumn = collectSchemaViewDroppableColumns(definition, originId);
+          // A schema-view scan collects origin-sourced leaves only.
           originScopedColumns = new Set(used);
         } else {
           used = extractDatasetViewColumnRefs(definition);
@@ -821,24 +822,6 @@ async function collectDataflowCollisions({ byItem, originId, selectedDataflows, 
 }
 
 /**
- * Visit every origin-sourced `{exprType: 'COLUMN', column, table}` leaf under a
- * fusion expression tree (a mapping expr, a `columnFuses` join condition), the
- * one shape a fusion stores column refs in.
- */
-function collectFusionOriginLeaves(node, origin, onLeaf) {
-  if (Array.isArray(node)) {
-    for (const item of node) collectFusionOriginLeaves(item, origin, onLeaf);
-    return;
-  }
-  if (!node || typeof node !== 'object') return;
-  if (node.exprType === 'COLUMN' && stripBackticks(node.table) === origin && typeof node.column === 'string') {
-    onLeaf(stripBackticks(node.column));
-    return;
-  }
-  for (const v of Object.values(node)) collectFusionOriginLeaves(v, origin, onLeaf);
-}
-
-/**
  * Report the column of every backticked ref in an expression string that COULD
  * belong to the source: a qualified `\`alias\`.\`col\`` ref whose alias resolves
  * to the source, plus any bare `\`col\`` ref, which names no table and so can't
@@ -912,6 +895,34 @@ function plainSourceColumn(expression, sourceAliases) {
   const table = stripBackticks(expression.table?.name);
   if (!table || !sourceAliases.has(table)) return null;
   return stripBackticks(expression.columnName) || null;
+}
+
+function schemaViewClauseOutputs(viewDefinition, view) {
+  const found = new Set();
+  if (!view || typeof view !== 'object') return found;
+  const outputs = new Set(schemaViewOutputColumns(viewDefinition));
+  const { columnFuses: _columnFuses, from: _from, mapping: _mapping, ...outputClauses } = view;
+  const walk = (node) => {
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item);
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    if (node.exprType === 'COLUMN' && typeof node.column === 'string') {
+      const name = stripBackticks(node.column);
+      if (outputs.has(name)) found.add(name);
+      return;
+    }
+    for (const value of Object.values(node)) walk(value);
+  };
+  walk(outputClauses);
+  return found;
+}
+
+function schemaViewOutputColumns(viewDefinition) {
+  return (viewDefinition?.tables?.[0]?.columns || [])
+    .map((column) => column?.id ?? column?.name)
+    .filter((id) => typeof id === 'string');
 }
 
 // ---------------------------------------------------------------------------

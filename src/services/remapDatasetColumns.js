@@ -1,13 +1,7 @@
-import { isFusionView, makeItemKey } from './columnReferences';
+import { makeItemKey } from './columnReferences';
 import { hasEffectiveMapping, rewriteBeastModeColumns } from './columnRewriter';
 import { getFunctionTemplate, updateDatasetFunctions } from './functions';
-import {
-  describeSwapFailure,
-  swapCardInput,
-  swapDataflowInput,
-  swapDatasetViewInput,
-  swapFusionInput
-} from './migrateDownstreamContent';
+import { describeSwapFailure, swapCardInput, swapDataflowInput, swapDatasetViewInput } from './migrateDownstreamContent';
 import { swapAppColumns } from './proCodeApps';
 
 /**
@@ -190,20 +184,6 @@ async function dispatchRemap(
     });
   }
   if (typeKey === 'datasets') {
-    // Fusions and template/SQL views are distinct objects with different edit
-    // endpoints; a fusion saved through the template-view PUT is rejected. Detect
-    // from the scan-cached indexed schema and branch, same as the migrate path.
-    if (cached && isFusionView(cached)) {
-      return swapFusionInput({
-        columnMap,
-        droppedColumns,
-        fusionId: item.id,
-        originId: datasetId,
-        tabId,
-        targetColumnTypes,
-        targetId: datasetId
-      });
-    }
     return swapDatasetViewInput({
       cachedDefinition: cached,
       columnMap,

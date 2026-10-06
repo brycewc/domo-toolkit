@@ -109,7 +109,6 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   // View self-repair (second detection axis, views only): the open view's OWN
   // input references that a source dataset renamed/dropped.
   const [isView, setIsView] = useState(false);
-  const [isViewFusion, setIsViewFusion] = useState(false);
   const [viewDefinition, setViewDefinition] = useState(null);
   const [brokenViewColumns, setBrokenViewColumns] = useState([]);
   const [isDetectingView, setIsDetectingView] = useState(false);
@@ -190,7 +189,6 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       .then((detection) => {
         if (cancelled) return;
         setViewDefinition(detection.viewDefinition);
-        setIsViewFusion(detection.isFusion);
         setBrokenViewColumns(detection.broken);
       })
       .catch((err) => {
@@ -707,7 +705,6 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       if (willRepair) {
         repairResult = await repairViewColumns({
           drops,
-          isFusion: isViewFusion,
           remaps,
           sourceTypes,
           tabId,
@@ -813,7 +810,6 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
     datasetId,
     datasetName,
     downstreamDrops,
-    isViewFusion,
     onBackToDefault,
     scanResult,
     schemaColumns,

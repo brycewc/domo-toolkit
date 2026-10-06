@@ -31,7 +31,12 @@ import {
   replaceExpressionRefs,
   stripBackticks
 } from './columnFields';
-import { findOriginAliases, isFusionView } from './columnReferences';
+import {
+  eachSchemaViewOriginLeaf,
+  findOriginAliases,
+  isSchemaView,
+  listSchemaViewPassthroughColumns
+} from './columnReferences';
 
 /**
  * Card chart types where "drop this column" is a faithful edit: flat tables,
@@ -90,36 +95,38 @@ export function dropDatasetViewColumns(viewDefinition, columnsToDrop) {
 }
 
 /**
- * Remove a source dataset's columns from a NATIVE data fusion definition (the
- * `/api/query/v1/fusions/{id}` shape, NOT the compiled `/schema/indexed` shape).
- * Backs the "drop column" choice when migrating a fusion whose source column has
- * no counterpart on the target: each of the fusion's output columns is a
- * `columnList[]` entry whose `fuseMapping` names the input dataset and the column
- * it reads, so dropping a source column is filtering out the entries that read
- * it. Matching on the SOURCE column rather than the fusion's own output name is
- * what lets one gate decide the drop across both remap flows.
+ * Remove a source dataset's columns from a schema view. Each output mapped straight
+ * to a dropped column leaves the output table and every view's mapping, so union
+ * branches stay aligned.
  *
- * Join predicates (`columnFuse[].predicates`) reference source columns rather
- * than outputs and are left alone; the remap UI only offers the drop when no
- * join reads the column.
- *
- * @param {Object} fusionDefinition - The native fusion definition.
+ * @param {Object} viewDefinition
  * @param {string[]|Set<string>} droppedColumns - Source column names to remove.
  * @param {string} originId - The source dataset id (no backticks).
- * @returns {Object} new fusion definition (input is not mutated)
+ * @returns {Object} new view definition (input is not mutated)
  */
-export function dropFusionSourceColumns(fusionDefinition, droppedColumns, originId) {
+export function dropSchemaViewSourceColumns(viewDefinition, droppedColumns, originId) {
   const drop = droppedColumns instanceof Set ? droppedColumns : new Set(droppedColumns || []);
-  if (drop.size === 0) return fusionDefinition;
+  if (drop.size === 0) return viewDefinition;
   const origin = stripBackticks(originId);
-  const next = deepClone(fusionDefinition);
-  if (Array.isArray(next.columnList)) {
-    next.columnList = next.columnList.filter((col) => {
-      const mapping = col?.fuseMapping;
-      if (!mapping || typeof mapping !== 'object') return true;
-      if (stripBackticks(mapping.dataSource) !== origin) return true;
-      return !drop.has(stripBackticks(mapping.columnName));
-    });
+  const next = deepClone(viewDefinition);
+  const views = Array.isArray(next.views) ? next.views : [];
+  const outputs = new Set();
+  for (const view of views) {
+    for (const [output, info] of Object.entries(view?.mapping || {})) {
+      const expr = info?.expr;
+      if (expr?.exprType !== 'COLUMN' || stripBackticks(expr.table || view.from) !== origin) continue;
+      if (drop.has(stripBackticks(expr.column))) outputs.add(output);
+    }
+  }
+  if (outputs.size === 0) return next;
+  for (const view of views) {
+    if (!view?.mapping) continue;
+    for (const output of outputs) delete view.mapping[output];
+  }
+  for (const table of next.tables || []) {
+    if (Array.isArray(table?.columns)) {
+      table.columns = table.columns.filter((column) => !outputs.has(column?.id ?? column?.name));
+    }
   }
   return next;
 }
@@ -345,10 +352,8 @@ export function rewriteDataflowColumns(dataflowDefinition, columnMap) {
  * @returns {Object} new view definition (input is not mutated)
  */
 export function rewriteDatasetViewColumns(viewDefinition, columnMap, originId, targetColumnTypes = null) {
-  // Fusion views store column refs in a different shape; the template walker
-  // below can't see them, so delegate.
-  if (isFusionView(viewDefinition)) {
-    return rewriteFusionViewColumns(viewDefinition, columnMap, originId);
+  if (isSchemaView(viewDefinition)) {
+    return rewriteSchemaViewColumns(viewDefinition, columnMap, originId, targetColumnTypes);
   }
   const next = deepClone(viewDefinition);
   const originAliases = findOriginAliases(next, originId);
@@ -362,37 +367,45 @@ export function rewriteDatasetViewColumns(viewDefinition, columnMap, originId, t
 }
 
 /**
- * Rewrite origin column refs in a fusion view (`views[].mapping`). Every leaf of
- * the form `{exprType: 'COLUMN', column, table}` whose `table` is the origin
- * dataset gets its `column` remapped per `columnMap`. Recurses the whole `views`
- * tree, so it covers simple passthrough mappings, computed/nested mapping exprs,
- * and `columnFuses[].on` join conditions uniformly. Only the source column ref is
- * changed; output column names (mapping keys, `tables[].columns[].name`) are the
- * view's own and stay put. The dataset-id repoint is handled separately by the
- * caller's JSON sweep.
+ * A `FORMATTED` expr keeps a `sql` copy of its leaves, so both are rewritten. Output
+ * types follow the target only for a single view: union branches must agree on type.
  *
  * @param {Object} viewDefinition
  * @param {Record<string, string|null>} columnMap
  * @param {string} originId - The origin dataset id (no backticks).
+ * @param {Record<string, string>} [targetColumnTypes] - Map of NEW column name → target type.
  * @returns {Object} new view definition (input is not mutated)
  */
-export function rewriteFusionViewColumns(viewDefinition, columnMap, originId) {
+export function rewriteSchemaViewColumns(viewDefinition, columnMap, originId, targetColumnTypes = null) {
   const next = deepClone(viewDefinition);
   const origin = stripBackticks(originId);
-  const rewriteLeaves = (node) => {
-    if (Array.isArray(node)) {
-      for (const item of node) rewriteLeaves(item);
-      return;
+  const map = columnMap || {};
+  const views = Array.isArray(next.views) ? next.views : [];
+  for (const view of views) {
+    if (!view || typeof view !== 'object') continue;
+    const passthrough = stripBackticks(view.from) === origin ? listSchemaViewPassthroughColumns(next, view) : [];
+    const formattedRenames = new Map();
+    eachSchemaViewOriginLeaf(next, view, originId, (leaf, { formatted }) => {
+      const from = stripBackticks(leaf.column);
+      const to = map[from];
+      if (to == null || to === from) return;
+      leaf.column = to;
+      if (!formatted) return;
+      if (!formattedRenames.has(formatted)) formattedRenames.set(formatted, {});
+      formattedRenames.get(formatted)[from] = to;
+    });
+    for (const [formatted, renames] of formattedRenames) {
+      formatted.sql = rewriteScopedExpressionString(formatted.sql, renames, new Set([origin]));
     }
-    if (!node || typeof node !== 'object') return;
-    if (node.exprType === 'COLUMN' && stripBackticks(node.table) === origin && typeof node.column === 'string') {
-      const to = columnMap[node.column];
-      if (to != null && to !== node.column) node.column = to;
-      return;
+    for (const column of passthrough) {
+      const to = map[column];
+      if (to == null || to === column) continue;
+      view.mapping = { ...view.mapping, [column]: { expr: { column: to, exprType: 'COLUMN', table: view.from } } };
     }
-    for (const v of Object.values(node)) rewriteLeaves(v);
-  };
-  rewriteLeaves(next.views);
+  }
+  if (targetColumnTypes && views.length === 1) {
+    propagateSchemaViewTypes(next, views[0], origin, targetColumnTypes);
+  }
   return next;
 }
 
@@ -618,6 +631,23 @@ function propagateColumnTypes(node, columnMap, originAliases, targetColumnTypes)
 
   for (const v of Object.values(node)) {
     propagateColumnTypes(v, columnMap, originAliases, targetColumnTypes);
+  }
+}
+
+function propagateSchemaViewTypes(viewDefinition, view, origin, targetColumnTypes) {
+  const mapping = view.mapping && typeof view.mapping === 'object' ? view.mapping : {};
+  const readsOrigin = stripBackticks(view.from) === origin;
+  for (const column of viewDefinition.tables?.[0]?.columns || []) {
+    const output = column?.id ?? column?.name;
+    const expr = Object.prototype.hasOwnProperty.call(mapping, output) ? mapping[output]?.expr : null;
+    let source = null;
+    if (expr?.exprType === 'COLUMN') {
+      if (stripBackticks(expr.table || view.from) === origin) source = stripBackticks(expr.column);
+    } else if (!expr && readsOrigin) {
+      source = output;
+    }
+    const type = source ? targetColumnTypes[source] : null;
+    if (type && typeof column.type === 'string' && column.type !== type) column.type = type;
   }
 }
 

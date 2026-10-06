@@ -17,18 +17,18 @@ import { indexColumnNames, resolveColumnName } from '@/utils/columnOrphans';
 import { executeInPage } from '@/utils/executeInPage';
 
 import {
-  collectFusionDroppableColumns,
+  collectSchemaViewDroppableColumns,
   collectViewColumnRefsForSource,
   collectViewDroppableColumns,
   enumerateViewSourceIds,
-  extractFusionViewColumnRefs,
+  extractSchemaViewColumnRefs,
   fetchDatasetSchemaColumns,
   fetchDatasetViewDefinition,
   findOriginAliases,
   isDataModelDefinition,
-  isFusionView
+  isSchemaView
 } from './columnReferences';
-import { describeSwapFailure, swapDatasetViewInput, swapFusionInput } from './migrateDownstreamContent';
+import { describeSwapFailure, swapDatasetViewInput } from './migrateDownstreamContent';
 
 /**
  * Detect the open view's own broken input column references: columns its
@@ -48,7 +48,6 @@ import { describeSwapFailure, swapDatasetViewInput, swapFusionInput } from './mi
  * @param {number|null} [params.tabId]
  * @returns {Promise<{
  *   broken: Array<{candidates: Array<{name: string, type: string}>, column: string, dropOutputs: string[], outputColumns: string[], sourceId: string, sourceName: string}>,
- *   isFusion: boolean,
  *   sources: Array<{id: string, name: string}>,
  *   viewDefinition: Object
  * }>}
@@ -58,7 +57,7 @@ export async function detectBrokenViewColumns({ tabId = null, viewDefinition = n
   // Neither walker below reads a data model's `model` node, so every column would
   // come back unreferenced and read as broken.
   if (isDataModelDefinition(def)) return [];
-  const fusion = isFusionView(def);
+  const schemaView = isSchemaView(def);
   // Enumerate the view's source datasets straight from its definition. A UNION
   // view nests each branch's table deep under the SUB_SELECT, so the shallow
   // top-level extraction can miss them; a full walk catches every input.
@@ -78,17 +77,17 @@ export async function detectBrokenViewColumns({ tabId = null, viewDefinition = n
         return;
       }
       const liveNameIndex = indexColumnNames((liveColumns || []).map((c) => c.name));
-      // Fusion refs come out already alias-scoped as a flat Set (no output-column
+      // Schema-view refs come out already source-scoped as a flat Set (no output-column
       // association); template views expose the output column each ref feeds.
-      const aliases = fusion ? null : findOriginAliases(def, sourceId);
-      const refs = fusion
-        ? new Map([...extractFusionViewColumnRefs(def, sourceId).refs].map((column) => [column, new Set()]))
+      const aliases = schemaView ? null : findOriginAliases(def, sourceId);
+      const refs = schemaView
+        ? new Map([...extractSchemaViewColumnRefs(def, sourceId).refs].map((column) => [column, new Set()]))
         : collectViewColumnRefsForSource(def, aliases, sourceId);
       // The columns this view only SELECTS from the source, and the outputs each
       // one feeds. The same gate Migrate Content drops a view column behind, so a
       // ref the view also filters, joins, groups, or sorts on is never offered.
-      const droppable = fusion
-        ? collectFusionDroppableColumns(def, sourceId)
+      const droppable = schemaView
+        ? collectSchemaViewDroppableColumns(def, sourceId)
         : collectViewDroppableColumns(def, aliases, sourceId);
       for (const [column, outputs] of refs) {
         if (resolveColumnName(column, liveNameIndex)) continue;
@@ -104,7 +103,7 @@ export async function detectBrokenViewColumns({ tabId = null, viewDefinition = n
     })
   );
 
-  return { broken, isFusion: fusion, sources: sourceIds.map((id) => ({ id, name: nameFor(id) })), viewDefinition: def };
+  return { broken, sources: sourceIds.map((id) => ({ id, name: nameFor(id) })), viewDefinition: def };
 }
 
 /**
@@ -124,7 +123,6 @@ export async function detectBrokenViewColumns({ tabId = null, viewDefinition = n
  * @param {Object} params
  * @param {string} params.viewId - The open view's datasource id.
  * @param {Object} params.viewDefinition - The `/schema/indexed` def already fetched by detection.
- * @param {boolean} params.isFusion
  * @param {Array<{column: string, sourceId: string}>} [params.drops] - Source columns to remove from the view.
  * @param {Array<{column: string, replacement: string, sourceId: string}>} [params.remaps]
  * @param {Record<string, Record<string, string>>} [params.sourceTypes] - Per-source map of column name -> type, for type propagation.
@@ -134,7 +132,6 @@ export async function detectBrokenViewColumns({ tabId = null, viewDefinition = n
  */
 export async function repairViewColumns({
   drops = [],
-  isFusion = false,
   onProgress,
   remaps = [],
   sourceTypes = {},
@@ -168,26 +165,16 @@ export async function repairViewColumns({
   for (const [sourceId, { columnMap, droppedColumns }] of bySource) {
     onProgress?.({ sourceId, status: 'transferring' });
     const targetColumnTypes = sourceTypes[sourceId] || {};
-    const result = isFusion
-      ? await swapFusionInput({
-          columnMap,
-          droppedColumns,
-          fusionId: viewId,
-          originId: sourceId,
-          tabId,
-          targetColumnTypes,
-          targetId: sourceId
-        })
-      : await swapDatasetViewInput({
-          cachedDefinition: canReuseCached ? viewDefinition : undefined,
-          columnMap,
-          droppedColumns,
-          originId: sourceId,
-          tabId,
-          targetColumnTypes,
-          targetId: sourceId,
-          viewId
-        });
+    const result = await swapDatasetViewInput({
+      cachedDefinition: canReuseCached ? viewDefinition : undefined,
+      columnMap,
+      droppedColumns,
+      originId: sourceId,
+      tabId,
+      targetColumnTypes,
+      targetId: sourceId,
+      viewId
+    });
     canReuseCached = false;
     if (result?.success) {
       dropped += droppedColumns.length;
