@@ -69,17 +69,18 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
   }
 
   if (
-    isDataset ||
-    [
-      'CARD',
-      'DATA_APP',
-      'DATA_APP_VIEW',
-      'DATAFLOW_TYPE',
-      'PAGE',
-      'WORKFLOW_MODEL',
-      'WORKSHEET',
-      'WORKSHEET_VIEW'
-    ].includes(typeId)
+    (isDataset ||
+      [
+        'CARD',
+        'DATA_APP',
+        'DATA_APP_VIEW',
+        'DATAFLOW_TYPE',
+        'PAGE',
+        'WORKFLOW_MODEL',
+        'WORKSHEET',
+        'WORKSHEET_VIEW'
+      ].includes(typeId)) &&
+    !(typeId === 'PAGE' && Number(currentContext?.domoObject?.id) < 0)
   ) {
     actions.add('getWorkspaces');
   }
