@@ -576,11 +576,12 @@ export async function swapCardInput({
     }
     matchLabelsToColumns(rewritten);
     const droppedFilters = dropUnsaveableCardFilters(rewritten, knownColumnNames);
-    // Filter unused columns: some chart types list every column even when not
-    // used. Keep only columns with a 'mapping' key (the presence of the key
-    // signals the column is actually referenced by the chart).
-    if (rewritten?.subscriptions?.main?.columns && Array.isArray(rewritten.subscriptions.main.columns)) {
-      rewritten.subscriptions.main.columns = rewritten.subscriptions.main.columns.filter(
+    // Some chart types list every column in `main` even when unused; a `mapping`
+    // key marks the ones the chart references. Other subscriptions are left
+    // alone, since a big_number value column has no mapping.
+    const mainSubscription = rewritten?.definition?.subscriptions?.main;
+    if (Array.isArray(mainSubscription?.columns)) {
+      mainSubscription.columns = mainSubscription.columns.filter(
         (col) => col && Object.prototype.hasOwnProperty.call(col, 'mapping')
       );
     }
@@ -1901,19 +1902,15 @@ async function dispatchSwap(typeKey, item, options) {
 
 /**
  * Remove filters Domo rejects on write: value-less IN filters (except quick and
- * card-fed ones, which rest value-less) and filters on a column neither dataset
- * has, which Analyzer itself drops on open.
+ * card-fed ones, which rest value-less) and filters or slicers on a column
+ * neither dataset has, which Analyzer itself drops on open.
  *
- * @returns {number} How many filters were removed.
+ * @returns {number} How many filters and slicers were removed.
  */
 function dropUnsaveableCardFilters(definition, knownColumnNames = []) {
-  const subscriptions = definition?.definition?.subscriptions;
-  if (!subscriptions || typeof subscriptions !== 'object') return 0;
-  const controlColumns = new Set(
-    (Array.isArray(definition?.definition?.controls) ? definition.definition.controls : [])
-      .map((control) => control?.column)
-      .filter((column) => typeof column === 'string')
-  );
+  const cardDefinition = definition?.definition;
+  if (!cardDefinition || typeof cardDefinition !== 'object') return 0;
+  const subscriptions = cardDefinition.subscriptions;
   const knownColumns = new Set((knownColumnNames || []).map((name) => name.toLowerCase()));
   const formulaIds = new Set(
     (Array.isArray(definition?.definition?.formulas) ? definition.definition.formulas : [])
@@ -1927,8 +1924,21 @@ function dropUnsaveableCardFilters(definition, knownColumnNames = []) {
     !filter.column.startsWith('calculation_') &&
     !formulaIds.has(filter.column) &&
     !knownColumns.has(filter.column.toLowerCase());
-  let removed = 0;
-  for (const subscription of Object.values(subscriptions)) {
+  // A definition read with `variables: true` returns slicers as `controls`, otherwise as `slicers`.
+  let removedSlicers = 0;
+  for (const key of ['controls', 'slicers']) {
+    if (!Array.isArray(cardDefinition[key])) continue;
+    const kept = cardDefinition[key].filter((slicer) => !isMissingColumn(slicer));
+    removedSlicers = Math.max(removedSlicers, cardDefinition[key].length - kept.length);
+    cardDefinition[key] = kept;
+  }
+  let removed = removedSlicers;
+  const controlColumns = new Set(
+    (Array.isArray(cardDefinition.controls) ? cardDefinition.controls : [])
+      .map((control) => control?.column)
+      .filter((column) => typeof column === 'string')
+  );
+  for (const subscription of Object.values(subscriptions && typeof subscriptions === 'object' ? subscriptions : {})) {
     if (!Array.isArray(subscription?.filters)) continue;
     subscription.filters = subscription.filters.filter((filter) => {
       const valueless =
