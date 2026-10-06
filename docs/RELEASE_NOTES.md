@@ -26,6 +26,7 @@
 - Get Cards on a page holding only forms, workflows, or queues now lists them instead of reporting that nothing is there.
 - Update Details and Generate Schema now lock their text fields while saving.
 - Views can be deleted again.
+- Objects Owned and Transfer Ownership now list a user's certification processes instead of failing to load them.
 - Deleting a view, data fusion, or data model now lists its downstream dependencies instead of reporting that they aren't supported.
 - API Errors now captures failed requests on tabs that were already open when the extension updated.
 - API Errors no longer loses its captured errors after the browser sits idle for a short while.

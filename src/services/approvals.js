@@ -188,8 +188,8 @@ export async function getOwnedApprovalTemplates(userId, tabId = null) {
  * Get all certification processes owned by a user. Certification processes are
  * approval templates whose type is a `CC:` composite, so this is the same
  * templateConnection query as getOwnedApprovalTemplates with a different type
- * filter. The filter is a prefix match server-side, so 'CC' returns every
- * certification type at once.
+ * filter, run once per certify type. The filter is a prefix match, so
+ * 'CC:DSET' also returns 'CC:DSET:DOMO'.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<Array<{certifiedType: string|null, id: string, name: string}>>}
@@ -201,45 +201,49 @@ export async function getOwnedCertificationProcesses(userId, tabId = null) {
       const queryString =
         'query getFilteredTemplates($first: Int, $after: ID, $orderBy: OrderBy, $reverseSort: Boolean, $query: TemplateQueryRequest!) {\n  templateConnection(first: $first, after: $after, orderBy: $orderBy, reverseSort: $reverseSort, query: $query) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        type\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}';
 
-      const templates = [];
-      let after = null;
-      // Page guard in case the API never flips hasNextPage; 200 pages of 100
-      // covers far more processes than any instance realistically has.
-      for (let page = 0; page < 200; page++) {
-        const response = await fetch(url, {
-          body: JSON.stringify({
-            operationName: 'getFilteredTemplates',
-            query: queryString,
-            variables: {
-              after,
-              first: 100,
-              orderBy: 'TITLE',
-              query: { ownerId: userId, publishedOnly: false, type: 'CC' },
-              reverseSort: false
-            }
-          }),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST'
-        });
-        if (!response.ok) {
-          const error = new Error(`HTTP ${response.status}`);
-          error.status = response.status;
-          throw error;
-        }
-        const data = await response.json();
+      const templates = new Map();
+      // A bare 'CC' 500s: with publishedOnly false, synapse seeds default
+      // templates for the type and cannot parse a certify type out of 'CC'.
+      for (const type of ['CC:CARD', 'CC:DSET', 'CC:BSTM']) {
+        let after = null;
+        // Page guard in case the API never flips hasNextPage; 200 pages of 100
+        // covers far more processes than any instance realistically has.
+        for (let page = 0; page < 200; page++) {
+          const response = await fetch(url, {
+            body: JSON.stringify({
+              operationName: 'getFilteredTemplates',
+              query: queryString,
+              variables: {
+                after,
+                first: 100,
+                orderBy: 'TITLE',
+                query: { ownerId: userId, publishedOnly: false, type },
+                reverseSort: false
+              }
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST'
+          });
+          if (!response.ok) {
+            const error = new Error(`HTTP ${response.status}`);
+            error.status = response.status;
+            throw error;
+          }
+          const data = await response.json();
 
-        const connection = data?.data?.templateConnection;
-        for (const edge of connection?.edges || []) {
-          if (!edge.node) continue;
-          templates.push({ id: edge.node.id, title: edge.node.title, type: edge.node.type });
-        }
+          const connection = data?.data?.templateConnection;
+          for (const edge of connection?.edges || []) {
+            if (!edge.node) continue;
+            templates.set(edge.node.id, { id: edge.node.id, title: edge.node.title, type: edge.node.type });
+          }
 
-        const pageInfo = connection?.pageInfo;
-        if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) break;
-        after = pageInfo.endCursor;
+          const pageInfo = connection?.pageInfo;
+          if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) break;
+          after = pageInfo.endCursor;
+        }
       }
 
-      return templates;
+      return [...templates.values()];
     },
     [userId],
     tabId
