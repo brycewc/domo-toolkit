@@ -1,20 +1,46 @@
 import { Button, Tooltip } from '@heroui/react';
+import { useEffect, useState } from 'react';
 
+import { isFeatureSwitchOn } from '@/services/features';
+import { setFeatureSwitch } from '@/utils/domoQueryParam';
 import { isSidepanel } from '@/utils/sidepanel';
 import IconAiBook from '@icons/ai-book.svg?react';
 import IconArrowRightCircle from '@icons/arrow-right-circle.svg?react';
+import IconFlag from '@icons/flag.svg?react';
 import IconShield from '@icons/shield.svg?react';
 import IconWrench from '@icons/wrench.svg?react';
 
 export function Navigate({ availableActions, currentContext, isDisabled }) {
   const entry = Object.entries(NAVIGATE_DESCRIPTORS).find(([key]) => availableActions?.has(key));
-  if (!entry) return null;
+  const descriptor = entry?.[1];
+  const [state, setState] = useState();
+  const [isStateLoading, setIsStateLoading] = useState(false);
 
-  const [, descriptor] = entry;
+  useEffect(() => {
+    if (!descriptor?.loadState) return;
+    let cancelled = false;
+    setIsStateLoading(true);
+    descriptor
+      .loadState(currentContext)
+      .catch(() => undefined)
+      .then((value) => {
+        if (cancelled) return;
+        setState(value);
+        setIsStateLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [descriptor, currentContext?.tabId, currentContext?.url]);
+
+  if (!descriptor) return null;
+
   const Icon = descriptor.icon;
+  const label = typeof descriptor.label === 'function' ? descriptor.label(state) : descriptor.label;
+  const tooltip = typeof descriptor.tooltip === 'function' ? descriptor.tooltip(state) : descriptor.tooltip;
 
   const handlePress = async () => {
-    const url = descriptor.resolveUrl(currentContext);
+    const url = descriptor.resolveUrl(currentContext, state);
     if (!url) return;
 
     if (!descriptor.newTab) {
@@ -35,25 +61,37 @@ export function Navigate({ availableActions, currentContext, isDisabled }) {
       <Button
         fullWidth
         className='min-w-36 flex-1 whitespace-normal'
-        isDisabled={isDisabled}
+        isDisabled={isDisabled || isStateLoading}
         variant='tertiary'
         onPress={handlePress}
       >
         <Icon />
-        {descriptor.label}
+        {label}
       </Button>
       <Tooltip.Content className='max-w-60' offset={4}>
-        {descriptor.tooltip}
+        {tooltip}
       </Tooltip.Content>
     </Tooltip>
   );
 }
 
 // At most one of these is ever available at a time, which is why a single button
-// slot covers them all: three mutually exclusive object types plus a login page
+// slot covers them all: four mutually exclusive object types plus a login page
 // that has no detected object. A new entry that can coexist with another breaks
 // that, and the button would silently render only the first match.
 const NAVIGATE_DESCRIPTORS = {
+  dataflowsDev: {
+    icon: IconFlag,
+    label: (isOn) => (isOn ? 'Disable DataFlows Dev' : 'Enable DataFlows Dev'),
+    loadState: (currentContext) => isFeatureSwitchOn('dataflows-dev', currentContext.tabId),
+    newTab: false,
+    resolveUrl: (currentContext, isOn) => {
+      const url = new URL(currentContext.url);
+      setFeatureSwitch(url, 'dataflows-dev', !isOn);
+      return url.toString();
+    },
+    tooltip: (isOn) => `Reload this dataflow with the dataflows-dev feature switch turned ${isOn ? 'off' : 'on'}`
+  },
   dataRepair: {
     icon: IconWrench,
     label: 'Data Repair',

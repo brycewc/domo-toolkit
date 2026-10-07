@@ -120,6 +120,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
 
   if (typeId === 'DATAFLOW_TYPE') {
     actions.add('inspectDataflow');
+    actions.add('dataflowsDev');
     if (metadata?.permission?.mask & 2) {
       actions.add('updateDetails');
       actions.add('manageTags');

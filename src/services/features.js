@@ -33,3 +33,19 @@ export async function getFeatureSwitches(tabId = null) {
     tabId
   );
 }
+
+// The live `features` global already folds in the session overrides `?_f=` writes.
+export async function isFeatureSwitchOn(name, tabId = null) {
+  return executeInPage(
+    (switchName) => {
+      if (typeof window.features?.on === 'function') return window.features.on(switchName);
+      try {
+        return JSON.parse(sessionStorage.getItem('domoFeatures'))?.features?.[switchName]?.enabled === true;
+      } catch {
+        return false;
+      }
+    },
+    [name],
+    tabId
+  );
+}

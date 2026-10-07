@@ -29,6 +29,27 @@ export function setDomoJsonParam(urlObj, name, value) {
   urlObj.search = `?${[...splitQuery(urlObj, name), `${name}=${encoded}`].join('&')}`;
 }
 
+// Domo reads only the first `_f`, so the switch joins that one's comma-separated list.
+export function setFeatureSwitch(urlObj, name, enabled) {
+  const others = getFeatureSwitches(urlObj).filter((entry) => featureSwitchName(entry) !== name);
+  const entry = enabled ? name : `!${name}`;
+  urlObj.search = `?${[...splitQuery(urlObj, '_f'), `_f=${[...others, entry].join(',')}`].join('&')}`;
+}
+
+// A `!` prefix disables a switch and `$` marks it premium; `:` starts its properties.
+function featureSwitchName(entry) {
+  return decodeURIComponent(entry).split(':')[0].replace(/^[!$]/, '');
+}
+
+function getFeatureSwitches(urlObj) {
+  const param = urlObj.search
+    .replace(/^\?/, '')
+    .split('&')
+    .find((part) => part.split('=')[0] === '_f');
+  const value = param?.slice('_f='.length) ?? '';
+  return value.split(/,|%2C/i).filter(Boolean);
+}
+
 function splitQuery(urlObj, excludedName) {
   return urlObj.search
     .replace(/^\?/, '')

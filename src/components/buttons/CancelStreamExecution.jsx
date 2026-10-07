@@ -2,7 +2,7 @@ import { Button, Tooltip } from '@heroui/react';
 
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { cancelStreamExecution } from '@/services/datasets';
-import IconStop from '@icons/stop.svg?react';
+import IconStopFill from '@icons/stop-fill.svg?react';
 
 export function CancelStreamExecution({ currentContext, isDisabled }) {
   const { showPromiseStatus } = useStatusBar();
@@ -40,7 +40,7 @@ export function CancelStreamExecution({ currentContext, isDisabled }) {
         variant='tertiary'
         onPress={handlePress}
       >
-        <IconStop />
+        <IconStopFill />
         Cancel Run
       </Button>
       <Tooltip.Content className='max-w-60' offset={4}>
