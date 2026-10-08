@@ -933,6 +933,13 @@ export const ObjectTypeRegistry = {
         isArray: true,
         itemTypeId: 'DATA_SOURCE',
         label: 'Outputs'
+      },
+      {
+        fetcher: 'jupyterWorkspaceForDataflow',
+        isArray: true,
+        itemTypeId: 'DATA_SCIENCE_NOTEBOOK',
+        label: 'Jupyter Workspace',
+        when: { field: 'metadata.details.databaseType', matches: 'JUPYTER' }
       }
     ],
     urlPath: '/datacenter/dataflows/{id}/details'

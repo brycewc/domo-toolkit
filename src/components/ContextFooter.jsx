@@ -22,6 +22,7 @@ import {
 import {
   getJupyterWorkspaceAccounts,
   getJupyterWorkspaceDatasets,
+  getJupyterWorkspacesForDataflow,
   getJupyterWorkspacesProducingDataset
 } from '@/services/jupyterWorkspaces';
 import { getReportsForApp, getSchedulesForReport } from '@/services/reportBuilder';
@@ -70,6 +71,11 @@ const LAZY_ARRAY_FETCHERS = {
   designInstances: ({ objectId, tabId }) => getDesignInstances({ designId: objectId, tabId }),
   jupyterWorkspaceAccounts: ({ details, tabId }) =>
     getJupyterWorkspaceAccounts({ entries: details?.accountConfiguration, tabId }),
+  jupyterWorkspaceForDataflow: ({ objectId, tabId }) =>
+    getJupyterWorkspacesForDataflow(objectId, tabId).then((workspaces) => ({
+      items: workspaces,
+      notice: workspaces.length > 0 ? null : "No Jupyter Workspace you can see runs this dataflow's notebook."
+    })),
   jupyterWorkspaceForDataset: ({ objectId, tabId, userRights }) =>
     getJupyterWorkspacesProducingDataset(objectId, tabId).then((workspaces) => ({
       items: workspaces,

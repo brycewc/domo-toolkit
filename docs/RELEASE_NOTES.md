@@ -9,6 +9,7 @@
 - Get Usage on a Code Engine Package now lists the AI toolkits that use it, and the Current Context footer has an AI Toolkits tab.
 - Deleting a Code Engine Package is now blocked while an AI toolkit uses it.
 - A new Enable DataFlows Dev button on a dataflow reloads it with the dataflows-dev feature switch turned on, and turns it back off once it is on.
+- The Current Context footer on a Jupyter dataflow now has a Jupyter Workspace tab linking to the workspace that runs it.
 
 ## UI Improvements
 

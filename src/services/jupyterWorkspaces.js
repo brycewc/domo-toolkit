@@ -90,6 +90,46 @@ export async function getJupyterWorkspaceDatasets({ entries, tabId = null }) {
   );
 }
 
+// A workspace that can't be read comes back as just `{ id, notebook }`.
+export async function getJupyterWorkspacesForDataflow(dataflowId, tabId = null) {
+  const result = await executeInPage(
+    async (dataflowId) => {
+      try {
+        const response = await fetch('/api/datascience/v1/search/notebooks', {
+          body: JSON.stringify({ filters: [{ type: 'DATA_FLOW_ID', values: [dataflowId] }] }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) return { error: `HTTP ${response.status}`, workspaces: null };
+        const data = await response.json();
+
+        const workspaces = await Promise.all(
+          (data?.notebooks || [])
+            .filter((notebook) => notebook?.workspaceId)
+            .map(async (notebook) => {
+              try {
+                const workspaceResponse = await fetch(`/api/datascience/v1/workspaces/${notebook.workspaceId}?instances=false`);
+                if (!workspaceResponse.ok) return { id: notebook.workspaceId, notebook };
+                return { ...(await workspaceResponse.json()), notebook };
+              } catch {
+                return { id: notebook.workspaceId, notebook };
+              }
+            })
+        );
+        return { error: null, workspaces };
+      } catch (error) {
+        return { error: error.message, workspaces: null };
+      }
+    },
+    [String(dataflowId)],
+    tabId
+  );
+  if (!result?.workspaces) {
+    throw new Error(result?.error ? `Could not load Jupyter Workspaces: ${result.error}` : 'Could not load Jupyter Workspaces');
+  }
+  return result.workspaces;
+}
+
 /**
  * Find every Jupyter Workspace that references a dataset on either side, each
  * carrying the aliases it reads it by (`inputAliases`) and writes it by
