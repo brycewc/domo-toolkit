@@ -164,6 +164,8 @@ fetched when the user opened page 2.
 
 ## 1.6 Closing the panel mid-run
 
+Detailed plan: [beta-phase-1-6-run-lock.md](beta-phase-1-6-run-lock.md).
+
 - A shared `useRunLock` hook: while a run is active, disable the view's close and back buttons
   and any navigation that unmounts the view.
 - The side panel cannot block its own closing. Closing it kills the run. 1.3 makes that
