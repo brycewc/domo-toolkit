@@ -15,8 +15,10 @@ import {
   PARENT_ONLY_LOG_TYPES
 } from '@/utils/activityLog';
 import { isDatasetTypeId } from '@/utils/datasetTypes';
+import { requestOwnedObjectsLog } from '@/utils/ownedObjectsLog';
 import { waitForChildPages } from '@/utils/pageHelpers';
 import IconChartBarBox from '@icons/chart-bar-box.svg?react';
+import IconListBulleted from '@icons/list-bulleted.svg?react';
 import IconListSearch from '@icons/list-search.svg?react';
 import IconPagesBars from '@icons/pages-bars.svg?react';
 import IconTree from '@icons/tree.svg?react';
@@ -187,6 +189,10 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           message = `Navigating to activity log for ${activityLogObjects.length} child pages`;
           break;
         }
+        case 'owned-objects': {
+          await requestOwnedObjectsLog({ currentContext, onStatusUpdate });
+          return;
+        }
         case 'parent': {
           const parent = getActivityLogParent(currentContext.domoObject);
 
@@ -306,6 +312,17 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
               </Description>
             </div>
           </Dropdown.Item>
+          {ownsCards && (
+            <Dropdown.Item id='owned-objects' textValue='Owned Objects'>
+              <div className='flex flex-col'>
+                <div className='flex items-center gap-2'>
+                  <IconListBulleted className='size-4 shrink-0' />
+                  <Label>Owned Objects</Label>
+                </div>
+                <Description className='ml-6 text-xs'>View activity log for every object this {typeLabel} owns</Description>
+              </div>
+            </Dropdown.Item>
+          )}
           {hasChildPages && (
             <Dropdown.Item id='child-pages' textValue='Child Pages'>
               <div className='flex flex-col'>

@@ -23,7 +23,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStatusBar } from '@/hooks/useStatusBar';
 import { getObjectType, getPluralTypeName } from '@/models/DomoObjectType';
 import { shareObjectsWithSelf, shareWithSelf } from '@/services/share';
-import { launchActivityLogForOrigin } from '@/utils/activityLog';
+import { collectActivityLogObjects, launchActivityLogForOrigin } from '@/utils/activityLog';
 import { MAX_OPEN_ALL_TABS } from '@/utils/constants';
 import { copyToClipboard } from '@/utils/copyToClipboard';
 import { getValidTabForInstance } from '@/utils/currentObject';
@@ -805,37 +805,6 @@ function allTypesLabel(buckets) {
   const labels = buckets.map((bucket) => bucket.label);
   const joined = labels.length > 2 ? `${labels.slice(0, -1).join(', ')}, and ${labels.at(-1)}` : labels.join(' and ');
   return `All (${joined})`;
-}
-
-/**
- * Recursively collect loggable objects from an item tree for the activity-log
- * "for all" actions. Returns deduped `{ id, name, type }` records (keyed by
- * `type:id`). Skips virtual group headers (no real object) and rows missing a
- * type/id or carrying a negative numeric id (Overview/Favorites/Shared
- * pseudo-pages); UUID/string ids are kept.
- * @param {Array} itemList - Array of items (and their children) to walk.
- * @returns {Array<{ id: string, name: string, type: string }>}
- */
-function collectActivityLogObjects(itemList) {
-  const seen = new Set();
-  const objects = [];
-  const traverse = (list) => {
-    for (const item of list) {
-      const id = item.originalId ?? item.id;
-      if (!item.isVirtualParent && id != null && item.typeId && !(Number(id) < 0)) {
-        const key = `${item.typeId}:${id}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          objects.push({ id: String(id), name: item.label ?? '', type: item.typeId });
-        }
-      }
-      if (item.children && item.children.length > 0) {
-        traverse(item.children);
-      }
-    }
-  };
-  traverse(itemList);
-  return objects;
 }
 
 /**

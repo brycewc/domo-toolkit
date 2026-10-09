@@ -22,6 +22,29 @@ export function activityLogCountLabel({ count, type }) {
   return `${count} ${count === 1 ? noun : `${noun}s`}`;
 }
 
+// Negative IDs are the Overview/Favorites/Shared pseudo-pages, which have no log.
+export function collectActivityLogObjects(itemList) {
+  const seen = new Set();
+  const objects = [];
+  const traverse = (list) => {
+    for (const item of list) {
+      const id = item.originalId ?? item.id;
+      if (!item.isVirtualParent && id != null && item.typeId && !(Number(id) < 0)) {
+        const key = `${item.typeId}:${id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          objects.push({ id: String(id), name: item.label ?? '', type: item.typeId });
+        }
+      }
+      if (item.children && item.children.length > 0) {
+        traverse(item.children);
+      }
+    }
+  };
+  traverse(itemList);
+  return objects;
+}
+
 /** Null when the type has no parent or the parent ID was never resolved. */
 export function getActivityLogParent(domoObject) {
   const parentTypeId = getObjectType(domoObject?.typeId)?.parents?.[0];

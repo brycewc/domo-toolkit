@@ -10,6 +10,7 @@
 - Deleting a Code Engine Package is now blocked while an AI toolkit uses it.
 - A new Enable Dev Tools button on a dataflow reloads it with the dataflows-dev feature switch turned on, and turns it back off once it is on.
 - The Current Context footer on a Jupyter dataflow now has a Jupyter Workspace tab linking to the workspace that runs it.
+- Holding the Activity Log button on a user or group now offers Owned Objects, which opens the activity log for everything they own.
 
 ## UI Improvements
 
@@ -20,6 +21,7 @@
 - Deleting a dataflow or dataset with downstream dependencies now requires holding the Delete button, for 5 seconds when dataflows or datasets depend on it and 2.5 seconds when only cards and alerts do.
 - The dataflow delete view now opens the Output DataSets group automatically when the dataflow has only one output.
 - The Action and Object Type filters in the activity log are now searchable fields that show your selections as removable tags.
+- The "Not Checked" warning in Objects Owned and Transfer Ownership can now be dismissed.
 
 ## Bug Fixes
 

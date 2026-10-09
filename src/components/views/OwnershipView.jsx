@@ -1,4 +1,4 @@
-import { Button, Card, Spinner } from '@heroui/react';
+import { Button, Card, Spinner, toast, Tooltip } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
@@ -21,12 +21,19 @@ import {
   TYPE_KEY_TO_LOG_TYPE
 } from '@/services/transferOwnership';
 import { deleteUser } from '@/services/users';
+import { collectActivityLogObjects, launchActivityLogForOrigin } from '@/utils/activityLog';
 import { buildExcelBlob, generateExportFilename } from '@/utils/exportData';
 import { isTypeFeatureEnabled } from '@/utils/featureSwitches';
+import {
+  clearOwnedObjectsLogRequest,
+  isOwnedObjectsLogRequestFor,
+  ownedObjectsLogRequestKey
+} from '@/utils/ownedObjectsLog';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconFormatListChecks from '@icons/format-list-checks.svg?react';
 import IconListBulleted from '@icons/list-bulleted.svg?react';
 import IconSwapHorizontal from '@icons/swap-horizontal.svg?react';
+import IconX from '@icons/x.svg?react';
 
 const LOG_COLUMNS = [
   { accessorKey: 'Object Type', header: 'Object Type' },
@@ -144,8 +151,14 @@ export function OwnershipView({
   // { [typeKey]: { status, error?, succeeded?, failed?, count? } }
   const [transferStatus, setTransferStatus] = useState({});
   const [isTransferring, setIsTransferring] = useState(false);
+  const [activityLogRequest, setActivityLogRequest] = useState(null);
+  const [isUnsupportedBannerDismissed, setIsUnsupportedBannerDismissed] = useState(false);
 
   const mountedRef = useRef(true);
+  const mountedAtRef = useRef(Date.now());
+  const handledLogRequestAtRef = useRef(0);
+  const queuedLogNoticeAtRef = useRef(0);
+  const queuedLogToastIdRef = useRef(null);
   // Fires the "no objects owned" toast + back-to-default exactly once. Guards
   // against a double-fire in the frame between showStatus and unmount.
   const emptyHandledRef = useRef(false);
@@ -156,8 +169,14 @@ export function OwnershipView({
     loadData();
     return () => {
       mountedRef.current = false;
+      closeQueuedLogToast();
     };
   }, []);
+
+  const closeQueuedLogToast = () => {
+    if (queuedLogToastIdRef.current) toast.close(queuedLogToastIdRef.current);
+    queuedLogToastIdRef.current = null;
+  };
 
   const loadData = async () => {
     try {
@@ -495,6 +514,84 @@ export function OwnershipView({
       }),
     [results, transferStatus, forbidden, jobsByApplication, origin, tasksByProject, transferTypes]
   );
+
+  // The request can land before mount (the button launched this view) or while
+  // it is already open, so read it once and then keep listening.
+  useEffect(() => {
+    if (!instance || !userId) return;
+    let isCurrent = true;
+    let requestKey = null;
+    const accept = (request) => {
+      if (!isCurrent || !(request?.requestedAt > handledLogRequestAtRef.current)) return;
+      if (!isOwnedObjectsLogRequestFor(request, { mountedAt: mountedAtRef.current, ownerId: userId, ownerType })) return;
+      setActivityLogRequest(request);
+    };
+    const handleStorageChange = (changes, areaName) => {
+      if (areaName === 'session' && requestKey && changes[requestKey]?.newValue) accept(changes[requestKey].newValue);
+    };
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    ownedObjectsLogRequestKey(instance).then(async (key) => {
+      requestKey = key;
+      const { [key]: request } = await chrome.storage.session.get(key);
+      accept(request);
+    });
+    return () => {
+      isCurrent = false;
+      chrome.storage.onChanged.removeListener(handleStorageChange);
+    };
+  }, [instance, ownerType, userId]);
+
+  useEffect(() => {
+    if (!activityLogRequest) return;
+    if (!isFullyLoaded || Object.keys(results).length === 0) {
+      if (queuedLogNoticeAtRef.current !== activityLogRequest.requestedAt) {
+        queuedLogNoticeAtRef.current = activityLogRequest.requestedAt;
+        const launchedForRequest = activityLogRequest.requestedAt < mountedAtRef.current;
+        closeQueuedLogToast();
+        queuedLogToastIdRef.current = toast(launchedForRequest ? 'Loading Owned Objects' : 'Activity Log Queued', {
+          description: 'The activity log opens once every type finishes loading',
+          isLoading: true,
+          timeout: 0
+        });
+      }
+      return;
+    }
+    closeQueuedLogToast();
+    handledLogRequestAtRef.current = activityLogRequest.requestedAt;
+    setActivityLogRequest(null);
+    clearOwnedObjectsLogRequest(instance);
+    // The empty-result effect already reports this and closes the view.
+    if (totalObjects === 0) return;
+
+    const objects = collectActivityLogObjects(dataListItems);
+    const objectWord = objects.length === 1 ? 'object' : 'objects';
+    const failedNote = errorCount > 0 ? ` (${errorCount} ${errorCount === 1 ? 'type' : 'types'} failed to load)` : '';
+    launchActivityLogForOrigin({ objects, origin, type: 'multi-object' })
+      .then((launched) => {
+        if (!launched) throw new Error('Could not determine the Domo instance for this object');
+        onStatusUpdate?.(
+          'Opening Activity Log',
+          `Navigating to activity log for **${objects.length}** ${objectWord} owned by **${userName}**${failedNote}`,
+          errorCount > 0 ? 'warning' : 'success',
+          errorCount > 0 ? 5000 : undefined
+        );
+      })
+      .catch((err) => {
+        console.error('[OwnershipView] Error opening activity log:', err);
+        onStatusUpdate?.('Error', `Failed to open activity log: ${err.message}`, 'danger', 5000);
+      });
+  }, [
+    activityLogRequest,
+    dataListItems,
+    errorCount,
+    instance,
+    isFullyLoaded,
+    onStatusUpdate,
+    origin,
+    results,
+    totalObjects,
+    userName
+  ]);
 
   // Selection eligibility: applies to BOTH parent type rows and individual
   // leaf items. A parent is selectable when its type has loaded with > 0
@@ -1031,15 +1128,30 @@ export function OwnershipView({
     transferTypes
   ]);
 
-  const unsupportedBanner = (
+  const unsupportedBanner = isUnsupportedBannerDismissed ? null : (
     <Alert className='w-full' status='warning' variant='transparent'>
       <Alert.Content>
-        <Alert.Title className='flex items-center gap-1'>
-          <AlertStatusIcon />
-          Not Checked
-        </Alert.Title>
+        <div className='flex w-full items-center gap-1'>
+          <Alert.Title className='flex flex-1 items-center gap-1'>
+            <AlertStatusIcon />
+            Not Checked
+          </Alert.Title>
+          <Tooltip>
+            <Button
+              isIconOnly
+              aria-label='Dismiss warning'
+              className='-my-1.5 shrink-0'
+              size='sm'
+              variant='ghost'
+              onPress={() => setIsUnsupportedBannerDismissed(true)}
+            >
+              <IconX />
+            </Button>
+            <Tooltip.Content className='max-w-60'>Dismiss warning</Tooltip.Content>
+          </Tooltip>
+        </div>
         <Alert.Description className='text-xs'>
-          Domo has no way to list these by owner, so they are neither shown here nor transferred:{' '}
+          Domo has no way to list the following types by owner, so they are neither shown here nor transferred:{' '}
           {UNSUPPORTED_TYPE_LABELS.join(', ')}.
         </Alert.Description>
       </Alert.Content>
