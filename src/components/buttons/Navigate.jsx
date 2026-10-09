@@ -82,7 +82,7 @@ export function Navigate({ availableActions, currentContext, isDisabled }) {
 const NAVIGATE_DESCRIPTORS = {
   dataflowsDev: {
     icon: IconFlag,
-    label: (isOn) => (isOn ? 'Disable DataFlows Dev' : 'Enable DataFlows Dev'),
+    label: (isOn) => (isOn ? 'Disable Dev Tools' : 'Enable Dev Tools'),
     loadState: (currentContext) => isFeatureSwitchOn('dataflows-dev', currentContext.tabId),
     newTab: false,
     resolveUrl: (currentContext, isOn) => {
