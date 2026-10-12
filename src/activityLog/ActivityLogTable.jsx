@@ -61,6 +61,7 @@ export function ActivityLogTable() {
   // never fires before that preference is known (it would race and clobber the
   // dataset results). See the source-resolution effect below.
   const [source, setSource] = useState(null);
+  const [switchedToApi, setSwitchedToApi] = useState(false);
   // True once the activity-log config (objects/instance) has been read from
   // storage, so source resolution waits until domoInstance is settled.
   const [configLoaded, setConfigLoaded] = useState(false);
@@ -465,12 +466,12 @@ export function ActivityLogTable() {
   // Set initial column visibility based on number of objects
   const initialColumnVisibility = useMemo(
     () => ({
-      // Show comment column only when single object
-      additionalComment: activityLogType === 'single-object',
+      // Show comment column only when single object, or when it replaces the dataset's Source column
+      additionalComment: activityLogType === 'single-object' || switchedToApi,
       // Show object column only when multiple objects
       objectName: activityLogType !== 'single-object'
     }),
-    [activityLogType]
+    [activityLogType, switchedToApi]
   );
 
   // Fetch activity log events from all objects (re-runs when userFilter changes)
@@ -872,6 +873,11 @@ export function ActivityLogTable() {
     [domoInstance, resolveTabId, updatePerInstance]
   );
 
+  const handleSwitchToApi = useCallback(() => {
+    setSwitchedToApi(true);
+    setSource('api');
+  }, []);
+
   // Handle action filter changes — updates dropdown state and triggers re-fetch via ref
   const handleActionFilterChange = useCallback((newFilter) => {
     setActionFilter(newFilter);
@@ -1124,7 +1130,7 @@ export function ActivityLogTable() {
               )}
             </Alert.Content>
             <div className='flex shrink-0 flex-col items-end gap-2'>
-              <Button size='sm' variant='secondary' onPress={() => setSource('api')}>
+              <Button size='sm' variant='secondary' onPress={handleSwitchToApi}>
                 Switch to API
               </Button>
               <Switch
@@ -1166,7 +1172,7 @@ export function ActivityLogTable() {
               >
                 {isDiscovering ? 'Re-running discovery…' : 'Re-run discovery'}
               </Button>
-              <Button size='sm' variant='ghost' onPress={() => setSource('api')}>
+              <Button size='sm' variant='ghost' onPress={handleSwitchToApi}>
                 Switch to API
               </Button>
             </div>
@@ -1223,6 +1229,7 @@ export function ActivityLogTable() {
       // Recomputes "Last updated N minutes ago" on each tick. Needed on its own
       // because an unchanged datasetLastUpdated would otherwise freeze the phrase.
       freshnessTick,
+      handleSwitchToApi,
       handleUseDomoStats,
       isDiscovering,
       isFetchingMore,

@@ -37,6 +37,7 @@
 - API Errors no longer loses its captured errors after the browser sits idle for a short while.
 - Errors returned by Domo now show up as errors instead of being reported as success or as finding nothing.
 - Get Usage's filter to the current Code Engine Package Version now shows the workflows that use that version.
+- Switching the activity log from the DomoStats dataset to the API now shows the Description column in place of the Source column.
 - Migrate Content now moves cards that filter or have a slicer on a column the dataset no longer has, removing that filter or slicer, instead of failing.
 - Migrate Content and Remap Columns now update older DataSet views that filter rows or calculate a column, instead of failing with "GET fusion HTTP 400".
 - Get Workspaces no longer appears on system pages like Overview and Favorites.
