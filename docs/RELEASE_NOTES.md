@@ -44,5 +44,6 @@
 - Copy now copies the dataset's ID instead of the highlighted cell when a cell is selected in the dataset's data table.
 - Transfer Ownership no longer lets you pick the source user or group as the new owner.
 - Transfer Ownership now only offers to delete the user when every type loaded and every object they own is selected for transfer, and warns that the types it can't check will be orphaned.
+- Opening another view right after Transfer Ownership finishes no longer closes the new view a few seconds later.
 - Migrate Beast Mode Usage no longer deletes the original Beast Mode while drills it can't update still use it, and checks with Domo that nothing uses it right before deleting.
 - Migrate Content and Remap Columns now update DataSet unions. _(TODO: unverified whether unions failed or were saved wrong in 1.7.0)_

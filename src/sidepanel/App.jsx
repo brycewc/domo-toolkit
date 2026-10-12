@@ -267,15 +267,18 @@ export default function App() {
     };
   }, [applyContext]);
 
-  const handleBackToDefault = (instance) => {
-    applyViewData(instance, null);
-    // Clear this window's record for the instance
-    chrome.storage.session.remove([sidepanelStorageKey(windowIdRef.current, instance)]);
+  // Views close themselves after awaits and timers, so a close from a view that
+  // has since been replaced must not take down its replacement.
+  const handleBackToDefault = async (instance, viewKey) => {
+    setInstanceViews((prev) => (prev[instance]?.viewKey === viewKey ? { ...prev, [instance]: { type: 'default' } } : prev));
+    const key = sidepanelStorageKey(windowIdRef.current, instance);
+    const { [key]: record } = await chrome.storage.session.get([key]);
+    if (record?.timestamp === viewKey) await chrome.storage.session.remove([key]);
   };
 
   const renderInstanceView = (instance, slot) => {
     const isActive = instance === activeInstance;
-    const backToDefault = () => handleBackToDefault(instance);
+    const backToDefault = () => handleBackToDefault(instance, slot.viewKey);
 
     return (
       <ViewReadyContext.Provider value={() => markViewReady(instance)}>

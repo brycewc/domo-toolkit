@@ -4,7 +4,8 @@ published: false
 
 # Beta Phase 1.6: Run Lock
 
-Status: planned, not started. Inventory done 2026-10-08 on branch `1.8.0`. Parent:
+Status: planned, not started, except the late-close fix below, which landed on `1.8.0` ahead of the rest.
+Inventory done 2026-10-08 on branch `1.8.0`. Parent:
 [beta-phase-1-shared-fixes.md](beta-phase-1-shared-fixes.md) section 1.6. Depends on nothing; the
 interrupted-run notice it relies on comes from
 [beta-phase-1-3-change-journal.md](beta-phase-1-3-change-journal.md) step 3.
