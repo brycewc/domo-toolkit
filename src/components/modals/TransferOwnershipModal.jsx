@@ -1,5 +1,5 @@
 import { Button, Description, Form, Input, Label, Modal, Switch, TextField, Tooltip } from '@heroui/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
 import { AlertStatusIcon } from '@/components/AlertStatusIcon';
@@ -26,7 +26,9 @@ import IconX from '@icons/x.svg?react';
  *
  * @param {Object} props
  * @param {Object} props.currentContext - Active DomoContext (carries baseUrl, tabId, user.metadata.USER_RIGHTS, and the source user's reportsTo).
+ * @param {string|null} [props.deleteBlockedReason=null] - Why deleting the source is unsafe right now; disables the delete toggle and is shown as its description.
  * @param {boolean} props.isOpen
+ * @param {string[]} [props.notCheckedTypeLabels=[]] - Types that can't be listed by owner, named in the warning shown while delete is on.
  * @param {string[]} [props.notices=[]] - Caveats to show above the summary line, one warning per entry. The parent owns the wording so the modal stays type-agnostic.
  * @param {'USER'|'GROUP'} [props.ownerType='USER'] - Owner type of the source and destination.
  * @param {(open: boolean) => void} props.onOpenChange
@@ -37,7 +39,9 @@ import IconX from '@icons/x.svg?react';
  */
 export function TransferOwnershipModal({
   currentContext,
+  deleteBlockedReason = null,
   isOpen,
+  notCheckedTypeLabels = [],
   notices = [],
   onOpenChange,
   onSubmit,
@@ -171,14 +175,17 @@ export function TransferOwnershipModal({
   // Delete-after-transfer is a user-only affordance (there is no "delete this
   // group" step); hidden entirely for a group source.
   const canDeleteUsers = !isGroup && userRights.includes('user.edit');
+  const sourceKey = sourceUser?.id != null ? `${ownerType}:${sourceUser.id}` : null;
+  const excludeKeys = useMemo(() => (sourceKey ? new Set([sourceKey]) : undefined), [sourceKey]);
+  const isSelfTransfer = selectedOwnerId != null && String(selectedOwnerId) === String(sourceUser?.id);
 
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
-    if (!selectedOwnerId || selectedTypeCount === 0) return;
+    if (!selectedOwnerId || selectedTypeCount === 0 || isSelfTransfer) return;
 
     const formData = {
       currentUser,
-      deleteAfterTransfer: deleteAfterTransfer && canDeleteUsers,
+      deleteAfterTransfer: deleteAfterTransfer && canDeleteUsers && !deleteBlockedReason,
       emailCurrentUser: emailCurrentUser && !!currentUser?.email,
       emailNewOwner: emailNewOwner && !!target?.email,
       target,
@@ -220,6 +227,7 @@ export function TransferOwnershipModal({
                 <OwnerComboBox
                   avatarBaseUrl={currentContext?.domoObject?.baseUrl}
                   className='min-w-0 flex-1'
+                  excludeKeys={excludeKeys}
                   isActive={isOpen}
                   label='Transfer To'
                   selectedDisplayName={selectedDisplayName}
@@ -287,7 +295,11 @@ export function TransferOwnershipModal({
               </Switch>
 
               {canDeleteUsers && (
-                <Switch isSelected={deleteAfterTransfer} onChange={setDeleteAfterTransfer}>
+                <Switch
+                  isDisabled={!!deleteBlockedReason}
+                  isSelected={deleteAfterTransfer && !deleteBlockedReason}
+                  onChange={setDeleteAfterTransfer}
+                >
                   {({ isSelected }) => (
                     <>
                       <Switch.Content>
@@ -296,10 +308,25 @@ export function TransferOwnershipModal({
                         </Switch.Control>
                         Delete user after transfer
                       </Switch.Content>
-                      <Description>Only if all transfers succeed</Description>
+                      <Description>{deleteBlockedReason || 'Only if all transfers succeed'}</Description>
                     </>
                   )}
                 </Switch>
+              )}
+
+              {canDeleteUsers && deleteAfterTransfer && !deleteBlockedReason && notCheckedTypeLabels.length > 0 && (
+                <Alert className='w-full' status='danger' variant='transparent'>
+                  <Alert.Content>
+                    <Alert.Title className='flex items-center gap-1'>
+                      <AlertStatusIcon />
+                      Not Checked
+                    </Alert.Title>
+                    <Alert.Description className='text-xs'>
+                      Any {notCheckedTypeLabels.join(', ')} the user owns are not transferred and will be orphaned when the
+                      user is deleted. Check these in Domo before you transfer.
+                    </Alert.Description>
+                  </Alert.Content>
+                </Alert>
               )}
 
               {notices.map((notice) => (
@@ -325,7 +352,12 @@ export function TransferOwnershipModal({
               <Button size='sm' slot='close' variant='tertiary'>
                 Cancel
               </Button>
-              <Button isDisabled={!selectedOwnerId || selectedTypeCount === 0} size='sm' type='submit' variant='primary'>
+              <Button
+                isDisabled={!selectedOwnerId || selectedTypeCount === 0 || isSelfTransfer}
+                size='sm'
+                type='submit'
+                variant='primary'
+              >
                 Transfer
               </Button>
             </Modal.Footer>

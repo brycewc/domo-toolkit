@@ -1,3 +1,5 @@
+import { parseBeastModeLinks } from '@/utils/beastModeLinks';
+
 import { repointNestedBeastModeToColumn } from './columnRewriter';
 import { deleteFunction, getFunctionTemplate, updateDatasetFunctions } from './functions';
 import { describeSwapFailure, swapCardInput } from './migrateDownstreamContent';
@@ -150,7 +152,8 @@ function buildNestingUpdateEntry(template, { columnName, numericRemap, originId 
  * Delete the origin once the repoint has left nothing referencing it. Refuses on
  * anything short of a clean sweep: a partial failure or a partial selection
  * means something still points at it, and Domo deletes a referenced Beast Mode
- * without complaint, breaking those cards silently.
+ * without complaint, breaking those cards silently. The links are re-read just
+ * before deleting, since the usage the view listed was read when it opened.
  */
 async function deleteOriginIfUnused({ deleteOrigin, hasUnmappableUsage, origin, results, selectionIsComplete, tabId }) {
   const idle = { attempted: false, error: null, skipReason: null, succeeded: false };
@@ -165,6 +168,19 @@ async function deleteOriginIfUnused({ deleteOrigin, hasUnmappableUsage, origin, 
   }
   if (hasUnmappableUsage) {
     return { ...idle, skipReason: "usage this tool can't repoint still references it" };
+  }
+
+  let remaining;
+  try {
+    const { cardIds, drillRefs, nestedByIds, otherLinks } = parseBeastModeLinks(
+      (await getFunctionTemplate(origin.id, tabId)).links
+    );
+    remaining = cardIds.length + drillRefs.length + nestedByIds.length + otherLinks.reduce((sum, l) => sum + l.count, 0);
+  } catch (err) {
+    return { ...idle, skipReason: `its current usage couldn't be checked (${err?.message || String(err)})` };
+  }
+  if (remaining > 0) {
+    return { ...idle, skipReason: `Domo still lists ${remaining} use${remaining === 1 ? '' : 's'} of it` };
   }
 
   try {

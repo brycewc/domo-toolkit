@@ -802,6 +802,21 @@ export function OwnershipView({
     [selectedItemsByType]
   );
 
+  // Deleting the source orphans anything it still owns, so it is only offered
+  // when the listing is complete and every listed object is being moved.
+  const deleteBlockedReason = useMemo(() => {
+    if (!isFullyLoaded) return 'Available once every type has finished loading';
+    if (errorCount > 0) {
+      return `${errorCount} type${errorCount !== 1 ? 's' : ''} failed to load, so the user may still own objects that would be orphaned`;
+    }
+    const forbiddenOwned = transferTypes.filter((t) => forbidden.has(t.key) && countOwned(t.key, results[t.key]?.items) > 0);
+    if (forbiddenOwned.length > 0) {
+      return `You can't transfer the user's ${forbiddenOwned.map((t) => t.label).join(', ')}, which would be orphaned`;
+    }
+    if (selectedObjectCount < totalObjects) return 'Select every object to delete the user after transfer';
+    return null;
+  }, [errorCount, forbidden, isFullyLoaded, results, selectedObjectCount, totalObjects, transferTypes]);
+
   // Caveats the modal shows before the user commits, for types whose transfer
   // has a consequence beyond the owner change itself.
   const transferNotices = useMemo(() => {
@@ -1036,8 +1051,14 @@ export function OwnershipView({
           }
         }
 
-        // Optional: delete the source user once everything succeeded.
-        if (totalFailed === 0 && deleteAfterTransfer) {
+        if (totalFailed === 0 && deleteAfterTransfer && deleteBlockedReason) {
+          showStatus(
+            'Transfer Complete (User Not Deleted)',
+            `Transferred **${totalSucceeded}** object${totalSucceeded !== 1 ? 's' : ''} but did not delete **${userName}**: ${deleteBlockedReason}`,
+            'warning',
+            7000
+          );
+        } else if (totalFailed === 0 && deleteAfterTransfer) {
           try {
             await deleteUser(userId, tabId);
             showStatus(
@@ -1083,7 +1104,7 @@ export function OwnershipView({
         }
       }
     },
-    [onBackToDefault, results, selectedItemsByType, showStatus, tabId, transferTypes, userId, userName]
+    [deleteBlockedReason, onBackToDefault, results, selectedItemsByType, showStatus, tabId, transferTypes, userId, userName]
   );
 
   const subtextNode = useMemo(() => {
@@ -1279,7 +1300,9 @@ export function OwnershipView({
       />
       <TransferOwnershipModal
         currentContext={launchContext}
+        deleteBlockedReason={deleteBlockedReason}
         isOpen={transferModalOpen && isActive}
+        notCheckedTypeLabels={UNSUPPORTED_TYPE_LABELS}
         notices={transferNotices}
         ownerType={ownerType}
         selectedObjectCount={selectedObjectCount}

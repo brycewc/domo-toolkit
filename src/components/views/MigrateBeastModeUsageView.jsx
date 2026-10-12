@@ -432,7 +432,9 @@ export function MigrateBeastModeUsageView({
   }, [isRowSelectable, rowsByType, selectedIds, selectionKey]);
 
   const totalSelected = MIGRATE_BEAST_MODE_TYPES.reduce((sum, t) => sum + selectedByType[t.key].length, 0);
-  const selectionIsComplete = totalSelected === selectableIds.size && unreadableNesting.length === 0;
+  const unwritableCardCount = cardRows.filter((row) => row.unwritable).length;
+  const selectionIsComplete =
+    totalSelected === selectableIds.size && unreadableNesting.length === 0 && unwritableCardCount === 0;
 
   const dataListItems = useMemo(() => {
     return MIGRATE_BEAST_MODE_TYPES.map((t) => {
@@ -694,6 +696,7 @@ export function MigrateBeastModeUsageView({
   ]);
 
   const canDeleteOrigin = selectionIsComplete && otherLinks.length === 0;
+  const hasUnrepointableUsage = otherLinks.length > 0 || unwritableCardCount > 0 || unreadableNesting.length > 0;
 
   const handleMigrate = async () => {
     setConfirmOpen(false);
@@ -1023,7 +1026,7 @@ export function MigrateBeastModeUsageView({
             {!canDeleteOrigin && (
               <p className='-mt-2 text-xs text-muted'>
                 Available once everything using it is selected
-                {otherLinks.length > 0 ? " and no usage remains that can't be repointed" : ''}.
+                {hasUnrepointableUsage ? " and no usage remains that can't be repointed" : ''}.
               </p>
             )}
           </Card.Content>
