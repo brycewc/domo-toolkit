@@ -40,4 +40,5 @@
 - Migrate Content now moves cards that filter or have a slicer on a column the dataset no longer has, removing that filter or slicer, instead of failing.
 - Migrate Content and Remap Columns now update older DataSet views that filter rows or calculate a column, instead of failing with "GET fusion HTTP 400".
 - Get Workspaces no longer appears on system pages like Overview and Favorites.
+- Copy now copies the dataset's ID instead of the highlighted cell when a cell is selected in the dataset's data table.
 - Migrate Content and Remap Columns now update DataSet unions. _(TODO: unverified whether unions failed or were saved wrong in 1.7.0)_

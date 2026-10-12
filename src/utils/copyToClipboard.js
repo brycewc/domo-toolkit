@@ -62,6 +62,13 @@ export async function copyToClipboard(text, tabId = null) {
   const [injection] = await chrome.scripting.executeScript({
     args: [text],
     func: (value) => {
+      // Domo's dataset grid has its own copy listener that swaps in the selected cell, so claim the event first.
+      const claimCopy = (event) => {
+        event.clipboardData.setData('text/plain', value);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      };
+      window.addEventListener('copy', claimCopy, true);
       const textarea = document.createElement('textarea');
       textarea.value = value;
       textarea.setAttribute('readonly', '');
@@ -77,6 +84,7 @@ export async function copyToClipboard(text, tabId = null) {
       try {
         return document.execCommand('copy');
       } finally {
+        window.removeEventListener('copy', claimCopy, true);
         textarea.remove();
         // Restore whatever the user had selected before we hijacked it.
         if (saved && selection) {
