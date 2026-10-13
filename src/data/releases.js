@@ -1,5 +1,20 @@
 export const releases = [
   {
+    date: '2026-10-12',
+    githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.8.0',
+    highlights: [
+      'Get Collections: list the AppDB collections used by an app card, the app cards on a page or App Studio App, every instance of an app design, or a Jupyter Workspace',
+      'Get Cards on an App Studio page now includes the forms and workflows behind buttons',
+      'Deleting a dataflow or dataset shows its downstream impact right away and requires holding the Delete button when other content depends on it',
+      'Code Engine Packages now show the AI toolkits that use them, and cannot be deleted while one (or another dependency) does',
+      'Alternate action for activity log that shows everything a user or group owns'
+    ],
+    notify: 'fullPage',
+    summary:
+      'Feature release adding Get Collections and Enable Dev Tools, expanding Get Cards on App Studio pages, making dataflow and dataset deletes safer, and fixing Transfer Ownership, Migrate Content, and API Errors.',
+    version: '1.8.0'
+  },
+  {
     date: '2026-09-16',
     githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.7.0',
     highlights: [
