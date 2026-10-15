@@ -5,3 +5,5 @@
 ## UI Improvements
 
 ## Bug Fixes
+
+- Fixed Cancel Run not working on datasets with a long run history.
