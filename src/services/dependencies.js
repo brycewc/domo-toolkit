@@ -534,9 +534,9 @@ const FETCHERS = {
   // Deleting a package takes every version with it, so what matters is whether
   // anything live still calls into it. Active workflow versions, deployed custom
   // apps, and AI toolkits block; app designs only reference the source, so they don't.
-  CODEENGINE_PACKAGE: async ({ id, origin }, tabId) => {
+  CODEENGINE_PACKAGE: async ({ featureSwitches, id, origin }, tabId) => {
     const [{ activeByModel, designs, instances, toolkits, workflows }, packageInfo] = await Promise.all([
-      getCodeEngineUsageSummary({ packageId: id, tabId }),
+      getCodeEngineUsageSummary({ featureSwitches, packageId: id, tabId }),
       // Best-effort: the delete re-reads the version list in the page anyway, so
       // a failed lookup costs the preview, not the delete.
       getCodeEnginePackageVersions(id, tabId).catch(() => null)
@@ -1438,6 +1438,8 @@ const WORKFLOW_VERSION_TYPES = {
  * object. Returns a normalized result the view can render directly.
  *
  * @param {Object} params
+ * @param {string[]|null} [params.featureSwitches] - The instance's enabled switches, so a check on a switched-off
+ *   feature is skipped rather than failing
  * @param {Object} params.object - The DomoObject (must have `typeId`, `id`, `metadata`)
  * @param {string} params.origin - The instance origin (for building URLs)
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
@@ -1455,7 +1457,7 @@ const WORKFLOW_VERSION_TYPES = {
  *   deferred: Promise<Object>|null
  * }>}
  */
-export async function getDependenciesForDelete({ object, origin, tabId = null }) {
+export async function getDependenciesForDelete({ featureSwitches = null, object, origin, tabId = null }) {
   const fetcher = FETCHERS[object.typeId];
   if (!fetcher) {
     return {
@@ -1475,6 +1477,7 @@ export async function getDependenciesForDelete({ object, origin, tabId = null })
 
   const fetched = await fetcher(
     {
+      featureSwitches,
       id: object.id,
       metadata: object.metadata,
       origin,

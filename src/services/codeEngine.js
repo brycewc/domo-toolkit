@@ -1,4 +1,5 @@
 import { executeInPage } from '@/utils/executeInPage';
+import { isTypeFeatureEnabled } from '@/utils/featureSwitches';
 
 import { getWorkflowVersions } from './workflows';
 
@@ -357,15 +358,20 @@ export async function getCodeEnginePackageVersions(packageId, tabId = null) {
  * the package version the toolkit pins.
  *
  * @param {Object} params
+ * @param {string[]|null} [params.featureSwitches] - The instance's enabled switches; a kind whose feature is
+ *   off comes back empty instead of failing. Null checks every kind.
  * @param {'designs'|'instances'|'toolkits'|'workflows'} params.kind - Which consumer kind to list
  * @param {string} params.packageId - Code Engine package UUID
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @param {string|null} [params.version] - Restrict to one package version (exact string match)
  * @returns {Promise<{error: string|null, items: Array<Object>, privateCount: number, totalCount: number}>}
  */
-export async function getCodeEngineUsage({ kind, packageId, tabId = null, version = null }) {
+export async function getCodeEngineUsage({ featureSwitches = null, kind, packageId, tabId = null, version = null }) {
   const path = USAGE_PATH_BY_KIND[kind];
   if (!path) throw new Error(`Unknown Code Engine usage kind: ${kind}`);
+  if (!isTypeFeatureEnabled(USAGE_TYPE_BY_KIND[kind], { featureSwitches })) {
+    return { error: null, items: [], privateCount: 0, totalCount: 0 };
+  }
 
   return executeInPage(
     async (path, packageId, version) => {
@@ -402,18 +408,18 @@ export async function getCodeEngineUsage({ kind, packageId, tabId = null, versio
  * by the Get Usage view and the delete dependency check so the two can't drift.
  *
  * @param {Object} params
+ * @param {string[]|null} [params.featureSwitches] - See getCodeEngineUsage
  * @param {string} params.packageId - Code Engine package UUID
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<{activeByModel: Map<string, Set<string>>, designs: Object, instances: Object,
  *   toolkits: Object, workflows: Object}>}
  */
-export async function getCodeEngineUsageSummary({ packageId, tabId = null }) {
-  const settled = await Promise.allSettled([
-    getCodeEngineUsage({ kind: 'designs', packageId, tabId }),
-    getCodeEngineUsage({ kind: 'instances', packageId, tabId }),
-    getCodeEngineUsage({ kind: 'toolkits', packageId, tabId }),
-    getCodeEngineUsage({ kind: 'workflows', packageId, tabId })
-  ]);
+export async function getCodeEngineUsageSummary({ featureSwitches = null, packageId, tabId = null }) {
+  const settled = await Promise.allSettled(
+    ['designs', 'instances', 'toolkits', 'workflows'].map((kind) =>
+      getCodeEngineUsage({ featureSwitches, kind, packageId, tabId })
+    )
+  );
   const [designs, instances, toolkits, workflows] = settled.map((result) =>
     result.status === 'fulfilled'
       ? result.value
@@ -610,4 +616,11 @@ const USAGE_PATH_BY_KIND = {
   instances: '/api/apps/v1/instances/usage',
   toolkits: '/api/ai/v1/toolkits/usage',
   workflows: '/api/workflow/v2/models/usage'
+};
+
+const USAGE_TYPE_BY_KIND = {
+  designs: 'RYUU_APP',
+  instances: 'APP_INSTANCE',
+  toolkits: 'AI_TOOLKIT',
+  workflows: 'WORKFLOW_MODEL'
 };

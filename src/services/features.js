@@ -21,7 +21,7 @@ export async function getFeatureSwitches(tabId = null) {
       for (let i = 0; i < 30; i++) {
         if (typeof window.features?.getConfig === 'function') {
           const config = window.features.getConfig();
-          if (Array.isArray(config)) {
+          if (Array.isArray(config) && config.length > 0) {
             return config.filter((f) => f && f.enabled === true).map((f) => f.name);
           }
         }

@@ -33,9 +33,9 @@ export class DomoObjectType {
    * @param {Object} [options.extractConfig] - Configuration for extracting ID from URL. A `valueMap` on the
    *   config (or on its `parentExtract`) translates the extracted segment through a lookup table, yielding null
    *   when the segment is absent from it — for a URL carrying a slug where the extension needs the mapped ID.
-   * @param {string} [options.featureSwitch] - Instance feature switch this type requires (e.g. 'approvalcenter').
-   *   Consumers route through `isTypeFeatureEnabled()` in `@/utils/featureSwitches`, which fails open while the
-   *   context's switch list is unknown and skips the type once the loaded list confirms the switch is absent.
+   * @param {string|string[]} [options.featureSwitch] - Instance feature switch this type requires. An array is met
+   *   when any one is on; a `!` prefix means the switch must be off. Checked via `isTypeFeatureEnabled()` in
+   *   `@/utils/featureSwitches`, which fails open while the switch list is unknown.
    *   Omit for types available on every instance.
    * @param {Object} [options.icon] - Icon config for this object type
    *   { component: string, rotation?: number } where component is a key in the ObjectTypeIcon registry
@@ -349,6 +349,7 @@ export const ObjectTypeRegistry = {
   AI_MODEL: new DomoObjectType('AI_MODEL', 'AI Model', {
     api: { endpoint: '/datascience/ml/v1/models/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'model' },
+    featureSwitch: 'ai-services',
     icon: { component: 'AiModel' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/ai-services/models?model={id}'
@@ -356,6 +357,7 @@ export const ObjectTypeRegistry = {
   AI_PROJECT: new DomoObjectType('AI_PROJECT', 'AI Project', {
     api: { endpoint: '/datascience/ml/v1/projects/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'projects' },
+    featureSwitch: 'ai-services',
     icon: { component: 'AiBook' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/ai-services/projects/{id}'
@@ -363,6 +365,7 @@ export const ObjectTypeRegistry = {
   AI_TOOLKIT: new DomoObjectType('AI_TOOLKIT', 'AI Toolkit', {
     api: { endpoint: '/ai/v1/toolkits/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'toolkits' },
+    featureSwitch: 'ai-services',
     icon: { component: 'Toolbox' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/ai-library/toolkits/{id}'
@@ -610,6 +613,7 @@ export const ObjectTypeRegistry = {
       paths: { created: 'createdOn', name: 'name' }
     },
     extractConfig: { keyword: 'codeengine' },
+    featureSwitch: 'code-engine',
     icon: { component: 'AiBook' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     relatedData: [
@@ -824,6 +828,7 @@ export const ObjectTypeRegistry = {
   DATA_SCIENCE_NOTEBOOK: new DomoObjectType('DATA_SCIENCE_NOTEBOOK', 'Jupyter Workspace', {
     api: { endpoint: '/datascience/v1/workspaces/{id}', paths: { created: 'created', name: 'name' } },
     extractConfig: { keyword: 'jupyter-workspaces' },
+    featureSwitch: ['jupyter-notebooks', 'jupyter-notebooks-ga'],
     icon: { component: 'Jupyter' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     relatedData: [
@@ -1129,6 +1134,7 @@ export const ObjectTypeRegistry = {
     aliases: ['OBJECTIVE'],
     api: { endpoint: '/social/v1/objectives/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'goals' },
+    featureSwitch: ['goals-beta', 'goals-v1'],
     icon: { component: 'Goals' },
     idPattern: /^\d+$/,
     urlPath: '/goals/{id}'
@@ -1252,6 +1258,7 @@ export const ObjectTypeRegistry = {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   METRIC: new DomoObjectType('METRIC', 'Metric', {
+    featureSwitch: 'metrics',
     icon: { component: 'ChartLine' },
     idPattern: /.*/
   }),
@@ -1300,6 +1307,7 @@ export const ObjectTypeRegistry = {
   PROJECT: new DomoObjectType('PROJECT', 'Project', {
     api: { endpoint: '/content/v1/projects/{id}', paths: { created: 'created', name: 'projectName' } },
     extractConfig: { keyword: 'project' },
+    featureSwitch: '!no-projects-tasks',
     icon: { component: 'Project' },
     idPattern: /^\d+$/,
     urlPath: '/project/{id}'
@@ -1316,6 +1324,7 @@ export const ObjectTypeRegistry = {
   PROJECT_TASK: new DomoObjectType('PROJECT_TASK', 'Task', {
     api: { endpoint: '/content/v1/tasks/{id}', paths: { name: 'taskName' } },
     extractConfig: { keyword: 'taskId' },
+    featureSwitch: '!no-projects-tasks',
     icon: { component: 'Project' },
     idPattern: /^\d+$/,
     parents: ['PROJECT', 'PROJECT_LIST'],
@@ -1335,6 +1344,7 @@ export const ObjectTypeRegistry = {
   PUBLICATION: new DomoObjectType('PUBLICATION', 'Publication', {
     api: { endpoint: '/publish/v2/publications/{id}', paths: { created: 'created', name: 'name' } },
     extractConfig: { keyword: 'id' },
+    featureSwitch: ['publish-everywhere', 'publish-everywhere-v2'],
     icon: { component: 'Newspaper' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/admin/domo-everywhere/publications?id={id}'
@@ -1429,6 +1439,7 @@ export const ObjectTypeRegistry = {
   REPOSITORY: new DomoObjectType('REPOSITORY', 'Sandbox Repository', {
     api: { endpoint: '/versions/v1/repositories/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'repositories' },
+    featureSwitch: ['domo-versions-standard', 'domo-versions-ui'],
     icon: { component: 'Sandcastle' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/admin/sandbox/repositories/{id}'
@@ -1473,6 +1484,7 @@ export const ObjectTypeRegistry = {
     redirectsToType: 'DATA_SOURCE'
   }),
   SUBSCRIPTION: new DomoObjectType('SUBSCRIPTION', 'Subscription', {
+    featureSwitch: ['publish-everywhere', 'publish-everywhere-v2'],
     icon: { component: 'FileDrawer' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
@@ -1626,6 +1638,7 @@ export const ObjectTypeRegistry = {
   WORKFLOW_MODEL: new DomoObjectType('WORKFLOW_MODEL', 'Workflow', {
     api: { endpoint: '/workflow/v1/models/{id}', paths: { created: 'createdOn', name: 'name' } },
     extractConfig: { keyword: 'workflows', offset: 2 },
+    featureSwitch: 'workflows',
     icon: { component: 'Workflow' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     relatedData: [

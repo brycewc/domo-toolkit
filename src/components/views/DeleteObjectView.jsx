@@ -722,6 +722,7 @@ export function DeleteObjectView({
     setDepsError(null);
     try {
       const result = await getDependenciesForDelete({
+        featureSwitches: context.featureSwitches,
         object: context.domoObject,
         origin: context.origin,
         tabId: context.tabId

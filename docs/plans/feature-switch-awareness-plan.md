@@ -2,217 +2,163 @@
 published: false
 ---
 
-# Feature Switch Awareness (deferred design plan)
+# Feature Switch Awareness
 
-Status: not started. Deferred so it doesn't delay the current release. This is the agreed
-implementation plan, saved for later pickup.
+Status: **implemented**, shipped in v1.5.0 (commit `b22758f`). This file started as the deferred design
+plan; it now records the design as built, how it has grown since, and the follow-ups that remain open.
 
 ## Context
 
-Domo instances are configured by feature switches (for example, `approvalcenter` enables
-Approvals and everything related). The toolkit has so far ignored them, because the main test
-instance is Domo's internal instance, which has every switch on. On customer instances that lack
-a switch, toolkit features silently fail with no explanation: for example, OwnershipView and
-Transfer Content proactively fetch Approvals for every user, and on an instance without
-`approvalcenter` those fetches error out and Approvals appears in the list as a broken/failed row.
+Domo instances are configured by feature switches (for example, `approvalcenter` enables Approvals and
+everything related). The toolkit used to ignore them, because the main test instance is Domo's internal
+instance, which has every switch on. On customer instances lacking a switch, features failed silently: Objects
+Owned and Transfer Ownership fetched Approvals for every user, and on an instance without `approvalcenter`
+those fetches errored and showed up as failed rows.
 
-We want a holistic, extensible way to (a) load the instance's feature switches once per session,
-(b) attach them to the context we already pass everywhere, and (c) gate any feature keyed to an
-object type so that a type whose switch is absent is simply skipped (not fetched, not shown).
-Feature switches map closely to object types (the `APPROVAL` type is gated by `approvalcenter`),
-so the object-type registry is the natural source of truth.
+The fix is a shared mechanism that (a) loads the instance's switches once per session, (b) attaches them to
+the `DomoContext` already passed everywhere, and (c) gates anything keyed to an object type, so a type whose
+switch is absent is skipped (not fetched, not shown). The object-type registry is the source of truth.
 
-Decisions made with the user:
+Decisions that still hold:
 
-- Fail-open while loading. A gated item stays visible while `featureSwitches` is unknown (still
-  loading, or unreadable), and is hidden/skipped only once the loaded list confirms the switch is
-  absent. Matches the existing "don't cache hollow data, retry" handling of `USER_RIGHTS`.
-- Scope: Approvals as the proof case. Build the full shared infrastructure, then wire exactly one
-  real consumer end to end (APPROVAL plus approval templates in Ownership/Transfer). Other types
-  opt in later by setting `featureSwitch` on their type definition; no further wiring needed.
+- **Fail-open while unknown.** A gated item stays visible while `featureSwitches` is `null` (still loading,
+  or the page global was unreadable), and is hidden only once a loaded list confirms the switch is absent.
+- **Opt-in per type.** A type is gated by setting `featureSwitch` on its `DomoObjectType` definition. Every
+  consumer that routes through `isTypeFeatureEnabled` respects it with no further wiring.
 
 ## Reading a switch (semantics)
 
-`features.getConfig()` (run in the page) returns an array of objects like
-`{ name: 'approvalcenter', enabled: true, type: 'STANDARD', purchased: false, ... }`. A switch
-absent from the array is off, and `enabled` is always `true` for entries that are present. Per the
-user, check both: keep only entries that are present and have `enabled === true`, and store just
-their `name` strings. Membership in that stored array then means "present and enabled."
+`window.features.getConfig()` (MAIN world) returns an array like
+`{ name: 'approvalcenter', enabled: true, type: 'STANDARD', purchased: false, ... }`. An absent switch is off,
+and present entries always carry `enabled: true`; both are checked anyway. Only the `name` strings of entries
+with `enabled === true` are stored, so membership in the stored array means "present and enabled."
 
-## Approach
+Verified on domo.domo.com: the array lists default-on switches too (453 of the master list's 461 default-on
+switches were present, the rest turned off there), and each entry carries `enabledDefault`. So absence means
+off for default-on and default-off switches alike, and gating a default-on type is safe.
 
-Four small infra pieces, plus one type-metadata field, plus one wired consumer. The infra rides
-the existing per-instance user-loading rail, so almost no new plumbing.
+Switch names come from `apiContent`'s `contentidentity-app/src/main/resources/MasterFeatureList.json`, whose
+`enabled` field is the default. That file can be stale: AI toolkits work on domo.domo.com without the
+`ai-services-toolkits` switch it lists, so confirm a name against a real instance before gating on it.
 
-### 1. Service: read switches from the page, `src/services/features.js` (new)
+### Requirement syntax
 
-`export async function getFeatureSwitches(tabId = null)`. Uses `executeInPage` (import from
-`@/utils/executeInPage`, per the services pattern). Inside the page function, poll briefly for the
-page global the same way `getCurrentUser` polls `window.bootstrap` (the config can hydrate after
-first paint):
+`featureSwitch` is a switch name, a `!`-prefixed name that must be absent (a switch that turns a feature off),
+or an array met when any entry is. Arrays cover features with two candidate switches where it is unclear which
+one actually governs the feature.
 
-```js
-for (let i = 0; i < 30; i++) {
-  const fn = window.features?.getConfig;
-  if (typeof fn === 'function') {
-    const config = fn();
-    if (Array.isArray(config)) {
-      return config.filter((f) => f && f.enabled === true).map((f) => f.name);
-    }
-  }
-  await new Promise((r) => setTimeout(r, 250));
-}
-return null; // unreadable, caller treats null as "unknown" (fail-open)
-```
+| Type(s)                       | Requirement                                     |
+| ----------------------------- | ----------------------------------------------- |
+| `APPROVAL`, `TEMPLATE`        | `approvalcenter`                                |
+| `AI_MODEL`, `AI_PROJECT`      | `ai-services`                                   |
+| `AI_TOOLKIT`                  | `ai-services` (see the stale-list note above)   |
+| `CODEENGINE_PACKAGE`          | `code-engine`                                   |
+| `DATA_MODEL`                  | `data-modeling`                                 |
+| `DATA_SCIENCE_NOTEBOOK`       | `jupyter-notebooks` or `jupyter-notebooks-ga`   |
+| `GOAL`                        | `goals-beta` or `goals-v1`                      |
+| `METRIC`                      | `metrics`                                       |
+| `PROJECT`, `PROJECT_TASK`     | `!no-projects-tasks`                            |
+| `PUBLICATION`, `SUBSCRIPTION` | `publish-everywhere` or `publish-everywhere-v2` |
+| `REPOSITORY`                  | `domo-versions-standard` or `domo-versions-ui`  |
+| `WORKFLOW_MODEL`              | `workflows`                                     |
 
-Returns `string[]` of enabled switch names, or `null` if it never became readable. Verify
-in-browser that the global is reachable as `window.features.getConfig()` from the MAIN world (see
-Verification).
+## As built
 
-### 2. Context field, `src/models/DomoContext.js`
+| File                                     | What it holds                                                                                                                                                                           |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/services/features.js`               | `getFeatureSwitches(tabId)`: polls `window.features.getConfig()` up to 30 x 250 ms, returns enabled names or `null`. Also `isFeatureSwitchOn(name, tabId)` (see below).                 |
+| `src/utils/featureSwitches.js`           | `getTypeFeatureSwitch(typeId)`, `isFeatureSwitchEnabled(requirement, context)` (fail-open), `isTypeFeatureEnabled(typeId, context)`.                                                    |
+| `src/models/DomoObjectType.js`           | Constructor stores `options.featureSwitch ?? null`. See the requirement table above for the gated types.                                                                                |
+| `src/services/codeEngine.js`             | `getCodeEngineUsage` / `getCodeEngineUsageSummary` take `featureSwitches` and return an empty, non-error result for a kind whose type is off, so Delete and Get Usage don't fail on it. |
+| `src/components/ContextFooter.jsx`       | A lazy array tab is skipped when `isTypeFeatureEnabled(itemTypeId, currentContext)` is false (the Code Engine usage tabs, among others).                                                |
+| `src/models/DomoContext.js`              | `featureSwitches` in the constructor, `fromJSON`, and `toJSON`. `toStorageJSON` nulls it alongside `user`/`userGroups`, since those are per instance, not per tab.                      |
+| `src/background.js`                      | `getInstanceUser` fetches groups and switches in parallel and caches them per instance. `applyInstanceUser` writes all three onto a context.                                            |
+| `src/components/views/OwnershipView.jsx` | Memoized `transferTypes` filtered by `isTypeFeatureEnabled` (and `groupOwnable` for a group source). The `autoEnableSelectionMode` pre-selection applies the same filter to `context`.  |
 
-Add `this.featureSwitches = null;` in the constructor (sibling of `this.userGroups = null;`).
+### Loading and caching (`background.js`)
 
-- `fromJSON`: `context.featureSwitches = data.featureSwitches || null;` (next to the `userGroups`
-  restore).
-- `toJSON`: add `featureSwitches: this.featureSwitches || null` (alphabetical key order).
+The plan folded switches into the per-instance user rail, and that rail has since grown several entry points.
+All of them carry `featureSwitches` because they go through the same cache entry or `applyInstanceUser`:
 
-This guarantees it survives message passing and the `chrome.storage.session` round-trip, and that
-`getSidepanelData()` (which serializes via `toJSON`) carries it into views like OwnershipView.
-Store as an array (Sets don't serialize); consumers use `.includes()`.
+- `getInstanceUser(instance, tabId)` returns `{ featureSwitches, user, userGroups }`, from cache when the cached
+  user has `USER_RIGHTS`, otherwise fetching. The "only cache a user with non-empty `USER_RIGHTS`" gate is
+  unchanged, so switches are cached and dropped together with the user. A failed switch read logs a warning and
+  resolves to `null` (fail-open) without failing the user fetch.
+- `applyInstanceUser(context, instanceUser)` replaced the inline assignments the plan described in
+  `detectAndStoreContext`. It also recomputes `isOwner`.
+- `backfillInstanceUser` pushes a freshly resolved entry onto other tabs on the same instance that are still
+  missing a user, and `refreshTabUser` fills one tab in without redetecting. Both reuse `applyInstanceUser`.
+- The instance-user backup (`instanceUsersBackup`) persists `featureSwitches` per instance with a 12-hour TTL
+  (`INSTANCE_USER_TTL_MS`), and `restoreFromSession` rehydrates each tab's `featureSwitches` from that cache,
+  because `toStorageJSON` strips it from the per-tab backup.
+- `invalidateInstanceUser` (logout) clears the whole entry, switches included.
 
-### 3. Loader: fold into `getInstanceUser` in `src/background.js`
+`getSidepanelData()` serializes with `toJSON`, not `toStorageJSON`, so views opened in the side panel receive
+`featureSwitches` intact.
 
-`getInstanceUser(instance, tabId)` already fetches user plus groups once per instance and caches
-them. Extend it to also fetch switches in parallel:
+### The one wired consumer: Objects Owned / Transfer Ownership
 
-- Import `getFeatureSwitches` from `@/services/features`.
-- In the async body, fetch groups and switches together, for example:
-  `const [richGroups, featureSwitches] = await Promise.all([getUserGroups(...).catch(() => []), getFeatureSwitches(tabId).catch(() => null)]);`
-- Include `featureSwitches` in the cached object and in the resolved
-  `{ user, userGroups, featureSwitches }`. Keep the existing "only cache when `USER_RIGHTS` is
-  non-empty" gate as is; switches get cached/dropped alongside the user, and
-  `invalidateInstanceUser` already clears the whole entry on logout.
+`OwnershipView` maps its `TRANSFER_TYPES` keys to type IDs through its own `TYPE_KEY_TO_DOMO_TYPE`
+(`approvals` -> `APPROVAL`, `approvalTemplates` -> `TEMPLATE`). Every body-level iteration (fetch specs,
+forbidden set, counts, selection, rows, the submit handler's enabled types) uses the filtered `transferTypes`,
+so a feature-disabled type never gets a fetch spec and never produces a row. The parse helpers at the bottom of
+the file still reference the full `TRANSFER_TYPES`, which is harmless because hidden types never enter the
+selection set.
 
-Then in `detectAndStoreContext`, the existing user `.then()` block gains one line where it already
-sets `currentContext.user` / `currentContext.userGroups`:
+`transferAllOwnership` (in `services/transferOwnership.js`) filters `TRANSFER_TYPES` by the `enabledTypes` set
+the view passes, so it inherits the gate without checking switches itself.
 
-```js
-currentContext.featureSwitches = featureSwitches;
-```
+## Changes since the original plan
 
-No new `.then()`, no second broadcast, no new race. The `cached?.user...` early-return path in
-`getInstanceUser` must also return the cached `featureSwitches`.
+- **`DATA_MODEL` is gated on `data-modeling`**, added with data model support (`73f1c58`). No consumer checks
+  it yet: data models are not a transfer type, and nothing else calls `isTypeFeatureEnabled`. The metadata is
+  dormant until a consumer for that type routes through the helper.
+- **`isFeatureSwitchOn(name, tabId)`** was added to `services/features.js` for the Enable/Disable Dev Tools
+  button on dataflows (`dataflows-dev`, in `components/buttons/Navigate.jsx`). It deliberately does **not** use
+  the cached context list. It asks the page live via `window.features.on(name)`, falling back to the
+  `domoFeatures` entry in `sessionStorage`, because the button toggles the switch for the session with a
+  `?_f=` URL parameter (`setFeatureSwitch` in `utils/domoQueryParam.js`) and has to reflect the overridden
+  state, not the instance's configured one.
+- **The plan's note about Transfer Content no longer applies.** `MigrateDownstreamContentView` does not use
+  `TRANSFER_TYPES`; it has its own type map in `views/migrateDownstream/contentTypes.js` (alerts, apps, Beast
+  Modes, cards, dataflows, datasets, Jupyter Workspaces), none of which are gated today. If a gated type joins
+  that list, it needs its own `isTypeFeatureEnabled` filter.
+- **Group sources.** `OwnershipView` now also browses groups, and the `transferTypes` memo additionally keeps
+  only `groupOwnable` types for a group source. The approval types are not group-ownable.
 
-### 4. Central helper, `src/utils/featureSwitches.js` (new)
+## Known limitations
 
-The single place every consumer calls. Source of truth is the object-type registry.
+- **The cached list is a session snapshot.** It reflects the instance's configured switches at load time, and
+  does not track `?_f=` session overrides, which `features.getConfig()` may or may not reflect at read time.
+  Anything that must follow an override should read live, the way `isFeatureSwitchOn` does.
+- **A null list is cached as null.** If the page global is unreadable on the first read but the user's rights
+  are present, the entry caches `featureSwitches: null` for up to the TTL. That is fail-open, so the cost is only
+  the original failing-row behavior, not hidden features.
 
-```js
-import { getObjectType } from '@/models/DomoObjectType';
+## Open follow-ups
 
-// The switch (if any) a given object type requires.
-export function getTypeFeatureSwitch(typeId) {
-  return getObjectType(typeId)?.featureSwitch ?? null;
-}
+- **Action gating.** No action button is gated by a type's switch yet; the investigation found none that
+  needs it, since an action runs on an object whose own page already proves its feature is on. When one needs it, add
+  `isTypeFeatureEnabled(typeId, currentContext)` to the relevant set in `getAvailableActions()`
+  (`src/utils/availableActions.js`, which receives `currentContext`).
+- **Wire `DATA_MODEL`** into whichever consumer first lists or fetches data models by type, or drop the
+  `featureSwitch` if none ever does.
+- **Default-on features left ungated:** Workspaces (`workspaces-v1`), Task Center (`hopper`), Report Builder
+  (`report-builder`), Certified Content (`certified-content`), App Studio (`data-app`), Worksheets
+  (`app-studio-worksheets`), Governance Toolkit (`governance-toolkit-ui`), AppDB (`appdb-admin`). Gating them is
+  safe now that absence is known to mean off; they were skipped as low value.
+- **Filesets** have no obvious base switch (only the `wf-fs-*` workflow tiles), so they stay ungated.
+- **Confirm the missing-switch behavior on a customer instance.** Only an all-switches instance has been
+  checked, which exercises the fail-open path, not the hiding.
+- **Other per-view type maps.** `RemapColumnsView`, `MigrateBeastModeUsageView`, `ColumnUsagesModal`, and
+  `migrateDownstream/contentTypes.js` each have their own `TYPE_KEY_TO_DOMO_TYPE`. None include gated types now;
+  any that gain one should filter through the helper the same way `OwnershipView` does.
 
-// Fail-open: ungated -> true; not-yet-loaded (null) -> true; otherwise membership.
-export function isFeatureSwitchEnabled(switchName, context) {
-  if (!switchName) return true;
-  const switches = context?.featureSwitches;
-  if (!switches) return true;
-  return switches.includes(switchName);
-}
+## Verification recipe (for new consumers)
 
-export function isTypeFeatureEnabled(typeId, context) {
-  return isFeatureSwitchEnabled(getTypeFeatureSwitch(typeId), context);
-}
-```
-
-### 5. Type metadata, `src/models/DomoObjectType.js`
-
-- In the constructor, accept and store `this.featureSwitch = options.featureSwitch ?? null;`.
-- Set `featureSwitch: 'approvalcenter'` on `APPROVAL` and on `TEMPLATE` (approval templates; in
-  this codebase `TEMPLATE` is approval-specific: it's `APPROVAL`'s parent, has the "Approval
-  Template ID" copy config, and `DeleteObject` gates it on `approvalcenter.admin`). Keep entries
-  alphabetically-keyed per the type definition style.
-
-This is the extensibility hook: a future gated type just adds `featureSwitch: '<name>'` and every
-type-resolving consumer respects it automatically. Note: `DomoContext.toJSON` only serializes a
-slim `objectType` (id/name/parents/urlPath), and that's fine, because the helper reads
-`featureSwitch` from the live registry via `getObjectType(typeId)`, not from the serialized object.
-
-### 6. Wire the proof consumer, `src/components/views/OwnershipView.jsx`
-
-This view iterates `TRANSFER_TYPES` to build its parallel fetch specs and its rows; `approvals`
-and `approvalTemplates` map to `APPROVAL`/`TEMPLATE` via the existing `TYPE_KEY_TO_DOMO_TYPE`.
-
-- Add a memoized filtered list keyed on the frozen `launchContext`:
-  ```js
-  const transferTypes = useMemo(
-    () => TRANSFER_TYPES.filter((t) => isTypeFeatureEnabled(TYPE_KEY_TO_DOMO_TYPE[t.key], launchContext)),
-    [launchContext]
-  );
-  ```
-- Replace the body-level `TRANSFER_TYPES` iterations that drive fetching, rendering, selection,
-  and counts with `transferTypes`, specifically: `specs`, `forbidden`,
-  `loadedTypeCount`/`totalObjects`, `hasAnyTransferable`, `eligibleTypeKeys`, the
-  `pendingSelectAll` hydration effect, `dataListItems`, `selectedItemsByType`, and the
-  `enabledTypes` loop in `handleTransferSubmit`. A feature-disabled type then never gets a fetch
-  spec (no failing request) and never produces a row.
-- Leave the bottom-of-file membership helpers (`isParentKey`, `parseLeafTypeKey`) referencing the
-  full `TRANSFER_TYPES`; they're parse/validation guards, using the full set avoids false
-  negatives and is harmless since hidden types never enter the selection set.
-- Because of fail-open, on the all-switches internal instance `transferTypes === TRANSFER_TYPES`
-  (nothing hidden) and behavior is unchanged. Only an instance whose loaded switch list omits
-  `approvalcenter` drops the two approval rows.
-
-The Transfer Content path (`MigrateDownstreamContentView` / `transferAllOwnership`) shares
-`TRANSFER_TYPES` and the same `TYPE_KEY_TO_DOMO_TYPE` mapping; its current types
-(beastModes/cards/dataflows/datasets) are ungated, so it needs no change now but inherits the
-helper for free.
-
-## Out of scope (extensibility notes, not built now)
-
-- A `FEATURE_GATED_ACTIONS` map or inline gate in `getAvailableActions()`. No action button is
-  feature-switched today. When one is, gate it with `isTypeFeatureEnabled(typeId, currentContext)`
-  (the function already receives `currentContext`).
-- Assigning `featureSwitch` to non-approval types. Deferred per the agreed scope.
-
-## Critical files
-
-| File | Change |
-| --- | --- |
-| `src/services/features.js` | New. `getFeatureSwitches(tabId)` via `executeInPage`, polls `window.features.getConfig()`, returns enabled names or `null`. |
-| `src/utils/featureSwitches.js` | New. `getTypeFeatureSwitch`, `isFeatureSwitchEnabled` (fail-open), `isTypeFeatureEnabled`. |
-| `src/models/DomoContext.js` | Add `featureSwitches` to constructor, `fromJSON`, `toJSON`. |
-| `src/models/DomoObjectType.js` | Store `options.featureSwitch`; set `'approvalcenter'` on `APPROVAL` and `TEMPLATE`. |
-| `src/background.js` | Fetch switches inside `getInstanceUser` (parallel with groups), return plus cache them, attach `currentContext.featureSwitches` in the existing user `.then()`. |
-| `src/components/views/OwnershipView.jsx` | Memoized `transferTypes` filtered by `isTypeFeatureEnabled`; swap body-level `TRANSFER_TYPES` iterations for it. |
-
-## Verification
-
-1. Confirm the page global. Via the `playwriter` skill, drive the user's Chrome to a Domo page and
-   evaluate `typeof window.features?.getConfig === 'function'` and inspect
-   `window.features.getConfig()`. Confirm the array shape matches the expected
-   `{ name, enabled }` objects. If the global lives elsewhere, adjust the service's accessor. This
-   is the one genuinely unconfirmed assumption.
-2. ESLint on every touched/new file: `npx eslint --no-warn-ignored src/services/features.js
-   src/utils/featureSwitches.js src/models/DomoContext.js src/models/DomoObjectType.js
-   src/background.js src/components/views/OwnershipView.jsx`. Fix import sort, key sort, prop
-   order, and no-trailing-comma before finishing.
-3. Behavior, internal instance (fail-open, nothing hidden): load the unpacked `dist/` build, open
-   OwnershipView/Transfer on a user; confirm Approvals plus Approval Templates still appear and
-   fetch normally (regression check, the internal instance has `approvalcenter`).
-4. Behavior, missing switch: on (or simulating) an instance lacking `approvalcenter`, confirm the
-   two approval rows are absent, no approval fetch fires, and no failed-row/error surfaces. If a
-   real instance isn't handy, temporarily stub `getFeatureSwitches` to return a list without
-   `approvalcenter` and confirm the rows drop.
-5. OwnershipView is not covered by the `/dev-*` localhost routes (it's a side-panel view), so
-   steps 3 and 4 require the loaded extension; the dev routes won't exercise this path.
-
-## Release notes
-
-Per `wip-release-notes.md`, add one user-facing bullet (this ships a real behavior change for
-customer instances), something like: "Approvals no longer appear in ownership and content-transfer
-lists on instances that don't have Approvals enabled." Skip the infra/loader internals.
+1. ESLint every touched file: `npx eslint --no-warn-ignored <files>`.
+2. Regression on an all-switches instance: the gated rows still appear and fetch normally (fail-open path).
+3. Missing switch: on an instance without the switch, or with `getFeatureSwitches` temporarily stubbed to
+   return a list that omits it, confirm the rows are absent, no fetch fires, and no failed row appears.
+4. Side-panel views are not covered by the `/dev-*` routes. Use the CRXJS dev extension, and the direct-CDP
+   Playwriter recipe in `.claude/rules/local-testing.md` for screenshots.

@@ -304,6 +304,34 @@ let removeDomoTitleSuffix = false;
 let internalAccessGranted = false;
 
 /**
+ * Store feature switches that finished reading after their instance user had
+ * already resolved, and push them onto every cached tab on that instance.
+ * @param {string} instance - The Domo instance key
+ * @param {Object} user - The user the switches were read alongside
+ * @param {string[]|null} featureSwitches - Enabled switch names, or null if unreadable
+ */
+function applyFeatureSwitches(instance, user, featureSwitches) {
+  const entry = instanceUserCache.get(instance);
+  // A logout or a refetch since then owns the entry now.
+  if (!featureSwitches || entry?.user !== user) return;
+  entry.featureSwitches = featureSwitches;
+  instanceUsersBackup.schedule();
+  const updated = [];
+  for (const [tabId, context] of tabContexts.entries()) {
+    if (context?.instance !== instance) continue;
+    context.featureSwitches = featureSwitches;
+    updated.push(tabId);
+  }
+  if (!updated.length) return;
+  sessionBackup.schedule();
+  for (const tabId of updated) {
+    if (!tabDetectionInFlight.has(tabId)) {
+      broadcastTabContext(tabId, tabContexts.get(tabId)?.toJSON());
+    }
+  }
+}
+
+/**
  * Write a resolved instance user onto a context and recompute the object's
  * ownership from it. Does not store or broadcast; the caller decides that.
  * @param {DomoContext} context - The context to update
@@ -312,7 +340,8 @@ let internalAccessGranted = false;
 function applyInstanceUser(context, { featureSwitches, user, userGroups }) {
   context.user = user;
   context.userGroups = userGroups;
-  context.featureSwitches = featureSwitches;
+  // The switches can land after the user resolved without them (see applyFeatureSwitches).
+  context.featureSwitches = featureSwitches ?? instanceUserCache.get(context.instance)?.featureSwitches ?? null;
   if (context.domoObject?.metadata?.details) {
     context.domoObject.metadata.isOwner = computeIsOwner(
       context.domoObject.typeId,
@@ -434,7 +463,8 @@ async function confirmDomoTab(tab) {
  * Get or fetch the current user, their groups, and the instance's enabled
  * feature switches. Returns cached data if available, otherwise fetches and
  * caches. Feature switches ride the same per-instance entry as the user, so
- * they share its caching, persistence, and logout invalidation.
+ * they share its caching, persistence, and logout invalidation. The user never
+ * waits on them; late switches arrive through applyFeatureSwitches.
  * @param {string} instance - The Domo instance subdomain
  * @param {number} tabId - The tab ID to execute API calls in
  * @returns {Promise<{ user: Object, userGroups: string[], featureSwitches: string[]|null }>}
@@ -455,18 +485,25 @@ function getInstanceUser(instance, tabId) {
     let userGroups = [];
     let featureSwitches = null;
     if (user?.id) {
-      const [richGroups, switches] = await Promise.all([
-        getUserGroups(user.id, tabId).catch((error) => {
-          console.warn(`[Background] Could not fetch user groups for ${instance}:`, error.message);
-          return [];
-        }),
-        getFeatureSwitches(tabId).catch((error) => {
+      let switchesSettled = false;
+      const switchesPromise = getFeatureSwitches(tabId)
+        .catch((error) => {
           console.warn(`[Background] Could not fetch feature switches for ${instance}:`, error.message);
           return null;
         })
-      ]);
+        .then((switches) => {
+          featureSwitches = switches;
+          switchesSettled = true;
+          return switches;
+        });
+      const richGroups = await getUserGroups(user.id, tabId).catch((error) => {
+        console.warn(`[Background] Could not fetch user groups for ${instance}:`, error.message);
+        return [];
+      });
       userGroups = richGroups.map((g) => g.groupId);
-      featureSwitches = switches;
+      if (!switchesSettled) {
+        switchesPromise.then((switches) => applyFeatureSwitches(instance, user, switches));
+      }
     }
     // Only cache a user that actually carries its rights. Empty USER_RIGHTS means
     // bootstrap wasn't fully hydrated when we read it; caching that hollow user

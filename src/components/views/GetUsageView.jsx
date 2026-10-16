@@ -108,11 +108,17 @@ export function GetUsageView({
 
       const tabId = await getValidTabForInstance(instance);
       const [{ activeByModel, designs, instances, toolkits, workflows }, versionWorkflows] = await Promise.all([
-        getCodeEngineUsageSummary({ packageId, tabId }),
+        getCodeEngineUsageSummary({ featureSwitches: context.featureSwitches, packageId, tabId }),
         // Fetched up front so the version filter toggles without a wait. Its rows
         // are a subset of `workflows`, so the active and owner lookups cover them.
         isVersion
-          ? getCodeEngineUsage({ kind: 'workflows', packageId, tabId, version: domoObject.id }).catch((err) => ({
+          ? getCodeEngineUsage({
+              featureSwitches: context.featureSwitches,
+              kind: 'workflows',
+              packageId,
+              tabId,
+              version: domoObject.id
+            }).catch((err) => ({
               error: err.message || 'Failed to load usage',
               items: [],
               privateCount: 0,

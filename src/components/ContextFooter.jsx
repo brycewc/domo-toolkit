@@ -29,6 +29,7 @@ import { getReportsForApp, getSchedulesForReport } from '@/services/reportBuilde
 import { getWorkflowTriggers } from '@/services/workflows';
 import { copyJsonNode } from '@/utils/copyToClipboard';
 import { executeInPage } from '@/utils/executeInPage';
+import { isTypeFeatureEnabled } from '@/utils/featureSwitches';
 import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import { instanceLabel } from '@/utils/instance';
 import { requestInternalAccess } from '@/utils/internalInstance';
@@ -220,6 +221,7 @@ export function ContextFooter({
           // empty and its length seeds the count before the fetch runs.
           if (related.fetcher) {
             if (related.field && !arrayData?.length) continue;
+            if (!isTypeFeatureEnabled(related.itemTypeId, currentContext)) continue;
             result.push({
               fetcher: related.fetcher,
               id: related.field || related.fetcher,
@@ -329,6 +331,7 @@ export function ContextFooter({
     currentContext?.domoObject?.typeId,
     currentContext?.domoObject?.parentId,
     currentContext?.domoObject?.metadata,
+    currentContext?.featureSwitches,
     developerMode
   ]);
 
