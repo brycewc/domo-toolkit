@@ -614,7 +614,7 @@ export const ObjectTypeRegistry = {
     },
     extractConfig: { keyword: 'codeengine' },
     featureSwitch: 'code-engine',
-    icon: { component: 'AiBook' },
+    icon: { component: 'CurlyBrackets' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     relatedData: [
       {
