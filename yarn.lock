@@ -230,29 +230,27 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@crxjs/vite-plugin@npm:^2.5.0":
-  version: 2.5.0
-  resolution: "@crxjs/vite-plugin@npm:2.5.0"
+"@crxjs/vite-plugin@npm:^3.0.0":
+  version: 3.0.0
+  resolution: "@crxjs/vite-plugin@npm:3.0.0"
   dependencies:
-    "@rollup/pluginutils": "npm:^4.1.2"
     "@webcomponents/custom-elements": "npm:^1.5.0"
-    acorn-walk: "npm:^8.2.0"
-    convert-source-map: "npm:^1.7.0"
-    debug: "npm:^4.3.3"
+    acorn-walk: "npm:^8.3.5"
+    convert-source-map: "npm:^2.0.0"
+    debug: "npm:^4.4.3"
     es-module-lexer: "npm:^0.10.0"
-    fs-extra: "npm:^10.0.1"
+    fs-extra: "npm:^11.3.5"
     jsesc: "npm:^3.0.2"
     magic-string: "npm:^0.30.12"
-    node-html-parser: "npm:^7.0.2"
+    node-html-parser: "npm:^7.1.0"
     pathe: "npm:^2.0.1"
     picocolors: "npm:^1.1.1"
-    react-refresh: "npm:^0.13.0"
     rollup: "npm:2.80.0"
     rxjs: "npm:7.5.7"
-    tinyglobby: "npm:^0.2.15"
+    tinyglobby: "npm:^0.2.17"
   peerDependencies:
     vite: ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
-  checksum: 10c0/b0f7c8bbe39f3eb6b7c6f61bb9ca3d8349d8bcbd02ca1d8f8d62a26b04489ca56d25e59f14b624ed05eb35bd65958ce07ad4e01c4d0a4fc756ab5f6ef6a9ac4a
+  checksum: 10c0/f06c302dafda0ba973bd14ad48991717db10df6ac7af67260ce04db28fef367e7f96eb58b1b4d7ef294cad1ec4b2043eee5564489cbaa2efa1571ca383db2b1c
   languageName: node
   linkType: hard
 
@@ -958,16 +956,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rollup/pluginutils@npm:^4.1.2":
-  version: 4.2.1
-  resolution: "@rollup/pluginutils@npm:4.2.1"
-  dependencies:
-    estree-walker: "npm:^2.0.1"
-    picomatch: "npm:^2.2.2"
-  checksum: 10c0/3ee56b2c8f1ed8dfd0a92631da1af3a2dfdd0321948f089b3752b4de1b54dc5076701eadd0e5fc18bd191b77af594ac1db6279e83951238ba16bf8a414c64c48
-  languageName: node
-  linkType: hard
-
 "@rollup/pluginutils@npm:^5.3.0":
   version: 5.4.0
   resolution: "@rollup/pluginutils@npm:5.4.0"
@@ -1607,7 +1595,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"acorn-walk@npm:^8.2.0":
+"acorn-walk@npm:^8.3.5":
   version: 8.3.5
   resolution: "acorn-walk@npm:8.3.5"
   dependencies:
@@ -2004,13 +1992,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"convert-source-map@npm:^1.7.0":
-  version: 1.9.0
-  resolution: "convert-source-map@npm:1.9.0"
-  checksum: 10c0/281da55454bf8126cbc6625385928c43479f2060984180c42f3a86c8b8c12720a24eac260624a7d1e090004028d2dee78602330578ceec1a08e27cb8bb0a8a5b
-  languageName: node
-  linkType: hard
-
 "convert-source-map@npm:^2.0.0":
   version: 2.0.0
   resolution: "convert-source-map@npm:2.0.0"
@@ -2181,7 +2162,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"debug@npm:^4.1.0, debug@npm:^4.3.1, debug@npm:^4.3.2, debug@npm:^4.3.3, debug@npm:^4.4.3":
+"debug@npm:^4.1.0, debug@npm:^4.3.1, debug@npm:^4.3.2, debug@npm:^4.4.3":
   version: 4.4.3
   resolution: "debug@npm:4.4.3"
   dependencies:
@@ -2283,7 +2264,7 @@ __metadata:
   resolution: "domo-toolkit@workspace:."
   dependencies:
     "@babel/core": "npm:^7.29.7"
-    "@crxjs/vite-plugin": "npm:^2.5.0"
+    "@crxjs/vite-plugin": "npm:^3.0.0"
     "@dagrejs/dagre": "npm:^3.0.0"
     "@eslint/js": "npm:^10.0.1"
     "@heroui/react": "npm:^3.2.6"
@@ -2581,7 +2562,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"estree-walker@npm:^2.0.1, estree-walker@npm:^2.0.2":
+"estree-walker@npm:^2.0.2":
   version: 2.0.2
   resolution: "estree-walker@npm:2.0.2"
   checksum: 10c0/53a6c54e2019b8c914dc395890153ffdc2322781acf4bd7d1a32d7aedc1710807bdcd866ac133903d5629ec601fbb50abe8c2e5553c7f5a0afdd9b6af6c945af
@@ -2733,14 +2714,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fs-extra@npm:^10.0.1":
-  version: 10.1.0
-  resolution: "fs-extra@npm:10.1.0"
+"fs-extra@npm:^11.3.5":
+  version: 11.4.1
+  resolution: "fs-extra@npm:11.4.1"
   dependencies:
     graceful-fs: "npm:^4.2.0"
     jsonfile: "npm:^6.0.1"
     universalify: "npm:^2.0.0"
-  checksum: 10c0/5f579466e7109719d162a9249abbeffe7f426eb133ea486e020b89bc6d67a741134076bf439983f2eb79276ceaf6bd7b7c1e43c3fd67fe889863e69072fb0a5e
+  checksum: 10c0/15fafc34e0b6c1b59f0f92aae90b5fab44129ad7ebc1362cc593f2dec1d8a765b7b70b40e2bc779ee146f6ff13a736a065ddb991e5b597e294919ccb0c8ff834
   languageName: node
   linkType: hard
 
@@ -3472,7 +3453,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-html-parser@npm:^7.0.2":
+"node-html-parser@npm:^7.1.0":
   version: 7.1.0
   resolution: "node-html-parser@npm:7.1.0"
   dependencies:
@@ -3657,13 +3638,6 @@ __metadata:
   version: 1.1.1
   resolution: "picocolors@npm:1.1.1"
   checksum: 10c0/e2e3e8170ab9d7c7421969adaa7e1b31434f789afb9b3f115f6b96d91945041ac3ceb02e9ec6fe6510ff036bcc0bf91e69a1772edc0b707e12b19c0f2d6bcf58
-  languageName: node
-  linkType: hard
-
-"picomatch@npm:^2.2.2":
-  version: 2.3.2
-  resolution: "picomatch@npm:2.3.2"
-  checksum: 10c0/a554d1709e59be97d1acb9eaedbbc700a5c03dbd4579807baed95100b00420bc729335440ef15004ae2378984e2487a7c1cebd743cfdb72b6fa9ab69223c0d61
   languageName: node
   linkType: hard
 
@@ -3909,13 +3883,6 @@ __metadata:
   version: 16.13.1
   resolution: "react-is@npm:16.13.1"
   checksum: 10c0/33977da7a5f1a287936a0c85639fec6ca74f4f15ef1e59a6bc20338fc73dc69555381e211f7a3529b8150a1f71e4225525b41b60b52965bda53ce7d47377ada1
-  languageName: node
-  linkType: hard
-
-"react-refresh@npm:^0.13.0":
-  version: 0.13.0
-  resolution: "react-refresh@npm:0.13.0"
-  checksum: 10c0/cb9f324d471485e569628854dc08d1550c0798cde57f1bfb8d954e006659de1da0bdccaf7d5d2ac0d3d53df1aae7b740b2a36128789afb8aff0f7ec01b128587
   languageName: node
   linkType: hard
 

@@ -141,7 +141,6 @@ export const SECTION_TITLES = {
   '/codeengine': 'Code Engine Packages',
   '/datacenter/accounts': 'Accounts',
   '/datacenter/beastmode': 'Beast Mode',
-  '/datacenter/connectors': 'Connectors',
   '/datacenter/custom-environments': 'Custom Environments',
   '/datacenter/dataflows': 'DataFlows',
   '/datacenter/datamodels': 'Data Models',
