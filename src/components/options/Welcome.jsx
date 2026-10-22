@@ -27,14 +27,16 @@ export function Welcome() {
   const actionFeatures = [
     {
       icon: IconFileDocument,
+      id: 'activity-log',
       label: 'Instantly view the activity log for the current object'
     },
-    { icon: IconPersonPlus, label: 'Share objects with yourself in one click' },
-    { icon: IconEye, label: 'Analyze dependencies and relationships' },
+    { icon: IconPersonPlus, id: 'share', label: 'Share objects with yourself in one click' },
+    { icon: IconEye, id: 'lineage', label: 'Analyze dependencies and relationships' },
     {
       icon: IconClipboardCopy,
+      id: 'copy-ids',
       label: (
-        <p>
+        <span>
           Copy IDs with a click or the keyboard shortcut{' '}
           <Kbd>
             <Kbd.Abbr
@@ -43,7 +45,7 @@ export function Welcome() {
             <Kbd.Abbr keyValue='shift' />
             <Kbd.Content>1</Kbd.Content>
           </Kbd>
-        </p>
+        </span>
       )
     }
   ];
@@ -58,7 +60,7 @@ export function Welcome() {
       icon: IconStar,
       id: 'favicons',
       label: (
-        <p>
+        <span>
           Favicons set to the instance logo{' '}
           <Link
             className='text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
@@ -70,7 +72,7 @@ export function Welcome() {
             </Link.Icon>
             )
           </Link>
-        </p>
+        </span>
       )
     },
     {
@@ -82,7 +84,7 @@ export function Welcome() {
       icon: IconCookieOff,
       id: 'cookies',
       label: (
-        <p>
+        <span>
           431 "request headers too large" errors resolve themselves and keep your session{' '}
           <Link
             className='text-sm font-normal no-underline decoration-accent hover:text-accent hover:underline'
@@ -94,7 +96,7 @@ export function Welcome() {
             </Link.Icon>
             )
           </Link>
-        </p>
+        </span>
       )
     }
   ];
@@ -188,7 +190,7 @@ export function Welcome() {
               animate={{ opacity: 1, y: 0 }}
               className='h-full'
               initial={{ opacity: 0, y: 10 }}
-              key={feature.label}
+              key={feature.id}
               transition={{ delay: 0.15 + index * 0.05, duration: 0.2 }}
             >
               <Card className='h-full'>
@@ -246,7 +248,7 @@ export function Welcome() {
           <Card.Content>
             <ol className='space-y-2 text-sm'>
               {quickStartGuide.map((step, index) => (
-                <li className='flex items-center gap-2'>
+                <li className='flex items-center gap-2' key={index}>
                   <Chip className='size-6 items-center justify-center rounded-full' color='accent' variant='soft'>
                     {index + 1}
                   </Chip>
