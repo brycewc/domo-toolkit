@@ -47,7 +47,7 @@ export async function getLatestConnectorVersion({ connectorId, connectorKey, tab
  * @param {string} params.connectionType - The connector's provider key, e.g. 'aws-athena'
  * @param {string} params.connectorId - Connector id, e.g. 'com.domo.connector.amazonathenaV2'
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
- * @returns {Promise<Array<{datasetId: string, datasetName: string, streamId: number, version: string|null}>>}
+ * @returns {Promise<Array<Object>>} One row per stream, with its dataset's owner, account, run state, and schedule
  */
 export async function getStreamsForConnector({ connectionType, connectorId, tabId = null }) {
   if (!connectionType || !connectorId) return [];
@@ -143,9 +143,19 @@ export async function getStreamsForConnector({ connectionType, connectorId, tabI
         .map((stream) => {
           const dataset = datasetByStreamId.get(stream.id);
           return {
+            accountId: dataset.accountId ?? null,
+            cardCount: dataset.cardCount ?? null,
+            created: dataset.created ?? null,
             datasetId: dataset.id,
             datasetName: dataset.name,
+            lastUpdated: dataset.lastUpdated ?? null,
+            ownerId: dataset.owner?.id ?? null,
+            ownerName: dataset.owner?.name ?? null,
+            scheduleActive: dataset.scheduleActive ?? null,
+            state: dataset.state ?? null,
             streamId: stream.id,
+            validAccount: dataset.validAccount ?? null,
+            validConfiguration: dataset.validConfiguration ?? null,
             version: stream.transport.version ?? null
           };
         })
