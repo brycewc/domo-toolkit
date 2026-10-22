@@ -278,7 +278,7 @@ export function ObjectDetailsView({ instance = null, liveContext = null, onBackT
                           return <GroupIdAnnotation displayName={groupMap[numericValue]} value={params.node} />;
                         }
                       }
-                      if (params?.indexOrName?.toLowerCase()?.includes('id')) {
+                      if (typeof params?.indexOrName === 'string' && params.indexOrName.toLowerCase().includes('id')) {
                         return { enableClipboard: true };
                       } else if (
                         (typeof params.node === 'number' || typeof params.node === 'string') &&

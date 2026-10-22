@@ -65,6 +65,19 @@ export async function detectCurrentObject() {
         url
       };
 
+    // Read from the raw pathname: connector IDs are mixed case and `url` is lowercased
+    case url.includes('/appstore/connectors/'): {
+      const segments = location.pathname.split('/');
+      const connectorId = segments[segments.indexOf('connectors') + 1];
+      if (!connectorId) return null;
+      return {
+        baseUrl: location.origin,
+        id: decodeURIComponent(connectorId),
+        typeId: 'CONNECTOR',
+        url
+      };
+    }
+
     case url.includes('alerts/'):
       objectType = 'ALERT';
       break;

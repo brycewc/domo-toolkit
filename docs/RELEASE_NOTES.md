@@ -2,6 +2,10 @@
 
 ## New Features and Improvements
 
+## Newly Supported Object Types
+
+- Connectors are now detected on their App Store page, with Streams and Accounts tabs listing where they are used.
+
 ## UI Improvements
 
 ## Bug Fixes

@@ -730,8 +730,26 @@ export const ObjectTypeRegistry = {
     idPattern: /.*/
   }),
   CONNECTOR: new DomoObjectType('CONNECTOR', 'Connector', {
+    api: { endpoint: '/data/v1/connectors/{id}?language=en', paths: { name: 'label' } },
+    copyConfigs: [{ label: 'Provider Key', source: 'metadata.details.connectionType' }],
     icon: { component: 'Connector' },
-    idPattern: /.*/
+    idPattern: /^com\.[a-z0-9_-]+(\.[a-z0-9_-]+)+$/i,
+    relatedData: [
+      {
+        fetcher: 'connectorStreams',
+        isArray: true,
+        itemIdField: 'datasetId',
+        itemTypeId: 'DATA_SOURCE',
+        label: 'Streams'
+      },
+      {
+        fetcher: 'connectorAccounts',
+        isArray: true,
+        itemTypeId: 'ACCOUNT',
+        label: 'Accounts'
+      }
+    ],
+    urlPath: '/appstore/connectors/{id}'
   }),
   CONTAINER_VIEW: new DomoObjectType('CONTAINER_VIEW', 'Container View', {
     api: {
