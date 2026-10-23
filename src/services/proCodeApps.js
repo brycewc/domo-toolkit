@@ -290,16 +290,27 @@ async function resolveAppInstances(appCards, datasetId, tabId) {
   return executeInPage(
     async (appCards, datasetId) => {
       const ids = appCards.map((c) => c.id);
-      const metaRes = await fetch(
-        `/api/content/v1/cards?urns=${ids.join(',')}&parts=metadata,domoapp&includeFiltered=true`,
-        { credentials: 'include' }
-      );
-      if (!metaRes.ok) {
-        const error = new Error(`Failed to fetch app card metadata: HTTP ${metaRes.status}`);
-        error.status = metaRes.status;
-        throw error;
+      // Keeps each URL well under Domo's ~32KB cap, past which it answers 414.
+      const CARD_READ_BATCH_SIZE = 1000;
+      const batches = [];
+      for (let i = 0; i < ids.length; i += CARD_READ_BATCH_SIZE) {
+        batches.push(ids.slice(i, i + CARD_READ_BATCH_SIZE));
       }
-      const metaCards = (await metaRes.json()) || [];
+      const metaBatches = await Promise.all(
+        batches.map(async (batch) => {
+          const metaRes = await fetch(
+            `/api/content/v1/cards?urns=${batch.join(',')}&parts=metadata,domoapp&includeFiltered=true`,
+            { credentials: 'include' }
+          );
+          if (!metaRes.ok) {
+            const error = new Error(`Failed to fetch app card metadata: HTTP ${metaRes.status}`);
+            error.status = metaRes.status;
+            throw error;
+          }
+          return (await metaRes.json()) || [];
+        })
+      );
+      const metaCards = metaBatches.flat();
       const metaById = new Map();
       for (const m of metaCards) {
         const cid = m.id || (typeof m.urn === 'string' ? m.urn.split(':').pop() : null);

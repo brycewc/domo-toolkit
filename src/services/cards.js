@@ -224,9 +224,7 @@ export async function getCardDefinition({ cardId, tabId = null }) {
  * Fetch the current owners of a batch of cards.
  *
  * Cards do not carry owner data in the card-list pipeline, so owners are read
- * separately via the batch `/api/content/v1/cards?urns=...&parts=owners`
- * endpoint (the same endpoint `getCardDatasets` uses with `parts=datasources`).
- * URNs are chunked to keep the query string within a safe length. Each owner is
+ * separately through `getCardsByIds` with `parts=owners`. Each owner is
  * `{ id, type, displayName }` where `type` is `'USER' | 'GROUP'`.
  *
  * @param {Object} params
@@ -238,84 +236,69 @@ export async function getCardDefinition({ cardId, tabId = null }) {
  * @throws {Error} If a batch request fails
  */
 export async function getCardOwners({ cardIds, tabId = null }) {
-  const OWNERS_READ_BATCH_SIZE = 100;
-  const batches = [];
-  for (let i = 0; i < cardIds.length; i += OWNERS_READ_BATCH_SIZE) {
-    batches.push(cardIds.slice(i, i + OWNERS_READ_BATCH_SIZE));
-  }
-
+  const cards = await getCardsByIds({ cardIds, includeFiltered: false, parts: 'owners', tabId });
   const ownersByCardId = {};
-  for (const batch of batches) {
-    const result = await executeInPage(
-      async (batch) => {
-        const params = new URLSearchParams();
-        for (const id of batch) params.append('urns', id);
-        params.append('parts', 'owners');
-        const response = await fetch(`/api/content/v1/cards?${params.toString()}`);
-        if (!response.ok) return { error: `HTTP status: ${response.status}`, ok: false };
-        return { cards: await response.json(), ok: true };
-      },
-      [batch],
-      tabId
-    );
-    if (!result?.ok) throw new Error(result?.error || 'Failed to fetch card owners');
-    for (const card of [].concat(result.cards || [])) {
-      const rawId = card?.id ?? (typeof card?.urn === 'string' ? card.urn.split(':').pop() : null);
-      if (rawId == null) continue;
-      ownersByCardId[String(rawId)] = (card.owners || []).map((o) => ({
-        displayName: o.displayName || '',
-        id: String(o.id),
-        type: o.type
-      }));
-    }
+  for (const card of cards) {
+    ownersByCardId[String(card.id)] = (card.owners || []).map((o) => ({
+      displayName: o.displayName || '',
+      id: String(o.id),
+      type: o.type
+    }));
   }
   return ownersByCardId;
 }
 
 /**
- * Batch-fetch full card objects by id, chunking URNs to keep the query string
- * within a safe length. A drill id is itself a card id, so drills resolve here too.
+ * Batch-fetch full card objects by id. A drill id is itself a card id, so drills resolve here too.
+ * Chunks stay well under Domo's ~32KB URL cap (414 past it). Don't use for `adminAllPages`:
+ * the server resolves it card by card within a request, so batching it is slower than singles.
  *
  * @param {Object} params
  * @param {Array<string|number>} params.cardIds - Card (or drill) IDs to read
+ * @param {boolean} [params.includeFiltered=true] - Whether to send `includeFiltered=true`
  * @param {string} [params.parts='metadata'] - Comma-separated parts to request
  * @param {number|null} [params.tabId=null] - Target tab
  * @returns {Promise<Array<Object>>} Card objects with a normalized numeric `id`.
  *   Ids that don't resolve are absent rather than returned empty.
  * @throws {Error} If a batch request fails
  */
-export async function getCardsByIds({ cardIds, parts = 'metadata', tabId = null }) {
+export async function getCardsByIds({ cardIds, includeFiltered = true, parts = 'metadata', tabId = null }) {
   const ids = [...new Set((cardIds || []).filter((id) => id != null).map(String))];
   if (ids.length === 0) return [];
 
-  const CARD_READ_BATCH_SIZE = 100;
-  const batches = [];
-  for (let i = 0; i < ids.length; i += CARD_READ_BATCH_SIZE) {
-    batches.push(ids.slice(i, i + CARD_READ_BATCH_SIZE));
-  }
+  const result = await executeInPage(
+    async (ids, includeFiltered, parts) => {
+      const CARD_READ_BATCH_SIZE = 1000;
+      const batches = [];
+      for (let i = 0; i < ids.length; i += CARD_READ_BATCH_SIZE) {
+        batches.push(ids.slice(i, i + CARD_READ_BATCH_SIZE));
+      }
+      const responses = await Promise.all(
+        batches.map(async (batch) => {
+          const params = new URLSearchParams();
+          for (const id of batch) params.append('urns', id);
+          if (includeFiltered) params.append('includeFiltered', 'true');
+          if (parts) params.append('parts', parts);
+          const response = await fetch(`/api/content/v1/cards?${params.toString()}`);
+          if (!response.ok) return { error: `HTTP status: ${response.status}`, ok: false };
+          return { cards: await response.json(), ok: true };
+        })
+      );
+      const failed = responses.find((r) => !r.ok);
+      if (failed) return failed;
+      return { cards: responses.flatMap((r) => [].concat(r.cards || [])), ok: true };
+    },
+    [ids, includeFiltered, parts],
+    tabId
+  );
+  if (!result?.ok) throw new Error(result?.error || 'Failed to fetch cards');
 
   const cards = [];
-  for (const batch of batches) {
-    const result = await executeInPage(
-      async (batch, parts) => {
-        const params = new URLSearchParams();
-        for (const id of batch) params.append('urns', id);
-        params.append('includeFiltered', 'true');
-        if (parts) params.append('parts', parts);
-        const response = await fetch(`/api/content/v1/cards?${params.toString()}`);
-        if (!response.ok) return { error: `HTTP status: ${response.status}`, ok: false };
-        return { cards: await response.json(), ok: true };
-      },
-      [batch, parts],
-      tabId
-    );
-    if (!result?.ok) throw new Error(result?.error || 'Failed to fetch cards');
-    for (const card of [].concat(result.cards || [])) {
-      const rawId = card?.id ?? (typeof card?.urn === 'string' ? card.urn.split(':').pop() : null);
-      if (rawId == null) continue;
-      const numericId = Number(rawId);
-      cards.push({ ...card, id: Number.isFinite(numericId) ? numericId : rawId });
-    }
+  for (const card of result.cards) {
+    const rawId = card?.id ?? (typeof card?.urn === 'string' ? card.urn.split(':').pop() : null);
+    if (rawId == null) continue;
+    const numericId = Number(rawId);
+    cards.push({ ...card, id: Number.isFinite(numericId) ? numericId : rawId });
   }
   return cards;
 }

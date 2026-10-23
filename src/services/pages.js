@@ -502,18 +502,21 @@ export async function getPagesForCards(cardIds, tabId = null) {
   // Execute fetch in page context to use authenticated session
   const result = await executeInPage(
     async (cardIds) => {
-      // Fetch all cards in parallel (one request per card for speed).
-      // Per-fetch `.catch` ensures one network failure (or non-OK response)
-      // doesn't sink the whole Promise.all. With 400+ cards on busy
-      // datasets, a single transient rejection would otherwise null out the
-      // entire result and crash the destructure on the caller side.
-      const results = await Promise.all(
-        cardIds.map((cardId) =>
-          fetch(`/api/content/v1/cards?urns=${cardId}&parts=adminAllPages`)
+      // One card per request on purpose: the server resolves adminAllPages card by card
+      // within a request, so batching urns is several times slower than parallel singles.
+      // A failed card resolves to null rather than rejecting, so one bad card can't sink the rest.
+      const MAX_IN_FLIGHT = 50;
+      const results = new Array(cardIds.length).fill(null);
+      let next = 0;
+      const worker = async () => {
+        while (next < cardIds.length) {
+          const index = next++;
+          results[index] = await fetch(`/api/content/v1/cards?urns=${cardIds[index]}&parts=adminAllPages`)
             .then((response) => (response.ok ? response.json() : null))
-            .catch(() => null)
-        )
-      );
+            .catch(() => null);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(MAX_IN_FLIGHT, cardIds.length) }, worker));
 
       const allDetailCards = results.filter(Boolean).flat();
 
