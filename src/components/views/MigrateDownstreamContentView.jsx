@@ -12,7 +12,7 @@ import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { getObjectType } from '@/models/DomoObjectType';
-import { extractAlertPdpPolicies, getDownstreamAlerts, getRowPdpPolicies } from '@/services/alerts';
+import { extractAlertPdpPolicies, getCardAlerts, getDownstreamAlerts, getRowPdpPolicies } from '@/services/alerts';
 import { scanContentForColumns } from '@/services/columnReferences';
 import { hasEffectiveMapping } from '@/services/columnRewriter';
 import { getDatasetColumns } from '@/services/datasets';
@@ -507,6 +507,47 @@ export function MigrateDownstreamContentView({
     [selectedItemsByType]
   );
 
+  const [cardAlertsByCardId, setCardAlertsByCardId] = useState(() => new Map());
+  const loadedCardItems = results.cards?.status === 'loaded' ? results.cards.items?.items : null;
+  useEffect(() => {
+    if (!loadedCardItems || loadedCardItems.length === 0) {
+      setCardAlertsByCardId(new Map());
+      return;
+    }
+    let cancelled = false;
+    getCardAlerts(
+      loadedCardItems.map((c) => c.id),
+      tabId
+    )
+      .then((alerts) => {
+        if (cancelled) return;
+        const byCard = new Map();
+        for (const alert of alerts) {
+          if (alert?.resourceId == null) continue;
+          const key = String(alert.resourceId);
+          if (!byCard.has(key)) byCard.set(key, []);
+          byCard.get(key).push(alert);
+        }
+        setCardAlertsByCardId(byCard);
+      })
+      .catch(() => {
+        if (!cancelled) setCardAlertsByCardId(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadedCardItems, tabId]);
+
+  const selectedCardAlerts = useMemo(
+    () => [...selectedCardIdSet].flatMap((id) => cardAlertsByCardId.get(id) || []),
+    [cardAlertsByCardId, selectedCardIdSet]
+  );
+
+  const pdpAlerts = useMemo(
+    () => [...(selectedItemsByType.alerts || []), ...selectedCardAlerts],
+    [selectedCardAlerts, selectedItemsByType]
+  );
+
   // Build the nested-reference graph once the Beast Mode list settles. It's a
   // function of the loaded list only (not the selection), so it's fetched once
   // per dataset load and reused as the user toggles content. Keyed by numeric
@@ -675,7 +716,7 @@ export function MigrateDownstreamContentView({
 
     Promise.all([
       getDatasetColumns({ datasetId: selectedDatasetId, tabId }),
-      scanContentForColumns({ originId: datasetId, selectedItems: selectedItemsByType, tabId })
+      scanContentForColumns({ cardAlertsByCardId, originId: datasetId, selectedItems: selectedItemsByType, tabId })
     ])
       .then(([cols, scan]) => {
         if (cancelled) return;
@@ -692,7 +733,7 @@ export function MigrateDownstreamContentView({
     return () => {
       cancelled = true;
     };
-  }, [comparison, datasetId, page, selectedDatasetId, tabId]);
+  }, [cardAlertsByCardId, comparison, datasetId, page, selectedDatasetId, tabId]);
 
   // Fetch the target's Beast Modes when a target is chosen so we can flag name
   // collisions with the selected origin Beast Modes (independent of schema
@@ -965,9 +1006,12 @@ export function MigrateDownstreamContentView({
   // selected alert actually references a named policy (the common all-rows alert
   // needs no remap). Used to auto-match origin policies by name and to populate
   // the per-policy dropdown for any that don't match.
+  // A card alert stays in place, so its "All Rows" policy also needs the target's equivalent.
   const selectedAlertsRefPdp = useMemo(
-    () => (selectedItemsByType.alerts || []).some((a) => extractAlertPdpPolicies(a).some((p) => p.type !== 'open')),
-    [selectedItemsByType]
+    () =>
+      pdpAlerts.some((a) => extractAlertPdpPolicies(a).some((p) => p.type !== 'open')) ||
+      selectedCardAlerts.some((a) => extractAlertPdpPolicies(a).length > 0),
+    [pdpAlerts, selectedCardAlerts]
   );
 
   useEffect(() => {
@@ -1000,14 +1044,14 @@ export function MigrateDownstreamContentView({
   // remapping onto the target.
   const alertPdpReferences = useMemo(() => {
     const byId = new Map();
-    for (const alert of selectedItemsByType.alerts || []) {
+    for (const alert of pdpAlerts) {
       for (const p of extractAlertPdpPolicies(alert)) {
         if (p.type === 'open' || byId.has(p.filterGroupId)) continue;
         byId.set(p.filterGroupId, p);
       }
     }
     return [...byId.values()].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  }, [selectedItemsByType]);
+  }, [pdpAlerts]);
 
   // Named target policies indexed by name (first wins), for same-name auto-match.
   const targetPdpByName = useMemo(() => {
@@ -1061,7 +1105,7 @@ export function MigrateDownstreamContentView({
     const targetOpen = (targetPdpPolicies || []).find((p) => p.type === 'open');
     const map = {};
     const refsById = new Map();
-    for (const alert of selectedItemsByType.alerts || []) {
+    for (const alert of pdpAlerts) {
       for (const p of extractAlertPdpPolicies(alert)) {
         if (!refsById.has(p.filterGroupId)) refsById.set(p.filterGroupId, p);
       }
@@ -1085,7 +1129,7 @@ export function MigrateDownstreamContentView({
       }
     }
     return map;
-  }, [pdpChoices, selectedItemsByType, targetPdpByName, targetPdpPolicies]);
+  }, [pdpAlerts, pdpChoices, targetPdpByName, targetPdpPolicies]);
 
   // True while any referenced PDP policy lacks a valid resolution: still loading,
   // or an unmatched policy the user hasn't mapped or removed yet. Gates migrate.
@@ -1693,10 +1737,15 @@ export function MigrateDownstreamContentView({
               const failed = result?.failed ?? 0;
               const succeeded = result?.succeeded ?? 0;
               const skipped = result?.skipped ?? [];
+              const alertIssues = result?.alertIssues ?? [];
+              let errorDetail = null;
+              if (failed > 0) errorDetail = result?.errors ?? null;
+              else if (skipped.length > 0) errorDetail = skipped;
+              else if (alertIssues.length > 0) errorDetail = alertIssues;
               next[typeKey] = {
                 count: count ?? succeeded + failed,
-                error: failed > 0 ? formatErrors(result) : formatSkips(skipped),
-                errorDetail: failed > 0 ? (result?.errors ?? null) : skipped.length > 0 ? skipped : null,
+                error: failed > 0 ? formatErrors(result) : formatSkips(skipped) || formatAlertIssues(alertIssues),
+                errorDetail,
                 failed,
                 skipped: skipped.length,
                 status: failed > 0 ? 'failed' : 'transferred',
@@ -1727,6 +1776,8 @@ export function MigrateDownstreamContentView({
       let totalSkipped = 0;
       let totalMerged = 0;
       let totalFiltersDropped = 0;
+      let totalAlertIssues = 0;
+      let totalAlertsUpdated = 0;
       for (const [, r] of transferResults) {
         totalSucceeded += r.succeeded || 0;
         totalFailed += r.failed || 0;
@@ -1734,6 +1785,8 @@ export function MigrateDownstreamContentView({
         totalSkipped += r.skipped?.length || 0;
         totalMerged += r.mergedInputs?.length || 0;
         totalFiltersDropped += (r.droppedFilters || []).reduce((sum, entry) => sum + (entry.count || 0), 0);
+        totalAlertIssues += r.alertIssues?.length || 0;
+        totalAlertsUpdated += r.alertsUpdated || 0;
       }
 
       // Items that moved but need a hand afterwards: a SQL dataflow whose SQL
@@ -1753,33 +1806,40 @@ export function MigrateDownstreamContentView({
         totalFiltersDropped > 0
           ? ` Removed ${totalFiltersDropped} filter${totalFiltersDropped !== 1 ? 's' : ''} that had no values or used a column that no longer exists.`
           : '';
+      let alertNote = '';
+      if (totalAlertsUpdated > 0) {
+        alertNote += ` Updated ${totalAlertsUpdated} card alert${totalAlertsUpdated !== 1 ? 's' : ''} to match.`;
+      }
+      if (totalAlertIssues > 0) {
+        alertNote += ` ${totalAlertIssues} card alert${totalAlertIssues !== 1 ? 's' : ''} could not be updated, the Cards row says why.`;
+      }
 
       const targetLabel = targetName ? `**${targetName}**` : `**${targetId}**`;
       if (totalFailed > 0) {
         showStatus(
           'Migration Partially Complete',
-          `**${totalSucceeded}** succeeded, **${totalFailed}** failed migrating to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}${filterNote}`,
+          `**${totalSucceeded}** succeeded, **${totalFailed}** failed migrating to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}${filterNote}${alertNote}`,
           'warning',
           7000
         );
         // Some items failed: drop back to the list, where each per-type row
         // shows its own failure message, instead of closing.
         if (mountedRef.current) setPage('select');
-      } else if (totalManualReview > 0 || totalSkipped > 0) {
+      } else if (totalManualReview > 0 || totalSkipped > 0 || totalAlertIssues > 0) {
         showStatus(
           'Migration Complete',
-          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}${filterNote}`,
+          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}${filterNote}${alertNote}`,
           'warning',
           9000
         );
         // Something still needs the user: a hand edit, or an item left behind.
-        // Skips keep the list open so the rows naming them stay visible.
-        if (totalSkipped > 0 && mountedRef.current) setPage('select');
+        // Skips and card alert issues keep the list open so the rows naming them stay visible.
+        if ((totalSkipped > 0 || totalAlertIssues > 0) && mountedRef.current) setPage('select');
         else onBackToDefault?.();
       } else {
         showStatus(
           'Migration Complete',
-          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}${mergeNote}${filterNote}`,
+          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}.${mergeNote}${filterNote}${alertNote}`,
           'success',
           7000
         );
@@ -2430,6 +2490,12 @@ function countInvalidRenames(conflicts, choices, targetNames) {
     if (trimmed === '' || targetNames.has(trimmed)) count++;
   }
   return count;
+}
+
+function formatAlertIssues(issues) {
+  if (!issues?.length) return null;
+  const n = issues.length;
+  return `${n} card alert${n === 1 ? '' : 's'} could not be updated`;
 }
 
 function formatErrors(result) {

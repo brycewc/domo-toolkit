@@ -99,6 +99,41 @@ export async function getAlertActions({ actions, alertId, tabId = null }) {
 }
 
 /**
+ * Full definitions of the alerts on the given cards, which the `dataSetId` filter never returns.
+ * @param {Array<number|string>} cardIds - Card (or drill) IDs
+ * @param {number|null} [tabId] - Optional Chrome tab ID
+ * @returns {Promise<Array<Object>>} Alert definitions, each with `resourceId` naming its card
+ */
+export async function getCardAlerts(cardIds, tabId = null) {
+  const ids = [...new Set((cardIds || []).map(String))];
+  if (ids.length === 0) return [];
+  return executeInPage(
+    async (ids) => {
+      // The ids endpoint caps a request at 500.
+      const BATCH_SIZE = 500;
+      const alerts = [];
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        const response = await fetch('/api/social/v4/alerts/ids?type=card&fields=all', {
+          body: JSON.stringify(ids.slice(i, i + BATCH_SIZE)),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) {
+          const error = new Error(`Failed to fetch card alerts: HTTP ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
+        const batch = await response.json();
+        if (Array.isArray(batch)) alerts.push(...batch);
+      }
+      return alerts;
+    },
+    [ids],
+    tabId
+  );
+}
+
+/**
  * Get the alerts that watch a given dataset (the dataset's downstream alerts).
  * Filters server-side by `dataSetId` so only alerts bound to this dataset come
  * back. Each item keeps its `filterGroups` so the migration UI can analyze
@@ -742,6 +777,88 @@ export async function moveAlertToTarget({ alertId, columnMap, droppedColumns, or
 }
 
 /**
+ * Point a card alert's dataset references at the target after its card was repointed: PDP policies,
+ * filter columns and data source, and a Beast Mode alert's template id. The alert itself stays put.
+ * @param {Object} params
+ * @param {number|string} params.alertId - The card alert's ID
+ * @param {Record<string, string>} [params.beastModeLegacyRemap] - Origin → target Beast Mode legacyId, for filters on a Beast Mode
+ * @param {Record<string, string>} [params.beastModeTemplateRemap] - Origin → target numeric Beast Mode template id
+ * @param {Record<string, string>} [params.columnMap] - Origin → target column-name map
+ * @param {string[]} [params.droppedColumns] - Origin column names to remove from the alert's filters
+ * @param {string} params.originId - The origin dataset ID
+ * @param {Record<string, {action: 'map'|'remove', target?: Object}>} [params.pdpMap] - Per origin filterGroupId resolution
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @param {string} params.targetId - The target dataset ID
+ * @returns {Promise<{error?: string, status?: number, success: boolean, unchanged?: boolean}>}
+ */
+export async function repointCardAlert({
+  alertId,
+  beastModeLegacyRemap,
+  beastModeTemplateRemap,
+  columnMap,
+  droppedColumns,
+  originId,
+  pdpMap,
+  tabId = null,
+  targetId
+}) {
+  const alert = await executeInPage(
+    async (alertId) => {
+      const response = await fetch(`/api/social/v4/alerts/${alertId}?fields=all`);
+      if (!response.ok) {
+        const error = new Error(`Failed to load alert ${alertId}: HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+      return response.json();
+    },
+    [alertId],
+    tabId
+  );
+
+  const update = buildCardAlertUpdate(alert, {
+    beastModeLegacyRemap,
+    beastModeTemplateRemap,
+    columnMap,
+    droppedColumns,
+    originId,
+    pdpMap,
+    targetId
+  });
+  if (update.error) return { error: update.error, success: false };
+  if (!update.body) return { success: true, unchanged: true };
+
+  return executeInPage(
+    async (alertId, body) => {
+      const response = await fetch(`/api/social/v4/alerts/${alertId}`, {
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT'
+      });
+      if (response.ok) return { success: true };
+      const text = await response.text().catch(() => '');
+      let reason = text.trim();
+      let toe = '';
+      try {
+        const parsed = JSON.parse(text);
+        reason = parsed?.message || '';
+        toe = parsed?.toe || '';
+      } catch {
+        // Not JSON, so keep the raw text as the reason.
+      }
+      if (!reason || reason === 'Bad Request') reason = 'Domo reported no reason';
+      return {
+        error: `HTTP ${response.status}: ${reason}${toe ? ` (Domo trace ${toe})` : ''}`,
+        status: response.status,
+        success: false
+      };
+    },
+    [alertId, update.body],
+    tabId
+  );
+}
+
+/**
  * Transfer alert ownership to a new user.
  * @param {number[]} alertIds - Array of alert IDs to transfer
  * @param {number} fromUserId - The current owner's user ID
@@ -847,4 +964,90 @@ export async function updateAlertTriggerVersions({ tabId = null, targetVersion, 
     [targetVersion, triggers],
     tabId
   );
+}
+
+function buildCardAlertUpdate(
+  alert,
+  { beastModeLegacyRemap, beastModeTemplateRemap, columnMap, droppedColumns, originId, pdpMap, targetId }
+) {
+  const map = columnMap || {};
+  const dropped = new Set(Array.isArray(droppedColumns) ? droppedColumns : []);
+  const legacyRemap = beastModeLegacyRemap || {};
+  const templateRemap = beastModeTemplateRemap || {};
+  const remapColumn = (name) => (typeof name === 'string' && map[name] ? map[name] : name);
+  const remapColumnList = (csv) =>
+    csv
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s && !dropped.has(s))
+      .map((s) => remapColumn(s))
+      .join(',');
+
+  const srcConfigurations = Array.isArray(alert?.configurations) ? alert.configurations : [];
+  const configurations = srcConfigurations.map((c) => {
+    if (!c || typeof c.value !== 'string') return c;
+    if (c.name === 'BEAST_MODE_ID') {
+      const next = templateRemap[c.value];
+      return next != null ? { ...c, value: String(next) } : c;
+    }
+    if (c.name === 'COLUMN_ID') return { ...c, value: remapColumn(c.value) };
+    if (c.name === 'ANY_ROW_PRIMARY_KEYS' || c.name === 'ANY_ROW_METADATA_COLUMNS') {
+      return { ...c, value: remapColumnList(c.value) };
+    }
+    return c;
+  });
+
+  const srcFilters = (Array.isArray(alert?.filters) ? alert.filters : []).filter(Boolean);
+  const filters = srcFilters
+    .filter((f) => !(typeof f.column === 'string' && dropped.has(f.column)))
+    .map((f) => ({
+      ...f,
+      // A filter on a dataset Beast Mode names it by legacyId, which changes when the Beast Mode migrates.
+      column: map[f.column] ? map[f.column] : legacyRemap[f.column] || f.column,
+      dataSourceId: f.dataSourceId === originId ? targetId : f.dataSourceId
+    }));
+
+  // A contextual alert's `filterGroups` holds the current user's policies, not the alert's.
+  const isContextual = alert?.contextual === true;
+  const srcGroups = isContextual || !Array.isArray(alert?.filterGroups) ? [] : alert.filterGroups.filter(Boolean);
+  const resolvedGroups = [];
+  const unresolvedNames = [];
+  for (const g of srcGroups) {
+    if (g.filterGroupId == null) continue;
+    const resolution = pdpMap ? pdpMap[g.filterGroupId] : null;
+    if (!resolution) {
+      if (g.type !== 'open') unresolvedNames.push(g.name || String(g.filterGroupId));
+      continue;
+    }
+    if (resolution.action === 'map' && resolution.target?.filterGroupId != null) {
+      resolvedGroups.push({ filterGroupId: resolution.target.filterGroupId, type: resolution.target.type });
+    }
+  }
+  if (unresolvedNames.length > 0) {
+    const plural = unresolvedNames.length > 1;
+    return {
+      error: `Its PDP ${plural ? 'policies' : 'policy'} ${unresolvedNames.join(', ')} ${plural ? 'have' : 'has'} no match on the target dataset, so the alert was left unchanged. Edit it in Domo to pick a policy.`
+    };
+  }
+  // Domo refuses the "All Rows" policy alongside a named one.
+  const hasNamedGroup = resolvedGroups.some((g) => g.type === 'user');
+  const filterGroups = resolvedGroups
+    .filter((g) => !(hasNamedGroup && g.type === 'open'))
+    .map((g) => ({ filterGroupId: g.filterGroupId }));
+
+  const groupIds = (groups) =>
+    groups
+      .map((g) => String(g.filterGroupId))
+      .sort()
+      .join(',');
+  const changed =
+    JSON.stringify(configurations) !== JSON.stringify(srcConfigurations) ||
+    JSON.stringify(filters) !== JSON.stringify(srcFilters) ||
+    groupIds(filterGroups) !== groupIds(srcGroups);
+  if (!changed) return { body: null };
+
+  // A PUT replaces the whole alert, so everything the GET returned rides along (a missing schedule deletes it).
+  const body = { ...alert, configurations, filterGroups, filters };
+  delete body.evaluations;
+  return { body };
 }

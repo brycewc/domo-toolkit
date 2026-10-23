@@ -9,7 +9,7 @@
 import { indexColumnNames, resolveColumnName } from '@/utils/columnOrphans';
 import { executeInPage } from '@/utils/executeInPage';
 
-import { moveAlertToTarget } from './alerts';
+import { getCardAlerts, moveAlertToTarget, repointCardAlert } from './alerts';
 import { getCardDefinition } from './cards';
 import {
   collectViewDroppableColumns,
@@ -1345,6 +1345,9 @@ async function swapCardInputFast(cardId, originId, targetId, tabId) {
  */
 // A Text card names its datasets in its markup, so Domo's own move repoints it
 // server-side instead, with its column references left as they are.
+// Outlasts the alerts service's two nested 30-second caches of a card's dataset.
+const CARD_ALERT_RETRY_DELAY_MS = 65000;
+
 const DEFINITION_CARD_TYPES = new Set(['drill_view', 'kpi']);
 
 export const MIGRATE_TYPES = [
@@ -1495,6 +1498,14 @@ export async function migrateAllDownstreamContent({
       const mergedInputs = [];
       const skipped = [];
       let succeeded = 0;
+      const isCards = type.key === 'cards';
+      const cardAlerts = isCards
+        ? await getCardAlerts(
+            items.map((i) => i.id),
+            tabId
+          ).catch((err) => new Error(err?.message || String(err)))
+        : null;
+      const swappedCards = [];
       for (const item of items) {
         const cached = definitionsByItemKey?.get?.(makeItemKey(type.key, item.id))?.definition;
         const resp = await dispatchSwap(type.key, item, {
@@ -1525,6 +1536,7 @@ export async function migrateAllDownstreamContent({
           });
         } else if (resp?.success) {
           succeeded++;
+          if (isCards) swappedCards.push(item);
           // SQL dataflow statements we couldn't safely rewrite (origin SELECT *,
           // etc.). The input still repointed; the user must fix these by hand.
           if (Array.isArray(resp.unhandled) && resp.unhandled.length > 0) {
@@ -1541,7 +1553,31 @@ export async function migrateAllDownstreamContent({
         }
       }
 
+      const alertRepair = isCards
+        ? await repairCardAlerts({
+            beastModeRemaps: buildCardAlertBeastModeRemaps(
+              beastModeIdRemap,
+              beastModeNumericRemap,
+              cardBeastModeResolutions
+            ),
+            cardAlerts,
+            cards: swappedCards,
+            columnMap,
+            droppedColumns,
+            originId,
+            pdpMap,
+            tabId,
+            targetId
+          })
+        : { issues: [], updated: 0 };
+      for (const issue of alertRepair.issues) {
+        if (issue.cardId == null || manualReview.some((m) => String(m.id) === String(issue.cardId))) continue;
+        manualReview.push({ id: issue.cardId, name: issue.cardName });
+      }
+
       const result = {
+        alertIssues: alertRepair.issues,
+        alertsUpdated: alertRepair.updated,
         attempted,
         count: items.length,
         droppedFilters,
@@ -1664,6 +1700,19 @@ function buildCanonicalCaseMap(referencedNames, targetColumnTypes) {
     if (canonical && canonical !== name) map[name] = canonical;
   }
   return map;
+}
+
+function buildCardAlertBeastModeRemaps(idRemap, numericRemap, cardBeastModeResolutions) {
+  const legacy = { ...(idRemap || {}) };
+  const template = { ...(numericRemap || {}) };
+  for (const r of cardBeastModeResolutions || []) {
+    if (r?.disposition !== 'useTarget') continue;
+    if (r.originLegacyId && r.targetLegacyId) legacy[r.originLegacyId] = r.targetLegacyId;
+    if (r.originTemplateId != null && r.targetTemplateId != null) {
+      template[String(r.originTemplateId)] = String(r.targetTemplateId);
+    }
+  }
+  return { legacy, template };
 }
 
 /**
@@ -2381,6 +2430,89 @@ function remapNestedBeastModeIds(template, numericRemap) {
     }
   }
   return template;
+}
+
+async function repairCardAlerts({
+  beastModeRemaps,
+  cardAlerts,
+  cards,
+  columnMap,
+  droppedColumns,
+  originId,
+  pdpMap,
+  tabId,
+  targetId
+}) {
+  if (cards.length === 0) return { issues: [], updated: 0 };
+  if (cardAlerts instanceof Error) {
+    return {
+      issues: [
+        {
+          cardId: null,
+          error: `Couldn't look up the migrated cards' alerts (${cardAlerts.message}), so any alerts on them still point at the origin dataset.`
+        }
+      ],
+      updated: 0
+    };
+  }
+
+  const alertsByCardId = new Map();
+  for (const alert of cardAlerts || []) {
+    if (alert?.id == null || alert.resourceId == null) continue;
+    const key = String(alert.resourceId);
+    if (!alertsByCardId.has(key)) alertsByCardId.set(key, []);
+    alertsByCardId.get(key).push(alert);
+  }
+
+  const lastSwapAt = Date.now();
+  const repoint = (alert) =>
+    repointCardAlert({
+      alertId: alert.id,
+      beastModeLegacyRemap: beastModeRemaps.legacy,
+      beastModeTemplateRemap: beastModeRemaps.template,
+      columnMap,
+      droppedColumns,
+      originId,
+      pdpMap,
+      tabId,
+      targetId
+    }).catch((err) => ({ error: err?.message || String(err), retryable: true, success: false }));
+
+  const failures = [];
+  let updated = 0;
+  for (const card of cards) {
+    for (const alert of alertsByCardId.get(String(card.id)) || []) {
+      const resp = await repoint(alert);
+      if (resp.success) {
+        if (!resp.unchanged) updated++;
+      } else {
+        failures.push({ alert, card, resp });
+      }
+    }
+  }
+
+  // Right after the swap, Domo may still validate a card alert against the origin dataset.
+  const retryable = failures.filter((f) => f.resp.status === 400 || f.resp.status >= 500 || f.resp.retryable);
+  if (retryable.length > 0) {
+    const wait = lastSwapAt + CARD_ALERT_RETRY_DELAY_MS - Date.now();
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    for (const failure of retryable) {
+      const resp = await repoint(failure.alert);
+      failure.resp = resp;
+      if (resp.success && !resp.unchanged) updated++;
+    }
+  }
+
+  const issues = failures
+    .filter((f) => !f.resp.success)
+    .map((f) => ({
+      alertId: f.alert.id,
+      alertName: f.alert.name || String(f.alert.id),
+      cardId: f.card.id,
+      cardName: f.card.name || String(f.card.id),
+      error: describeSwapFailure(f.resp)
+    }));
+  return { issues, updated };
 }
 
 /**
