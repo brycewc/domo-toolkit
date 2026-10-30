@@ -24,6 +24,7 @@ import { executeInPage } from '@/utils/executeInPage';
 import { getCardDefinition } from './cards';
 import {
   BACKTICK_REF_RE,
+  beastModeIdsByName,
   COLUMN_KEYED_FIELDS,
   COLUMN_LIST_FIELDS,
   COLUMN_VALUE_FIELDS,
@@ -33,6 +34,7 @@ import {
   isCalendarColumnEntry,
   isColumnListParent,
   QUALIFIED_REF_RE,
+  repointConditionalFormatColumns,
   stripBackticks
 } from './columnFields';
 import { getFunctionTemplate } from './functions';
@@ -363,6 +365,13 @@ export function extractCardColumnRefs(cardResponse) {
 
   if (needsFormulaFilter || needsColumnFilter) {
     scanTarget = { ...inner };
+
+    if (Array.isArray(inner.conditionalFormats)) {
+      scanTarget.conditionalFormats = repointConditionalFormatColumns(
+        inner.conditionalFormats,
+        beastModeIdsByName(cardResponse)
+      );
+    }
 
     if (needsFormulaFilter) {
       scanTarget.formulas = inner.formulas.filter((f) => f && f.persistedOnDataSource === false);

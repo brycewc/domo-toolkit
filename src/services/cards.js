@@ -373,6 +373,14 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
             ? `/api/content/v3/stacks/${objectId}/cards?parts=${parts}`
             : `/api/content/v3/stacks/${objectId}/cards`;
           const response = await fetch(url);
+          // Stacks 404s on some dashboards that the v1 page route still answers.
+          if (response.status === 404 && objectType === 'PAGE') {
+            const fallback = await fetch(`/api/content/v1/pages/${objectId}/cards${parts ? `?parts=${parts}` : ''}`);
+            if (fallback.ok) {
+              const cards = await fallback.json();
+              return (Array.isArray(cards) ? cards : []).filter((c) => Number.isFinite(c.id));
+            }
+          }
           if (!response.ok) {
             const error = new Error(`Failed to fetch cards for ${objectType} ${objectId}. HTTP status: ${response.status}`);
             error.status = response.status;

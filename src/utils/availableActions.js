@@ -89,6 +89,13 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     actions.add('migrateBeastModeUsage');
   }
 
+  if (
+    ['DATA_APP_VIEW', 'PAGE', 'REPORT_BUILDER_PAGE', 'WORKSHEET_VIEW'].includes(typeId) &&
+    !(typeId === 'PAGE' && Number(currentContext?.domoObject?.id) < 0)
+  ) {
+    actions.add('migrateDownstreamContent');
+  }
+
   if (isDataset) {
     // One key for every duplicator a dataset offers; see duplicators/descriptors.js.
     actions.add('duplicate');

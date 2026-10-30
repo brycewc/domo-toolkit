@@ -13,6 +13,7 @@ import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { getObjectType } from '@/models/DomoObjectType';
 import { extractAlertPdpPolicies, getCardAlerts, getDownstreamAlerts, getRowPdpPolicies } from '@/services/alerts';
+import { getCardsForObject } from '@/services/cards';
 import { scanContentForColumns } from '@/services/columnReferences';
 import { hasEffectiveMapping } from '@/services/columnRewriter';
 import { getDatasetColumns } from '@/services/datasets';
@@ -33,12 +34,14 @@ import {
   MIGRATE_TYPES,
   migrateAllDownstreamContent
 } from '@/services/migrateDownstreamContent';
+import { getCardLocations, getChildPages, getSubpageIds } from '@/services/pages';
 import { findAppColumnCollisions, getDownstreamApps } from '@/services/proCodeApps';
 import { isColumnDroppable } from '@/utils/columnDrops';
 import { suggestReplacement } from '@/utils/columnMatching';
 import { indexColumnNames, isBrokenColumnReference, resolveColumnName } from '@/utils/columnOrphans';
 import { isDatasetTypeId } from '@/utils/datasetTypes';
 import { buildRefreshAction } from '@/utils/headerActions';
+import { locationKey, NOT_ON_PAGE_KEY, scopeFromContext } from '@/utils/migrateScope';
 import { getSidepanelData, launchView } from '@/utils/sidepanel';
 import IconArrowLeft from '@icons/arrow-left.svg?react';
 import IconArrowRight from '@icons/arrow-right.svg?react';
@@ -58,9 +61,35 @@ import { ColumnRemapSection } from './migrateDownstream/ColumnRemapSection';
 import { buildObjectUrl, DROP, TYPE_KEY_TO_DOMO_TYPE, UNMAPPED } from './migrateDownstream/contentTypes';
 import { PdpMappingSection } from './migrateDownstream/PdpMappingSection';
 import { ReconciliationWarnings } from './migrateDownstream/ReconciliationWarnings';
+import { ScopeSection } from './migrateDownstream/ScopeSection';
 
 // An opt-in type never joins these, so "all searches finished" counts only these.
 const AUTO_MIGRATE_TYPES = MIGRATE_TYPES.filter((t) => !t.onDemand);
+
+const EMPTY_LOADED_RESULT = { error: null, items: { items: [] }, status: 'loaded' };
+
+const IDLE_LOCATIONS = { complete: false, error: null, locationIdsByCardId: {}, locations: [], status: 'idle' };
+
+// Nothing here is tied to a page, so a scope never migrates any of it.
+const SCOPE_HIDDEN_TYPES = new Set(['alerts', 'dataflows', 'datasets', 'jupyterWorkspaces']);
+
+const SCOPE_KIND_NOUNS = {
+  app: 'App',
+  appView: 'View',
+  page: 'Page',
+  reportPage: 'Page',
+  worksheet: 'Worksheet',
+  worksheetView: 'View'
+};
+
+const SCOPE_KIND_TYPE_IDS = {
+  app: 'DATA_APP',
+  appView: 'DATA_APP_VIEW',
+  page: 'PAGE',
+  reportPage: 'REPORT_BUILDER_PAGE',
+  worksheet: 'WORKSHEET',
+  worksheetView: 'WORKSHEET_VIEW'
+};
 
 const JUPYTER_VISIBILITY_NOTE = 'Only Jupyter Workspaces you have access to are listed';
 
@@ -87,8 +116,26 @@ export function MigrateDownstreamContentView({
   // out of the list until then.
   const [jupyterCheckStarted, setJupyterCheckStarted] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  // 'select' = pick what content to migrate; 'target' = pick the target dataset, remap, migrate.
+  // 'source' = pick the dataset (page launches only); 'select' = pick what content to migrate;
+  // 'target' = pick the target dataset, remap, migrate.
   const [page, setPage] = useState('select');
+
+  const [scopeFrom, setScopeFrom] = useState(null);
+  const [launchName, setLaunchName] = useState('');
+  const [launchRootKeys, setLaunchRootKeys] = useState([]);
+  const [launchRootCardIds, setLaunchRootCardIds] = useState(null);
+  const [sourceCandidates, setSourceCandidates] = useState({ error: null, items: [], status: 'idle' });
+  const [sourceNonce, setSourceNonce] = useState(0);
+  const [completedDatasetIds, setCompletedDatasetIds] = useState(() => new Set());
+  const [lastMigration, setLastMigration] = useState(null);
+
+  // null = All Content.
+  const [scope, setScope] = useState(null);
+  const [scopeLabel, setScopeLabel] = useState(null);
+  const [cardLocations, setCardLocations] = useState(IDLE_LOCATIONS);
+  const [locationsRequested, setLocationsRequested] = useState(false);
+  const [locationsNonce, setLocationsNonce] = useState(0);
+  const [subpagesByPageId, setSubpagesByPageId] = useState(() => new Map());
   // { [typeKey]: { status, error?, succeeded?, failed?, count? } }
   const [transferStatus, setTransferStatus] = useState({});
   const [isTransferring, setIsTransferring] = useState(false);
@@ -156,6 +203,7 @@ export function MigrateDownstreamContentView({
   const seededExpansionRef = useRef(false);
 
   const mountedRef = useRef(true);
+  const placedCardIdsRef = useRef(new Set());
   const bailedRef = useRef(false);
   const autoMapTimersRef = useRef([]);
   const { showStatus } = useStatusBar();
@@ -177,8 +225,22 @@ export function MigrateDownstreamContentView({
         return;
       }
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
+      const launchScope = context && !isDatasetTypeId(context.domoObject?.typeId) ? data.scopeFrom || scopeFromContext(context) : null;
+      if (launchScope) {
+        const metadata = context.domoObject?.metadata;
+        const isWholeApp = launchScope.kind === 'app' || launchScope.kind === 'worksheet';
+        setScopeFrom(launchScope);
+        setLaunchName(
+          (isWholeApp ? metadata?.parent?.name : metadata?.name) ||
+            `${SCOPE_KIND_NOUNS[launchScope.kind]} ${launchScope.id}`
+        );
+        setOrigin(context.domoObject?.baseUrl || context.origin || '');
+        setTabId(context.tabId);
+        setPage('source');
+        return;
+      }
       if (!context || !isDatasetTypeId(context.domoObject?.typeId)) {
-        onStatusUpdate?.('Error', 'Migrate requires a dataset in scope', 'danger');
+        onStatusUpdate?.('Error', 'Migrate requires a dataset, page, or App Studio view', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -282,19 +344,293 @@ export function MigrateDownstreamContentView({
   );
 
   useEffect(() => {
+    if (!scopeFrom || !tabId) return;
+    let cancelled = false;
+    setSourceCandidates((prev) => ({ ...prev, error: null, status: 'loading' }));
+    loadSourceCandidates(scopeFrom, tabId)
+      .then(({ candidates, rootCardIds, rootKeys }) => {
+        if (cancelled) return;
+        setLaunchRootKeys(rootKeys);
+        setLaunchRootCardIds(rootCardIds);
+        setSourceCandidates({ error: null, items: candidates, status: 'loaded' });
+      })
+      .catch((err) => {
+        if (!cancelled) setSourceCandidates({ error: err?.message || 'Failed to load datasets', items: [], status: 'error' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [scopeFrom, sourceNonce, tabId]);
+
+  const remainingCandidates = useMemo(
+    () => sourceCandidates.items.filter((c) => !completedDatasetIds.has(String(c.id))),
+    [completedDatasetIds, sourceCandidates]
+  );
+
+  const resetForDataset = useCallback(() => {
+    setSelectedIds(new Set());
+    setPendingSelectAll(true);
+    setTransferStatus({});
+    setSelectedDatasetId(null);
+    setSelectedDatasetName(null);
+    setBeastModeChoices({});
+    setCardBeastModeChoices({});
+    setPdpChoices({});
+    setColumnMap({});
+    setExpandedSections(new Set());
+    setJupyterCheckStarted(false);
+    setCardLocations(IDLE_LOCATIONS);
+    placedCardIdsRef.current = new Set();
+    bailedRef.current = false;
+  }, []);
+
+  const handleSelectSource = useCallback(
+    (candidate) => {
+      resetForDataset();
+      setDatasetId(String(candidate.id));
+      setDatasetName(candidate.name);
+      if (!scope) {
+        setScope({ includeSubpages: false, locationKeys: new Set(launchRootKeys) });
+        setScopeLabel(launchName);
+      }
+      setPage('select');
+    },
+    [launchName, launchRootKeys, resetForDataset, scope]
+  );
+
+  // One candidate skips the step, and none means there's nothing to migrate here.
+  useEffect(() => {
+    if (page !== 'source' || lastMigration || sourceCandidates.status !== 'loaded') return;
+    if (remainingCandidates.length === 0) {
+      onStatusUpdate?.('Nothing to Migrate', `**${launchName}** has no cards to migrate`, 'warning');
+      onBackToDefault?.();
+    } else if (remainingCandidates.length === 1) {
+      handleSelectSource(remainingCandidates[0]);
+    }
+  }, [
+    handleSelectSource,
+    lastMigration,
+    launchName,
+    onBackToDefault,
+    onStatusUpdate,
+    page,
+    remainingCandidates,
+    sourceCandidates.status
+  ]);
+
+  // Pro-code apps are cards, so they're placed the same way. A drill lives
+  // wherever its parent card does, so the parent is what gets placed.
+  const allLocationCardIds = useMemo(() => {
+    const settled = (r) => r && r.status !== 'loading';
+    if (!settled(results.cards) || !settled(results.apps)) return null;
+    const ids = new Set();
+    for (const card of results.cards.items?.items || []) {
+      const placedId = card.isDrill ? card.parentId : card.id;
+      if (placedId != null) ids.add(String(placedId));
+    }
+    for (const app of results.apps.items?.items || []) ids.add(String(app.id));
+    return [...ids];
+  }, [results.apps, results.cards]);
+
+  const locationsWanted = Boolean(scopeFrom) || locationsRequested || scope !== null;
+
+  // Placing every card is one request each, so a page launch places only the cards
+  // on that page until the scope is widened. An unplaced card reads as out of scope.
+  const wantedLocationCardIds = useMemo(() => {
+    if (!locationsWanted || !allLocationCardIds) return null;
+    if (locationsRequested || !launchRootCardIds) return allLocationCardIds;
+    return allLocationCardIds.filter((id) => launchRootCardIds.has(id));
+  }, [allLocationCardIds, launchRootCardIds, locationsRequested, locationsWanted]);
+
+  useEffect(() => {
+    if (!wantedLocationCardIds) return;
+    const complete = wantedLocationCardIds.length === allLocationCardIds.length;
+    const missing = wantedLocationCardIds.filter((id) => !placedCardIdsRef.current.has(id));
+    if (missing.length === 0) {
+      setCardLocations((prev) =>
+        prev.status === 'loaded' && prev.complete === complete ? prev : { ...prev, complete, status: 'loaded' }
+      );
+      return;
+    }
+    let cancelled = false;
+    setCardLocations((prev) => ({ ...prev, error: null, status: 'loading' }));
+    getCardLocations(missing, tabId)
+      .then(({ locationIdsByCardId, locations }) => {
+        if (cancelled) return;
+        for (const id of missing) placedCardIdsRef.current.add(id);
+        setCardLocations((prev) => {
+          const known = new Set(prev.locations.map((location) => location.key));
+          return {
+            complete,
+            error: null,
+            locationIdsByCardId: { ...prev.locationIdsByCardId, ...locationIdsByCardId },
+            locations: [...prev.locations, ...locations.filter((location) => !known.has(location.key))],
+            status: 'loaded'
+          };
+        });
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setCardLocations((prev) => ({ ...prev, error: err?.message || 'Failed to load card locations', status: 'error' }));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [allLocationCardIds, locationsNonce, tabId, wantedLocationCardIds]);
+
+  const scopedPageIds = useMemo(
+    () =>
+      scope
+        ? [...scope.locationKeys].filter((key) => key.startsWith('page:')).map((key) => key.slice('page:'.length))
+        : [],
+    [scope]
+  );
+
+  useEffect(() => {
+    const missing = scopedPageIds.filter((id) => !subpagesByPageId.has(id));
+    if (missing.length === 0) return;
+    setSubpagesByPageId((prev) => {
+      const next = new Map(prev);
+      for (const id of missing) next.set(id, null);
+      return next;
+    });
+    for (const id of missing) {
+      getSubpageIds({ pageId: id, tabId })
+        .then((ids) => (ids || []).map(String))
+        .catch(() => [])
+        .then((childIds) => {
+          if (!mountedRef.current) return;
+          setSubpagesByPageId((prev) => new Map(prev).set(id, childIds));
+        });
+    }
+  }, [scopedPageIds, subpagesByPageId, tabId]);
+
+  const scopeHasSubpages = scopedPageIds.some((id) => subpagesByPageId.get(id)?.length > 0);
+
+  const subpagesLoading = Boolean(scope?.includeSubpages) && scopedPageIds.some((id) => !subpagesByPageId.get(id));
+
+  const effectiveScopeKeys = useMemo(() => {
+    if (!scope) return null;
+    const keys = new Set(scope.locationKeys);
+    if (scope.includeSubpages) {
+      for (const id of scopedPageIds) {
+        for (const childId of subpagesByPageId.get(id) || []) keys.add(locationKey('page', childId));
+      }
+    }
+    return keys;
+  }, [scope, scopedPageIds, subpagesByPageId]);
+
+  const scopeLoading = scope !== null && (cardLocations.status === 'idle' || cardLocations.status === 'loading' || subpagesLoading);
+
+  const isCardInScope = useCallback(
+    (cardId) => {
+      if (!effectiveScopeKeys || cardId == null) return false;
+      const keys = cardLocations.locationIdsByCardId[String(cardId)];
+      if (!keys) return false;
+      if (keys.length === 0) return effectiveScopeKeys.has(NOT_ON_PAGE_KEY);
+      return keys.some((key) => effectiveScopeKeys.has(key));
+    },
+    [cardLocations, effectiveScopeKeys]
+  );
+
+  // Cards, drills and apps narrowed to the scope; Beast Modes left whole so the
+  // locks keep following the cards. Hidden types read as loaded and empty.
+  const scopedResults = useMemo(() => {
+    if (!scope) return results;
+    const out = {};
+    for (const [key, r] of Object.entries(results)) {
+      if (SCOPE_HIDDEN_TYPES.has(key)) {
+        out[key] = EMPTY_LOADED_RESULT;
+      } else if ((key !== 'cards' && key !== 'apps') || r?.status !== 'loaded') {
+        out[key] = r;
+      } else if (cardLocations.status === 'error') {
+        out[key] = { error: cardLocations.error, items: null, status: 'error' };
+      } else if (scopeLoading) {
+        out[key] = { error: null, items: null, status: 'loading' };
+      } else {
+        const items = (r.items?.items || []).filter((item) => isCardInScope(item.isDrill ? item.parentId : item.id));
+        out[key] = { ...r, items: { ...r.items, items } };
+      }
+    }
+    return out;
+  }, [cardLocations, isCardInScope, results, scope, scopeLoading]);
+
+  const contentReady = isFullyLoaded && !scopeLoading;
+
+  const locationsByKey = useMemo(
+    () => new Map(cardLocations.locations.map((location) => [location.key, location])),
+    [cardLocations]
+  );
+
+  // Selected-or-not, a card here that also lives outside the scope gets changed there too.
+  const sharedCardLocations = useMemo(() => {
+    const shared = new Map();
+    if (!effectiveScopeKeys || scopedResults.cards?.status !== 'loaded') return shared;
+    for (const card of scopedResults.cards.items?.items || []) {
+      if (card.isDrill) continue;
+      const others = (cardLocations.locationIdsByCardId[String(card.id)] || []).filter(
+        (key) => !effectiveScopeKeys.has(key)
+      );
+      if (others.length > 0) shared.set(String(card.id), others.map((key) => locationsByKey.get(key)?.name || key));
+    }
+    return shared;
+  }, [cardLocations, effectiveScopeKeys, locationsByKey, scopedResults]);
+
+  const handleScopeChange = useCallback((next) => {
+    if (next) setLocationsRequested(true);
+    setScope(next);
+    setScopeLabel(null);
+    setPendingSelectAll(true);
+  }, []);
+
+  const handleIncludeSubpagesChange = useCallback((includeSubpages) => {
+    if (includeSubpages) setLocationsRequested(true);
+    setScope((prev) => (prev ? { ...prev, includeSubpages } : prev));
+    setPendingSelectAll(true);
+  }, []);
+
+  const scopeSections = useMemo(
+    () => (cardLocations.complete ? buildScopeSections(cardLocations, results) : []),
+    [cardLocations, results]
+  );
+
+  const scopePillLabel = useMemo(() => {
+    if (!scope) return null;
+    if (scopeLabel) return `On: ${scopeLabel}`;
+    const keys = [...scope.locationKeys];
+    if (keys.length === 1) {
+      const name = keys[0] === NOT_ON_PAGE_KEY ? 'Not on Any Page' : locationsByKey.get(keys[0])?.name || keys[0];
+      return `On: ${name}`;
+    }
+    return `On: ${keys.length} Locations`;
+  }, [locationsByKey, scope, scopeLabel]);
+
+  const scopeExcludedNote = useMemo(() => {
+    if (!scope || scopeLoading) return null;
+    const parts = [];
+    const loadedCount = (r) => (r?.status === 'loaded' ? r.items?.items || [] : []);
+    const leftCards =
+      loadedCount(results.cards).filter((c) => !c.isDrill).length -
+      loadedCount(scopedResults.cards).filter((c) => !c.isDrill).length;
+    if (leftCards > 0) parts.push(`${leftCards} ${leftCards === 1 ? 'card' : 'cards'} on other pages`);
+    for (const [key, singular, plural] of [
+      ['dataflows', 'dataflow', 'dataflows'],
+      ['datasets', 'dataset view', 'dataset views'],
+      ['alerts', 'dataset alert', 'dataset alerts'],
+      ['jupyterWorkspaces', 'Jupyter Workspace', 'Jupyter Workspaces']
+    ]) {
+      const n = loadedCount(results[key]).length;
+      if (n > 0) parts.push(`${n} ${n === 1 ? singular : plural}`);
+    }
+    if (parts.length === 0) return null;
+    return `Left on ${datasetName}: ${parts.join(', ')}.`;
+  }, [datasetName, results, scope, scopeLoading, scopedResults]);
+
+  useEffect(() => {
     if (!jupyterCheckStarted || !datasetId) return;
     runJupyterCheck();
   }, [datasetId, jupyterCheckStarted, runJupyterCheck]);
-
-  // Pre-select every loaded item once all fetches settle. We hold pending in
-  // a flag so a partial early result doesn't snapshot empty children.
-  useEffect(() => {
-    if (!pendingSelectAll) return;
-    if (Object.keys(results).length === 0) return;
-    if (!isFullyLoaded) return;
-    setSelectedIds(buildFullSelection(results));
-    setPendingSelectAll(false);
-  }, [pendingSelectAll, isFullyLoaded, results]);
 
   // The Jupyter search settles long after that one-shot pre-select, so its
   // results select themselves: the user asked for them by running the check.
@@ -310,16 +646,15 @@ export function MigrateDownstreamContentView({
     });
   }, [jupyterResults, jupyterStatus]);
 
-  const totalsByType = useMemo(() => {
-    const totals = {};
-    for (const t of MIGRATE_TYPES) {
-      const r = results[t.key];
-      totals[t.key] = r?.status === 'loaded' ? r.items?.items?.length || 0 : 0;
-    }
-    return totals;
-  }, [results]);
+  const totalsByType = useMemo(() => countLoadedByType(scopedResults), [scopedResults]);
 
   const totalAvailable = useMemo(() => Object.values(totalsByType).reduce((a, b) => a + b, 0), [totalsByType]);
+
+  // The bail-out reads unscoped totals, since a scope that matches nothing is still worth showing.
+  const unscopedTotal = useMemo(
+    () => Object.values(countLoadedByType(results)).reduce((a, b) => a + b, 0),
+    [results]
+  );
 
   // All three lineage fetches settled with zero downstream content: there's
   // nothing to migrate. Bail straight back to the default view with a warning
@@ -334,7 +669,7 @@ export function MigrateDownstreamContentView({
   // does hold it back, and an errored one keeps the view open to show the error.
   const jupyterSettled = jupyterStatus === 'idle' || jupyterStatus === 'loaded';
   const nothingToMigrate =
-    !isLoading && !isTransferring && loadedCount === AUTO_MIGRATE_TYPES.length && totalAvailable === 0 && jupyterSettled;
+    !isLoading && !isTransferring && loadedCount === AUTO_MIGRATE_TYPES.length && unscopedTotal === 0 && jupyterSettled;
   const holdContent = useViewReady(!isLoading && !nothingToMigrate);
 
   // The render path short-circuits to the spinner on `nothingToMigrate` to
@@ -380,7 +715,7 @@ export function MigrateDownstreamContentView({
   const selectedCounts = useMemo(() => {
     const counts = { alerts: 0, apps: 0, beastModes: 0, cards: 0, dataflows: 0, datasets: 0, jupyterWorkspaces: 0 };
     for (const t of MIGRATE_TYPES) {
-      const r = results[t.key];
+      const r = scopedResults[t.key];
       const items = r?.status === 'loaded' ? r.items?.items || [] : [];
       for (const item of items) {
         if (selectedIds.has(leafSelectionId(t.key, item.id))) {
@@ -389,7 +724,7 @@ export function MigrateDownstreamContentView({
       }
     }
     return counts;
-  }, [results, selectedIds]);
+  }, [scopedResults, selectedIds]);
 
   const totalSelected = MIGRATE_TYPES.reduce((sum, t) => sum + (selectedCounts[t.key] || 0), 0);
 
@@ -414,7 +749,7 @@ export function MigrateDownstreamContentView({
   const selectedItemsByType = useMemo(() => {
     const acc = { alerts: [], apps: [], beastModes: [], cards: [], dataflows: [], datasets: [], jupyterWorkspaces: [] };
     for (const t of MIGRATE_TYPES) {
-      const r = results[t.key];
+      const r = scopedResults[t.key];
       const items = r?.status === 'loaded' ? r.items?.items || [] : [];
       for (const item of items) {
         if (selectedIds.has(leafSelectionId(t.key, item.id))) {
@@ -423,7 +758,7 @@ export function MigrateDownstreamContentView({
       }
     }
     return acc;
-  }, [results, selectedIds]);
+  }, [scopedResults, selectedIds]);
 
   // Derived from the input lists captured during discovery, so this is available
   // on a compatible-schema migration too, where the column scan never runs.
@@ -610,6 +945,30 @@ export function MigrateDownstreamContentView({
     }
     return locked;
   }, [bmRefGraph, requiredBeastModeIds]);
+
+  // Pre-select once every fetch settles, so a partial early result doesn't snapshot
+  // empty children. Under a scope only the Beast Modes its cards need come along.
+  useEffect(() => {
+    if (!pendingSelectAll) return;
+    if (Object.keys(scopedResults).length === 0) return;
+    if (!contentReady) return;
+    setSelectedIds(buildFullSelection(scopedResults, scope ? bmRefGraph : null));
+    setPendingSelectAll(false);
+  }, [bmRefGraph, contentReady, pendingSelectAll, scope, scopedResults]);
+
+  // The reference graph can land after the pre-select, so its dependencies are topped up here.
+  useEffect(() => {
+    const known = new Set(beastModeItems.map((bm) => String(bm.id)));
+    const missing = [...requiredBeastModeIds].filter(
+      (id) => known.has(id) && !selectedIds.has(leafSelectionId('beastModes', id))
+    );
+    if (missing.length === 0) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of missing) next.add(leafSelectionId('beastModes', id));
+      return next;
+    });
+  }, [beastModeItems, requiredBeastModeIds, selectedIds]);
 
   // True when every Beast Mode is locked, either because a selected card uses it
   // or because another migrated Beast Mode nests it. Drives locking the parent
@@ -1270,8 +1629,8 @@ export function MigrateDownstreamContentView({
 
   const dataListItems = useMemo(
     () =>
-      MIGRATE_TYPES.filter((t) => !t.onDemand || jupyterCheckStarted).map((t) => {
-        const result = results[t.key];
+      MIGRATE_TYPES.filter((t) => (!t.onDemand || jupyterCheckStarted) && !(scope && SCOPE_HIDDEN_TYPES.has(t.key))).map((t) => {
+        const result = scopedResults[t.key];
         const xfer = transferStatus[t.key];
         const status = xfer?.status ?? result?.status ?? 'loading';
 
@@ -1289,7 +1648,7 @@ export function MigrateDownstreamContentView({
             const drillsCount = items.filter((c) => c.isDrill).length;
             count = items.length - drillsCount;
             if (drillsCount > 0) countLabel = `+ ${drillsCount} drill${drillsCount === 1 ? '' : 's'}`;
-            children = buildCardItems(items, origin);
+            children = buildCardItems(items, origin, sharedCardLocations);
           } else {
             count = items.length;
             children = buildLeafItems(t.key, items, origin);
@@ -1322,7 +1681,7 @@ export function MigrateDownstreamContentView({
           typeId: TYPE_KEY_TO_DOMO_TYPE[t.key]
         });
       }),
-    [jupyterCheckStarted, results, transferStatus, origin]
+    [jupyterCheckStarted, origin, scope, scopedResults, sharedCardLocations, transferStatus]
   );
 
   // Both parents and leaves are selectable. Parents are only selectable when
@@ -1330,13 +1689,13 @@ export function MigrateDownstreamContentView({
   const isSelectable = useCallback(
     (item) => {
       if (item.isVirtualParent) {
-        const r = results[item.id];
+        const r = scopedResults[item.id];
         if (!r || r.status !== 'loaded') return false;
         return (r.items?.items?.length || 0) > 0;
       }
       return true;
     },
-    [results]
+    [scopedResults]
   );
 
   // Propagate selection changes:
@@ -1354,7 +1713,7 @@ export function MigrateDownstreamContentView({
 
       // Drill leaves grouped by their parent card's leaf id, so toggling a card
       // cascades to its nested drills.
-      const cardsForDrills = results.cards;
+      const cardsForDrills = scopedResults.cards;
       const allCardItems = cardsForDrills?.status === 'loaded' ? cardsForDrills.items?.items || [] : [];
       const drillLeavesByParentLeaf = new Map();
       for (const c of allCardItems) {
@@ -1365,7 +1724,7 @@ export function MigrateDownstreamContentView({
       }
 
       const propagateParent = (typeKey, isAdding) => {
-        const r = results[typeKey];
+        const r = scopedResults[typeKey];
         const items = r?.status === 'loaded' ? r.items?.items || [] : [];
         for (const item of items) {
           const leafId = leafSelectionId(typeKey, item.id);
@@ -1375,7 +1734,7 @@ export function MigrateDownstreamContentView({
       };
 
       const reconcileLeafParent = (typeKey) => {
-        const r = results[typeKey];
+        const r = scopedResults[typeKey];
         let items = r?.status === 'loaded' ? r.items?.items || [] : [];
         // For cards, only the parent (non-drill) cards are direct children of
         // the group; nested drills don't gate the group's own checked state.
@@ -1418,13 +1777,13 @@ export function MigrateDownstreamContentView({
       // Beast Mode used by a still-selected card stays checked, even if a
       // parent cascade or deselect-all just tried to drop it. (The read-only
       // checkbox blocks unchecking it directly; this covers the group paths.)
-      const cardsResult = results.cards;
+      const cardsResult = scopedResults.cards;
       const cardItems = cardsResult?.status === 'loaded' ? cardsResult.items?.items || [] : [];
       const selectedCardIds = new Set();
       for (const card of cardItems) {
         if (next.has(leafSelectionId('cards', card.id))) selectedCardIds.add(String(card.id));
       }
-      const bmResult = results.beastModes;
+      const bmResult = scopedResults.beastModes;
       const bmItems = bmResult?.status === 'loaded' ? bmResult.items?.items || [] : [];
       for (const bm of bmItems) {
         if ((bm.activeCardIds || []).some((id) => selectedCardIds.has(String(id)))) {
@@ -1457,7 +1816,7 @@ export function MigrateDownstreamContentView({
 
       setSelectedIds(next);
     },
-    [bmRefGraph, results, selectedIds]
+    [bmRefGraph, scopedResults, selectedIds]
   );
 
   const subtextNode = useMemo(() => {
@@ -1470,6 +1829,7 @@ export function MigrateDownstreamContentView({
     if (!isFullyLoaded) {
       return `Searching downstream content… (${AUTO_MIGRATE_TYPES.length - loadingCount}/${AUTO_MIGRATE_TYPES.length})`;
     }
+    if (scopeLoading) return 'Finding where these cards live…';
     if (jupyterStatus === 'loading') return 'Searching Jupyter Workspaces…';
     let text = `**${totalSelected}** of **${totalAvailable}** selected`;
     if (errorCount > 0) {
@@ -1482,6 +1842,7 @@ export function MigrateDownstreamContentView({
     isFullyLoaded,
     jupyterStatus,
     loadingCount,
+    scopeLoading,
     totalAvailable,
     totalSelected,
     errorCount
@@ -1506,7 +1867,7 @@ export function MigrateDownstreamContentView({
   // any content scan have finished without error. Mismatches do NOT disable
   // it (the user may knowingly proceed without a full remap).
   const migrateDisabled =
-    !isFullyLoaded ||
+    !contentReady ||
     isTransferring ||
     totalSelected === 0 ||
     !selectedDatasetId ||
@@ -1815,10 +2176,23 @@ export function MigrateDownstreamContentView({
       }
 
       const targetLabel = targetName ? `**${targetName}**` : `**${targetId}**`;
+      // Without this, a scoped run reads like a partial failure: the source still has content.
+      const scopeNote = scope ? ` Content outside the scope was left on **${datasetName}**.` : '';
+      const offerAnother = scopeFrom && remainingCandidates.some((c) => String(c.id) !== String(datasetId));
+      const closeOrOfferAnother = () => {
+        if (!offerAnother || !mountedRef.current) {
+          onBackToDefault?.();
+          return;
+        }
+        setCompletedDatasetIds((prev) => new Set(prev).add(String(datasetId)));
+        setLastMigration({ fromName: datasetName, succeeded: totalSucceeded, toName: targetName || targetId });
+        setSourceNonce((n) => n + 1);
+        setPage('source');
+      };
       if (totalFailed > 0) {
         showStatus(
           'Migration Partially Complete',
-          `**${totalSucceeded}** succeeded, **${totalFailed}** failed migrating to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}${filterNote}${alertNote}`,
+          `**${totalSucceeded}** succeeded, **${totalFailed}** failed migrating to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}${filterNote}${alertNote}${scopeNote}`,
           'warning',
           7000
         );
@@ -1828,26 +2202,24 @@ export function MigrateDownstreamContentView({
       } else if (totalManualReview > 0 || totalSkipped > 0 || totalAlertIssues > 0) {
         showStatus(
           'Migration Complete',
-          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}${filterNote}${alertNote}`,
+          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}.${reviewNote}${skipNote}${mergeNote}${filterNote}${alertNote}${scopeNote}`,
           'warning',
           9000
         );
         // Something still needs the user: a hand edit, or an item left behind.
         // Skips and card alert issues keep the list open so the rows naming them stay visible.
         if ((totalSkipped > 0 || totalAlertIssues > 0) && mountedRef.current) setPage('select');
-        else onBackToDefault?.();
+        else closeOrOfferAnother();
       } else {
         showStatus(
           'Migration Complete',
-          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}.${mergeNote}${filterNote}${alertNote}`,
+          `Migrated **${totalSucceeded}** item${totalSucceeded !== 1 ? 's' : ''} to ${targetLabel}.${mergeNote}${filterNote}${alertNote}${scopeNote}`,
           'success',
           7000
         );
-        // Fully succeeded: close the view back to default. The toast lives in
-        // the App-level ToastProvider, so it survives this unmount. Only a
-        // clean run closes; any failure instead drops back to the list (above
-        // and in catch) so the failed per-type rows stay visible.
-        onBackToDefault?.();
+        // The toast lives in the App-level ToastProvider, so it survives this unmount.
+        // Any failure instead drops back to the list so the failed rows stay visible.
+        closeOrOfferAnother();
       }
     } catch (err) {
       showStatus('Migration Failed', err.message || 'An error occurred', 'danger', 7000);
@@ -1881,7 +2253,10 @@ export function MigrateDownstreamContentView({
     plannedBeastModeChoices,
     plannedDroppedColumns,
     plannedRenameMap,
+    remainingCandidates,
     scanResult,
+    scope,
+    scopeFrom,
     selectedDatasetId,
     selectedDatasetName,
     selectedItemsByType,
@@ -1908,15 +2283,15 @@ export function MigrateDownstreamContentView({
   const selectAllControl = {
     ariaLabel: 'Select all downstream content',
     count: totalSelected,
-    isDisabled: !isFullyLoaded || jupyterStatus === 'loading' || isTransferring,
-    onToggle: (checked) => setSelectedIds(checked ? buildFullSelection(results) : new Set()),
+    isDisabled: !contentReady || jupyterStatus === 'loading' || isTransferring,
+    onToggle: (checked) => setSelectedIds(checked ? buildFullSelection(scopedResults) : new Set()),
     total: totalAvailable
   };
 
   // Domo can't be asked which workspaces read a dataset, so the only way to find
   // them is to list every workspace in the instance and match here. Too heavy to
   // run on open, so it's offered instead.
-  const jupyterPrompt = !jupyterCheckStarted ? (
+  const jupyterPrompt = !jupyterCheckStarted && !scope ? (
     <Alert className='w-full' status='accent' variant='transparent'>
       <Alert.Content>
         <Alert.Title className='flex items-center gap-1'>
@@ -1938,11 +2313,90 @@ export function MigrateDownstreamContentView({
 
   // Page 1: choose what downstream content to migrate. The type groups live in
   // the DataList; the only footer action is Next, which advances to page 2.
+  if (page === 'source') {
+    return (
+      <SourceStep
+        candidates={remainingCandidates}
+        error={sourceCandidates.error}
+        lastMigration={lastMigration}
+        launchName={launchName}
+        launchTypeId={SCOPE_KIND_TYPE_IDS[scopeFrom?.kind]}
+        noun={SCOPE_KIND_NOUNS[scopeFrom?.kind] || 'Page'}
+        status={sourceCandidates.status}
+        onClose={onBackToDefault}
+        onRetry={() => setSourceNonce((n) => n + 1)}
+        onSelect={handleSelectSource}
+      />
+    );
+  }
+
+  const selectedSharedCardIds = [...sharedCardLocations.keys()].filter((id) =>
+    selectedIds.has(leafSelectionId('cards', id))
+  );
+
+  const sharedCardsAlert =
+    selectedSharedCardIds.length > 0 ? (
+      <Alert className='w-full' status='warning' variant='transparent'>
+        <Alert.Content>
+          <Alert.Title className='flex items-center gap-1'>
+            <Alert.Indicator>
+              <IconExclamationTriangle data-slot='alert-default-icon' />
+            </Alert.Indicator>
+            {selectedSharedCardIds.length} Selected {selectedSharedCardIds.length === 1 ? 'Card Is' : 'Cards Are'} Also on
+            Other Pages
+          </Alert.Title>
+          <Alert.Description>Migrating a card changes it everywhere it appears, not only here.</Alert.Description>
+          <Button
+            className='mt-2'
+            isDisabled={isTransferring}
+            size='sm'
+            variant='secondary'
+            onPress={() => {
+              const next = new Set(selectedIds);
+              for (const id of selectedSharedCardIds) next.delete(leafSelectionId('cards', id));
+              handleSelectionChange(next);
+            }}
+          >
+            <IconX />
+            Exclude Shared Cards
+          </Button>
+        </Alert.Content>
+      </Alert>
+    ) : null;
+
+  const selectBanner = (
+    <div className='flex flex-col gap-2'>
+      <ScopeSection
+        error={cardLocations.error}
+        excludedNote={scopeExcludedNote}
+        isDisabled={isTransferring}
+        pillLabel={scopePillLabel}
+        scope={scope}
+        sections={scopeSections}
+        showSubpagesSwitch={scopeHasSubpages}
+        subpagesLoading={subpagesLoading}
+        onIncludeSubpagesChange={handleIncludeSubpagesChange}
+        onOpen={() => setLocationsRequested(true)}
+        onRetry={() => setLocationsNonce((n) => n + 1)}
+        onScopeChange={handleScopeChange}
+        status={
+          cardLocations.status === 'error'
+            ? 'error'
+            : cardLocations.complete && cardLocations.status === 'loaded'
+              ? 'loaded'
+              : 'loading'
+        }
+      />
+      {sharedCardsAlert}
+      {jupyterPrompt}
+    </div>
+  );
+
   if (page === 'select') {
     return (
       <DataList
         beta
-        banner={jupyterPrompt}
+        banner={selectBanner}
         currentContext={currentContext}
         feature='Migrate Content of'
         featureIcon={<IconSwapHorizontal />}
@@ -1972,16 +2426,24 @@ export function MigrateDownstreamContentView({
         onSelectionChange={handleSelectionChange}
         onStatusUpdate={onStatusUpdate}
         footer={
-          <Button
-            fullWidth
-            isDisabled={!isFullyLoaded || jupyterStatus === 'loading' || isTransferring || totalSelected === 0}
-            size='sm'
-            variant='primary'
-            onPress={() => setPage('target')}
-          >
-            Next
-            <IconArrowRight />
-          </Button>
+          <div className='flex w-full gap-2'>
+            {scopeFrom && sourceCandidates.items.length > 1 && (
+              <Button isDisabled={isTransferring} size='sm' variant='tertiary' onPress={() => setPage('source')}>
+                <IconArrowLeft />
+                Back
+              </Button>
+            )}
+            <Button
+              fullWidth
+              isDisabled={!contentReady || jupyterStatus === 'loading' || isTransferring || totalSelected === 0}
+              size='sm'
+              variant='primary'
+              onPress={() => setPage('target')}
+            >
+              Next
+              <IconArrowRight />
+            </Button>
+          </div>
         }
       />
     );
@@ -2289,6 +2751,13 @@ export function MigrateDownstreamContentView({
                   from <span className='font-medium'>{datasetName}</span> to{' '}
                   <span className='font-medium'>{selectedDatasetName || selectedDatasetId}</span>.
                 </p>
+                {selectedSharedCardIds.length > 0 && (
+                  <p className='text-warning'>
+                    <span className='font-medium'>{selectedSharedCardIds.length}</span>{' '}
+                    {selectedSharedCardIds.length === 1 ? 'card is' : 'cards are'} also on pages outside the scope and will
+                    change there too.
+                  </p>
+                )}
                 {unrepointableDataflows.length + unrepointableDatasets.length > 0 && (
                   <p className='text-warning'>
                     <span className='font-medium'>{unrepointableDataflows.length + unrepointableDatasets.length}</span>{' '}
@@ -2394,10 +2863,18 @@ export function MigrateDownstreamContentView({
 // hierarchy is visible, instead of listing drills as flat siblings. Parent
 // cards with no drills stay plain leaves. Any drill whose parent isn't in the
 // list (shouldn't happen) falls back to a top-level row so none are dropped.
-function buildCardItems(items, origin) {
-  const makeItem = (item, children) =>
-    new DataListItem({
+function buildCardItems(items, origin, sharedCardLocations = new Map()) {
+  const makeItem = (item, children) => {
+    const otherLocations = item.isDrill ? null : sharedCardLocations.get(String(item.id));
+    return new DataListItem({
+      annotation: otherLocations ? `Also on ${otherLocations.join(', ')}` : null,
       children,
+      chip: otherLocations
+        ? {
+            color: 'warning',
+            label: `Also on ${otherLocations.length} Other ${otherLocations.length === 1 ? 'Page' : 'Pages'}`
+          }
+        : null,
       id: leafSelectionId('cards', item.id),
       label: item.name || String(item.id),
       originalId: item.id,
@@ -2406,6 +2883,7 @@ function buildCardItems(items, origin) {
       typeId: item.isDrill ? 'DRILL_VIEW' : TYPE_KEY_TO_DOMO_TYPE.cards,
       url: item.isDrill ? buildDrillViewUrl(item, origin) : buildObjectUrl('cards', item, origin)
     });
+  };
   const drillsByParent = new Map();
   for (const item of items) {
     if (!item.isDrill || item.parentId == null) continue;
@@ -2445,11 +2923,31 @@ function buildDrillViewUrl(item, origin) {
 // The "everything selected" set: every loaded type's parent key plus a leaf id
 // for each of its items. Shared by the initial pre-select effect and the header
 // Select all control so both mean exactly the same thing.
-function buildFullSelection(results) {
+// With a reference graph, Beast Modes narrow to those the selected cards use, plus what they nest.
+function buildFullSelection(results, beastModeRefGraph = null) {
   const next = new Set();
+  const cardIds = new Set(
+    (results.cards?.status === 'loaded' ? results.cards.items?.items || [] : []).map((c) => String(c.id))
+  );
   for (const t of MIGRATE_TYPES) {
     const r = results[t.key];
-    const items = r?.status === 'loaded' ? r.items?.items || [] : [];
+    let items = r?.status === 'loaded' ? r.items?.items || [] : [];
+    if (t.key === 'beastModes' && beastModeRefGraph) {
+      const used = items.filter((bm) => (bm.activeCardIds || []).some((id) => cardIds.has(String(id))));
+      const required = new Set();
+      const stack = used.map((bm) => String(bm.id));
+      while (stack.length > 0) {
+        const id = stack.pop();
+        if (required.has(id)) continue;
+        required.add(id);
+        for (const ref of beastModeRefGraph.get(id) || []) stack.push(ref);
+      }
+      const allCount = items.length;
+      items = items.filter((bm) => required.has(String(bm.id)));
+      if (items.length > 0 && items.length === allCount) next.add(t.key);
+      for (const item of items) next.add(leafSelectionId(t.key, item.id));
+      continue;
+    }
     if (items.length > 0) {
       next.add(t.key);
       for (const item of items) {
@@ -2473,6 +2971,50 @@ function buildLeafItems(typeKey, items, origin) {
   );
 }
 
+// Picker sections, with each location's count of this dataset's cards (drills follow their parent).
+function buildScopeSections({ locationIdsByCardId, locations }, results) {
+  const counts = new Map();
+  const tally = (cardId) => {
+    const keys = locationIdsByCardId[String(cardId)];
+    if (!keys) return;
+    for (const key of keys.length === 0 ? [NOT_ON_PAGE_KEY] : keys) counts.set(key, (counts.get(key) || 0) + 1);
+  };
+  for (const card of results.cards?.status === 'loaded' ? results.cards.items?.items || [] : []) {
+    if (!card.isDrill) tally(card.id);
+  }
+  for (const app of results.apps?.status === 'loaded' ? results.apps.items?.items || [] : []) tally(app.id);
+
+  const groupSuffix = { appView: 'App', reportPage: 'Report', worksheetView: 'Worksheet' };
+  const sections = new Map([['pages', { id: 'pages', label: 'Pages', options: [] }]]);
+  for (const location of locations) {
+    const option = { count: counts.get(location.key) || 0, key: location.key, label: location.name };
+    if (location.kind === 'page') {
+      sections.get('pages').options.push(option);
+      continue;
+    }
+    const sectionId = `${location.kind}:${location.parentId}`;
+    if (!sections.has(sectionId)) {
+      sections.set(sectionId, {
+        id: sectionId,
+        label: `${location.parentName} (${groupSuffix[location.kind]})`,
+        options: []
+      });
+    }
+    sections.get(sectionId).options.push(option);
+  }
+  if (counts.get(NOT_ON_PAGE_KEY)) {
+    sections.set(NOT_ON_PAGE_KEY, {
+      id: NOT_ON_PAGE_KEY,
+      label: 'Elsewhere',
+      options: [{ count: counts.get(NOT_ON_PAGE_KEY), key: NOT_ON_PAGE_KEY, label: 'Not on Any Page' }]
+    });
+  }
+  const byLabel = (a, b) => (a.label || '').localeCompare(b.label || '');
+  return [...sections.values()]
+    .filter((section) => section.options.length > 0)
+    .map((section) => ({ ...section, options: section.options.sort(byLabel) }));
+}
+
 // Info-icon modal listing the dataflows whose other inputs collide on the
 // origin column name, each linking to the dataflow. Mirrors ColumnUsagesModal,
 // shown when the collision spans more than one dataflow (a single one links
@@ -2490,6 +3032,15 @@ function countInvalidRenames(conflicts, choices, targetNames) {
     if (trimmed === '' || targetNames.has(trimmed)) count++;
   }
   return count;
+}
+
+function countLoadedByType(results) {
+  const totals = {};
+  for (const t of MIGRATE_TYPES) {
+    const r = results[t.key];
+    totals[t.key] = r?.status === 'loaded' ? r.items?.items?.length || 0 : 0;
+  }
+  return totals;
 }
 
 function formatAlertIssues(issues) {
@@ -2521,12 +3072,143 @@ function leafSelectionId(typeKey, itemId) {
   return `${typeKey}:${itemId}`;
 }
 
+// The datasets behind a launch location's cards, ranked by how many cards use each.
+async function loadSourceCandidates(scopeFrom, tabId) {
+  let roots;
+  if (scopeFrom.kind === 'app' || scopeFrom.kind === 'worksheet') {
+    const viewKind = scopeFrom.kind === 'app' ? 'appView' : 'worksheetView';
+    const views = await getChildPages({ appId: scopeFrom.appId, pageId: scopeFrom.appId, pageType: 'DATA_APP_VIEW', tabId });
+    roots = (views || []).map((view) => ({ id: String(view.pageId), kind: viewKind }));
+  } else {
+    roots = [{ id: scopeFrom.id, kind: scopeFrom.kind }];
+  }
+
+  const cardLists = await Promise.all(
+    roots.map((root) =>
+      getCardsForObject({ objectId: root.id, objectType: SCOPE_KIND_TYPE_IDS[root.kind], parts: 'datasources', tabId })
+    )
+  );
+  const byDataset = new Map();
+  const rootCardIds = new Set();
+  for (const card of cardLists.flat()) {
+    if (card?.id != null) rootCardIds.add(String(card.id));
+    for (const ds of card?.datasources || []) {
+      const id = ds.dataSourceId || ds.id || ds.datasetId;
+      if (!id) continue;
+      const key = String(id);
+      if (!byDataset.has(key)) {
+        byDataset.set(key, { cardIds: new Set(), id: key, name: ds.dataSourceName || ds.name || `DataSet ${key}` });
+      }
+      byDataset.get(key).cardIds.add(String(card.id));
+    }
+  }
+  const candidates = [...byDataset.values()]
+    .map(({ cardIds, id, name }) => ({ cardCount: cardIds.size, id, name }))
+    .sort((a, b) => b.cardCount - a.cardCount || a.name.localeCompare(b.name));
+  return { candidates, rootCardIds, rootKeys: roots.map((root) => locationKey(root.kind, root.id)) };
+}
+
 function parseLeafTypeKey(id) {
   if (typeof id !== 'string') return null;
   const idx = id.indexOf(':');
   if (idx === -1) return null;
   const candidate = id.slice(0, idx);
   return MIGRATE_TYPES.some((t) => t.key === candidate) ? candidate : null;
+}
+
+function SourceStep({ candidates, error, lastMigration, launchName, launchTypeId, noun, onClose, onRetry, onSelect, status }) {
+  return (
+    <Card className='flex min-h-0 w-full flex-1 flex-col gap-0 p-2'>
+      <ViewHeader
+        beta
+        feature='Migrate Content of'
+        featureIcon={<IconSwapHorizontal />}
+        subject={launchName}
+        subjectTypeId={launchTypeId}
+        onClose={onClose}
+      />
+      <Separator className='mt-1.5' />
+      <ScrollShadow hideScrollBar className='min-h-0 flex-1 overflow-y-auto' offset={5} orientation='vertical'>
+        <Card.Content className='flex flex-col gap-2 py-2'>
+          {lastMigration && (
+            <Alert className='w-full' status='success' variant='transparent'>
+              <Alert.Content>
+                <Alert.Title className='flex items-center gap-1'>
+                  <Alert.Indicator>
+                    <IconCheckCircle data-slot='alert-default-icon' />
+                  </Alert.Indicator>
+                  Migration Complete
+                </Alert.Title>
+                <Alert.Description>
+                  Migrated {lastMigration.succeeded} {lastMigration.succeeded === 1 ? 'item' : 'items'} from{' '}
+                  {lastMigration.fromName} to {lastMigration.toName}.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
+          {status === 'loading' && (
+            <div className='flex items-center gap-2 text-xs text-muted'>
+              <Spinner size='sm' />
+              <span>Finding the datasets on this {noun.toLowerCase()}…</span>
+            </div>
+          )}
+          {status === 'error' && (
+            <Alert className='w-full' status='danger' variant='transparent'>
+              <Alert.Content>
+                <Alert.Title className='flex items-center gap-1'>
+                  <Alert.Indicator>
+                    <IconExclamationPointCircle data-slot='alert-default-icon' />
+                  </Alert.Indicator>
+                  Couldn't Load DataSets
+                </Alert.Title>
+                <Alert.Description>{error}</Alert.Description>
+                <Button className='mt-2' size='sm' variant='secondary' onPress={onRetry}>
+                  <IconSync />
+                  Retry
+                </Button>
+              </Alert.Content>
+            </Alert>
+          )}
+          {status === 'loaded' && candidates.length === 0 && (
+            <p className='text-sm text-muted'>No other datasets on this {noun.toLowerCase()} have cards to migrate.</p>
+          )}
+          {status === 'loaded' && candidates.length > 0 && (
+            <>
+              <p className='text-sm font-medium'>
+                {lastMigration ? `Migrate Another DataSet on This ${noun}` : 'Choose the DataSet to Migrate From'}
+              </p>
+              {candidates.map((candidate) => (
+                <Button
+                  fullWidth
+                  className='justify-between'
+                  key={candidate.id}
+                  size='sm'
+                  variant='tertiary'
+                  onPress={() => onSelect(candidate)}
+                >
+                  <span className='min-w-0 truncate'>{candidate.name}</span>
+                  <span className='shrink-0 text-xs text-muted'>
+                    {candidate.cardCount} {candidate.cardCount === 1 ? 'card' : 'cards'}
+                  </span>
+                </Button>
+              ))}
+            </>
+          )}
+        </Card.Content>
+      </ScrollShadow>
+      {lastMigration && (
+        <>
+          <Separator className='mt-1.5' />
+          <div className='flex shrink-0 pt-2'>
+            <Button fullWidth size='sm' variant='primary' onPress={onClose}>
+              <IconCheck />
+              Done
+            </Button>
+          </div>
+        </>
+      )}
+    </Card>
+  );
 }
 
 // Plural group label for a migrate type, taken from the object type model so the

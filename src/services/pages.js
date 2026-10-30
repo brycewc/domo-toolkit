@@ -4,6 +4,15 @@ import { storeSidepanelData } from '@/utils/sidepanel';
 
 import { getCardsForObject } from './cards';
 
+const LOCATION_KIND_BY_TYPE = {
+  DATA_APP_VIEW: 'appView',
+  PAGE: 'page',
+  REPORT_BUILDER_PAGE: 'reportPage',
+  WORKSHEET_VIEW: 'worksheetView'
+};
+
+const PAGE_TYPE_ORDER = ['PAGE', 'DATA_APP_VIEW', 'WORKSHEET_VIEW', 'REPORT_BUILDER_PAGE'];
+
 /**
  * Read the stacks type a page reports, plus its parent app ID when it is an App
  * Studio page. Which type that makes the page is `refineTypeFromMetadata`'s call,
@@ -289,6 +298,36 @@ export async function getAppStudioPageParent(appPageId, inPageContext = false, t
   return inPageContext ? await fetchLogic(appPageId) : await executeInPage(fetchLogic, [appPageId], tabId);
 }
 
+// Keyed `${kind}:${id}` since page, view and report page IDs are separate ID spaces.
+// A card on no page maps to `[]`; a card whose read failed is absent.
+export async function getCardLocations(cardIds, tabId = null) {
+  const cards = await fetchCardPlacements([...new Set(cardIds.map(String))], tabId);
+
+  const locationsByKey = new Map();
+  const locationIdsByCardId = {};
+  for (const card of cards) {
+    const keys = [];
+    for (const placement of card.placements) {
+      const kind = LOCATION_KIND_BY_TYPE[placement.type];
+      const key = `${kind}:${placement.id}`;
+      if (!keys.includes(key)) keys.push(key);
+      if (!locationsByKey.has(key)) {
+        locationsByKey.set(key, {
+          id: String(placement.id),
+          key,
+          kind,
+          name: placement.name,
+          parentId: placement.parentId != null ? String(placement.parentId) : null,
+          parentName: placement.parentName ?? null
+        });
+      }
+    }
+    locationIdsByCardId[String(card.id)] = keys;
+  }
+
+  return { locationIdsByCardId, locations: [...locationsByKey.values()] };
+}
+
 /**
  * Get child pages for a given page or app studio app
  * @param {Object} params - Parameters for fetching child pages
@@ -499,183 +538,27 @@ export async function getOwnedPages(ownerId, tabId = null, ownerType = 'USER') {
  * @throws {Error} If the fetch fails
  */
 export async function getPagesForCards(cardIds, tabId = null) {
-  // Execute fetch in page context to use authenticated session
-  const result = await executeInPage(
-    async (cardIds) => {
-      // One card per request on purpose: the server resolves adminAllPages card by card
-      // within a request, so batching urns is several times slower than parallel singles.
-      // A failed card resolves to null rather than rejecting, so one bad card can't sink the rest.
-      const MAX_IN_FLIGHT = 50;
-      const results = new Array(cardIds.length).fill(null);
-      let next = 0;
-      const worker = async () => {
-        while (next < cardIds.length) {
-          const index = next++;
-          results[index] = await fetch(`/api/content/v1/cards?urns=${cardIds[index]}&parts=adminAllPages`)
-            .then((response) => (response.ok ? response.json() : null))
-            .catch(() => null);
-        }
-      };
-      await Promise.all(Array.from({ length: Math.min(MAX_IN_FLIGHT, cardIds.length) }, worker));
+  const cards = await fetchCardPlacements(cardIds, tabId);
 
-      const allDetailCards = results.filter(Boolean).flat();
+  const cardsByPage = {};
+  const pagesById = new Map();
+  const orphanedCards = [];
+  for (const card of cards) {
+    if (card.placements.length === 0) {
+      orphanedCards.push({ id: card.id, name: card.name });
+      continue;
+    }
+    for (const placement of card.placements) {
+      const key = String(placement.id);
+      if (!cardsByPage[key]) cardsByPage[key] = [];
+      if (!cardsByPage[key].some((c) => c.id === card.id)) cardsByPage[key].push({ id: card.id, name: card.name });
+      const pageKey = `${placement.type}:${key}`;
+      if (!pagesById.has(pageKey)) pagesById.set(pageKey, { ...placement, id: key });
+    }
+  }
 
-      // Empty result is a legitimate "this card isn't on any pages" case,
-      // not an error. Returning empty here keeps the executeScript bridge
-      // serializable and lets the caller render a friendly "no pages found"
-      // state instead of crashing on a thrown error.
-      if (!allDetailCards.length) {
-        return { cardsByPage: {}, orphanedCards: [], pages: [] };
-      }
-
-      // Build flat lists of all pages, app pages, and report pages from all cards
-      // Also build reverse mapping: pageId -> [{ id, name }] for cards on each page
-      const allPages = [];
-      const allAppPages = [];
-      const allWorksheetViews = [];
-      const allReportPages = [];
-      const cardsByPage = {};
-      const pagedCardIds = new Set();
-
-      const addCardToPage = (pageId, card) => {
-        const key = String(pageId);
-        if (!cardsByPage[key]) {
-          cardsByPage[key] = [];
-        }
-        const cardId = card.id || card.urn;
-        pagedCardIds.add(cardId);
-        // Avoid duplicate cards on the same page
-        if (!cardsByPage[key].some((c) => c.id === cardId)) {
-          cardsByPage[key].push({
-            id: cardId,
-            name: card.title || card.name || `Card ${cardId}`
-          });
-        }
-      };
-
-      allDetailCards.forEach((card) => {
-        // Regular pages
-        if (Array.isArray(card.adminAllPages)) {
-          card.adminAllPages.forEach((page) => {
-            if (page && page.pageId) {
-              allPages.push({
-                id: page.pageId,
-                name: page.title || `Page ${page.pageId}`
-              });
-              addCardToPage(page.pageId, card);
-            }
-          });
-        }
-        // App studio pages and worksheet views
-        if (Array.isArray(card.adminAllAppPages)) {
-          card.adminAllAppPages.forEach((page) => {
-            if (page && page.appPageId) {
-              if (page.dataAppType === 'worksheet') {
-                allWorksheetViews.push({
-                  id: page.appPageId,
-                  name: page.appPageTitle || `Worksheet View ${page.appPageId}`,
-                  parentId: page.appId,
-                  parentName: page.appTitle || `App ${page.appId}`
-                });
-              } else {
-                allAppPages.push({
-                  id: page.appPageId,
-                  name: page.appPageTitle || `App Page ${page.appPageId}`,
-                  parentId: page.appId,
-                  parentName: page.appTitle || `App ${page.appId}`
-                });
-              }
-              addCardToPage(page.appPageId, card);
-            }
-          });
-        }
-        // Report builder pages. Carry the parent report's id/title in the same
-        // parentId/parentName slots App Studio and worksheet pages use, so the
-        // view can nest each report page under its report.
-        if (Array.isArray(card.adminAllReportPages)) {
-          card.adminAllReportPages.forEach((page) => {
-            if (page && page.reportPageId) {
-              allReportPages.push({
-                id: page.reportPageId,
-                name: page.reportPageTitle || `Report Page ${page.reportPageId}`,
-                parentId: page.reportId,
-                parentName: page.reportTitle || `Report ${page.reportId}`
-              });
-              addCardToPage(page.reportPageId, card);
-            }
-          });
-        }
-      });
-
-      // Cards present in the response but absent from every page list are
-      // orphaned. Cards missing from the response entirely (failed fetch or
-      // deleted card) are deliberately not flagged, since they can't be
-      // confirmed or named.
-      const orphanedCards = [];
-      const orphanedIds = new Set();
-      allDetailCards.forEach((card) => {
-        const cardId = card.id || card.urn;
-        if (cardId == null || pagedCardIds.has(cardId) || orphanedIds.has(cardId)) return;
-        orphanedIds.add(cardId);
-        orphanedCards.push({
-          id: cardId,
-          name: card.title || card.name || `Card ${cardId}`
-        });
-      });
-
-      // Deduplicate pages by ID for each type (keep first occurrence's data)
-      const deduplicatePages = (pages) => {
-        const map = new Map();
-        pages.forEach((page) => {
-          if (!map.has(page.id)) {
-            map.set(page.id, page);
-          }
-        });
-        return Array.from(map.values());
-      };
-
-      const pages = deduplicatePages(allPages);
-      const appPages = deduplicatePages(allAppPages);
-      const worksheetViews = deduplicatePages(allWorksheetViews);
-      const reportPages = deduplicatePages(allReportPages);
-
-      // Combine all page types into array of objects
-      const pageObjects = [
-        ...pages.map(({ id, name }) => ({
-          id: String(id),
-          name,
-          type: 'PAGE'
-        })),
-        ...appPages.map(({ id, name, parentId, parentName }) => ({
-          id: String(id),
-          name,
-          parentId,
-          parentName,
-          type: 'DATA_APP_VIEW'
-        })),
-        ...worksheetViews.map(({ id, name, parentId, parentName }) => ({
-          id: String(id),
-          name,
-          parentId,
-          parentName,
-          type: 'WORKSHEET_VIEW'
-        })),
-        ...reportPages.map(({ id, name, parentId, parentName }) => ({
-          id: String(id),
-          name,
-          parentId,
-          parentName,
-          type: 'REPORT_BUILDER_PAGE'
-        }))
-      ];
-
-      return { cardsByPage, orphanedCards, pages: pageObjects };
-    },
-    [cardIds],
-    tabId
-  );
-
-  return result;
+  const pages = [...pagesById.values()].sort((a, b) => PAGE_TYPE_ORDER.indexOf(a.type) - PAGE_TYPE_ORDER.indexOf(b.type));
+  return { cardsByPage, orphanedCards, pages };
 }
 
 /**
@@ -854,4 +737,68 @@ function cardIdsOnlyOnPages({ cardIds, cardsByPage, pageIds }) {
     for (const card of cards) cardsOnOtherPages.add(card.id);
   }
   return cardIds.filter((id) => !cardsOnOtherPages.has(id));
+}
+
+// A card whose read failed is left out rather than reported as on no page.
+async function fetchCardPlacements(cardIds, tabId) {
+  if (!cardIds || cardIds.length === 0) return [];
+  return executeInPage(
+    async (cardIds) => {
+      // One card per request on purpose: the server resolves adminAllPages card by card
+      // within a request, so batching urns is several times slower than parallel singles.
+      // A failed card resolves to null rather than rejecting, so one bad card can't sink the rest.
+      const MAX_IN_FLIGHT = 50;
+      const results = new Array(cardIds.length).fill(null);
+      let next = 0;
+      const worker = async () => {
+        while (next < cardIds.length) {
+          const index = next++;
+          results[index] = await fetch(`/api/content/v1/cards?urns=${cardIds[index]}&parts=adminAllPages`)
+            .then((response) => (response.ok ? response.json() : null))
+            .catch(() => null);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(MAX_IN_FLIGHT, cardIds.length) }, worker));
+
+      const seen = new Set();
+      const cards = [];
+      for (const card of results.filter(Boolean).flat()) {
+        const id = card?.id || card?.urn;
+        if (id == null || seen.has(String(id))) continue;
+        seen.add(String(id));
+        const placements = [];
+        for (const page of card.adminAllPages || []) {
+          if (page?.pageId) {
+            placements.push({ id: page.pageId, name: page.title || `Page ${page.pageId}`, type: 'PAGE' });
+          }
+        }
+        for (const page of card.adminAllAppPages || []) {
+          if (!page?.appPageId) continue;
+          const isWorksheet = page.dataAppType === 'worksheet';
+          placements.push({
+            id: page.appPageId,
+            name: page.appPageTitle || `${isWorksheet ? 'Worksheet View' : 'App Page'} ${page.appPageId}`,
+            parentId: page.appId,
+            parentName: page.appTitle || `App ${page.appId}`,
+            type: isWorksheet ? 'WORKSHEET_VIEW' : 'DATA_APP_VIEW'
+          });
+        }
+        // Report pages carry their report in the same parent slots App Studio views use.
+        for (const page of card.adminAllReportPages || []) {
+          if (!page?.reportPageId) continue;
+          placements.push({
+            id: page.reportPageId,
+            name: page.reportPageTitle || `Report Page ${page.reportPageId}`,
+            parentId: page.reportId,
+            parentName: page.reportTitle || `Report ${page.reportId}`,
+            type: 'REPORT_BUILDER_PAGE'
+          });
+        }
+        cards.push({ id, name: card.title || card.name || `Card ${id}`, placements });
+      }
+      return cards;
+    },
+    [cardIds],
+    tabId
+  );
 }

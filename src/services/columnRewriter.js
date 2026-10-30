@@ -246,7 +246,8 @@ export function rewriteBeastModeColumns(beastModeTemplate, columnMap) {
  *   - projection / sort / group lists and the summary number: the calc id sits
  *     at `formulaId`, reshaped back to `column` (reshapeBeastModeRefToColumn);
  *   - filters and conditional-format conditions: the calc id sits at `column`,
- *     so a plain value swap is already right;
+ *     so a plain value swap is already right (a conditional format names the
+ *     Beast Mode, so the caller swaps in the calc id first);
  *   - card-level formulas: a `DOMO_BEAST_MODE(<id>)` call becomes a backticked
  *     ref (repointNestedBeastModeToColumn).
  *
@@ -294,7 +295,9 @@ export function rewriteCardColumns(cardDefinition, columnMap, beastModeNumericBy
   //   - projection / sort / group lists AND the summary number (`big_number`):
   //     by a `formulaId` key, reshaped from `column` (reshapeColumnRefToBeastMode);
   //   - filters and conditional-format conditions: by `column` holding the calc
-  //     id, which is just a plain value swap (already correct, no reshape);
+  //     id, which is just a plain value swap (already correct, no reshape); a
+  //     conditional format really names the Beast Mode, so the caller swaps in
+  //     the calc id first and the name back after;
   //   - card-level formula expressions: by DOMO_BEAST_MODE(<numeric template id>)
   //     (rewriteExpressionString), with the ref dropped from `columnPositions` and
   //     added to `formulaDependencies` (finalizeBeastModeFormulaRefs).

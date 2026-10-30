@@ -11,6 +11,7 @@ import { executeInPage } from '@/utils/executeInPage';
 
 import { getCardAlerts, moveAlertToTarget, repointCardAlert } from './alerts';
 import { getCardDefinition } from './cards';
+import { beastModeIdsByName, repointConditionalFormatColumns } from './columnFields';
 import {
   collectViewDroppableColumns,
   enumerateViewSourceIds,
@@ -465,6 +466,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
  * @param {string} params.originId
  * @param {string} params.targetId
  * @param {Record<string, string>} [params.beastModeIdRemap] - Origin → target Beast Mode legacyIds, for the card's own references.
+ * @param {Record<string, string>} [params.beastModeNameByLegacyId] - Target Beast Mode legacyId → name, for conditional formats, which reference a Beast Mode by name.
  * @param {Record<string, string>} [params.beastModeNumericRemap] - Origin → target Beast Mode numeric ids, for nested DOMO_BEAST_MODE(id) references.
  * @param {{aggregation?: string|null, columnName: string, dropCardFormula?: boolean, originLegacyId: string, originNumericId?: string|number|null}} [params.beastModeToColumn] - Repoint one Beast Mode's references onto a physical column instead of another Beast Mode.
  * @param {Record<string, string|null>} [params.columnMap]
@@ -477,6 +479,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
  */
 export async function swapCardInput({
   beastModeIdRemap,
+  beastModeNameByLegacyId,
   beastModeNumericByLegacyId,
   beastModeNumericRemap,
   beastModeToColumn,
@@ -520,7 +523,9 @@ export async function swapCardInput({
   }
   try {
     const fetchUrn = urn || cardId;
-    const definition = cachedDefinition || (await getCardDefinition({ cardId: fetchUrn, tabId }));
+    const fetched = cachedDefinition || (await getCardDefinition({ cardId: fetchUrn, tabId }));
+    // Every remap below works on legacyIds, so the names go out to ids here and come back after.
+    const definition = withConditionalFormatColumns(fetched, beastModeIdsByName(fetched));
     let rewritten = hasEffectiveMapping(columnMap)
       ? rewriteCardColumns(definition, columnMap, beastModeNumericByLegacyId)
       : JSON.parse(JSON.stringify(definition));
@@ -585,6 +590,13 @@ export async function swapCardInput({
         (col) => col && Object.prototype.hasOwnProperty.call(col, 'mapping')
       );
     }
+    // Later entries win: a rename applied to the card, then the name on the target.
+    const beastModeNames = new Map();
+    for (const card of [fetched, rewritten]) {
+      for (const [name, id] of beastModeIdsByName(card)) beastModeNames.set(id, name);
+    }
+    for (const [id, name] of Object.entries(beastModeNameByLegacyId || {})) beastModeNames.set(id, name);
+    rewritten = withConditionalFormatColumns(rewritten, beastModeNames);
     const putResult = await putCardForMigration(cardId, rewritten, tabId, { isDrill, urn });
     return droppedFilters > 0 ? { ...putResult, droppedFilters } : putResult;
   } catch (err) {
@@ -1422,8 +1434,10 @@ export async function migrateAllDownstreamContent({
   // fields, but a card-level formula must reference it as DOMO_BEAST_MODE(<numeric
   // id>), so the card rewriter needs the numeric id to convert those refs.
   const beastModeNumericByLegacyId = {};
+  let beastModeNameByLegacyId = {};
   for (const bm of targetBeastModes || []) {
     if (bm?.legacyId && bm?.id != null) beastModeNumericByLegacyId[bm.legacyId] = String(bm.id);
+    if (bm?.legacyId && bm?.name) beastModeNameByLegacyId[bm.legacyId] = bm.name;
   }
 
   // Phase 1: Beast Modes. Produces the origin → target id remap the card swap
@@ -1453,6 +1467,7 @@ export async function migrateAllDownstreamContent({
       targetId
     });
     beastModeIdRemap = bm.idRemap;
+    beastModeNameByLegacyId = { ...beastModeNameByLegacyId, ...bm.nameByLegacyId };
     beastModeNumericRemap = bm.numericRemap;
     const result = {
       attempted: beastModeAttempted,
@@ -1510,6 +1525,7 @@ export async function migrateAllDownstreamContent({
         const cached = definitionsByItemKey?.get?.(makeItemKey(type.key, item.id))?.definition;
         const resp = await dispatchSwap(type.key, item, {
           beastModeIdRemap,
+          beastModeNameByLegacyId,
           beastModeNumericByLegacyId,
           beastModeNumericRemap,
           cachedDefinition: cached,
@@ -1896,6 +1912,7 @@ async function dispatchSwap(typeKey, item, options) {
     }
     return swapCardInput({
       beastModeIdRemap: options.beastModeIdRemap,
+      beastModeNameByLegacyId: options.beastModeNameByLegacyId,
       beastModeNumericByLegacyId: options.beastModeNumericByLegacyId,
       beastModeNumericRemap: options.beastModeNumericRemap,
       cachedDefinition: options.cachedDefinition,
@@ -2091,6 +2108,7 @@ async function migrateBeastModes({
   // `DOMO_BEAST_MODE(<id>)`). Both are returned: the card swap uses idRemap for
   // its own references and numericRemap for any nested formulas it embeds.
   const idRemap = {};
+  const nameByLegacyId = {};
   const numericRemap = {};
   const originBeastModeNames = new Map(
     [...(originBeastModes || []), ...selectedBeastModes]
@@ -2110,13 +2128,15 @@ async function migrateBeastModes({
     return {
       errors: [{ error: 'Could not determine current user ID', id: 'all' }],
       idRemap: {},
+      nameByLegacyId: {},
       numericRemap: {},
       succeeded: 0
     };
   }
 
-  const mapIds = (origin, target) => {
+  const mapIds = (origin, target, name = target?.name) => {
     if (origin?.legacyId && target?.legacyId) idRemap[origin.legacyId] = target.legacyId;
+    if (target?.legacyId && name) nameByLegacyId[target.legacyId] = name;
     if (origin?.id != null && target?.id != null) numericRemap[String(origin.id)] = String(target.id);
   };
 
@@ -2238,7 +2258,7 @@ async function migrateBeastModes({
       for (let i = 0; i < buildable.length; i++) {
         const c = buildable[i].record;
         if (created[i]) {
-          mapIds(c.origin, created[i]);
+          mapIds(c.origin, created[i], c.name);
           succeeded++;
         } else {
           unresolved.push(c);
@@ -2285,7 +2305,7 @@ async function migrateBeastModes({
     }
   }
 
-  return { errors, idRemap, numericRemap, succeeded };
+  return { errors, idRemap, nameByLegacyId, numericRemap, succeeded };
 }
 
 /**
@@ -2538,4 +2558,13 @@ function setDataflowVersionDescription(definition, originName, targetName, count
   if (!definition || typeof definition !== 'object') return;
   const description = buildDataflowVersionDescription(originName, targetName, count);
   definition.onboardFlowVersion = { ...(definition.onboardFlowVersion || {}), description };
+}
+
+function withConditionalFormatColumns(card, columns) {
+  const formats = card?.definition?.conditionalFormats;
+  if (!Array.isArray(formats)) return card;
+  return {
+    ...card,
+    definition: { ...card.definition, conditionalFormats: repointConditionalFormatColumns(formats, columns) }
+  };
 }

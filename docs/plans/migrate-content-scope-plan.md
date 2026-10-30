@@ -4,7 +4,7 @@ published: false
 
 # Migrate Content: Scope by Page or App
 
-Status: **planned**, not started. Tracks [#100](https://github.com/brycewc/domo-toolkit/issues/100).
+Status: **implemented**, pending a real migration run. Tracks [#100](https://github.com/brycewc/domo-toolkit/issues/100).
 
 ## Context
 
