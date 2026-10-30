@@ -122,6 +122,7 @@ export function MigrateDownstreamContentView({
 
   const [scopeFrom, setScopeFrom] = useState(null);
   const [launchName, setLaunchName] = useState('');
+  const [launchScopeLabel, setLaunchScopeLabel] = useState('');
   const [launchRootKeys, setLaunchRootKeys] = useState([]);
   const [launchRootCardIds, setLaunchRootCardIds] = useState(null);
   const [sourceCandidates, setSourceCandidates] = useState({ error: null, items: [], status: 'idle' });
@@ -230,9 +231,11 @@ export function MigrateDownstreamContentView({
         const metadata = context.domoObject?.metadata;
         const isWholeApp = launchScope.kind === 'app' || launchScope.kind === 'worksheet';
         setScopeFrom(launchScope);
-        setLaunchName(
-          (isWholeApp ? metadata?.parent?.name : metadata?.name) ||
-            `${SCOPE_KIND_NOUNS[launchScope.kind]} ${launchScope.id}`
+        const name =
+          (isWholeApp ? metadata?.parent?.name : metadata?.name) || `${SCOPE_KIND_NOUNS[launchScope.kind]} ${launchScope.id}`;
+        setLaunchName(name);
+        setLaunchScopeLabel(
+          formatLocationName({ kind: launchScope.kind, name, parentName: isWholeApp ? null : metadata?.parent?.name })
         );
         setOrigin(context.domoObject?.baseUrl || context.origin || '');
         setTabId(context.tabId);
@@ -391,11 +394,11 @@ export function MigrateDownstreamContentView({
       setDatasetName(candidate.name);
       if (!scope) {
         setScope({ includeSubpages: false, locationKeys: new Set(launchRootKeys) });
-        setScopeLabel(launchName);
+        setScopeLabel(launchScopeLabel);
       }
       setPage('select');
     },
-    [launchName, launchRootKeys, resetForDataset, scope]
+    [launchRootKeys, launchScopeLabel, resetForDataset, scope]
   );
 
   // One candidate skips the step, and none means there's nothing to migrate here.
@@ -600,7 +603,8 @@ export function MigrateDownstreamContentView({
     if (scopeLabel) return `On: ${scopeLabel}`;
     const keys = [...scope.locationKeys];
     if (keys.length === 1) {
-      const name = keys[0] === NOT_ON_PAGE_KEY ? 'Not on Any Page' : locationsByKey.get(keys[0])?.name || keys[0];
+      const location = locationsByKey.get(keys[0]);
+      const name = keys[0] === NOT_ON_PAGE_KEY ? 'Not on Any Page' : location ? formatLocationName(location) : keys[0];
       return `On: ${name}`;
     }
     return `On: ${keys.length} Locations`;
@@ -3053,6 +3057,11 @@ function formatErrors(result) {
   if (!result?.errors?.length) return null;
   const n = result.errors.length;
   return `${n} item${n === 1 ? '' : 's'} failed`;
+}
+
+// App and worksheet views are named by their app first, since view names like "Overview" repeat across apps.
+function formatLocationName({ kind, name, parentName }) {
+  return (kind === 'appView' || kind === 'worksheetView') && parentName ? `${parentName} > ${name}` : name;
 }
 
 function formatSkips(skipped) {
