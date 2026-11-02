@@ -40,6 +40,7 @@ import { isColumnDroppable } from '@/utils/columnDrops';
 import { suggestReplacement } from '@/utils/columnMatching';
 import { indexColumnNames, isBrokenColumnReference, resolveColumnName } from '@/utils/columnOrphans';
 import { isDatasetTypeId } from '@/utils/datasetTypes';
+import { isTypeFeatureEnabled } from '@/utils/featureSwitches';
 import { buildRefreshAction } from '@/utils/headerActions';
 import { locationKey, NOT_ON_PAGE_KEY, scopeFromContext } from '@/utils/migrateScope';
 import { getSidepanelData, launchView } from '@/utils/sidepanel';
@@ -114,7 +115,9 @@ export function MigrateDownstreamContentView({
   const [pendingSelectAll, setPendingSelectAll] = useState(true);
   // Jupyter Workspaces are only searched when the user asks, so the row stays
   // out of the list until then.
-  const [jupyterCheckStarted, setJupyterCheckStarted] = useState(false);
+  const [jupyterRequested, setJupyterCheckStarted] = useState(false);
+  const jupyterEnabled = isTypeFeatureEnabled('DATA_SCIENCE_NOTEBOOK', currentContext);
+  const jupyterCheckStarted = jupyterRequested && jupyterEnabled;
   const [confirmOpen, setConfirmOpen] = useState(false);
   // 'source' = pick the dataset (page launches only); 'select' = pick what content to migrate;
   // 'target' = pick the target dataset, remap, migrate.
@@ -686,7 +689,7 @@ export function MigrateDownstreamContentView({
     bailedRef.current = true;
     // The view is closing, so an unrun Jupyter search would be unreachable from
     // here. The toast carries it instead, reopening the view with it running.
-    if (jupyterStatus === 'idle') {
+    if (jupyterStatus === 'idle' && jupyterEnabled) {
       let toastKey;
       toastKey = showStatus(
         'Nothing to Migrate',
@@ -714,7 +717,16 @@ export function MigrateDownstreamContentView({
       onStatusUpdate?.('Nothing to Migrate', `**${datasetName}** has no downstream content to migrate`, 'warning');
     }
     onBackToDefault?.();
-  }, [nothingToMigrate, currentContext, datasetName, jupyterStatus, onStatusUpdate, onBackToDefault, showStatus]);
+  }, [
+    nothingToMigrate,
+    currentContext,
+    datasetName,
+    jupyterEnabled,
+    jupyterStatus,
+    onStatusUpdate,
+    onBackToDefault,
+    showStatus
+  ]);
 
   const selectedCounts = useMemo(() => {
     const counts = { alerts: 0, apps: 0, beastModes: 0, cards: 0, dataflows: 0, datasets: 0, jupyterWorkspaces: 0 };
@@ -2295,7 +2307,7 @@ export function MigrateDownstreamContentView({
   // Domo can't be asked which workspaces read a dataset, so the only way to find
   // them is to list every workspace in the instance and match here. Too heavy to
   // run on open, so it's offered instead.
-  const jupyterPrompt = !jupyterCheckStarted && !scope ? (
+  const jupyterPrompt = !jupyterCheckStarted && !scope && jupyterEnabled ? (
     <Alert className='w-full' status='accent' variant='transparent'>
       <Alert.Content>
         <Alert.Title className='flex items-center gap-1'>

@@ -47,20 +47,43 @@ Switch names come from `apiContent`'s `contentidentity-app/src/main/resources/Ma
 or an array met when any entry is. Arrays cover features with two candidate switches where it is unclear which
 one actually governs the feature.
 
-| Type(s)                       | Requirement                                     |
-| ----------------------------- | ----------------------------------------------- |
-| `APPROVAL`, `TEMPLATE`        | `approvalcenter`                                |
-| `AI_MODEL`, `AI_PROJECT`      | `ai-services`                                   |
-| `AI_TOOLKIT`                  | `ai-services` (see the stale-list note above)   |
-| `CODEENGINE_PACKAGE`          | `code-engine`                                   |
-| `DATA_MODEL`                  | `data-modeling`                                 |
-| `DATA_SCIENCE_NOTEBOOK`       | `jupyter-notebooks` or `jupyter-notebooks-ga`   |
-| `GOAL`                        | `goals-beta` or `goals-v1`                      |
-| `METRIC`                      | `metrics`                                       |
-| `PROJECT`, `PROJECT_TASK`     | `!no-projects-tasks`                            |
-| `PUBLICATION`, `SUBSCRIPTION` | `publish-everywhere` or `publish-everywhere-v2` |
-| `REPOSITORY`                  | `domo-versions-standard` or `domo-versions-ui`  |
-| `WORKFLOW_MODEL`              | `workflows`                                     |
+| Type(s)                                                        | Requirement                                     |
+| -------------------------------------------------------------- | ----------------------------------------------- |
+| `APPROVAL`, `TEMPLATE`                                         | `approvalcenter`                                |
+| `AI_MODEL`, `AI_PROJECT`                                       | `ai-services`                                   |
+| `AI_TOOLKIT`                                                   | `ai-services` (see the stale-list note above)   |
+| `CERTIFICATION`, `CERTIFICATION_PROCESS`                       | `certified-content`                             |
+| `CODEENGINE_PACKAGE`                                           | `code-engine`                                   |
+| `DATA_APP`, `DATA_APP_VIEW`                                    | `data-app`                                      |
+| `DATA_MODEL`                                                   | `data-modeling` (dormant, see below)            |
+| `DATA_SCIENCE_NOTEBOOK`                                        | `jupyter-notebooks` or `jupyter-notebooks-ga`   |
+| `EXECUTOR_JOB`                                                 | `executor-pipeline` or `governance-toolkit-ui`  |
+| `GOAL`                                                         | `goals-beta` or `goals-v1`                      |
+| `HOPPER_QUEUE`, `HOPPER_TASK`                                  | `hopper`                                        |
+| `METRIC`                                                       | `metrics`                                       |
+| `PROJECT`, `PROJECT_TASK`                                      | `!no-projects-tasks`                            |
+| `PUBLICATION`, `SUBSCRIPTION`                                  | `publish-everywhere` or `publish-everywhere-v2` |
+| `REPORT_BUILDER`, `REPORT_BUILDER_PAGE`, `REPORT_BUILDER_VIEW` | `report-builder`                                |
+| `REPORT_SCHEDULE`                                              | `scheduled-reports`                             |
+| `REPOSITORY`                                                   | `domo-versions-standard` or `domo-versions-ui`  |
+| `WORKFLOW_MODEL`                                               | `workflows`                                     |
+| `WORKSHEET`, `WORKSHEET_VIEW`                                  | `app-studio-worksheets`                         |
+| `WORKSPACE`                                                    | `workspaces-react` or `workspaces-v1`           |
+
+Every name in the table was confirmed present on domo.domo.com on 2026-11-02, and all of the default-on ones
+carry `enabledDefault: true`. The "or" pairs on `EXECUTOR_JOB` and `WORKSPACE` hedge over which switch really
+governs the feature, so the type hides only when every candidate is absent.
+
+### Deliberately ungated
+
+- **AppDB (`MAGNUM_COLLECTION`, `MAGNUM_DATASTORE`).** Objects Owned reads collections through
+  `/api/datastores/v1/collections/query`, the same endpoint custom apps use. `appdb-admin` most likely governs
+  only the admin UI, so gating on it could hide collections that work fine.
+- **Filesets.** No base switch exists. The config's only candidate is `file-directories`, too uncertain to
+  gate on; the `wf-fs-*` names the master list carries are workflow tiles and absent from the live config.
+- **`DATA_MODEL` is gated but dormant.** A data model is only reached from its own page (which proves the
+  switch is on) or as a dataset subtype, so nothing lists items by that type. The metadata is kept because it
+  is accurate and costs nothing.
 
 ## As built
 
@@ -96,10 +119,19 @@ All of them carry `featureSwitches` because they go through the same cache entry
 `getSidepanelData()` serializes with `toJSON`, not `toStorageJSON`, so views opened in the side panel receive
 `featureSwitches` intact.
 
-### The one wired consumer: Objects Owned / Transfer Ownership
+### Wired consumers
 
-`OwnershipView` maps its `TRANSFER_TYPES` keys to type IDs through its own `TYPE_KEY_TO_DOMO_TYPE`
-(`approvals` -> `APPROVAL`, `approvalTemplates` -> `TEMPLATE`). Every body-level iteration (fetch specs,
+| Consumer                           | How it gates                                                                                            |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `OwnershipView`                    | Filters `TRANSFER_TYPES` by type (below). Covers most of the requirement table.                         |
+| `MigrateDownstreamContentView`     | `jupyterEnabled` suppresses the Jupyter prompt, row, search, and the bail-out toast's search offer.     |
+| `ContextFooter`                    | Skips a lazy array tab whose `itemTypeId` is off.                                                       |
+| `GetUsageView`, `DeleteObjectView` | Pass `featureSwitches` to the Code Engine usage and delete-dependency services, which skip an off kind. |
+
+### Objects Owned / Transfer Ownership
+
+`OwnershipView` maps its `TRANSFER_TYPES` keys to type IDs through its own `TYPE_KEY_TO_DOMO_TYPE`, and every
+gated type in the requirement table except `DATA_MODEL` appears there. Every body-level iteration (fetch specs,
 forbidden set, counts, selection, rows, the submit handler's enabled types) uses the filtered `transferTypes`,
 so a feature-disabled type never gets a fetch spec and never produces a row. The parse helpers at the bottom of
 the file still reference the full `TRANSFER_TYPES`, which is harmless because hidden types never enter the
@@ -119,10 +151,12 @@ the view passes, so it inherits the gate without checking switches itself.
   `domoFeatures` entry in `sessionStorage`, because the button toggles the switch for the session with a
   `?_f=` URL parameter (`setFeatureSwitch` in `utils/domoQueryParam.js`) and has to reflect the overridden
   state, not the instance's configured one.
-- **The plan's note about Transfer Content no longer applies.** `MigrateDownstreamContentView` does not use
-  `TRANSFER_TYPES`; it has its own type map in `views/migrateDownstream/contentTypes.js` (alerts, apps, Beast
-  Modes, cards, dataflows, datasets, Jupyter Workspaces), none of which are gated today. If a gated type joins
-  that list, it needs its own `isTypeFeatureEnabled` filter.
+- **Migrate Content gates Jupyter itself.** `MigrateDownstreamContentView` does not use `TRANSFER_TYPES`; its
+  type map in `views/migrateDownstream/contentTypes.js` includes `DATA_SCIENCE_NOTEBOOK`, so the view derives
+  `jupyterCheckStarted` from the user's request and `isTypeFeatureEnabled`. It is the only other per-view map
+  with a gated type.
+- **Default-on types gated (2026-11-02).** App Studio, Worksheets, Workspaces, Task Center, Report Builder,
+  Scheduled Reports, Certified Content, and Governance Toolkit jobs, after confirming that absence means off.
 - **Group sources.** `OwnershipView` now also browses groups, and the `transferTypes` memo additionally keeps
   only `groupOwnable` types for a group source. The approval types are not group-ownable.
 
@@ -135,24 +169,23 @@ the view passes, so it inherits the gate without checking switches itself.
   are present, the entry caches `featureSwitches: null` for up to the TTL. That is fail-open, so the cost is only
   the original failing-row behavior, not hidden features.
 
-## Open follow-ups
+## Hiding path verified (2026-11-02)
 
-- **Action gating.** No action button is gated by a type's switch yet; the investigation found none that
-  needs it, since an action runs on an object whose own page already proves its feature is on. When one needs it, add
-  `isTypeFeatureEnabled(typeId, currentContext)` to the relevant set in `getAvailableActions()`
-  (`src/utils/availableActions.js`, which receives `currentContext`).
-- **Wire `DATA_MODEL`** into whichever consumer first lists or fetches data models by type, or drop the
-  `featureSwitch` if none ever does.
-- **Default-on features left ungated:** Workspaces (`workspaces-v1`), Task Center (`hopper`), Report Builder
-  (`report-builder`), Certified Content (`certified-content`), App Studio (`data-app`), Worksheets
-  (`app-studio-worksheets`), Governance Toolkit (`governance-toolkit-ui`), AppDB (`appdb-admin`). Gating them is
-  safe now that absence is known to mean off; they were skipped as low value.
-- **Filesets** have no obvious base switch (only the `wf-fs-*` workflow tiles), so they stay ungated.
-- **Confirm the missing-switch behavior on a customer instance.** Only an all-switches instance has been
-  checked, which exercises the fail-open path, not the hiding.
-- **Other per-view type maps.** `RemapColumnsView`, `MigrateBeastModeUsageView`, `ColumnUsagesModal`, and
-  `migrateDownstream/contentTypes.js` each have their own `TYPE_KEY_TO_DOMO_TYPE`. None include gated types now;
-  any that gain one should filter through the helper the same way `OwnershipView` does.
+With `getFeatureSwitches` stubbed to drop `approvalcenter`, `app-studio-worksheets`, `hopper`, the two Jupyter
+switches, and the two Workspaces switches, the real side panel on domo.domo.com showed Objects Owned without
+Approvals, Approval Templates, Jupyter Workspaces, Workspaces, Task Center Queues/Tasks, or Worksheets, and no
+failed rows. Migrate Content showed neither the Jupyter prompt nor its row. With the stub removed, all of them
+returned. A real customer instance has still not been checked.
+
+## Deferred by design
+
+- **Action gating.** An action runs on an object whose own page already proves its feature is on, so none needs
+  it. When one does, add `isTypeFeatureEnabled(typeId, currentContext)` to the relevant set in
+  `getAvailableActions()` (`src/utils/availableActions.js`).
+- **Per-view type maps.** `RemapColumnsView`, `MigrateBeastModeUsageView`, and `ColumnUsagesModal` hold no
+  gated types. Any that gains one should filter through the helper the way `OwnershipView` does.
+- **Revisit AppDB, Filesets, and `DATA_MODEL`** (see "Deliberately ungated") only if a customer report shows a
+  failed row for one of them.
 
 ## Verification recipe (for new consumers)
 

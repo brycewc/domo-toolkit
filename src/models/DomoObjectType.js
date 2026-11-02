@@ -572,6 +572,7 @@ export const ObjectTypeRegistry = {
     },
     copyConfigs: [{ label: 'Certification Process ID', source: 'parentId' }],
     extractConfig: { keyword: 'request-details' },
+    featureSwitch: 'certified-content',
     icon: { component: 'Certified' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['CERTIFICATION_PROCESS'],
@@ -596,6 +597,7 @@ export const ObjectTypeRegistry = {
     extractConfig: {
       keyword: 'edit-form'
     },
+    featureSwitch: 'certified-content',
     icon: { component: 'CertifiedCompany' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/admin/certifiedcontent/{metadata.context.certifiedType}/edit-form/{id}'
@@ -775,6 +777,7 @@ export const ObjectTypeRegistry = {
   DATA_APP: new DomoObjectType('DATA_APP', 'Studio App', {
     api: { endpoint: '/content/v1/dataapps/{id}', paths: { name: 'title' } },
     extractConfig: { keyword: 'app-studio' },
+    featureSwitch: 'data-app',
     icon: { component: 'DataApp' },
     idPattern: /^\d+$/,
     relatedData: [
@@ -806,6 +809,7 @@ export const ObjectTypeRegistry = {
       keyword: 'pages',
       parentExtract: { keyword: 'app-studio', offset: 1 }
     },
+    featureSwitch: 'data-app',
     icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
     parents: ['DATA_APP'],
@@ -1085,6 +1089,7 @@ export const ObjectTypeRegistry = {
       keyword: GOVERNANCE_TOOLKIT_JOB_PARAM,
       parentExtract: { keyword: 'governance-toolkit', valueMap: GOVERNANCE_TOOLKIT_APPLICATION_ID_BY_SLUG }
     },
+    featureSwitch: ['executor-pipeline', 'governance-toolkit-ui'],
     icon: { component: 'Toolbox' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['EXECUTOR_APPLICATION'],
@@ -1189,6 +1194,7 @@ export const ObjectTypeRegistry = {
       { label: 'Workflow Version', source: 'metadata.context.workflowVersionNumber' }
     ],
     extractConfig: { keyword: 'queueId' },
+    featureSwitch: 'hopper',
     icon: { component: 'FormatListChecks' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     relatedData: [
@@ -1222,6 +1228,7 @@ export const ObjectTypeRegistry = {
       keyword: 'id',
       parentExtract: { keyword: 'queueId', offset: 1 }
     },
+    featureSwitch: 'hopper',
     icon: { component: 'FormatListChecks' },
     // Task IDs are case-sensitive, business-defined references (e.g.
     // "15AUG25_TS551E") or system UUIDs, never plain integers, so accept any
@@ -1382,6 +1389,7 @@ export const ObjectTypeRegistry = {
       { label: 'App ID', source: 'metadata.context.dataAppId' },
       { label: 'Report Page ID', source: 'metadata.context.reportPageId' }
     ],
+    featureSwitch: 'report-builder',
     // CheckIn looks unrelated to a report on its own, but it is the icon Domo uses
     // for reports in its own UI. Matching Domo is the point; don't "fix" it.
     icon: { component: 'CheckIn' },
@@ -1407,6 +1415,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v3/stacks/{id}',
       paths: { created: 'page.created', name: 'title' }
     },
+    featureSwitch: 'report-builder',
     icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
     parents: ['REPORT_BUILDER'],
@@ -1427,6 +1436,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v1/reportbuilder/views/{id}',
       paths: { name: 'subject' }
     },
+    featureSwitch: 'report-builder',
     icon: { component: 'Document' },
     idPattern: /^\d+$/,
     parents: ['REPORT_BUILDER'],
@@ -1439,6 +1449,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v1/reportschedules/{id}',
       paths: { created: 'schedule.startDate', name: 'title', parentId: 'viewId' }
     },
+    featureSwitch: 'scheduled-reports',
     icon: { component: 'Calendar' },
     idPattern: /^\d+$/,
     // Single, fixed parent type, so getParent() enriches metadata.parent with the
@@ -1718,6 +1729,7 @@ export const ObjectTypeRegistry = {
   WORKSHEET: new DomoObjectType('WORKSHEET', 'Worksheet', {
     api: { endpoint: '/content/v1/dataapps/{id}', paths: { name: 'title' } },
     extractConfig: { keyword: 'app-studio' },
+    featureSwitch: 'app-studio-worksheets',
     icon: { component: 'Worksheets' },
     idPattern: /^\d+$/,
     urlPath: '/app-studio/{id}'
@@ -1734,6 +1746,7 @@ export const ObjectTypeRegistry = {
       keyword: 'pages',
       parentExtract: { keyword: 'app-studio', offset: 1 }
     },
+    featureSwitch: 'app-studio-worksheets',
     icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
     parents: ['WORKSHEET'],
@@ -1752,6 +1765,7 @@ export const ObjectTypeRegistry = {
   WORKSPACE: new DomoObjectType('WORKSPACE', 'Workspace', {
     api: { endpoint: '/nav/v1/workspaces/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'workspaces' },
+    featureSwitch: ['workspaces-react', 'workspaces-v1'],
     icon: { component: 'Workspace' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/workspaces/{id}'
