@@ -216,12 +216,15 @@ export default function App() {
 
 async function getActivityLogTitle() {
   try {
-    const result = await chrome.storage.session.get(['activityLogObjects', 'activityLogType']);
+    const result = await chrome.storage.session.get(['activityLogActor', 'activityLogObjects', 'activityLogType']);
     const objects = result.activityLogObjects || [];
     const logType = result.activityLogType;
+    const actor = result.activityLogActor;
     let label;
 
-    if (logType === 'single-object' && objects[0]) {
+    if (logType === 'user-actions' && actor) {
+      label = `Actions by ${actor.name || `User ${actor.id}`}`;
+    } else if (logType === 'single-object' && objects[0]) {
       label = objects[0].name || `${objects[0].type} ${objects[0].id}`;
     } else if (logType === 'object-and-parent' && objects[0]) {
       label = objects[0].name || `${objects[0].type} ${objects[0].id}`;

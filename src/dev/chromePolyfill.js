@@ -26,12 +26,15 @@ const localData =
     ? { perInstance: { [instance]: { activityLogDatasetId, preferActivityLogDataset: true } } }
     : {};
 
+const activityLogActorId = new URLSearchParams(window.location.search).get('actor');
+
 const sessionData = {
+  activityLogActor: activityLogActorId ? { id: activityLogActorId, name: '' } : null,
   activityLogInstance: instance,
-  activityLogObjects: entityId && entityType ? [{ id: entityId, type: entityType }] : [],
+  activityLogObjects: !activityLogActorId && entityId && entityType ? [{ id: entityId, type: entityType }] : [],
   activityLogOrigin: origin,
   activityLogTabId: 1,
-  activityLogType: 'single-object',
+  activityLogType: activityLogActorId ? 'user-actions' : 'single-object',
   lineageEntityId: entityId,
   lineageEntityType: entityType,
   lineageInstance: instance,

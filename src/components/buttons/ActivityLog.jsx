@@ -21,6 +21,7 @@ import IconChartBarBox from '@icons/chart-bar-box.svg?react';
 import IconListBulleted from '@icons/list-bulleted.svg?react';
 import IconListSearch from '@icons/list-search.svg?react';
 import IconPagesBars from '@icons/pages-bars.svg?react';
+import IconPerson from '@icons/person.svg?react';
 import IconTree from '@icons/tree.svg?react';
 
 export function ActivityLog({ currentContext, onStatusUpdate }) {
@@ -81,7 +82,16 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
       // click routes to the parent package via the existing 'parent' handling.
       const action = key ?? (usesParentLog ? 'parent' : null);
 
+      let actor = null;
+
       switch (action) {
+        case 'actions-by-user': {
+          actor = { id: String(currentContext.domoObject.id), name: currentContext.domoObject.metadata?.name || '' };
+          activityLogObjects = [];
+          activityLogType = 'user-actions';
+          message = `Navigating to activity log for actions taken by ${objectName}`;
+          break;
+        }
         case 'card-pages': {
           activityLogType = 'card-pages';
           let pages = currentContext?.domoObject?.metadata?.context?.cardPages;
@@ -226,6 +236,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
       onStatusUpdate?.('Opening Activity Log', message, 'success');
 
       await launchActivityLog({
+        actor,
         instance: currentContext?.instance,
         objects: activityLogObjects,
         origin: currentContext?.origin,
@@ -272,6 +283,28 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
       </Tooltip>
       <Dropdown.Popover className='min-w-90' placement='bottom'>
         <Dropdown.Menu onAction={handleClick}>
+          {typeId === 'USER' && (
+            <Dropdown.Item id='actions-by-user' textValue='Actions by User'>
+              <div className='flex flex-col'>
+                <div className='flex items-center gap-2'>
+                  <IconPerson className='size-4 shrink-0' />
+                  <Label>Actions by User</Label>
+                </div>
+                <Description className='ml-6 text-xs'>View activity log for actions this user took</Description>
+              </div>
+            </Dropdown.Item>
+          )}
+          {ownsCards && (
+            <Dropdown.Item id='owned-objects' textValue='Owned Objects'>
+              <div className='flex flex-col'>
+                <div className='flex items-center gap-2'>
+                  <IconListBulleted className='size-4 shrink-0' />
+                  <Label>Owned Objects</Label>
+                </div>
+                <Description className='ml-6 text-xs'>View activity log for every object this {typeLabel} owns</Description>
+              </div>
+            </Dropdown.Item>
+          )}
           {hasParent && (
             <Dropdown.Item id='parent' textValue={parentTypeName || 'Parent'}>
               <div className='flex flex-col'>
@@ -312,17 +345,6 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
               </Description>
             </div>
           </Dropdown.Item>
-          {ownsCards && (
-            <Dropdown.Item id='owned-objects' textValue='Owned Objects'>
-              <div className='flex flex-col'>
-                <div className='flex items-center gap-2'>
-                  <IconListBulleted className='size-4 shrink-0' />
-                  <Label>Owned Objects</Label>
-                </div>
-                <Description className='ml-6 text-xs'>View activity log for every object this {typeLabel} owns</Description>
-              </div>
-            </Dropdown.Item>
-          )}
           {hasChildPages && (
             <Dropdown.Item id='child-pages' textValue='Child Pages'>
               <div className='flex flex-col'>

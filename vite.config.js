@@ -144,7 +144,7 @@ export default defineConfig(({ mode }) => {
       {
         configureServer(server) {
           server.middlewares.use((req, res, next) => {
-            if (req.url !== '/dev-activity-log') return next();
+            if (req.url.split('?')[0] !== '/dev-activity-log') return next();
             res.setHeader('Content-Type', 'text/html');
             res.end(
               [
