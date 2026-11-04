@@ -44,8 +44,8 @@
   "packageManager": "yarn@4.18.0",
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
-    "@heroui/react": "^3.2.6",
-    "@heroui/styles": "^3.2.6",
+    "@heroui/react": "^3.2.7",
+    "@heroui/styles": "^3.2.7",
     "@internationalized/date": "^3.12.4",
     "@react-aria/ssr": "^3.10.1",
     "@react-aria/utils": "^3.34.1",
