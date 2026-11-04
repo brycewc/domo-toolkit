@@ -242,9 +242,7 @@ export async function getInactiveUserIds(userIds, tabId = null) {
       if (!response.ok) return [];
       const users = await response.json();
       if (!Array.isArray(users)) return [];
-      const inactiveIds = new Set(
-        users.filter((user) => user?.detail?.active === false).map((user) => String(user.id))
-      );
+      const inactiveIds = new Set(users.filter((user) => user?.detail?.active === false).map((user) => String(user.id)));
       return userIds.filter((id) => inactiveIds.has(String(id)));
     },
     [userIds],
@@ -340,15 +338,15 @@ export async function getUserReportsTo(userId, tabId = null) {
   );
 }
 
-export async function searchUsers(text, tabId = null, offset = 0) {
+export async function searchUsers(text, tabId = null, offset = 0, { includeInactive = false } = {}) {
   const result = await executeInPage(
-    async (text, offset, limit) => {
+    async (text, offset, limit, includeInactive) => {
       const url = '/api/identity/v1/users/search?explain=false';
       const body = {
-        attributes: ['department', 'title', 'avatarKey', 'created'],
+        attributes: ['department', 'title', 'avatarKey', 'created', 'isActive'],
         cacheBuster: Date.now(),
         filters: [{ filterType: 'text', text }],
-        includeDeleted: false,
+        includeDeleted: includeInactive,
         includeSupport: false,
         limit,
         offset,
@@ -374,10 +372,13 @@ export async function searchUsers(text, tabId = null, offset = 0) {
       const data = await response.json();
       return {
         totalCount: data.count ?? null,
-        users: data.users || []
+        users: (data.users || []).map((user) => {
+          const isActive = user.attributes?.find((attribute) => attribute.key === 'isActive')?.values?.[0];
+          return { ...user, isActive: isActive !== false };
+        })
       };
     },
-    [text, offset, USERS_PAGE_SIZE],
+    [text, offset, USERS_PAGE_SIZE, includeInactive],
     tabId
   );
 

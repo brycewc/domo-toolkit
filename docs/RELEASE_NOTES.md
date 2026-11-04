@@ -5,6 +5,7 @@
 - Card Owners, Get Collections, and other views that read many cards at once now load large card lists much faster.
 - Migrate Content can now be scoped to specific pages and apps or launched from them. ([#100](https://github.com/brycewc/domo-toolkit/issues/100))
 - Activity Log on a user now has an Actions by User option that lists the actions that user took, not just the actions taken on them.
+- The Activity Log's user filter now lists inactive users.
 
 ## Newly Supported Object Types
 

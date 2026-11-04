@@ -1133,6 +1133,7 @@ export function ActivityLogTable() {
     () =>
       actor ? null : (
         <UserFilterAutocomplete
+          includeInactive
           domoOrigin={domoOrigin}
           mode={userFilterMode}
           tabId={tabId}
