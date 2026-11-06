@@ -255,11 +255,12 @@ export async function getCardDrills({ cardId, tabId = null }) {
 }
 
 // The summary endpoint needs content admin. Without it this falls back to the
-// caller's own embed of the first card, which answers 404 when they have none.
+// caller's own embed of each card, which answers 404 when they have none.
 // An embed whose sharing is `OFF` has no link, so it is dropped.
 export async function getCardEmbeds({ cardIds, tabId = null }) {
+  if (cardIds.length === 0) return [];
   const result = await executeInPage(
-    async (cardIds) => {
+    async (cardIds, concurrency) => {
       const LIMIT = 50;
       const summaries = [];
       let total = Infinity;
@@ -283,13 +284,27 @@ export async function getCardEmbeds({ cardIds, tabId = null }) {
       if (summaryStatus === 200) return { embeds: summaries, ok: true };
       if (summaryStatus !== 401 && summaryStatus !== 403) return { ok: false, status: summaryStatus };
 
-      const response = await fetch(`/api/content/v1/cards/kpi/embed/${cardIds[0]}/state`);
-      if (response.status === 404) return { embeds: [], ok: true };
-      if (!response.ok) return { ok: false, status: response.status };
-      const state = await response.json();
-      return { embeds: state ? [{ cardId: cardIds[0], ...state }] : [], ok: true };
+      const embeds = [];
+      let failedStatus = null;
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: Math.min(concurrency, cardIds.length) }, async () => {
+          while (next < cardIds.length && failedStatus === null) {
+            const cardId = cardIds[next++];
+            const response = await fetch(`/api/content/v1/cards/kpi/embed/${cardId}/state`);
+            if (response.status === 404) continue;
+            if (!response.ok) {
+              failedStatus = response.status;
+              return;
+            }
+            const state = await response.json();
+            if (state) embeds.push({ cardId, ...state });
+          }
+        })
+      );
+      return failedStatus === null ? { embeds, ok: true } : { ok: false, status: failedStatus };
     },
-    [cardIds.map(String)],
+    [cardIds.map(String), DEPENDENCY_FETCH_CONCURRENCY],
     tabId
   );
   if (!result?.ok) {

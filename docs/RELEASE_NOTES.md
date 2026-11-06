@@ -7,6 +7,7 @@
 - Activity Log on a user now has an Actions by User option that lists the actions that user took, not just the actions taken on them.
 - The Activity Log's user filter now lists inactive users.
 - Cards now support Delete.
+- Deleting a page now lists its embeds and the embeds of its cards, and deleting an App Studio app from one of its pages lists the embeds of the app and every card in it.
 
 ## Newly Supported Object Types
 

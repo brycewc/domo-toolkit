@@ -24,12 +24,40 @@ import {
   getDownstreamViewsForDatasets,
   searchDatasets
 } from './datasets';
+import { getAppEmbeds, getPageEmbeds } from './embeds';
 import { getBeastModesSavedOnCard, getDatasetFunctions, getDatasetFunctionsForDatasets } from './functions';
 import { getDownstreamCardsRaw, getDownstreamLineage } from './migrateDownstreamContent';
 import { resolveObjectSummaries, summaryKey } from './objectSummaries';
 import { getAppOnlyCardIds, getChildPages, getOnlyHereCardIds, getPagesForCards } from './pages';
 import { getTaskCenterQueueName } from './taskCenter';
 import { getVersionDefinition, getWorkflowExecution, getWorkflowModelName, getWorkflowVersions } from './workflows';
+
+function buildAppCardEmbedsGroup({ appSummary, embeds, pageTitleById }) {
+  const placementByCardId = new Map();
+  for (const [viewId, viewCards] of Object.entries(appSummary?.cardsByView || {})) {
+    if (!pageTitleById.has(viewId)) continue;
+    for (const card of viewCards) {
+      const cardId = String(card.id);
+      if (!placementByCardId.has(cardId)) {
+        placementByCardId.set(cardId, { pageTitle: pageTitleById.get(viewId), title: card.title || `Card ${cardId}` });
+      }
+    }
+  }
+  return {
+    annotation: 'Deleted only when the whole app is deleted.',
+    blocking: false,
+    deleted: false,
+    items: embeds.map((embed) => {
+      const placement = placementByCardId.get(embed.cardId);
+      const note = placement
+        ? `Embeds the card ${placement.title} on the page ${placement.pageTitle}.`
+        : `Embeds the card ${embed.cardId}.`;
+      return buildEmbedItem(embed, note);
+    }),
+    key: 'appCardEmbeds',
+    label: 'Card Embeds on Other Pages in This App'
+  };
+}
 
 /**
  * Per-type dependency fetchers. Each returns an array of group objects:
@@ -113,6 +141,25 @@ function buildBeastModeCardItems(usage, origin) {
   return [...items, ...orphanDrills.map((drill) => drillItem(drill, drill.parentId))];
 }
 
+function buildCardEmbedsGroup({ cards, embeds, onlyHereCardIds }) {
+  const titleById = new Map(cards.map((c) => [String(c.id), c.title || `Card ${c.id}`]));
+  const onlyHere = onlyHereCardIds ? new Set(onlyHereCardIds.map(String)) : null;
+  return {
+    blocking: false,
+    deleted: true,
+    items: embeds.map((embed) => {
+      const cardOnlyHere = onlyHere ? onlyHere.has(embed.cardId) : null;
+      const sharedNote = cardOnlyHere === false ? ' The card is also on other pages.' : '';
+      return {
+        ...buildEmbedItem(embed, `Embeds the card ${titleById.get(embed.cardId) ?? embed.cardId}.${sharedNote}`),
+        cardOnlyHere
+      };
+    }),
+    key: 'pageCardEmbeds',
+    label: 'Card Embeds'
+  };
+}
+
 function buildCardPageGroups(pages, origin) {
   const byTitle = (a, b) => (a.name || '').localeCompare(b.name || '');
   const urlFor = (typeId, id, parentId = null) => new DomoObject(typeId, id, origin, {}, null, parentId).url;
@@ -176,6 +223,24 @@ function buildCardPageGroups(pages, origin) {
       type: 'WORKSHEET_VIEW'
     })
   ];
+}
+
+function buildEmbedItem(embed, note = null) {
+  const type = embed.publicLinkType;
+  const chip = type
+    ? (EMBED_LINK_TYPE_CHIPS[type] ?? {
+        color: 'default',
+        label: type.charAt(0) + type.slice(1).toLowerCase().replace(/_/g, ' ')
+      })
+    : null;
+  return {
+    annotation: [note, embed.linkOwnerName ? `Created by ${embed.linkOwnerName}.` : null].filter(Boolean).join(' ') || null,
+    chip,
+    id: embed.id,
+    label: embed.token,
+    typeId: 'PUBLIC_URL',
+    url: embed.url
+  };
 }
 
 /**
@@ -334,9 +399,15 @@ function dataflowInputsAnnotation(deletableCount) {
  * so for `WORKSHEET_VIEW` the siblings group will be empty (which is correct,
  * since worksheets are typically single-page).
  */
-async function fetchAppPageDependencies({ id, origin, parentId, typeId }, tabId) {
+async function fetchAppPageDependencies({ id, metadata, origin, parentId, typeId }, tabId) {
   const groups = [];
   let appSummary = null;
+  const pageTitleById = new Map();
+
+  const appEmbedsPromise =
+    parentId && typeId === 'DATA_APP_VIEW'
+      ? getAppEmbeds({ appId: parentId, appName: metadata?.parent?.name ?? null, tabId }).catch(() => [])
+      : Promise.resolve([]);
 
   const cards = await getCardsForObject({
     objectId: id,
@@ -351,6 +422,7 @@ async function fetchAppPageDependencies({ id, origin, parentId, typeId }, tabId)
     cardIdList.length > 0
       ? getOnlyHereCardIds({ cardIds: cardIdList, pageId: id, tabId }).catch(() => null)
       : Promise.resolve([]);
+  const cardEmbedsPromise = getCardEmbeds({ cardIds: cardIdList.map(String), tabId }).catch(() => []);
   if (cards.length > 0) {
     groups.push({
       blocking: false,
@@ -374,6 +446,7 @@ async function fetchAppPageDependencies({ id, origin, parentId, typeId }, tabId)
       tabId
     });
     const siblings = allPages.filter((p) => String(p.pageId) !== String(id));
+    for (const p of siblings) pageTitleById.set(String(p.pageId), p.pageTitle || `Page ${p.pageId}`);
 
     // App-wide page/card totals for the cascade ("Delete App and All Cards"):
     // one admin-summary call covers every page, and its card IDs are reused at
@@ -420,7 +493,18 @@ async function fetchAppPageDependencies({ id, origin, parentId, typeId }, tabId)
     }
   }
 
-  const onlyHereCardIds = await onlyHerePromise;
+  const appEmbeds = await appEmbedsPromise;
+  groups.push({
+    annotation: 'Deleted only when the whole app is deleted.',
+    blocking: false,
+    deleted: false,
+    items: appEmbeds.map((embed) => buildEmbedItem(embed)),
+    key: 'appEmbeds',
+    label: 'App Embeds'
+  });
+
+  const [cardEmbeds, onlyHereCardIds] = await Promise.all([cardEmbedsPromise, onlyHerePromise]);
+  groups.push(buildCardEmbedsGroup({ cards, embeds: cardEmbeds, onlyHereCardIds }));
   // One request per card in the app, so it lands as a deferred second pass and the
   // cascade's count preview fills in after the list renders. Best-effort: a failed
   // lookup leaves the count unknown rather than blocking the delete.
@@ -428,9 +512,24 @@ async function fetchAppPageDependencies({ id, origin, parentId, typeId }, tabId)
     parentId && appSummary?.cardIds?.length
       ? getAppOnlyCardIds({ appId: parentId, cardIds: appSummary.cardIds, tabId }).catch(() => null)
       : null;
+  const thisPageCardIds = new Set(cardIdList.map(String));
+  const otherCardIds = (appSummary?.cardIds || []).map(String).filter((cid) => !thisPageCardIds.has(cid));
+  const otherEmbedsPromise = otherCardIds.length
+    ? getCardEmbeds({ cardIds: otherCardIds, tabId }).catch(() => [])
+    : null;
+  const deferred =
+    appOnlyPromise || otherEmbedsPromise
+      ? Promise.all([appOnlyPromise, otherEmbedsPromise]).then(([appOnlyCardIds, otherEmbeds]) => ({
+          appOnlyCardIds: appOnlyCardIds ?? null,
+          appSummary,
+          groups: [...groups, buildAppCardEmbedsGroup({ appSummary, embeds: otherEmbeds || [], pageTitleById })],
+          onlyHereCardIds
+        }))
+      : null;
   return {
+    appCardEmbedsPending: !!otherEmbedsPromise,
     appSummary,
-    deferred: appOnlyPromise?.then((appOnlyCardIds) => ({ appOnlyCardIds, appSummary, groups, onlyHereCardIds })) ?? null,
+    deferred,
     groups,
     onlyHereCardIds
   };
@@ -461,13 +560,15 @@ function inputExclusionReason(otherImpact) {
  */
 function normalizeDependencyResult(fetched) {
   // Fetchers return either a bare groups array or an object carrying extra data
-  // the view reads: `appSummary` (app-wide page/card totals for the cascade
+  // the view reads: `appCardEmbedsPending` (the app's other cards' embeds are
+  // still being read), `appSummary` (app-wide page/card totals for the cascade
   // delete), `onlyHereCardIds` / `appOnlyCardIds` (cards living only on this page,
   // and only in this app, for the alternate deletes' count previews), `clearNote`
   // (the all-clear banner's sentence), `otherNote` (the Other Dependencies note),
   // and `subjectImpact` (the deleted object's own downstream impact, `null` when
   // unreadable and absent for types that don't read one).
   const allGroups = Array.isArray(fetched) ? fetched : fetched.groups;
+  const appCardEmbedsPending = Array.isArray(fetched) ? false : !!fetched.appCardEmbedsPending;
   const appOnlyCardIds = Array.isArray(fetched) ? null : (fetched.appOnlyCardIds ?? null);
   const appSummary = Array.isArray(fetched) ? null : (fetched.appSummary ?? null);
   const clearNote = Array.isArray(fetched) ? null : (fetched.clearNote ?? null);
@@ -476,6 +577,7 @@ function normalizeDependencyResult(fetched) {
   const subjectImpact = Array.isArray(fetched) ? undefined : fetched.subjectImpact;
 
   return {
+    appCardEmbedsPending,
     appOnlyCardCount: appOnlyCardIds == null ? null : appOnlyCardIds.length,
     appSummary,
     clearNote,
@@ -623,18 +725,6 @@ const FETCHERS = {
     ]);
 
     const drillName = (drillId) => drillNameById.get(drillId) || drillId;
-    const linkTypeChip = (type) =>
-      EMBED_LINK_TYPE_CHIPS[type] ?? {
-        color: 'default',
-        label: type.charAt(0) + type.slice(1).toLowerCase().replace(/_/g, ' ')
-      };
-    const embedNote = (embed) =>
-      [
-        embed.cardId === cardId ? null : `Embeds the drill ${drillName(embed.cardId)}.`,
-        embed.linkOwnerName ? `Created by ${embed.linkOwnerName}.` : null
-      ]
-        .filter(Boolean)
-        .join(' ') || null;
     const groups = [
       {
         blocking: false,
@@ -667,14 +757,9 @@ const FETCHERS = {
       {
         blocking: false,
         deleted: true,
-        items: embeds.map((embed) => ({
-          annotation: embedNote(embed),
-          chip: embed.publicLinkType ? linkTypeChip(embed.publicLinkType) : null,
-          id: embed.id,
-          label: embed.token,
-          typeId: 'PUBLIC_URL',
-          url: embed.url
-        })),
+        items: embeds.map((embed) =>
+          buildEmbedItem(embed, embed.cardId === cardId ? null : `Embeds the drill ${drillName(embed.cardId)}.`)
+        ),
         key: 'cardEmbeds',
         label: 'Embeds'
       },
@@ -1361,6 +1446,7 @@ const FETCHERS = {
   PAGE: async ({ id, origin }, tabId) => {
     const groups = [];
 
+    const embedsPromise = getPageEmbeds({ pageId: id, tabId }).catch(() => []);
     const cards = await getCardsForObject({
       objectId: id,
       objectType: 'PAGE',
@@ -1374,6 +1460,7 @@ const FETCHERS = {
       cardIdList.length > 0
         ? getOnlyHereCardIds({ cardIds: cardIdList, pageId: id, tabId }).catch(() => null)
         : Promise.resolve([]);
+    const cardEmbedsPromise = getCardEmbeds({ cardIds: cardIdList.map(String), tabId }).catch(() => []);
     if (cards.length > 0) {
       groups.push({
         blocking: false,
@@ -1388,6 +1475,15 @@ const FETCHERS = {
         label: 'Cards on This Page'
       });
     }
+
+    const embeds = await embedsPromise;
+    groups.push({
+      blocking: false,
+      deleted: true,
+      items: embeds.map((embed) => buildEmbedItem(embed)),
+      key: 'pageEmbeds',
+      label: 'Embeds'
+    });
 
     const childPages = await getChildPages({
       pageId: parseInt(id),
@@ -1409,7 +1505,8 @@ const FETCHERS = {
       });
     }
 
-    const onlyHereCardIds = await onlyHerePromise;
+    const [cardEmbeds, onlyHereCardIds] = await Promise.all([cardEmbedsPromise, onlyHerePromise]);
+    groups.push(buildCardEmbedsGroup({ cards, embeds: cardEmbeds, onlyHereCardIds }));
     return { groups, onlyHereCardIds };
   },
   TEMPLATE: async ({ id, metadata, origin }, tabId) => {
