@@ -796,7 +796,7 @@ function noCardPagesMessage(objectType, objectName) {
     case 'BEAST_MODE_FORMULA':
       return `No pages found for cards using Beast Mode **${objectName}**`;
     case 'CARD':
-      return 'This card does not appear on any app studio apps, embeds, dashboards, report builder pages, or worksheets';
+      return 'This card does not appear on any app studio apps, dashboards, embeds, report builder pages, or worksheets';
     case 'DATA_FUSION':
     case 'DATA_MODEL':
     case 'DATA_SOURCE':
@@ -805,7 +805,7 @@ function noCardPagesMessage(objectType, objectName) {
     case 'USER':
       return `No pages found for cards owned by **${objectName}**`;
     default:
-      return `Cards on **${objectName}** are not used on any other app studio apps, embeds, dashboards, report builder pages, or worksheets`;
+      return `Cards on **${objectName}** are not used on any other app studio apps, dashboards, embeds, report builder pages, or worksheets`;
   }
 }
 
