@@ -34,9 +34,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
 
   if (
     isDataset ||
-    ['ACCOUNT', 'CARD', 'DATA_APP_VIEW', 'DATA_SCIENCE_NOTEBOOK', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(
-      typeId
-    )
+    ['ACCOUNT', 'CARD', 'DATA_APP_VIEW', 'DATA_SCIENCE_NOTEBOOK', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)
   ) {
     actions.add('getDatasets');
   }
@@ -59,6 +57,10 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
 
   if (['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId)) {
     actions.add('getChildPages');
+  }
+
+  if (['DATA_APP_VIEW', 'PAGE'].includes(typeId) && userRights.includes('content.admin')) {
+    actions.add('getEmbeds');
   }
 
   if (
@@ -162,11 +164,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     }
   }
 
-  if (
-    typeId === 'TEMPLATE' &&
-    !details?.datasetId &&
-    (metadata?.isOwner || userRights.includes('approvalcenter.admin'))
-  ) {
+  if (typeId === 'TEMPLATE' && !details?.datasetId && (metadata?.isOwner || userRights.includes('approvalcenter.admin'))) {
     actions.add('sync');
   }
 

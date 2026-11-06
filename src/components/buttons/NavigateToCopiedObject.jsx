@@ -39,6 +39,9 @@ const TYPE_PRIORITY = [
 // application, since Domo has no endpoint that resolves a job from its ID alone.
 const TYPE_DEPRIORITY = ['EXECUTOR_JOB'];
 
+// An embed takes a lookup against three endpoints, which is too costly to spend on a guess.
+const UNNAVIGABLE_TYPES = ['PUBLIC_URL'];
+
 export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
   const [copiedId, setCopiedId] = useState(null);
   const [resolvedObject, setResolvedObject] = useState(null);
@@ -51,6 +54,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
   const allTypes = useMemo(() => {
     return getAllNavigableObjectTypes()
       .filter((type) => {
+        if (UNNAVIGABLE_TYPES.includes(type.id)) return false;
         // Types whose parent is resolvable from an ID alone (e.g. DATA_APP_VIEW)
         // are always navigable; `buildObjectUrl` / `fetchObjectMetadata` fill
         // the placeholder lazily via `DomoObject.getParent`.

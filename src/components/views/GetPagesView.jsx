@@ -8,6 +8,7 @@ import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
 import { getCardsForObject, getCardsForParent, getOwnedCards } from '@/services/cards';
+import { getCardEmbeds, toEmbedRow } from '@/services/embeds';
 import { getChildPages, getPagesForCards } from '@/services/pages';
 import { waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
@@ -90,6 +91,7 @@ export function GetPagesView({
           : domoObject.metadata?.parent?.name || domoObject.metadata?.name || `${domoObject.typeName} ${objectId}`;
       const instance = context.instance;
       const origin = context.origin;
+      const embedsEnabled = sidepanelType === 'getCardPages' && canReadEmbeds(context);
 
       // Get appId for DATA_APP_VIEW types (stored as parentId in domoObject)
       const appId =
@@ -111,6 +113,7 @@ export function GetPagesView({
       let cardsByPage = data.cardsByPage;
       let noCards = false;
       let orphanedCards;
+      let embedResult = null;
 
       if (!childPages && !forceRefresh) {
         // No pre-fetched data (popup handoff)
@@ -120,6 +123,7 @@ export function GetPagesView({
             const waitResult = await waitForCards(context);
             if (waitResult.success && waitResult.cards?.length) {
               const tabId = await getValidTabForInstance(instance);
+              const embedsPromise = embedsEnabled ? readCardEmbeds(waitResult.cards, tabId) : null;
               const result = (await getPagesForCards(
                 waitResult.cards.map((card) => card.id),
                 tabId
@@ -136,6 +140,7 @@ export function GetPagesView({
                 }));
               cardsByPage = result.cardsByPage;
               orphanedCards = result.orphanedCards;
+              embedResult = await embedsPromise;
             }
           }
           // CARD, DATA_SOURCE, DATAFLOW_TYPE: fall through to fetchFreshPages
@@ -150,14 +155,17 @@ export function GetPagesView({
         if (!childPages) {
           const freshData = await fetchFreshPages({
             appId,
+            embedsEnabled,
             instance,
             metadata: domoObject.metadata,
             objectId,
+            objectName,
             objectType,
             sidepanelType
           });
           childPages = freshData.childPages;
           cardsByPage = freshData.cardsByPage;
+          embedResult = freshData.embedResult ?? null;
           noCards = Boolean(freshData.noCards);
           orphanedCards = freshData.orphanedCards;
         }
@@ -166,14 +174,17 @@ export function GetPagesView({
       if (forceRefresh) {
         const freshData = await fetchFreshPages({
           appId,
+          embedsEnabled,
           instance,
           metadata: domoObject.metadata,
           objectId,
+          objectName,
           objectType,
           sidepanelType
         });
         childPages = freshData.childPages;
         cardsByPage = freshData.cardsByPage;
+        embedResult = freshData.embedResult ?? null;
         noCards = Boolean(freshData.noCards);
         orphanedCards = freshData.orphanedCards;
       }
@@ -204,7 +215,7 @@ export function GetPagesView({
       // which is a toast, not a view showing a lone trailing group. This holds for
       // every object type, including a single card (which would list only itself).
       const noPages = !childPages || !childPages.length;
-      if (noPages) {
+      if (noPages && !embedResult?.embeds?.length) {
         if (!mountedRef.current) return;
         const isCardless = sidepanelType === 'getCardPages' && noCards;
         const message =
@@ -236,7 +247,14 @@ export function GetPagesView({
       setError(null);
 
       if (sidepanelType === 'getCardPages') {
-        const transformedItems = transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCards, objectType);
+        const transformedItems = transformGroupedPagesData(
+          childPages,
+          origin,
+          cardsByPage,
+          orphanedCards,
+          objectType,
+          embedResult
+        );
         setItems(transformedItems);
       } else {
         // Normal PAGE or DATA_APP_VIEW data - use existing logic
@@ -307,6 +325,7 @@ export function GetPagesView({
       }
     }
     const cardIds = [...cardIdSet];
+    const cardById = new Map(viewGroups.flatMap((vg) => vg.cards).map((card) => [card.id, card]));
 
     if (cardIds.length === 0) {
       onStatusUpdate?.('No Cards Found', `No cards found across any view on this ${parentLabel}.`, 'warning', 3000);
@@ -314,11 +333,13 @@ export function GetPagesView({
       return;
     }
 
+    const embedsPromise = canReadEmbeds(context) ? readCardEmbeds([...cardById.values()], tabId) : null;
     const result = (await getPagesForCards(cardIds, tabId)) ?? {
       cardsByPage: {},
       orphanedCards: [],
       pages: []
     };
+    const embedResult = await embedsPromise;
 
     // Exclude views inside the parent app/worksheet -- the user wants OTHER
     // pages, not other views within the same app.
@@ -336,7 +357,7 @@ export function GetPagesView({
     // Only real pages make this view worth showing; no other pages means the cards
     // live only on this app/worksheet, which is a toast rather than a view showing a
     // lone Cards that Only Live Here group (see loadPagesData).
-    if (childPages.length === 0) {
+    if (childPages.length === 0 && !embedResult?.embeds?.length) {
       onStatusUpdate?.('No Pages Found', `Cards on this ${parentLabel} are not used on any other pages.`, 'warning');
       onBackToDefault?.();
       return;
@@ -354,37 +375,46 @@ export function GetPagesView({
     });
 
     setError(null);
-    setItems(transformGroupedPagesData(childPages, origin, result.cardsByPage, result.orphanedCards, parentTypeId));
+    setItems(
+      transformGroupedPagesData(childPages, origin, result.cardsByPage, result.orphanedCards, parentTypeId, embedResult)
+    );
   };
 
   /**
    * Fetch fresh pages data from API based on sidepanel type and object type.
    * Dynamically finds a valid tab on the same Domo instance for API calls.
    */
-  const fetchFreshPages = async ({ appId, instance, metadata, objectId, objectType, sidepanelType }) => {
+  const fetchFreshPages = async ({
+    appId,
+    embedsEnabled,
+    instance,
+    metadata,
+    objectId,
+    objectName,
+    objectType,
+    sidepanelType
+  }) => {
     const tabId = await getValidTabForInstance(instance);
 
     if (sidepanelType === 'getCardPages') {
-      let cardIds;
+      let cards;
 
       if (objectType === 'CARD') {
-        cardIds = [objectId];
+        cards = [{ id: objectId, title: objectName }];
       } else if (objectType === 'USER') {
-        const cards = await getOwnedCards(objectId, tabId);
-        if (!cards || !cards.length) return { cardsByPage: {}, childPages: [], noCards: true, orphanedCards: [] };
-        cardIds = cards.map((card) => card.id);
+        cards = await getOwnedCards(objectId, tabId);
       } else {
-        const cards = await getCardsForObject({
+        cards = await getCardsForObject({
           metadata,
           objectId,
           objectType,
           tabId
         });
-
-        if (!cards || !cards.length) return { cardsByPage: {}, childPages: [], noCards: true, orphanedCards: [] };
-        cardIds = cards.map((card) => card.id);
       }
+      if (!cards || !cards.length) return { cardsByPage: {}, childPages: [], noCards: true, orphanedCards: [] };
+      const cardIds = cards.map((card) => card.id);
 
+      const embedsPromise = embedsEnabled ? readCardEmbeds(cards, tabId) : null;
       // Treat null result the same as empty; keeps the UI stable if the
       // executeInPage bridge nulls out (script timeout, OOM, transient errors).
       const result = (await getPagesForCards(cardIds, tabId)) ?? {
@@ -393,6 +423,7 @@ export function GetPagesView({
         pages: []
       };
       const { cardsByPage, orphanedCards, pages } = result;
+      const embedResult = await embedsPromise;
 
       // For page-like types, filter out the current page
       const excludeSelf = PAGE_SCOPED_TYPES.includes(objectType);
@@ -407,7 +438,7 @@ export function GetPagesView({
           parentName: page.parentName || null
         }));
 
-      return { cardsByPage, childPages, orphanedCards };
+      return { cardsByPage, childPages, embedResult, orphanedCards };
     }
 
     // getChildPages / childPagesWarning: hierarchical children
@@ -499,6 +530,7 @@ export function GetPagesView({
       const tally = (list) => {
         let pages = 0;
         for (const item of list || []) {
+          if (item.id === EMBEDS_GROUP.id) continue;
           if (item.typeId === 'CARD') cardIds.add(item.id);
           else if (pageTypes.has(item.typeId)) pages++;
           if (item.children?.length) {
@@ -511,7 +543,9 @@ export function GetPagesView({
       const cards = cardIds.size;
       const orphans = items.find((item) => item.id === 'ORPHANED_CARDS_group')?.children?.length || 0;
       const onlyHere = items.find((item) => item.id === 'ONLY_HERE_group')?.children?.length || 0;
-      if (!pages && !orphans && !onlyHere) return null;
+      const embedsGroup = items.find((item) => item.id === EMBEDS_GROUP.id);
+      const embeds = embedsGroup?.children?.length ? embedsGroup.count : 0;
+      if (!pages && !orphans && !onlyHere && !embeds) return null;
       let text = `${pages} page${pages === 1 ? '' : 's'}`;
       if (cards > 0) {
         text += ` • ${cards} card${cards === 1 ? '' : 's'}`;
@@ -521,6 +555,9 @@ export function GetPagesView({
       }
       if (onlyHere > 0) {
         text += ` • ${onlyHere} only here`;
+      }
+      if (embeds > 0) {
+        text += ` • ${embeds} embed${embeds === 1 ? '' : 's'}`;
       }
       return text;
     }
@@ -609,6 +646,8 @@ const CARD_PAGE_GROUPS = [
   { childTypeId: 'WORKSHEET', id: 'WORKSHEET_group', label: 'Worksheets' }
 ];
 
+const EMBEDS_GROUP = { childTypeId: 'PUBLIC_URL', id: 'EMBEDS_group', label: 'Embeds' };
+
 // Object types whose queried cards always live on the object itself (the page,
 // app, or worksheet the query started from). "Cards on no page" (orphaned) is
 // meaningless for these, so instead of Orphaned Cards they get a "Cards that
@@ -658,6 +697,67 @@ function buildCardChildren(pageId, cardsByPage, origin, pageType, parentId) {
     });
 }
 
+function buildEmbedsGroup(embedResult, origin, objectType) {
+  if (!embedResult) return null;
+  if (embedResult.error) {
+    return DataListItem.createGroup({
+      children: [],
+      childTypeId: EMBEDS_GROUP.childTypeId,
+      count: 0,
+      error: embedResult.error,
+      id: EMBEDS_GROUP.id,
+      label: EMBEDS_GROUP.label,
+      status: 'error'
+    });
+  }
+  if (!embedResult.embeds.length) return null;
+
+  const toItem = (embed) => {
+    const row = toEmbedRow(embed);
+    return new DataListItem({
+      ...row,
+      domoObject: new DomoObject(row.typeId, row.id, origin)
+    });
+  };
+
+  if (objectType === 'CARD') {
+    return DataListItem.createGroup({
+      children: embedResult.embeds.map(toItem),
+      childTypeId: EMBEDS_GROUP.childTypeId,
+      id: EMBEDS_GROUP.id,
+      label: EMBEDS_GROUP.label
+    });
+  }
+
+  const embedsByCard = new Map();
+  for (const embed of embedResult.embeds) {
+    if (!embedsByCard.has(embed.cardId)) embedsByCard.set(embed.cardId, []);
+    embedsByCard.get(embed.cardId).push(embed);
+  }
+  const cardRows = [...embedsByCard.entries()]
+    .map(([cardId, embeds]) => {
+      const name = (embedResult.cardNameById.get(cardId) || '').trim();
+      const children = embeds.map(toItem);
+      return DataListItem.fromDomoObject(new DomoObject('CARD', cardId, origin, { name: name || `Card ${cardId}` }), {
+        children,
+        count: children.length,
+        countLabel: children.length === 1 ? 'embed' : 'embeds'
+      });
+    })
+    .sort((a, b) => a.label.localeCompare(b.label));
+  return DataListItem.createGroup({
+    children: cardRows,
+    childTypeId: 'CARD',
+    count: embedResult.embeds.length,
+    id: EMBEDS_GROUP.id,
+    label: EMBEDS_GROUP.label
+  });
+}
+
+function canReadEmbeds(context) {
+  return (context.user?.metadata?.USER_RIGHTS || []).includes('content.admin');
+}
+
 /**
  * Cards that live only on the queried object and nowhere else.
  *
@@ -696,7 +796,7 @@ function noCardPagesMessage(objectType, objectName) {
     case 'BEAST_MODE_FORMULA':
       return `No pages found for cards using Beast Mode **${objectName}**`;
     case 'CARD':
-      return 'This card does not appear on any app studio apps, dashboards, report builder pages, or worksheets';
+      return 'This card does not appear on any app studio apps, embeds, dashboards, report builder pages, or worksheets';
     case 'DATA_FUSION':
     case 'DATA_MODEL':
     case 'DATA_SOURCE':
@@ -705,7 +805,7 @@ function noCardPagesMessage(objectType, objectName) {
     case 'USER':
       return `No pages found for cards owned by **${objectName}**`;
     default:
-      return `Cards on ${objectName} are not used on any other pages`;
+      return `Cards on **${objectName}** are not used on any other app studio apps, embeds, dashboards, report builder pages, or worksheets`;
   }
 }
 
@@ -723,7 +823,18 @@ function noCardsMessage(objectType, objectName) {
     case 'USER':
       return `**${objectName}** does not own any cards`;
     default:
-      return `No cards found on ${objectName}`;
+      return `No cards found on **${objectName}**`;
+  }
+}
+
+// Resolves to `{ error }` rather than rejecting, so a failed read only marks the group.
+async function readCardEmbeds(cards, tabId) {
+  const cardNameById = new Map(cards.map((card) => [String(card.id), card.title ?? card.name ?? '']));
+  try {
+    const embeds = await getCardEmbeds({ cardIds: [...cardNameById.keys()], tabId });
+    return { cardNameById, embeds };
+  } catch (err) {
+    return { error: err.message || 'Failed to read embeds' };
   }
 }
 
@@ -738,8 +849,9 @@ function noCardsMessage(objectType, objectName) {
  * @param {Object} [cardsByPage] - Optional mapping of pageId -> [{ id, name }] for card children
  * @param {Array<{id: string|number, name: string}>} [orphanedCards] - Optional cards that are not on any page
  */
-function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCards, objectType) {
-  if ((!childPages || !childPages.length) && !orphanedCards?.length) return [];
+function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCards, objectType, embedResult = null) {
+  const embedsGroup = buildEmbedsGroup(embedResult, origin, objectType);
+  if ((!childPages || !childPages.length) && !orphanedCards?.length && !embedsGroup) return [];
 
   // When querying a single card, every page lists that same card as its only
   // child. The user already knows which card they asked about, so repeating it
@@ -980,6 +1092,10 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
     );
   }
 
-  const canonicalGroups = objectType === 'CARD' ? CARD_PAGE_GROUPS : [...CARD_PAGE_GROUPS, trailingGroup];
+  if (embedsGroup) items.push(embedsGroup);
+
+  const embedGroups = embedResult ? [EMBEDS_GROUP] : [];
+  const canonicalGroups =
+    objectType === 'CARD' ? [...CARD_PAGE_GROUPS, ...embedGroups] : [...CARD_PAGE_GROUPS, ...embedGroups, trailingGroup];
   return withCanonicalGroups(items, canonicalGroups);
 }

@@ -12,7 +12,7 @@ import { getDownstreamAlertsForDatasets, getRowPdpPolicies } from './alerts';
 import { getAppInstanceCollections, getCollectionConnectedApps } from './appDb';
 import { getTemplateApprovalCount } from './approvals';
 import { getBeastModeUsageForObject } from './beastModes';
-import { getCardDatasets, getCardDrills, getCardEmbeds, getCardsForObject } from './cards';
+import { getCardDatasets, getCardDrills, getCardsForObject } from './cards';
 import { getCodeEnginePackageVersions, getCodeEngineUsageSummary } from './codeEngine';
 import { getAppContentSummary } from './customApps';
 import {
@@ -24,7 +24,7 @@ import {
   getDownstreamViewsForDatasets,
   searchDatasets
 } from './datasets';
-import { getAppEmbeds, getPageEmbeds } from './embeds';
+import { getAppEmbeds, getCardEmbeds, getPageEmbeds, toEmbedRow } from './embeds';
 import { getBeastModesSavedOnCard, getDatasetFunctions, getDatasetFunctionsForDatasets } from './functions';
 import { getDownstreamCardsRaw, getDownstreamLineage } from './migrateDownstreamContent';
 import { resolveObjectSummaries, summaryKey } from './objectSummaries';
@@ -52,7 +52,7 @@ function buildAppCardEmbedsGroup({ appSummary, embeds, pageTitleById }) {
       const note = placement
         ? `Embeds the card ${placement.title} on the page ${placement.pageTitle}.`
         : `Embeds the card ${embed.cardId}.`;
-      return buildEmbedItem(embed, note);
+      return toEmbedRow(embed, note);
     }),
     key: 'appCardEmbeds',
     label: 'Card Embeds on Other Pages in This App'
@@ -151,7 +151,7 @@ function buildCardEmbedsGroup({ cards, embeds, onlyHereCardIds }) {
       const cardOnlyHere = onlyHere ? onlyHere.has(embed.cardId) : null;
       const sharedNote = cardOnlyHere === false ? ' The card is also on other pages.' : '';
       return {
-        ...buildEmbedItem(embed, `Embeds the card ${titleById.get(embed.cardId) ?? embed.cardId}.${sharedNote}`),
+        ...toEmbedRow(embed, `Embeds the card ${titleById.get(embed.cardId) ?? embed.cardId}.${sharedNote}`),
         cardOnlyHere
       };
     }),
@@ -174,7 +174,8 @@ function buildCardPageGroups(pages, origin) {
     const byParent = new Map();
     for (const page of pages.filter((p) => p.type === type)) {
       const key = String(page.parentId);
-      if (!byParent.has(key)) byParent.set(key, { id: page.parentId, name: page.parentName || `${parentNoun} ${key}`, pages: [] });
+      if (!byParent.has(key))
+        byParent.set(key, { id: page.parentId, name: page.parentName || `${parentNoun} ${key}`, pages: [] });
       byParent.get(key).pages.push(page);
     }
     const items = [...byParent.values()].sort(byTitle).map((parent) => ({
@@ -223,24 +224,6 @@ function buildCardPageGroups(pages, origin) {
       type: 'WORKSHEET_VIEW'
     })
   ];
-}
-
-function buildEmbedItem(embed, note = null) {
-  const type = embed.publicLinkType;
-  const chip = type
-    ? (EMBED_LINK_TYPE_CHIPS[type] ?? {
-        color: 'default',
-        label: type.charAt(0) + type.slice(1).toLowerCase().replace(/_/g, ' ')
-      })
-    : null;
-  return {
-    annotation: [note, embed.linkOwnerName ? `Created by ${embed.linkOwnerName}.` : null].filter(Boolean).join(' ') || null,
-    chip,
-    id: embed.id,
-    label: embed.token,
-    typeId: 'PUBLIC_URL',
-    url: embed.url
-  };
 }
 
 /**
@@ -406,7 +389,9 @@ async function fetchAppPageDependencies({ id, metadata, origin, parentId, typeId
 
   const appEmbedsPromise =
     parentId && typeId === 'DATA_APP_VIEW'
-      ? getAppEmbeds({ appId: parentId, appName: metadata?.parent?.name ?? null, tabId }).catch(() => [])
+      ? getAppEmbeds({ appId: parentId, appName: metadata?.parent?.name ?? null, fallbackToOwnEmbed: true, tabId }).catch(
+          () => []
+        )
       : Promise.resolve([]);
 
   const cards = await getCardsForObject({
@@ -422,7 +407,9 @@ async function fetchAppPageDependencies({ id, metadata, origin, parentId, typeId
     cardIdList.length > 0
       ? getOnlyHereCardIds({ cardIds: cardIdList, pageId: id, tabId }).catch(() => null)
       : Promise.resolve([]);
-  const cardEmbedsPromise = getCardEmbeds({ cardIds: cardIdList.map(String), tabId }).catch(() => []);
+  const cardEmbedsPromise = getCardEmbeds({ cardIds: cardIdList.map(String), fallbackToOwnEmbed: true, tabId }).catch(
+    () => []
+  );
   if (cards.length > 0) {
     groups.push({
       blocking: false,
@@ -498,7 +485,7 @@ async function fetchAppPageDependencies({ id, metadata, origin, parentId, typeId
     annotation: 'Deleted only when the whole app is deleted.',
     blocking: false,
     deleted: false,
-    items: appEmbeds.map((embed) => buildEmbedItem(embed)),
+    items: appEmbeds.map((embed) => toEmbedRow(embed)),
     key: 'appEmbeds',
     label: 'App Embeds'
   });
@@ -515,7 +502,7 @@ async function fetchAppPageDependencies({ id, metadata, origin, parentId, typeId
   const thisPageCardIds = new Set(cardIdList.map(String));
   const otherCardIds = (appSummary?.cardIds || []).map(String).filter((cid) => !thisPageCardIds.has(cid));
   const otherEmbedsPromise = otherCardIds.length
-    ? getCardEmbeds({ cardIds: otherCardIds, tabId }).catch(() => [])
+    ? getCardEmbeds({ cardIds: otherCardIds, fallbackToOwnEmbed: true, tabId }).catch(() => [])
     : null;
   const deferred =
     appOnlyPromise || otherEmbedsPromise
@@ -615,11 +602,6 @@ async function readWorkflowVersionDefinitions({ modelId, tabId, versions }) {
 
 const DEPLOYED_CHIP = { color: 'warning', label: 'Deployed' };
 
-const EMBED_LINK_TYPE_CHIPS = {
-  PRIVATE: { color: 'accent', label: 'Private' },
-  SEARCHABLE: { color: 'success', label: 'Public' }
-};
-
 const FETCHERS = {
   // Domo deletes a still-referenced Beast Mode without complaint and the cards
   // pointing at it break silently, so here every kind of use blocks.
@@ -712,7 +694,9 @@ const FETCHERS = {
     ]);
     const drillNameById = new Map(drills.map((drill) => [drill.id, drill.name]));
     const cardDatasetIds = (metadata?.details?.datasources || []).map((ds) => ds.dataSourceId).filter(Boolean);
-    const datasetIds = cardDatasetIds.length ? cardDatasetIds : (await getCardDatasets({ cardId, tabId })).map((ds) => ds.dataSourceId);
+    const datasetIds = cardDatasetIds.length
+      ? cardDatasetIds
+      : (await getCardDatasets({ cardId, tabId })).map((ds) => ds.dataSourceId);
 
     const [beastModes, embeds] = await Promise.all([
       getBeastModesSavedOnCard({
@@ -721,7 +705,7 @@ const FETCHERS = {
         drillIds: drills.map((drill) => drill.id),
         tabId
       }),
-      getCardEmbeds({ cardIds: [cardId, ...drills.map((drill) => drill.id)], tabId }).catch(() => [])
+      getCardEmbeds({ cardIds: [cardId], fallbackToOwnEmbed: true, tabId }).catch(() => [])
     ]);
 
     const drillName = (drillId) => drillNameById.get(drillId) || drillId;
@@ -757,9 +741,7 @@ const FETCHERS = {
       {
         blocking: false,
         deleted: true,
-        items: embeds.map((embed) =>
-          buildEmbedItem(embed, embed.cardId === cardId ? null : `Embeds the drill ${drillName(embed.cardId)}.`)
-        ),
+        items: embeds.map((embed) => toEmbedRow(embed)),
         key: 'cardEmbeds',
         label: 'Embeds'
       },
@@ -821,8 +803,7 @@ const FETCHERS = {
     if (activeCount > 0) usedByParts.push(`${activeCount} active workflow version${activeCount !== 1 ? 's' : ''}`);
     if (instanceRows.length > 0)
       usedByParts.push(`${instanceRows.length} custom app${instanceRows.length !== 1 ? 's' : ''}`);
-    if (toolkitRows.length > 0)
-      usedByParts.push(`${toolkitRows.length} AI toolkit${toolkitRows.length !== 1 ? 's' : ''}`);
+    if (toolkitRows.length > 0) usedByParts.push(`${toolkitRows.length} AI toolkit${toolkitRows.length !== 1 ? 's' : ''}`);
     if (hiddenCount > 0) usedByParts.push(`${hiddenCount} object${hiddenCount !== 1 ? 's' : ''} you can't see`);
     const sentences = [];
     if (usedByParts.length > 0) {
@@ -1446,7 +1427,7 @@ const FETCHERS = {
   PAGE: async ({ id, origin }, tabId) => {
     const groups = [];
 
-    const embedsPromise = getPageEmbeds({ pageId: id, tabId }).catch(() => []);
+    const embedsPromise = getPageEmbeds({ fallbackToOwnEmbed: true, pageId: id, tabId }).catch(() => []);
     const cards = await getCardsForObject({
       objectId: id,
       objectType: 'PAGE',
@@ -1460,7 +1441,9 @@ const FETCHERS = {
       cardIdList.length > 0
         ? getOnlyHereCardIds({ cardIds: cardIdList, pageId: id, tabId }).catch(() => null)
         : Promise.resolve([]);
-    const cardEmbedsPromise = getCardEmbeds({ cardIds: cardIdList.map(String), tabId }).catch(() => []);
+    const cardEmbedsPromise = getCardEmbeds({ cardIds: cardIdList.map(String), fallbackToOwnEmbed: true, tabId }).catch(
+      () => []
+    );
     if (cards.length > 0) {
       groups.push({
         blocking: false,
@@ -1480,7 +1463,7 @@ const FETCHERS = {
     groups.push({
       blocking: false,
       deleted: true,
-      items: embeds.map((embed) => buildEmbedItem(embed)),
+      items: embeds.map((embed) => toEmbedRow(embed)),
       key: 'pageEmbeds',
       label: 'Embeds'
     });

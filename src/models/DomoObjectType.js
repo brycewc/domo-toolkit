@@ -1363,8 +1363,24 @@ export const ObjectTypeRegistry = {
   PROXY_USER: new DomoObjectType('PROXY_USER', 'Proxy User', {
     idPattern: /.*/
   }),
-  PUBLIC_URL: new DomoObjectType('PUBLIC_URL', 'Public Embed URL', {
-    idPattern: /.*/
+  PUBLIC_URL: new DomoObjectType('PUBLIC_URL', 'Embed URL', {
+    // Cards, pages, and App Studio apps each keep their embeds behind a separate summary endpoint.
+    api: {
+      anyOf: [
+        '/content/v1/cards/kpi/embed/summary',
+        '/content/v1/pages/embed/summary',
+        '/content/v1/dataapps/embed/summary'
+      ].map((endpoint) => ({
+        bodyTemplate: { embedIdSearchText: '{id}' },
+        endpoint: `${endpoint}?limit=50&offset=0`,
+        filterByIdField: 'gatewayToken',
+        listPath: 'summaries',
+        method: 'POST',
+        paths: { name: 'gatewayToken' }
+      }))
+    },
+    icon: { component: 'CodeTags' },
+    idPattern: /^(?=.*[A-Za-z])[A-Za-z0-9]{5}$/
   }),
   PUBLICATION: new DomoObjectType('PUBLICATION', 'Publication', {
     api: { endpoint: '/publish/v2/publications/{id}', paths: { created: 'created', name: 'name' } },
@@ -1781,6 +1797,9 @@ export const ObjectTypeRegistry = {
  * @param {Object} params.apiConfig - The API configuration {method, endpoint, bodyTemplate, paths}.
  *   `paths` maps a metadata field to its dot-path in the response (e.g. {created, details, name, parentId}).
  *   Every entry except `details` is resolved generically, so new fields need only a `paths` entry here.
+ *   An `anyOf` array of configs replaces the primary for a type spread across several endpoints; each is
+ *   tried in order and the first to find the object wins. A config's `listPath` points at a list in the
+ *   response whose first entry (or the one matching `filterByIdField`) is the object, a miss when empty.
  *   An optional `fallback` is a second config of the same shape, tried when the primary endpoint
  *   answers non-ok. It declares its own `endpoint` and `paths` rather than merging over the primary,
  *   because it reads a differently shaped response.
@@ -1823,6 +1842,7 @@ export async function fetchObjectDetailsInPage(params) {
         bodyTemplate = null,
         endpoint,
         filterByIdField = null,
+        listPath = null,
         method = 'GET',
         nameFormat = null,
         nameTemplate = null,
@@ -1866,8 +1886,15 @@ export async function fetchObjectDetailsInPage(params) {
 
       let data = await response.json();
 
-      // If the endpoint returns a list, find the matching item by ID field
-      if (filterByIdField && Array.isArray(data)) {
+      if (listPath) {
+        const list = (listPath.match(/[^.[\]]+/g) || []).reduce((current, prop) => current?.[prop], data);
+        const items = Array.isArray(list) ? list : [];
+        data =
+          (filterByIdField ? items.find((item) => String(item[filterByIdField]) === String(objectId)) : items[0]) ?? null;
+        if (!data) {
+          return { ok: false, reason: `${typeId} ${objectId} not found in list response` };
+        }
+      } else if (filterByIdField && Array.isArray(data)) {
         data = data.find((item) => String(item[filterByIdField]) === String(objectId)) || null;
         if (!data) {
           return { ok: false, reason: `${typeId} ${objectId} not found in list response` };
@@ -1942,14 +1969,14 @@ export async function fetchObjectDetailsInPage(params) {
     };
 
     const configs = [];
-    if (fallbackMode !== 'only') configs.push(apiConfig);
+    if (fallbackMode !== 'only') configs.push(...(apiConfig.anyOf ?? [apiConfig]));
     if (apiConfig.fallback && fallbackMode !== 'off') configs.push(apiConfig.fallback);
 
     let firstReason = null;
     for (const config of configs) {
       const attempt = await attemptFetch(config);
       if (attempt.ok) {
-        return config === apiConfig ? attempt.value : { ...attempt.value, viaFallback: true };
+        return config === apiConfig.fallback ? { ...attempt.value, viaFallback: true } : attempt.value;
       }
       // Report the first attempt's failure: it is the one the caller asked for, and a fallback's
       // status says nothing useful about why the object's own endpoint refused.

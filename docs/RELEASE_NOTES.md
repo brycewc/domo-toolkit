@@ -8,6 +8,8 @@
 - The Activity Log's user filter now lists inactive users.
 - Cards now support Delete.
 - Deleting a page now lists its embeds and the embeds of its cards, and deleting an App Studio app from one of its pages lists the embeds of the app and every card in it.
+- Get Card Pages now lists the embeds of its cards in a new Embeds group.
+- Pages and App Studio pages have a new Get Embeds button that lists their embeds.
 
 ## Newly Supported Object Types
 
