@@ -712,7 +712,7 @@ export function ContextFooter({
                           preventing the footer from shifting between two- and three-line objects. */}
                     <span className='w-full truncate text-left text-muted'>
                       {formatTimestamp(currentContext?.domoObject?.metadata?.created)
-                        ? `Created: ${formatTimestamp(currentContext?.domoObject?.metadata?.created)}`
+                        ? `Created: ${formatTimestamp(currentContext?.domoObject?.metadata?.created, { seconds: false })}`
                         : '\u00a0'}
                     </span>
                   </>

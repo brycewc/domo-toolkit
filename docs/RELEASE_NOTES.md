@@ -17,6 +17,9 @@
 
 ## UI Improvements
 
+- Timestamps no longer show a comma between the date and the time.
+- The Created date in the context footer no longer shows seconds.
+
 ## Bug Fixes
 
 - Fixed Cancel Run not working on datasets with a long run history.

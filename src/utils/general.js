@@ -19,7 +19,12 @@ const RELATIVE_TIME_UNITS = [
 
 export function formatEpochTimestamp(value) {
   const ms = parseEpochTimestamp(value);
-  return ms === null ? null : new Date(ms).toLocaleString();
+  return ms === null ? null : formatLocalDateTime(new Date(ms));
+}
+
+export function formatLocalDateTime(date, { dateOptions, seconds = true } = {}) {
+  const timeOptions = seconds ? undefined : { hour: 'numeric', minute: '2-digit' };
+  return `${date.toLocaleDateString(undefined, dateOptions)} ${date.toLocaleTimeString(undefined, timeOptions)}`;
 }
 
 /**
@@ -52,11 +57,12 @@ export function formatRelativeTime(value, now = Date.now()) {
  * Unlike the JSON-viewer path, it does NOT gate on isDateFieldName: the value is
  * config-declared as a date, so it formats whatever it is handed.
  * @param {number|string} value - The raw timestamp value
+ * @param {{ seconds?: boolean }} [options] - Pass `seconds: false` to omit seconds from the time
  * @returns {string|null} Localized date + time, or null when unparseable
  */
-export function formatTimestamp(value) {
+export function formatTimestamp(value, options) {
   const ms = parseTimestamp(value);
-  return ms === null ? null : new Date(ms).toLocaleString();
+  return ms === null ? null : formatLocalDateTime(new Date(ms), options);
 }
 
 export function isDateFieldName(fieldName) {

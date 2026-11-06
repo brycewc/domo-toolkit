@@ -1936,7 +1936,9 @@ export async function fetchObjectDetailsInPage(params) {
         }
         if (ms === null) return String(objectId);
         const date = new Date(ms);
-        return isNaN(date.getTime()) ? String(objectId) : date.toLocaleString();
+        return isNaN(date.getTime())
+          ? String(objectId)
+          : `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
       };
       const rawName = nameTemplate
         ? nameTemplate.replace(/{([^}]+)}/g, (_, path) => (path === 'id' ? objectId : (resolvePath(path) ?? '')))
