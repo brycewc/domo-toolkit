@@ -1,3 +1,4 @@
+import { DomoObject } from '@/models/DomoObject';
 import { getObjectType } from '@/models/DomoObjectType';
 import { DRILL_ONLY_NOTE, groupBeastModeUsageByCard } from '@/utils/beastModeLinks';
 import { ACTIVE_CHIP, INACTIVE_CHIP } from '@/utils/codeEngineUsage';
@@ -11,7 +12,7 @@ import { getDownstreamAlertsForDatasets, getRowPdpPolicies } from './alerts';
 import { getAppInstanceCollections, getCollectionConnectedApps } from './appDb';
 import { getTemplateApprovalCount } from './approvals';
 import { getBeastModeUsageForObject } from './beastModes';
-import { getCardsForObject } from './cards';
+import { getCardDatasets, getCardDrills, getCardEmbeds, getCardsForObject } from './cards';
 import { getCodeEnginePackageVersions, getCodeEngineUsageSummary } from './codeEngine';
 import { getAppContentSummary } from './customApps';
 import {
@@ -23,10 +24,10 @@ import {
   getDownstreamViewsForDatasets,
   searchDatasets
 } from './datasets';
-import { getDatasetFunctions, getDatasetFunctionsForDatasets } from './functions';
+import { getBeastModesSavedOnCard, getDatasetFunctions, getDatasetFunctionsForDatasets } from './functions';
 import { getDownstreamCardsRaw, getDownstreamLineage } from './migrateDownstreamContent';
 import { resolveObjectSummaries, summaryKey } from './objectSummaries';
-import { getAppOnlyCardIds, getChildPages, getOnlyHereCardIds } from './pages';
+import { getAppOnlyCardIds, getChildPages, getOnlyHereCardIds, getPagesForCards } from './pages';
 import { getTaskCenterQueueName } from './taskCenter';
 import { getVersionDefinition, getWorkflowExecution, getWorkflowModelName, getWorkflowVersions } from './workflows';
 
@@ -110,6 +111,71 @@ function buildBeastModeCardItems(usage, origin) {
     url: card.usesDirectly ? `${origin}/kpis/details/${card.id}` : null
   }));
   return [...items, ...orphanDrills.map((drill) => drillItem(drill, drill.parentId))];
+}
+
+function buildCardPageGroups(pages, origin) {
+  const byTitle = (a, b) => (a.name || '').localeCompare(b.name || '');
+  const urlFor = (typeId, id, parentId = null) => new DomoObject(typeId, id, origin, {}, null, parentId).url;
+  const pageItem = (page, typeId) => ({
+    id: page.id,
+    label: page.name,
+    parentId: page.parentId ?? null,
+    typeId,
+    url: urlFor(typeId, page.id, page.parentId ?? null)
+  });
+  const nestedByParent = ({ childNoun, childTypeId, label, parentNoun, parentTypeId, type }) => {
+    const byParent = new Map();
+    for (const page of pages.filter((p) => p.type === type)) {
+      const key = String(page.parentId);
+      if (!byParent.has(key)) byParent.set(key, { id: page.parentId, name: page.parentName || `${parentNoun} ${key}`, pages: [] });
+      byParent.get(key).pages.push(page);
+    }
+    const items = [...byParent.values()].sort(byTitle).map((parent) => ({
+      children: parent.pages.sort(byTitle).map((page) => pageItem(page, childTypeId)),
+      ...countBadge(parent.pages.length, childNoun, `${childNoun}s`),
+      id: parent.id,
+      label: parent.name,
+      typeId: parentTypeId,
+      url: urlFor(parentTypeId, parent.id)
+    }));
+    return { blocking: false, deleted: false, items, label };
+  };
+
+  return [
+    nestedByParent({
+      childNoun: 'page',
+      childTypeId: 'DATA_APP_VIEW',
+      label: 'App Studio Apps',
+      parentNoun: 'App',
+      parentTypeId: 'DATA_APP',
+      type: 'DATA_APP_VIEW'
+    }),
+    {
+      blocking: false,
+      deleted: false,
+      items: pages
+        .filter((p) => p.type === 'PAGE')
+        .sort(byTitle)
+        .map((page) => pageItem(page, 'PAGE')),
+      label: 'Dashboards'
+    },
+    nestedByParent({
+      childNoun: 'page',
+      childTypeId: 'REPORT_BUILDER_PAGE',
+      label: 'Report Builder Pages',
+      parentNoun: 'Report',
+      parentTypeId: 'REPORT_BUILDER',
+      type: 'REPORT_BUILDER_PAGE'
+    }),
+    nestedByParent({
+      childNoun: 'view',
+      childTypeId: 'WORKSHEET_VIEW',
+      label: 'Worksheets',
+      parentNoun: 'Worksheet',
+      parentTypeId: 'WORKSHEET',
+      type: 'WORKSHEET_VIEW'
+    })
+  ];
 }
 
 /**
@@ -447,6 +513,11 @@ async function readWorkflowVersionDefinitions({ modelId, tabId, versions }) {
 
 const DEPLOYED_CHIP = { color: 'warning', label: 'Deployed' };
 
+const EMBED_LINK_TYPE_CHIPS = {
+  PRIVATE: { color: 'accent', label: 'Private' },
+  SEARCHABLE: { color: 'success', label: 'Public' }
+};
+
 const FETCHERS = {
   // Domo deletes a still-referenced Beast Mode without complaint and the cards
   // pointing at it break silently, so here every kind of use blocks.
@@ -530,6 +601,90 @@ const FETCHERS = {
     }
 
     return groups;
+  },
+  CARD: async ({ id, metadata, origin }, tabId) => {
+    const cardId = String(id);
+    const [drills, placements] = await Promise.all([
+      getCardDrills({ cardId, tabId }),
+      getPagesForCards([cardId], tabId).then((result) => result ?? { pages: [] })
+    ]);
+    const drillNameById = new Map(drills.map((drill) => [drill.id, drill.name]));
+    const cardDatasetIds = (metadata?.details?.datasources || []).map((ds) => ds.dataSourceId).filter(Boolean);
+    const datasetIds = cardDatasetIds.length ? cardDatasetIds : (await getCardDatasets({ cardId, tabId })).map((ds) => ds.dataSourceId);
+
+    const [beastModes, embeds] = await Promise.all([
+      getBeastModesSavedOnCard({
+        cardId,
+        datasetIds: [...datasetIds, ...drills.flatMap((drill) => drill.datasetIds)].filter(Boolean),
+        drillIds: drills.map((drill) => drill.id),
+        tabId
+      }),
+      getCardEmbeds({ cardIds: [cardId, ...drills.map((drill) => drill.id)], tabId }).catch(() => [])
+    ]);
+
+    const drillName = (drillId) => drillNameById.get(drillId) || drillId;
+    const linkTypeChip = (type) =>
+      EMBED_LINK_TYPE_CHIPS[type] ?? {
+        color: 'default',
+        label: type.charAt(0) + type.slice(1).toLowerCase().replace(/_/g, ' ')
+      };
+    const embedNote = (embed) =>
+      [
+        embed.cardId === cardId ? null : `Embeds the drill ${drillName(embed.cardId)}.`,
+        embed.linkOwnerName ? `Created by ${embed.linkOwnerName}.` : null
+      ]
+        .filter(Boolean)
+        .join(' ') || null;
+    const groups = [
+      {
+        blocking: false,
+        deleted: true,
+        items: beastModes
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((bm) => ({
+            annotation: bm.drillId ? `Saved to the drill ${drillName(bm.drillId)}` : null,
+            id: bm.id,
+            label: bm.name,
+            typeId: 'BEAST_MODE_FORMULA',
+            url: `${origin}/datacenter/beastmode?id=${bm.id}`
+          })),
+        key: 'cardBeastModes',
+        label: 'Card Beast Modes'
+      },
+      {
+        blocking: false,
+        deleted: true,
+        items: drills.map((drill) => ({
+          id: drill.id,
+          label: drill.name,
+          parentId: cardId,
+          typeId: 'DRILL_VIEW',
+          url: `${origin}/analyzer?cardid=${cardId}&drillviewid=${drill.id}`
+        })),
+        key: 'cardDrills',
+        label: 'Drills'
+      },
+      {
+        blocking: false,
+        deleted: true,
+        items: embeds.map((embed) => ({
+          annotation: embedNote(embed),
+          chip: embed.publicLinkType ? linkTypeChip(embed.publicLinkType) : null,
+          id: embed.id,
+          label: embed.token,
+          typeId: 'PUBLIC_URL',
+          url: embed.url
+        })),
+        key: 'cardEmbeds',
+        label: 'Embeds'
+      },
+      ...buildCardPageGroups(placements.pages, origin)
+    ];
+
+    return {
+      groups,
+      otherNote: 'Deleting the card takes it off these pages. The pages themselves stay.'
+    };
   },
   // Deleting a package takes every version with it, so what matters is whether
   // anything live still calls into it. Active workflow versions, deployed custom

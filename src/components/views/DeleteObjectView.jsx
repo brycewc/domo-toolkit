@@ -109,6 +109,24 @@ const deletersByType = {
     run: ({ context }) => deleteObject({ object: context.domoObject, tabId: context.tabId }),
     typeName: 'Beast Mode Formula'
   },
+  CARD: {
+    confirmSuffix: '',
+    holdToConfirm: ({ deps }) => (deps?.groups || []).some((g) => g.key === 'cardEmbeds' && g.items.length > 0),
+    primaryLabel: 'Delete Card',
+    run: async ({ context }) => {
+      const result = await deleteObject({ object: context.domoObject, tabId: context.tabId });
+      if (result.statusType !== 'success') {
+        throw new Error(result.statusDescription || 'Delete failed');
+      }
+      await redirectTabIfViewingObject({
+        ids: [context.domoObject.id],
+        tabId: context.tabId,
+        url: await cardHostUrl(context)
+      });
+      return result;
+    },
+    typeName: 'Card'
+  },
   CODEENGINE_PACKAGE: {
     confirmSuffix: ' and every version it has',
     primaryLabel: 'Delete Package and All Versions',
@@ -1414,6 +1432,15 @@ function buildSelectionScope({ config, deps }) {
     eligibleIds,
     reasons: group.unselectableReasons || {}
   };
+}
+
+async function cardHostUrl(context) {
+  const fallback = `${context.origin}/page/-100000`;
+  const tab = await chrome.tabs.get(context.tabId).catch(() => null);
+  if (!tab?.url) return fallback;
+  const { origin, pathname } = new URL(tab.url);
+  const host = pathname.split('/kpis/details/')[0];
+  return origin === context.origin && host && host !== pathname ? `${origin}${host}` : fallback;
 }
 
 function collectPickerAncestors(items, scope) {

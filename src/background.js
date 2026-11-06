@@ -90,7 +90,7 @@ function computeIsOwner(typeId, details, userId, userGroups) {
   }
 
   // Remaining types: owner can be typed object, array, or plain ID
-  const owner = details?.owner;
+  const owner = typeId === 'CARD' ? details?.owners : details?.owner;
   if (owner == null) return null;
 
   // Multiple owners (array)

@@ -272,6 +272,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     [
       'APP',
       'BEAST_MODE_FORMULA',
+      'CARD',
       'CODEENGINE_PACKAGE',
       'CODEENGINE_PACKAGE_VERSION',
       'DATA_APP_VIEW',

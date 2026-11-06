@@ -6,6 +6,22 @@ import { executeInPage } from '@/utils/executeInPage';
 import { extractPageContentIds, getFormsForPage, getQueuesForPage, getWorkflowsForPage } from './appStudio';
 import { getFunctionTemplate } from './functions';
 
+/** Domo removes each card's drills, card-level Beast Modes, and embeds along with it. */
+export async function deleteCards({ cardIds, tabId = null }) {
+  await executeInPage(
+    async (cardIds) => {
+      const response = await fetch(`/api/content/v1/cards/bulk?cardIds=${cardIds.join(',')}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const error = new Error(`Failed to delete card${cardIds.length !== 1 ? 's' : ''}. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+    },
+    [cardIds.map(String)],
+    tabId
+  );
+}
+
 /**
  * Export a card as a file download, using the card's current view state
  * (applied filters, date range, chart overrides, etc.).
@@ -218,6 +234,79 @@ export async function getCardDefinition({ cardId, tabId = null }) {
     throw new Error(`Could not read the definition of card ${cardId}: ${result?.error || 'no result from the page'}`);
   }
   return result.definition;
+}
+
+export async function getCardDrills({ cardId, tabId = null }) {
+  const [card] = await getCardsByIds({ cardIds: [cardId], parts: 'drillPathURNs', tabId });
+  // Every drill in the chain, nested ones included, as `dr:<drillId>:<rootCardId>`.
+  const drillIds = (card?.drillPathURNs || []).map((urn) => String(urn).split(':')[1]).filter(Boolean);
+  if (drillIds.length === 0) return [];
+
+  const drills = await getCardsByIds({ cardIds: drillIds, parts: 'datasources', tabId });
+  const drillById = new Map(drills.map((drill) => [String(drill.id), drill]));
+  return drillIds.map((id) => {
+    const drill = drillById.get(id);
+    return {
+      datasetIds: (drill?.datasources || []).map((ds) => ds.dataSourceId).filter(Boolean),
+      id,
+      name: drill?.title || `Drill ${id}`
+    };
+  });
+}
+
+// The summary endpoint needs content admin. Without it this falls back to the
+// caller's own embed of the first card, which answers 404 when they have none.
+// An embed whose sharing is `OFF` has no link, so it is dropped.
+export async function getCardEmbeds({ cardIds, tabId = null }) {
+  const result = await executeInPage(
+    async (cardIds) => {
+      const LIMIT = 50;
+      const summaries = [];
+      let total = Infinity;
+      let summaryStatus = 200;
+      while (summaries.length < total) {
+        const response = await fetch(`/api/content/v1/cards/kpi/embed/summary?limit=${LIMIT}&offset=${summaries.length}`, {
+          body: JSON.stringify({ cardIds: cardIds.map(Number) }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) {
+          summaryStatus = response.status;
+          break;
+        }
+        const page = await response.json();
+        const rows = page?.summaries || [];
+        summaries.push(...rows);
+        total = page?.total ?? 0;
+        if (rows.length === 0) break;
+      }
+      if (summaryStatus === 200) return { embeds: summaries, ok: true };
+      if (summaryStatus !== 401 && summaryStatus !== 403) return { ok: false, status: summaryStatus };
+
+      const response = await fetch(`/api/content/v1/cards/kpi/embed/${cardIds[0]}/state`);
+      if (response.status === 404) return { embeds: [], ok: true };
+      if (!response.ok) return { ok: false, status: response.status };
+      const state = await response.json();
+      return { embeds: state ? [{ cardId: cardIds[0], ...state }] : [], ok: true };
+    },
+    [cardIds.map(String)],
+    tabId
+  );
+  if (!result?.ok) {
+    const error = new Error(`Failed to read card embeds. HTTP status: ${result?.status}`);
+    error.status = result?.status;
+    throw error;
+  }
+  return result.embeds
+    .filter((embed) => embed?.url && embed.publicLinkType !== 'OFF')
+    .map((embed) => ({
+      cardId: String(embed.cardId ?? cardIds[0]),
+      id: String(embed.id ?? embed.gatewayToken ?? embed.url),
+      linkOwnerName: embed.linkOwnerName ?? null,
+      publicLinkType: embed.publicLinkType ?? null,
+      token: embed.gatewayToken ?? embed.url.split('/').filter(Boolean).pop(),
+      url: embed.url
+    }));
 }
 
 /**
