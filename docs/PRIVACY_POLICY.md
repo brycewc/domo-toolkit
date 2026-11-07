@@ -159,7 +159,7 @@ You don't just have to take our word for it. Domo Toolkit is entirely open sourc
 
 If you have questions about this privacy policy or the extension's data practices, please contact us:
 
-- **Email:** <toolkit@domo.com>
+- **Email:** <support@domotoolkit.com>
 - **GitHub Issues:** <https://github.com/brycewc/domo-toolkit/issues>
 
 ## Limited Use Disclosure
