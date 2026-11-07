@@ -34,6 +34,7 @@ import { fileURLToPath } from 'node:url';
  *                                 live target (opening the side panel as a plain
  *                                 tab is racy: it re-fetches on tab activation,
  *                                 so screenshotting resets it to empty).
+ *                    options   -> ignored; the options page has no tab context.
  *   --port <n>     CDP port (default: 9222)
  *   --keep         Leave the temp tab/page open after the shot
  */
@@ -71,7 +72,10 @@ function main() {
     const i = args.indexOf(name);
     return i !== -1 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : fallback;
   };
-  const live = args.includes('--live');
+  const live = args.includes('--live') && surface !== 'options';
+  if (args.includes('--live') && !live) {
+    console.log('--live has no effect on the options page; taking a standalone shot.');
+  }
   const keep = args.includes('--keep');
   const port = flag('--port', '9222');
   const out = flag('--out', join(repoRoot, '.playwriter-shots', `${surface}.png`));
@@ -107,6 +111,9 @@ function liveSnippet(surface, id, out, keep) {
       await panel.screenshot({ path: ${JSON.stringify(out)} });
       console.log('shot live side panel:', panel.url());
     `;
+  }
+  if (surface !== 'popup') {
+    throw new Error(`No live capture for ${surface}`);
   }
   // popup: open as a background tab in the Domo tab's window so mount resolves the Domo context
   return `

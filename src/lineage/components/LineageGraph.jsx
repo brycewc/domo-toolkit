@@ -17,7 +17,7 @@ import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRe
 import { InactiveUserOverlay } from '@/components/InactiveUserOverlay';
 import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { useTheme } from '@/hooks/useTheme';
-import { getInitials } from '@/utils/general';
+import { formatLocalDateTime, getInitials } from '@/utils/general';
 import IconDatabase from '@icons/database.svg?react';
 
 import { LineageNodeToolbar } from './LineageNodeToolbar';
@@ -63,12 +63,13 @@ const LineageNode = memo(function LineageNode({ data, id }) {
   const dataflowBadge = useMemo(() => {
     if (data.entityType !== 'DATAFLOW' || !meta?.lastExecution?.endTime) return null;
     const endTime = new Date(meta.lastExecution.endTime);
-    const formatted = endTime.toLocaleDateString(undefined, {
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      month: 'short',
-      year: endTime.getFullYear() === new Date().getFullYear() ? undefined : 'numeric'
+    const formatted = formatLocalDateTime(endTime, {
+      dateOptions: {
+        day: 'numeric',
+        month: 'short',
+        year: endTime.getFullYear() === new Date().getFullYear() ? undefined : 'numeric'
+      },
+      seconds: false
     });
     return `Last run ${formatted}`;
   }, [data.entityType, meta]);

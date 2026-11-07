@@ -24,6 +24,7 @@ import { executeInPage } from '@/utils/executeInPage';
 import { getCardDefinition } from './cards';
 import {
   BACKTICK_REF_RE,
+  beastModeIdsByName,
   COLUMN_KEYED_FIELDS,
   COLUMN_LIST_FIELDS,
   COLUMN_VALUE_FIELDS,
@@ -33,6 +34,7 @@ import {
   isCalendarColumnEntry,
   isColumnListParent,
   QUALIFIED_REF_RE,
+  repointConditionalFormatColumns,
   stripBackticks
 } from './columnFields';
 import { getFunctionTemplate } from './functions';
@@ -364,6 +366,13 @@ export function extractCardColumnRefs(cardResponse) {
   if (needsFormulaFilter || needsColumnFilter) {
     scanTarget = { ...inner };
 
+    if (Array.isArray(inner.conditionalFormats)) {
+      scanTarget.conditionalFormats = repointConditionalFormatColumns(
+        inner.conditionalFormats,
+        beastModeIdsByName(cardResponse)
+      );
+    }
+
     if (needsFormulaFilter) {
       scanTarget.formulas = inner.formulas.filter((f) => f && f.persistedOnDataSource === false);
     }
@@ -582,6 +591,7 @@ export function makeItemKey(typeKey, itemId) {
 
 /**
  * @param {Object} params
+ * @param {Map<string, Array<Object>>} [params.cardAlertsByCardId] - Alert definitions per card ID; their filter columns count as the card's.
  * @param {{ cards: Array<{id: any, name?: string}>, datasets: Array<{id: string, name?: string}>, dataflows: Array<{id: any, name?: string}> }} params.selectedItems
  * @param {string} [params.originId] - The migration's origin dataset ID. Used to identify "other inputs" on dataflows for cross-input collision detection.
  * @param {number|null} [params.tabId]
@@ -595,7 +605,7 @@ export function makeItemKey(typeKey, itemId) {
  *   viewFusionWarnings: Array<{id: any, name: string}>
  * }>}
  */
-export async function scanContentForColumns({ originId, selectedItems, tabId = null }) {
+export async function scanContentForColumns({ cardAlertsByCardId = null, originId, selectedItems, tabId = null }) {
   const byColumn = new Map();
   const byItem = new Map();
   const dataflowScriptWarnings = [];
@@ -638,6 +648,9 @@ export async function scanContentForColumns({ originId, selectedItems, tabId = n
         // the body key, and a drill's bare id returns an unrelated payload.
         definition = await getCardDefinition({ cardId: item.urn || item.id, tabId });
         used = extractCardColumnRefs(definition);
+        for (const alert of cardAlertsByCardId?.get(String(item.id)) || []) {
+          for (const column of extractAlertColumnRefs(alert)) used.add(column);
+        }
       } else if (typeKey === 'beastModes') {
         // The search list lacks the expression; hydrate the full template so
         // we can scan its refs (and the orchestrator reuses this cached

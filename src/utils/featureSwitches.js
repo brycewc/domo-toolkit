@@ -11,27 +11,27 @@
 import { getObjectType } from '@/models/DomoObjectType';
 
 /**
- * The feature switch (if any) a given object type requires.
  * @param {string} typeId - DomoObjectType id
- * @returns {string|null} The required switch name, or null for ungated types
+ * @returns {string|string[]|null} The requirement, or null for ungated types
  */
 export function getTypeFeatureSwitch(typeId) {
   return getObjectType(typeId)?.featureSwitch ?? null;
 }
 
 /**
- * Whether a feature switch is enabled per the context's loaded switch list.
- * Fail-open: ungated (no switch name) and not-yet-loaded (null list) both
- * return true; otherwise membership in the list decides.
- * @param {string|null} switchName - The feature switch name to check
+ * Whether a switch requirement (see DomoObjectType `featureSwitch`) is met by
+ * the context's loaded list. Fail-open while that list is null.
+ * @param {string|string[]|null} requirement - The switch requirement to check
  * @param {Object|null} context - DomoContext (live or serialized)
  * @returns {boolean}
  */
-export function isFeatureSwitchEnabled(switchName, context) {
-  if (!switchName) return true;
+export function isFeatureSwitchEnabled(requirement, context) {
+  if (!requirement) return true;
   const switches = context?.featureSwitches;
-  if (!switches) return true;
-  return switches.includes(switchName);
+  // An empty list is a config that never hydrated, not an instance with every switch off.
+  if (!switches?.length) return true;
+  const entries = Array.isArray(requirement) ? requirement : [requirement];
+  return entries.some((entry) => (entry.startsWith('!') ? !switches.includes(entry.slice(1)) : switches.includes(entry)));
 }
 
 /**

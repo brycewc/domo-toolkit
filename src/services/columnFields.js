@@ -148,6 +148,23 @@ export const BEAST_MODE_CALL_RE = /DOMO_BEAST_MODE\(\s*(\d+)\s*\)/g;
  */
 export const QUALIFIED_REF_RE = /`([^`]+)`(\.`([^`]+)`)?/g;
 
+// A conditional format names a Beast Mode by display name; every other card reference uses its legacyId.
+export function beastModeIdsByName(cardResponse) {
+  const physicalColumns = new Set(
+    (Array.isArray(cardResponse?.columns) ? cardResponse.columns : [])
+      .filter((column) => column && !isCalculatedColumnEntry(column))
+      .map((column) => column.name)
+  );
+  const formulas = cardResponse?.definition?.formulas;
+  const idsByName = new Map();
+  for (const formula of Array.isArray(formulas) ? formulas : []) {
+    if (isBeastModeLegacyId(formula?.id) && formula.name && !physicalColumns.has(formula.name)) {
+      idsByName.set(formula.name, formula.id);
+    }
+  }
+  return idsByName;
+}
+
 /**
  * Call `onMatch` with every `pattern` match in an expression string that sits in
  * real code, skipping the ones inside a comment or a string literal.
@@ -262,6 +279,15 @@ export function replaceExpressionRefs(expr, pattern, replacer) {
     end = match.index + match[0].length;
   });
   return out + expr.slice(end);
+}
+
+export function repointConditionalFormatColumns(conditionalFormats, columns) {
+  if (!Array.isArray(conditionalFormats) || columns.size === 0) return conditionalFormats;
+  return conditionalFormats.map((format) => {
+    const column = format?.condition?.column;
+    if (!columns.has(column)) return format;
+    return { ...format, condition: { ...format.condition, column: columns.get(column) } };
+  });
 }
 
 /**

@@ -12,6 +12,7 @@ const CODE_ENGINE_TYPES = ['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'];
 const SUPPORTED_TYPES = [
   'APP',
   'BEAST_MODE_FORMULA',
+  'CARD',
   'CODEENGINE_PACKAGE',
   'CODEENGINE_PACKAGE_VERSION',
   'DATA_APP_VIEW',
@@ -78,7 +79,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
     if (typeId === 'BEAST_MODE_FORMULA' || typeId === 'VARIABLE') {
       return !isOwner && !userRights.includes('content.admin');
     }
-    if (typeId === 'DATA_APP_VIEW' || typeId === 'PAGE' || typeId === 'WORKSHEET_VIEW') {
+    if (typeId === 'CARD' || typeId === 'DATA_APP_VIEW' || typeId === 'PAGE' || typeId === 'WORKSHEET_VIEW') {
       return !isOwner && !userRights.includes('content.admin');
     }
     if (typeId === 'TEMPLATE') {

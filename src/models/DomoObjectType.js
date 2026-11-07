@@ -33,9 +33,9 @@ export class DomoObjectType {
    * @param {Object} [options.extractConfig] - Configuration for extracting ID from URL. A `valueMap` on the
    *   config (or on its `parentExtract`) translates the extracted segment through a lookup table, yielding null
    *   when the segment is absent from it — for a URL carrying a slug where the extension needs the mapped ID.
-   * @param {string} [options.featureSwitch] - Instance feature switch this type requires (e.g. 'approvalcenter').
-   *   Consumers route through `isTypeFeatureEnabled()` in `@/utils/featureSwitches`, which fails open while the
-   *   context's switch list is unknown and skips the type once the loaded list confirms the switch is absent.
+   * @param {string|string[]} [options.featureSwitch] - Instance feature switch this type requires. An array is met
+   *   when any one is on; a `!` prefix means the switch must be off. Checked via `isTypeFeatureEnabled()` in
+   *   `@/utils/featureSwitches`, which fails open while the switch list is unknown.
    *   Omit for types available on every instance.
    * @param {Object} [options.icon] - Icon config for this object type
    *   { component: string, rotation?: number } where component is a key in the ObjectTypeIcon registry
@@ -349,6 +349,7 @@ export const ObjectTypeRegistry = {
   AI_MODEL: new DomoObjectType('AI_MODEL', 'AI Model', {
     api: { endpoint: '/datascience/ml/v1/models/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'model' },
+    featureSwitch: 'ai-services',
     icon: { component: 'AiModel' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/ai-services/models?model={id}'
@@ -356,6 +357,7 @@ export const ObjectTypeRegistry = {
   AI_PROJECT: new DomoObjectType('AI_PROJECT', 'AI Project', {
     api: { endpoint: '/datascience/ml/v1/projects/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'projects' },
+    featureSwitch: 'ai-services',
     icon: { component: 'AiBook' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/ai-services/projects/{id}'
@@ -363,6 +365,7 @@ export const ObjectTypeRegistry = {
   AI_TOOLKIT: new DomoObjectType('AI_TOOLKIT', 'AI Toolkit', {
     api: { endpoint: '/ai/v1/toolkits/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'toolkits' },
+    featureSwitch: 'ai-services',
     icon: { component: 'Toolbox' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/ai-library/toolkits/{id}'
@@ -569,6 +572,7 @@ export const ObjectTypeRegistry = {
     },
     copyConfigs: [{ label: 'Certification Process ID', source: 'parentId' }],
     extractConfig: { keyword: 'request-details' },
+    featureSwitch: 'certified-content',
     icon: { component: 'Certified' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['CERTIFICATION_PROCESS'],
@@ -593,6 +597,7 @@ export const ObjectTypeRegistry = {
     extractConfig: {
       keyword: 'edit-form'
     },
+    featureSwitch: 'certified-content',
     icon: { component: 'CertifiedCompany' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/admin/certifiedcontent/{metadata.context.certifiedType}/edit-form/{id}'
@@ -610,7 +615,8 @@ export const ObjectTypeRegistry = {
       paths: { created: 'createdOn', name: 'name' }
     },
     extractConfig: { keyword: 'codeengine' },
-    icon: { component: 'AiBook' },
+    featureSwitch: 'code-engine',
+    icon: { component: 'CurlyBrackets' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     relatedData: [
       {
@@ -726,8 +732,26 @@ export const ObjectTypeRegistry = {
     idPattern: /.*/
   }),
   CONNECTOR: new DomoObjectType('CONNECTOR', 'Connector', {
+    api: { endpoint: '/data/v1/connectors/{id}?language=en', paths: { name: 'label' } },
+    copyConfigs: [{ label: 'Provider Key', source: 'metadata.details.connectionType' }],
     icon: { component: 'Connector' },
-    idPattern: /.*/
+    idPattern: /^com\.[a-z0-9_-]+(\.[a-z0-9_-]+)+$/i,
+    relatedData: [
+      {
+        fetcher: 'connectorStreams',
+        isArray: true,
+        itemIdField: 'datasetId',
+        itemTypeId: 'DATA_SOURCE',
+        label: 'Streams'
+      },
+      {
+        fetcher: 'connectorAccounts',
+        isArray: true,
+        itemTypeId: 'ACCOUNT',
+        label: 'Accounts'
+      }
+    ],
+    urlPath: '/appstore/connectors/{id}'
   }),
   CONTAINER_VIEW: new DomoObjectType('CONTAINER_VIEW', 'Container View', {
     api: {
@@ -753,6 +777,7 @@ export const ObjectTypeRegistry = {
   DATA_APP: new DomoObjectType('DATA_APP', 'Studio App', {
     api: { endpoint: '/content/v1/dataapps/{id}', paths: { name: 'title' } },
     extractConfig: { keyword: 'app-studio' },
+    featureSwitch: 'data-app',
     icon: { component: 'DataApp' },
     idPattern: /^\d+$/,
     relatedData: [
@@ -784,6 +809,7 @@ export const ObjectTypeRegistry = {
       keyword: 'pages',
       parentExtract: { keyword: 'app-studio', offset: 1 }
     },
+    featureSwitch: 'data-app',
     icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
     parents: ['DATA_APP'],
@@ -824,6 +850,7 @@ export const ObjectTypeRegistry = {
   DATA_SCIENCE_NOTEBOOK: new DomoObjectType('DATA_SCIENCE_NOTEBOOK', 'Jupyter Workspace', {
     api: { endpoint: '/datascience/v1/workspaces/{id}', paths: { created: 'created', name: 'name' } },
     extractConfig: { keyword: 'jupyter-workspaces' },
+    featureSwitch: ['jupyter-notebooks', 'jupyter-notebooks-ga'],
     icon: { component: 'Jupyter' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     relatedData: [
@@ -1062,6 +1089,7 @@ export const ObjectTypeRegistry = {
       keyword: GOVERNANCE_TOOLKIT_JOB_PARAM,
       parentExtract: { keyword: 'governance-toolkit', valueMap: GOVERNANCE_TOOLKIT_APPLICATION_ID_BY_SLUG }
     },
+    featureSwitch: ['executor-pipeline', 'governance-toolkit-ui'],
     icon: { component: 'Toolbox' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parents: ['EXECUTOR_APPLICATION'],
@@ -1129,6 +1157,7 @@ export const ObjectTypeRegistry = {
     aliases: ['OBJECTIVE'],
     api: { endpoint: '/social/v1/objectives/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'goals' },
+    featureSwitch: ['goals-beta', 'goals-v1'],
     icon: { component: 'Goals' },
     idPattern: /^\d+$/,
     urlPath: '/goals/{id}'
@@ -1165,6 +1194,7 @@ export const ObjectTypeRegistry = {
       { label: 'Workflow Version', source: 'metadata.context.workflowVersionNumber' }
     ],
     extractConfig: { keyword: 'queueId' },
+    featureSwitch: 'hopper',
     icon: { component: 'FormatListChecks' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     relatedData: [
@@ -1198,6 +1228,7 @@ export const ObjectTypeRegistry = {
       keyword: 'id',
       parentExtract: { keyword: 'queueId', offset: 1 }
     },
+    featureSwitch: 'hopper',
     icon: { component: 'FormatListChecks' },
     // Task IDs are case-sensitive, business-defined references (e.g.
     // "15AUG25_TS551E") or system UUIDs, never plain integers, so accept any
@@ -1252,6 +1283,7 @@ export const ObjectTypeRegistry = {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   METRIC: new DomoObjectType('METRIC', 'Metric', {
+    featureSwitch: 'metrics',
     icon: { component: 'ChartLine' },
     idPattern: /.*/
   }),
@@ -1300,6 +1332,7 @@ export const ObjectTypeRegistry = {
   PROJECT: new DomoObjectType('PROJECT', 'Project', {
     api: { endpoint: '/content/v1/projects/{id}', paths: { created: 'created', name: 'projectName' } },
     extractConfig: { keyword: 'project' },
+    featureSwitch: '!no-projects-tasks',
     icon: { component: 'Project' },
     idPattern: /^\d+$/,
     urlPath: '/project/{id}'
@@ -1316,6 +1349,7 @@ export const ObjectTypeRegistry = {
   PROJECT_TASK: new DomoObjectType('PROJECT_TASK', 'Task', {
     api: { endpoint: '/content/v1/tasks/{id}', paths: { name: 'taskName' } },
     extractConfig: { keyword: 'taskId' },
+    featureSwitch: '!no-projects-tasks',
     icon: { component: 'Project' },
     idPattern: /^\d+$/,
     parents: ['PROJECT', 'PROJECT_LIST'],
@@ -1329,12 +1363,29 @@ export const ObjectTypeRegistry = {
   PROXY_USER: new DomoObjectType('PROXY_USER', 'Proxy User', {
     idPattern: /.*/
   }),
-  PUBLIC_URL: new DomoObjectType('PUBLIC_URL', 'Public Embed URL', {
-    idPattern: /.*/
+  PUBLIC_URL: new DomoObjectType('PUBLIC_URL', 'Embed URL', {
+    // Cards, pages, and App Studio apps each keep their embeds behind a separate summary endpoint.
+    api: {
+      anyOf: [
+        '/content/v1/cards/kpi/embed/summary',
+        '/content/v1/pages/embed/summary',
+        '/content/v1/dataapps/embed/summary'
+      ].map((endpoint) => ({
+        bodyTemplate: { embedIdSearchText: '{id}' },
+        endpoint: `${endpoint}?limit=50&offset=0`,
+        filterByIdField: 'gatewayToken',
+        listPath: 'summaries',
+        method: 'POST',
+        paths: { name: 'gatewayToken' }
+      }))
+    },
+    icon: { component: 'CodeTags' },
+    idPattern: /^(?=.*[A-Za-z])[A-Za-z0-9]{5}$/
   }),
   PUBLICATION: new DomoObjectType('PUBLICATION', 'Publication', {
     api: { endpoint: '/publish/v2/publications/{id}', paths: { created: 'created', name: 'name' } },
     extractConfig: { keyword: 'id' },
+    featureSwitch: ['publish-everywhere', 'publish-everywhere-v2'],
     icon: { component: 'Newspaper' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/admin/domo-everywhere/publications?id={id}'
@@ -1354,6 +1405,7 @@ export const ObjectTypeRegistry = {
       { label: 'App ID', source: 'metadata.context.dataAppId' },
       { label: 'Report Page ID', source: 'metadata.context.reportPageId' }
     ],
+    featureSwitch: 'report-builder',
     // CheckIn looks unrelated to a report on its own, but it is the icon Domo uses
     // for reports in its own UI. Matching Domo is the point; don't "fix" it.
     icon: { component: 'CheckIn' },
@@ -1379,6 +1431,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v3/stacks/{id}',
       paths: { created: 'page.created', name: 'title' }
     },
+    featureSwitch: 'report-builder',
     icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
     parents: ['REPORT_BUILDER'],
@@ -1399,6 +1452,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v1/reportbuilder/views/{id}',
       paths: { name: 'subject' }
     },
+    featureSwitch: 'report-builder',
     icon: { component: 'Document' },
     idPattern: /^\d+$/,
     parents: ['REPORT_BUILDER'],
@@ -1411,6 +1465,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v1/reportschedules/{id}',
       paths: { created: 'schedule.startDate', name: 'title', parentId: 'viewId' }
     },
+    featureSwitch: 'scheduled-reports',
     icon: { component: 'Calendar' },
     idPattern: /^\d+$/,
     // Single, fixed parent type, so getParent() enriches metadata.parent with the
@@ -1429,6 +1484,7 @@ export const ObjectTypeRegistry = {
   REPOSITORY: new DomoObjectType('REPOSITORY', 'Sandbox Repository', {
     api: { endpoint: '/versions/v1/repositories/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'repositories' },
+    featureSwitch: ['domo-versions-standard', 'domo-versions-ui'],
     icon: { component: 'Sandcastle' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/admin/sandbox/repositories/{id}'
@@ -1473,6 +1529,7 @@ export const ObjectTypeRegistry = {
     redirectsToType: 'DATA_SOURCE'
   }),
   SUBSCRIPTION: new DomoObjectType('SUBSCRIPTION', 'Subscription', {
+    featureSwitch: ['publish-everywhere', 'publish-everywhere-v2'],
     icon: { component: 'FileDrawer' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
@@ -1626,6 +1683,7 @@ export const ObjectTypeRegistry = {
   WORKFLOW_MODEL: new DomoObjectType('WORKFLOW_MODEL', 'Workflow', {
     api: { endpoint: '/workflow/v1/models/{id}', paths: { created: 'createdOn', name: 'name' } },
     extractConfig: { keyword: 'workflows', offset: 2 },
+    featureSwitch: 'workflows',
     icon: { component: 'Workflow' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     relatedData: [
@@ -1687,6 +1745,7 @@ export const ObjectTypeRegistry = {
   WORKSHEET: new DomoObjectType('WORKSHEET', 'Worksheet', {
     api: { endpoint: '/content/v1/dataapps/{id}', paths: { name: 'title' } },
     extractConfig: { keyword: 'app-studio' },
+    featureSwitch: 'app-studio-worksheets',
     icon: { component: 'Worksheets' },
     idPattern: /^\d+$/,
     urlPath: '/app-studio/{id}'
@@ -1703,6 +1762,7 @@ export const ObjectTypeRegistry = {
       keyword: 'pages',
       parentExtract: { keyword: 'app-studio', offset: 1 }
     },
+    featureSwitch: 'app-studio-worksheets',
     icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
     parents: ['WORKSHEET'],
@@ -1721,6 +1781,7 @@ export const ObjectTypeRegistry = {
   WORKSPACE: new DomoObjectType('WORKSPACE', 'Workspace', {
     api: { endpoint: '/nav/v1/workspaces/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'workspaces' },
+    featureSwitch: ['workspaces-react', 'workspaces-v1'],
     icon: { component: 'Workspace' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/workspaces/{id}'
@@ -1736,6 +1797,9 @@ export const ObjectTypeRegistry = {
  * @param {Object} params.apiConfig - The API configuration {method, endpoint, bodyTemplate, paths}.
  *   `paths` maps a metadata field to its dot-path in the response (e.g. {created, details, name, parentId}).
  *   Every entry except `details` is resolved generically, so new fields need only a `paths` entry here.
+ *   An `anyOf` array of configs replaces the primary for a type spread across several endpoints; each is
+ *   tried in order and the first to find the object wins. A config's `listPath` points at a list in the
+ *   response whose first entry (or the one matching `filterByIdField`) is the object, a miss when empty.
  *   An optional `fallback` is a second config of the same shape, tried when the primary endpoint
  *   answers non-ok. It declares its own `endpoint` and `paths` rather than merging over the primary,
  *   because it reads a differently shaped response.
@@ -1778,6 +1842,7 @@ export async function fetchObjectDetailsInPage(params) {
         bodyTemplate = null,
         endpoint,
         filterByIdField = null,
+        listPath = null,
         method = 'GET',
         nameFormat = null,
         nameTemplate = null,
@@ -1821,8 +1886,15 @@ export async function fetchObjectDetailsInPage(params) {
 
       let data = await response.json();
 
-      // If the endpoint returns a list, find the matching item by ID field
-      if (filterByIdField && Array.isArray(data)) {
+      if (listPath) {
+        const list = (listPath.match(/[^.[\]]+/g) || []).reduce((current, prop) => current?.[prop], data);
+        const items = Array.isArray(list) ? list : [];
+        data =
+          (filterByIdField ? items.find((item) => String(item[filterByIdField]) === String(objectId)) : items[0]) ?? null;
+        if (!data) {
+          return { ok: false, reason: `${typeId} ${objectId} not found in list response` };
+        }
+      } else if (filterByIdField && Array.isArray(data)) {
         data = data.find((item) => String(item[filterByIdField]) === String(objectId)) || null;
         if (!data) {
           return { ok: false, reason: `${typeId} ${objectId} not found in list response` };
@@ -1864,7 +1936,9 @@ export async function fetchObjectDetailsInPage(params) {
         }
         if (ms === null) return String(objectId);
         const date = new Date(ms);
-        return isNaN(date.getTime()) ? String(objectId) : date.toLocaleString();
+        return isNaN(date.getTime())
+          ? String(objectId)
+          : `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
       };
       const rawName = nameTemplate
         ? nameTemplate.replace(/{([^}]+)}/g, (_, path) => (path === 'id' ? objectId : (resolvePath(path) ?? '')))
@@ -1897,14 +1971,14 @@ export async function fetchObjectDetailsInPage(params) {
     };
 
     const configs = [];
-    if (fallbackMode !== 'only') configs.push(apiConfig);
+    if (fallbackMode !== 'only') configs.push(...(apiConfig.anyOf ?? [apiConfig]));
     if (apiConfig.fallback && fallbackMode !== 'off') configs.push(apiConfig.fallback);
 
     let firstReason = null;
     for (const config of configs) {
       const attempt = await attemptFetch(config);
       if (attempt.ok) {
-        return config === apiConfig ? attempt.value : { ...attempt.value, viaFallback: true };
+        return config === apiConfig.fallback ? { ...attempt.value, viaFallback: true } : attempt.value;
       }
       // Report the first attempt's failure: it is the one the caller asked for, and a fallback's
       // status says nothing useful about why the object's own endpoint refused.

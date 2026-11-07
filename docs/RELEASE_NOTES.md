@@ -1,76 +1,34 @@
-# Domo Toolkit v1.8.0 Release Notes
+# Domo Toolkit v1.9.0 Release Notes
 
 ## New Features and Improvements
 
-- A new Get Collections button lists the AppDB collections used by an app card, the app cards on a page or App Studio app, every instance of an app design, or a Jupyter workspace, including collections borrowed from other apps.
-- A new Enable Dev Tools button on a dataflow reloads it with the dataflows-dev feature switch turned on, and turns it back off once it is on.
-- The Current Context footer on a Jupyter dataflow now has a Jupyter Workspace tab linking to the workspace that runs it.
+- Card Owners, Get Collections, and other views that read many cards at once now load large card lists much faster.
+- Migrate Content can now be scoped to specific pages and apps or launched from them. ([#100](https://github.com/brycewc/domo-toolkit/issues/100))
+- Activity Log on a user now has an Actions by User option that lists the actions that user took, not the actions taken on them.
+- The Activity Log's user filter now includes inactive users.
+- Cards now support Delete.
+- Deleting a page now lists its embeds and the embeds of its cards, and deleting an App Studio app from one of its pages lists the embeds of the app and every card in it.
+- Get Card Pages now lists the embeds of its cards in a new Embeds group.
+- Pages and App Studio pages have a new Get Embeds button that lists their embeds.
+- Migrate Content now updates the alerts on migrated cards, which previously kept pointing at the old dataset's PDP policies, columns, and Beast Modes.
 
-### Get Cards
+## Newly Supported Object Types
 
-- Now lists the workflows on an App Studio page, in their own Workflows group.
-- Now lists the forms placed directly on an App Studio page, and the forms and workflows behind its buttons.
-
-### Activity Log
-
-- Added a button to the header of the object details view.
-- Holding the button on a user or group now offers Owned Objects, which opens the activity log for everything they own.
-
-### Code Engine Packages
-
-- Get Usage now lists the AI toolkits that use a package, and the Current Context footer has an AI Toolkits tab.
-- Deleting a package is now blocked while an AI toolkit uses it.
+- Connectors are now detected on their App Store page, with Streams and Accounts JSON tabs listing where they are used.
 
 ## UI Improvements
 
-- The Action and Object Type filters in the activity log are now searchable fields that show your selections as removable tags.
-- The "Not Checked" warning in Objects Owned and Transfer Ownership can now be dismissed.
-
-### Delete
-
-- Impact counts on a dataflow's output datasets and a dataset's child views now appear right away instead of about 10 seconds later.
-- Total downstream counts on datasets now read "(N impact)" instead of "(N dependencies)".
-- Connector input datasets on a dataflow now show their full downstream impact outside the dataflow, as "(N other impact)".
-- Confirming the delete of a dataflow or dataset now warns about downstream dependencies.
-- A dataflow or dataset with downstream dependencies now requires holding the Delete button, for 5 seconds when dataflows or datasets depend on it and 2.5 seconds when only cards and alerts do.
-- The Output DataSets group now opens automatically when a dataflow has only one output.
+- Timestamps no longer show a comma between the date and the time.
+- The Created date in the context footer no longer shows seconds.
+- Updated the Code Engine icon to match the change in the Domo UI.
 
 ## Bug Fixes
 
-- Navigate to Copied Object's manual selection list now offers every matching type, including DataSet, Worksheet, and Variable, instead of hiding types that open the same page.
-- Update Details and Generate Schema now lock their text fields while saving.
-- Errors returned by Domo now show up as errors instead of being reported as success or as finding nothing.
-- Get Usage's filter to the current Code Engine Package Version now shows the workflows that use that version.
-- Switching the activity log from the DomoStats dataset to the API now shows the Description column in place of the Source column.
-- Get Workspaces no longer appears on system pages like Overview and Favorites.
-- Copy now copies the dataset's ID instead of the highlighted cell when a cell is selected in the dataset's data table.
-- Migrate Beast Mode Usage no longer deletes the original Beast Mode while drills it can't update still use it, and checks with Domo that nothing uses it right before deleting.
-
-### Get Cards
-
-- Workflows on an App Studio page are now listed as workflows instead of as a form named "Start the workflow".
-- Task Center queues on an App Studio page now show up even when you aren't shared on the queue.
-- A page holding only forms, workflows, or queues now lists them instead of reporting that nothing is there.
-
-### Delete
-
-- Views can be deleted again.
-- Views, data fusions, and data models now list their downstream dependencies instead of reporting that they aren't supported.
-
-### API Errors
-
-- Now captures failed requests on tabs that were already open when the extension updated.
-- No longer loses its captured errors after the browser sits idle for a short while.
-
-### Transfer Ownership
-
-- Now lists a user's certification processes instead of failing to load them, as does Objects Owned.
-- No longer lets you pick the source user or group as the new owner.
-- Now only offers to delete the user when every type loaded and every object they own is selected for transfer, and warns that the types it can't check will be orphaned.
-- Opening another view right after a transfer finishes no longer closes the new view a few seconds later.
-
-### Migrate Content and Remap Columns
-
-- Migrate Content now moves cards that filter or have a slicer on a column the dataset no longer has, removing that filter or slicer, instead of failing.
-- Both now update older dataset views that filter rows or calculate a column, instead of failing with "GET fusion HTTP 400".
-- Both now update dataset unions in views.
+- Fixed Cancel Run not working on datasets with a long run history.
+- Fixed names in the Activity Log's Object and Source columns often not linking to the object.
+- Fixed listing app cards failing on datasets with several thousand of them.
+- Objects Owned and Transfer Ownership no longer show failed rows for object types the instance doesn't have enabled, such as Workflows, Code Engine, Jupyter, or Goals.
+- Migrate Content no longer offers to search Jupyter Workspaces on instances without Jupyter.
+- Deleting a Code Engine package is no longer blocked on instances without Workflows or AI Services.
+- Deleting a Workflow now succeeds when a deleted version was left running, and reports an error instead of success when the Workflow isn't actually deleted.
+- Migrate Content now recognizes Beast Modes used in a card's color rules instead of listing them as missing columns.

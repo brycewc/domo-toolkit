@@ -19,6 +19,7 @@ import { GetCards } from '@/components/buttons/GetCards';
 import { GetChildPages } from '@/components/buttons/GetChildPages';
 import { GetCollections } from '@/components/buttons/GetCollections';
 import { GetDatasets } from '@/components/buttons/GetDatasets';
+import { GetEmbeds } from '@/components/buttons/GetEmbeds';
 import { GetOwnedObjects } from '@/components/buttons/GetOwnedObjects';
 import { GetUsage } from '@/components/buttons/GetUsage';
 import { GetViewInputs } from '@/components/buttons/GetViewInputs';
@@ -228,6 +229,9 @@ export function ActionButtons({
                 )}
                 {availableActions.has('getCardPages') && (
                   <GetCardPages currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
+                )}
+                {availableActions.has('getEmbeds') && (
+                  <GetEmbeds currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />
                 )}
                 {availableActions.has('getCollections') && (
                   <GetCollections currentContext={currentContext} isDisabled={!isDomoPage} onStatusUpdate={onStatusUpdate} />

@@ -1,8 +1,42 @@
 import { executeInPage } from '@/utils/executeInPage';
 
+// A user-scoped count with no object scope can take tens of seconds for a busy account, so don't block on it.
+export async function getActivityLogCount({ end, eventType, objectId, objectType, start, tabId, user } = {}) {
+  return executeInPage(
+    async (objectType, objectId, eventType, user, start, end) => {
+      const queryParams = new URLSearchParams();
+      if (objectType) queryParams.append('objectType', objectType);
+      if (objectId) queryParams.append('objectId', objectId);
+      if (eventType) queryParams.append('eventType', eventType);
+      if (user) queryParams.append('user', user);
+      queryParams.append('start', start);
+      queryParams.append('end', end);
+
+      const response = await fetch(`/api/audit/v1/user-audits/count?${queryParams.toString()}`);
+      if (!response.ok) {
+        const error = new Error(`Failed to fetch activity log count. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+      const data = await response.json();
+      return data?.count ?? 0;
+    },
+    [
+      objectType ?? null,
+      objectId ?? null,
+      eventType ?? null,
+      user ?? null,
+      start ?? new Date('2008-01-01').getTime(),
+      end ?? Date.now()
+    ],
+    tabId
+  );
+}
+
 /**
  * Get activity log events from the Domo Audit API
  * @param {Object} params
+ * @param {boolean} [params.includeCount=true] - When false, skips the count request and returns `total: null`
  * @param {number} [params.limit=50] - Number of events to fetch (max 1000)
  * @param {number} [params.offset=0] - Offset for pagination
  * @param {string} [params.objectType] - Filter by object type (e.g., 'DATASET', 'CARD', 'PAGE')
@@ -10,11 +44,12 @@ import { executeInPage } from '@/utils/executeInPage';
  * @param {string} [params.eventType] - Filter by event type
  * @param {string} [params.user] - Filter by user ID
  * @param {number} params.tabId - The tab ID where the Domo page is open (for credentials)
- * @returns {Promise<{events: Array, total: number, limit: number, offset: number}>}
+ * @returns {Promise<{events: Array, total: number|null, limit: number, offset: number}>}
  */
 export async function getActivityLogForObject({
   end,
   eventType,
+  includeCount = true,
   limit = 50,
   objectId,
   objectType,
@@ -31,11 +66,12 @@ export async function getActivityLogForObject({
     eventType ?? null,
     user ?? null,
     start ?? new Date('2008-01-01').getTime(),
-    end ?? Date.now()
+    end ?? Date.now(),
+    includeCount
   ];
 
   return executeInPage(
-    async (limit, offset, objectType, objectId, eventType, user, start, end) => {
+    async (limit, offset, objectType, objectId, eventType, user, start, end, includeCount) => {
       const queryParams = new URLSearchParams();
       queryParams.append('limit', limit.toString());
       queryParams.append('offset', offset.toString());
@@ -48,11 +84,11 @@ export async function getActivityLogForObject({
       if (end) queryParams.append('end', end);
 
       const [countResponse, eventsResponse] = await Promise.all([
-        fetch(`/api/audit/v1/user-audits/count?${queryParams.toString()}`),
+        includeCount ? fetch(`/api/audit/v1/user-audits/count?${queryParams.toString()}`) : null,
         fetch(`/api/audit/v1/user-audits?${queryParams.toString()}`)
       ]);
 
-      if (!countResponse.ok) {
+      if (countResponse && !countResponse.ok) {
         const error = new Error(`Failed to fetch activity log count. HTTP status: ${countResponse.status}`);
         error.status = countResponse.status;
         throw error;
@@ -63,14 +99,14 @@ export async function getActivityLogForObject({
         throw error;
       }
 
-      const countData = await countResponse.json();
+      const countData = countResponse ? await countResponse.json() : null;
       const data = await eventsResponse.json();
 
       return {
         events: Array.isArray(data) ? data : [],
         limit,
         offset,
-        total: countData?.count ?? 0
+        total: countResponse ? (countData?.count ?? 0) : null
       };
     },
     serializableArgs,

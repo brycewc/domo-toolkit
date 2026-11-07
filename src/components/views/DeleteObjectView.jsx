@@ -72,7 +72,8 @@ import { DataList } from './DataList';
  * `confirmNotice({ deps })` adds a notice to the confirm dialog, for primary and
  * cascade deletes alike, and `holdToConfirm` makes its confirm button a
  * hold-to-fire one instead of a click: `true` for the button's default hold, or
- * a function of `{ deps }` returning the hold in milliseconds (0 for none).
+ * a function of `{ deps }` returning the hold in milliseconds (0 for none). A
+ * cascade's own `holdToConfirm` takes precedence over the type's for that cascade.
  *
  * A type whose removal isn't a deletion overrides the view's verb with `feature`
  * (the header), `actionIcon` (header and buttons), `confirmActionLabel` (the
@@ -108,6 +109,24 @@ const deletersByType = {
     primaryLabel: 'Delete Beast Mode',
     run: ({ context }) => deleteObject({ object: context.domoObject, tabId: context.tabId }),
     typeName: 'Beast Mode Formula'
+  },
+  CARD: {
+    confirmSuffix: '',
+    holdToConfirm: ({ deps }) => hasGroupItems(deps, 'cardEmbeds'),
+    primaryLabel: 'Delete Card',
+    run: async ({ context }) => {
+      const result = await deleteObject({ object: context.domoObject, tabId: context.tabId });
+      if (result.statusType !== 'success') {
+        throw new Error(result.statusDescription || 'Delete failed');
+      }
+      await redirectTabIfViewingObject({
+        ids: [context.domoObject.id],
+        tabId: context.tabId,
+        url: await cardHostUrl(context)
+      });
+      return result;
+    },
+    typeName: 'Card'
   },
   CODEENGINE_PACKAGE: {
     confirmSuffix: ' and every version it has',
@@ -147,6 +166,7 @@ const deletersByType = {
   DATA_APP_VIEW: {
     cascadeButtons: undefined,
     confirmSuffix: ' and all its cards',
+    holdToConfirm: ({ deps }) => hasGroupItems(deps, 'pageCardEmbeds'),
     primaryLabel: 'Delete Page and All Cards',
     run: ({ context }) => runPageDelete({ context, parentAppId: context.domoObject.parentId }),
     typeName: 'Page'
@@ -480,6 +500,7 @@ const deletersByType = {
   },
   PAGE: {
     confirmSuffix: ' and all its cards',
+    holdToConfirm: ({ deps }) => hasGroupItems(deps, 'pageEmbeds') || hasGroupItems(deps, 'pageCardEmbeds'),
     primaryLabel: 'Delete Page and All Cards',
     run: ({ context }) => runPageDelete({ context }),
     typeName: 'Page'
@@ -581,6 +602,7 @@ const deletersByType = {
   WORKSHEET_VIEW: {
     cascadeButtons: undefined,
     confirmSuffix: ' and all its cards',
+    holdToConfirm: ({ deps }) => hasGroupItems(deps, 'pageCardEmbeds'),
     primaryLabel: 'Delete Worksheet Page and All Cards',
     run: ({ context }) => runPageDelete({ context, parentAppId: context.domoObject.parentId }),
     typeName: 'Worksheet Page'
@@ -617,6 +639,8 @@ const onlyHereCardsCascade = {
     }
     return `${base} and its **${onlyHereCount} card${onlyHereCount !== 1 ? 's' : ''}** that appear on no other page permanently? Cards also used on other pages are left in place.`;
   },
+  holdToConfirm: ({ deps }) =>
+    hasGroupItems(deps, 'pageEmbeds') || hasGroupItems(deps, 'pageCardEmbeds', (item) => item.cardOnlyHere !== false),
   isBlocked: ({ blocked }) => blocked,
   label: () => 'Delete Page and Cards that Only Live Here',
   loadingMessage: ({ pageName }) => `Deleting **${pageName}** and cards that only live here…`,
@@ -722,6 +746,7 @@ export function DeleteObjectView({
     setDepsError(null);
     try {
       const result = await getDependenciesForDelete({
+        featureSwitches: context.featureSwitches,
         object: context.domoObject,
         origin: context.origin,
         tabId: context.tabId
@@ -882,7 +907,11 @@ export function DeleteObjectView({
   const hasDepsError = !!depsError;
   const outputCount = domoObject.metadata?.details?.outputs?.length || 0;
   const deletedCount = (deps?.groups || []).filter((g) => g.deleted).reduce((n, g) => n + g.items.length, 0);
-  const hold = typeof config.holdToConfirm === 'function' ? config.holdToConfirm({ deps }) : config.holdToConfirm;
+  const holdSetting =
+    pendingAction?.kind === 'cascade' && pendingAction.cascade?.holdToConfirm !== undefined
+      ? pendingAction.cascade.holdToConfirm
+      : config.holdToConfirm;
+  const hold = typeof holdSetting === 'function' ? holdSetting({ deps }) : holdSetting;
 
   const primaryLabel =
     typeof config.primaryLabel === 'function' ? config.primaryLabel({ outputCount }) : config.primaryLabel;
@@ -1279,6 +1308,9 @@ function buildAppCascade({ cardScope }) {
       }
       return `${base}, all its pages${pages}, and its **${appOnlyCount} card${appOnlyCount !== 1 ? 's' : ''}** that appear on no page outside it permanently?${shared}`;
     },
+    holdToConfirm: ({ deps }) =>
+      !!deps?.appCardEmbedsPending ||
+      ['appCardEmbeds', 'appEmbeds', 'pageCardEmbeds'].some((key) => hasGroupItems(deps, key)),
     label: ({ appLabel }) => `Delete ${appLabel} and All Cards${isOnlyHere ? ' that Only Live Here' : ''}`,
     loadingMessage: ({ appName }) =>
       isOnlyHere
@@ -1413,6 +1445,15 @@ function buildSelectionScope({ config, deps }) {
     eligibleIds,
     reasons: group.unselectableReasons || {}
   };
+}
+
+async function cardHostUrl(context) {
+  const fallback = `${context.origin}/page/-100000`;
+  const tab = await chrome.tabs.get(context.tabId).catch(() => null);
+  if (!tab?.url) return fallback;
+  const { origin, pathname } = new URL(tab.url);
+  const host = pathname.split('/kpis/details/')[0];
+  return origin === context.origin && host && host !== pathname ? `${origin}${host}` : fallback;
 }
 
 function collectPickerAncestors(items, scope) {
@@ -1612,6 +1653,10 @@ function findSourceExecution(deps) {
  * @param {Array<Object|null>} impacts - Impact breakdowns, `null` where unreadable
  * @returns {number} Milliseconds, or 0 for a plain click
  */
+function hasGroupItems(deps, key, predicate = () => true) {
+  return (deps?.groups || []).some((g) => g.key === key && g.items.some(predicate));
+}
+
 function holdDurationForImpacts(impacts) {
   if (impacts.some((impact) => impact === null || impact.dataflows > 0 || impact.datasets > 0)) {
     return FULL_HOLD_DURATION;

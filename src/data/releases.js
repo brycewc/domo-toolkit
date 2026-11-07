@@ -1,5 +1,20 @@
 export const releases = [
   {
+    date: '2026-11-06',
+    githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.9.0',
+    highlights: [
+      'Cards now support Delete',
+      'Support for embed links across get pages and delete actions, with a new Get Embeds button on pages and App Studio pages',
+      'Migrate Content can be scoped to specific pages and apps, and now updates the alerts on migrated cards',
+      'Activity Log on a user can list the actions that user took',
+      'Connectors are detected on their App Store page, with Streams and Accounts JSON tabs'
+    ],
+    notify: 'fullPage',
+    summary:
+      'Feature release adding card delete, detecting Connectors, support for embed links, scoped Migrate Content, and feature switch gating.',
+    version: '1.9.0'
+  },
+  {
     date: '2026-10-12',
     githubUrl: 'https://github.com/brycewc/domo-toolkit/releases/tag/v1.8.0',
     highlights: [

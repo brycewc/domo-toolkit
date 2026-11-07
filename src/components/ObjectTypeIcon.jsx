@@ -20,6 +20,7 @@ import IconClock from '@icons/clock.svg?react';
 import IconCodeTags from '@icons/code-tags.svg?react';
 import IconCode from '@icons/code.svg?react';
 import IconConnector from '@icons/connector.svg?react';
+import IconCurlyBrackets from '@icons/curly-brackets.svg?react';
 import IconDataApp from '@icons/data-app.svg?react';
 import IconDataCollection from '@icons/data-collection.svg?react';
 import IconDataWarehouse from '@icons/data-warehouse.svg?react';
@@ -85,6 +86,7 @@ const ICON_MAP = {
   Code: IconCode,
   CodeTags: IconCodeTags,
   Connector: IconConnector,
+  CurlyBrackets: IconCurlyBrackets,
   DataApp: IconDataApp,
   Database: IconDatabase,
   DataCollection: IconDataCollection,

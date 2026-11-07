@@ -9,8 +9,9 @@
 import { indexColumnNames, resolveColumnName } from '@/utils/columnOrphans';
 import { executeInPage } from '@/utils/executeInPage';
 
-import { moveAlertToTarget } from './alerts';
+import { getCardAlerts, moveAlertToTarget, repointCardAlert } from './alerts';
 import { getCardDefinition } from './cards';
+import { beastModeIdsByName, repointConditionalFormatColumns } from './columnFields';
 import {
   collectViewDroppableColumns,
   enumerateViewSourceIds,
@@ -465,6 +466,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
  * @param {string} params.originId
  * @param {string} params.targetId
  * @param {Record<string, string>} [params.beastModeIdRemap] - Origin → target Beast Mode legacyIds, for the card's own references.
+ * @param {Record<string, string>} [params.beastModeNameByLegacyId] - Target Beast Mode legacyId → name, for conditional formats, which reference a Beast Mode by name.
  * @param {Record<string, string>} [params.beastModeNumericRemap] - Origin → target Beast Mode numeric ids, for nested DOMO_BEAST_MODE(id) references.
  * @param {{aggregation?: string|null, columnName: string, dropCardFormula?: boolean, originLegacyId: string, originNumericId?: string|number|null}} [params.beastModeToColumn] - Repoint one Beast Mode's references onto a physical column instead of another Beast Mode.
  * @param {Record<string, string|null>} [params.columnMap]
@@ -477,6 +479,7 @@ export async function searchDatasets(text, tabId = null, offset = 0) {
  */
 export async function swapCardInput({
   beastModeIdRemap,
+  beastModeNameByLegacyId,
   beastModeNumericByLegacyId,
   beastModeNumericRemap,
   beastModeToColumn,
@@ -520,7 +523,9 @@ export async function swapCardInput({
   }
   try {
     const fetchUrn = urn || cardId;
-    const definition = cachedDefinition || (await getCardDefinition({ cardId: fetchUrn, tabId }));
+    const fetched = cachedDefinition || (await getCardDefinition({ cardId: fetchUrn, tabId }));
+    // Every remap below works on legacyIds, so the names go out to ids here and come back after.
+    const definition = withConditionalFormatColumns(fetched, beastModeIdsByName(fetched));
     let rewritten = hasEffectiveMapping(columnMap)
       ? rewriteCardColumns(definition, columnMap, beastModeNumericByLegacyId)
       : JSON.parse(JSON.stringify(definition));
@@ -585,6 +590,13 @@ export async function swapCardInput({
         (col) => col && Object.prototype.hasOwnProperty.call(col, 'mapping')
       );
     }
+    // Later entries win: a rename applied to the card, then the name on the target.
+    const beastModeNames = new Map();
+    for (const card of [fetched, rewritten]) {
+      for (const [name, id] of beastModeIdsByName(card)) beastModeNames.set(id, name);
+    }
+    for (const [id, name] of Object.entries(beastModeNameByLegacyId || {})) beastModeNames.set(id, name);
+    rewritten = withConditionalFormatColumns(rewritten, beastModeNames);
     const putResult = await putCardForMigration(cardId, rewritten, tabId, { isDrill, urn });
     return droppedFilters > 0 ? { ...putResult, droppedFilters } : putResult;
   } catch (err) {
@@ -1345,6 +1357,9 @@ async function swapCardInputFast(cardId, originId, targetId, tabId) {
  */
 // A Text card names its datasets in its markup, so Domo's own move repoints it
 // server-side instead, with its column references left as they are.
+// Outlasts the alerts service's two nested 30-second caches of a card's dataset.
+const CARD_ALERT_RETRY_DELAY_MS = 65000;
+
 const DEFINITION_CARD_TYPES = new Set(['drill_view', 'kpi']);
 
 export const MIGRATE_TYPES = [
@@ -1419,8 +1434,10 @@ export async function migrateAllDownstreamContent({
   // fields, but a card-level formula must reference it as DOMO_BEAST_MODE(<numeric
   // id>), so the card rewriter needs the numeric id to convert those refs.
   const beastModeNumericByLegacyId = {};
+  let beastModeNameByLegacyId = {};
   for (const bm of targetBeastModes || []) {
     if (bm?.legacyId && bm?.id != null) beastModeNumericByLegacyId[bm.legacyId] = String(bm.id);
+    if (bm?.legacyId && bm?.name) beastModeNameByLegacyId[bm.legacyId] = bm.name;
   }
 
   // Phase 1: Beast Modes. Produces the origin → target id remap the card swap
@@ -1450,6 +1467,7 @@ export async function migrateAllDownstreamContent({
       targetId
     });
     beastModeIdRemap = bm.idRemap;
+    beastModeNameByLegacyId = { ...beastModeNameByLegacyId, ...bm.nameByLegacyId };
     beastModeNumericRemap = bm.numericRemap;
     const result = {
       attempted: beastModeAttempted,
@@ -1495,10 +1513,19 @@ export async function migrateAllDownstreamContent({
       const mergedInputs = [];
       const skipped = [];
       let succeeded = 0;
+      const isCards = type.key === 'cards';
+      const cardAlerts = isCards
+        ? await getCardAlerts(
+            items.map((i) => i.id),
+            tabId
+          ).catch((err) => new Error(err?.message || String(err)))
+        : null;
+      const swappedCards = [];
       for (const item of items) {
         const cached = definitionsByItemKey?.get?.(makeItemKey(type.key, item.id))?.definition;
         const resp = await dispatchSwap(type.key, item, {
           beastModeIdRemap,
+          beastModeNameByLegacyId,
           beastModeNumericByLegacyId,
           beastModeNumericRemap,
           cachedDefinition: cached,
@@ -1525,6 +1552,7 @@ export async function migrateAllDownstreamContent({
           });
         } else if (resp?.success) {
           succeeded++;
+          if (isCards) swappedCards.push(item);
           // SQL dataflow statements we couldn't safely rewrite (origin SELECT *,
           // etc.). The input still repointed; the user must fix these by hand.
           if (Array.isArray(resp.unhandled) && resp.unhandled.length > 0) {
@@ -1541,7 +1569,31 @@ export async function migrateAllDownstreamContent({
         }
       }
 
+      const alertRepair = isCards
+        ? await repairCardAlerts({
+            beastModeRemaps: buildCardAlertBeastModeRemaps(
+              beastModeIdRemap,
+              beastModeNumericRemap,
+              cardBeastModeResolutions
+            ),
+            cardAlerts,
+            cards: swappedCards,
+            columnMap,
+            droppedColumns,
+            originId,
+            pdpMap,
+            tabId,
+            targetId
+          })
+        : { issues: [], updated: 0 };
+      for (const issue of alertRepair.issues) {
+        if (issue.cardId == null || manualReview.some((m) => String(m.id) === String(issue.cardId))) continue;
+        manualReview.push({ id: issue.cardId, name: issue.cardName });
+      }
+
       const result = {
+        alertIssues: alertRepair.issues,
+        alertsUpdated: alertRepair.updated,
         attempted,
         count: items.length,
         droppedFilters,
@@ -1664,6 +1716,19 @@ function buildCanonicalCaseMap(referencedNames, targetColumnTypes) {
     if (canonical && canonical !== name) map[name] = canonical;
   }
   return map;
+}
+
+function buildCardAlertBeastModeRemaps(idRemap, numericRemap, cardBeastModeResolutions) {
+  const legacy = { ...(idRemap || {}) };
+  const template = { ...(numericRemap || {}) };
+  for (const r of cardBeastModeResolutions || []) {
+    if (r?.disposition !== 'useTarget') continue;
+    if (r.originLegacyId && r.targetLegacyId) legacy[r.originLegacyId] = r.targetLegacyId;
+    if (r.originTemplateId != null && r.targetTemplateId != null) {
+      template[String(r.originTemplateId)] = String(r.targetTemplateId);
+    }
+  }
+  return { legacy, template };
 }
 
 /**
@@ -1847,6 +1912,7 @@ async function dispatchSwap(typeKey, item, options) {
     }
     return swapCardInput({
       beastModeIdRemap: options.beastModeIdRemap,
+      beastModeNameByLegacyId: options.beastModeNameByLegacyId,
       beastModeNumericByLegacyId: options.beastModeNumericByLegacyId,
       beastModeNumericRemap: options.beastModeNumericRemap,
       cachedDefinition: options.cachedDefinition,
@@ -2042,6 +2108,7 @@ async function migrateBeastModes({
   // `DOMO_BEAST_MODE(<id>)`). Both are returned: the card swap uses idRemap for
   // its own references and numericRemap for any nested formulas it embeds.
   const idRemap = {};
+  const nameByLegacyId = {};
   const numericRemap = {};
   const originBeastModeNames = new Map(
     [...(originBeastModes || []), ...selectedBeastModes]
@@ -2061,13 +2128,15 @@ async function migrateBeastModes({
     return {
       errors: [{ error: 'Could not determine current user ID', id: 'all' }],
       idRemap: {},
+      nameByLegacyId: {},
       numericRemap: {},
       succeeded: 0
     };
   }
 
-  const mapIds = (origin, target) => {
+  const mapIds = (origin, target, name = target?.name) => {
     if (origin?.legacyId && target?.legacyId) idRemap[origin.legacyId] = target.legacyId;
+    if (target?.legacyId && name) nameByLegacyId[target.legacyId] = name;
     if (origin?.id != null && target?.id != null) numericRemap[String(origin.id)] = String(target.id);
   };
 
@@ -2189,7 +2258,7 @@ async function migrateBeastModes({
       for (let i = 0; i < buildable.length; i++) {
         const c = buildable[i].record;
         if (created[i]) {
-          mapIds(c.origin, created[i]);
+          mapIds(c.origin, created[i], c.name);
           succeeded++;
         } else {
           unresolved.push(c);
@@ -2236,7 +2305,7 @@ async function migrateBeastModes({
     }
   }
 
-  return { errors, idRemap, numericRemap, succeeded };
+  return { errors, idRemap, nameByLegacyId, numericRemap, succeeded };
 }
 
 /**
@@ -2383,6 +2452,89 @@ function remapNestedBeastModeIds(template, numericRemap) {
   return template;
 }
 
+async function repairCardAlerts({
+  beastModeRemaps,
+  cardAlerts,
+  cards,
+  columnMap,
+  droppedColumns,
+  originId,
+  pdpMap,
+  tabId,
+  targetId
+}) {
+  if (cards.length === 0) return { issues: [], updated: 0 };
+  if (cardAlerts instanceof Error) {
+    return {
+      issues: [
+        {
+          cardId: null,
+          error: `Couldn't look up the migrated cards' alerts (${cardAlerts.message}), so any alerts on them still point at the origin dataset.`
+        }
+      ],
+      updated: 0
+    };
+  }
+
+  const alertsByCardId = new Map();
+  for (const alert of cardAlerts || []) {
+    if (alert?.id == null || alert.resourceId == null) continue;
+    const key = String(alert.resourceId);
+    if (!alertsByCardId.has(key)) alertsByCardId.set(key, []);
+    alertsByCardId.get(key).push(alert);
+  }
+
+  const lastSwapAt = Date.now();
+  const repoint = (alert) =>
+    repointCardAlert({
+      alertId: alert.id,
+      beastModeLegacyRemap: beastModeRemaps.legacy,
+      beastModeTemplateRemap: beastModeRemaps.template,
+      columnMap,
+      droppedColumns,
+      originId,
+      pdpMap,
+      tabId,
+      targetId
+    }).catch((err) => ({ error: err?.message || String(err), retryable: true, success: false }));
+
+  const failures = [];
+  let updated = 0;
+  for (const card of cards) {
+    for (const alert of alertsByCardId.get(String(card.id)) || []) {
+      const resp = await repoint(alert);
+      if (resp.success) {
+        if (!resp.unchanged) updated++;
+      } else {
+        failures.push({ alert, card, resp });
+      }
+    }
+  }
+
+  // Right after the swap, Domo may still validate a card alert against the origin dataset.
+  const retryable = failures.filter((f) => f.resp.status === 400 || f.resp.status >= 500 || f.resp.retryable);
+  if (retryable.length > 0) {
+    const wait = lastSwapAt + CARD_ALERT_RETRY_DELAY_MS - Date.now();
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    for (const failure of retryable) {
+      const resp = await repoint(failure.alert);
+      failure.resp = resp;
+      if (resp.success && !resp.unchanged) updated++;
+    }
+  }
+
+  const issues = failures
+    .filter((f) => !f.resp.success)
+    .map((f) => ({
+      alertId: f.alert.id,
+      alertName: f.alert.name || String(f.alert.id),
+      cardId: f.card.id,
+      cardName: f.card.name || String(f.card.id),
+      error: describeSwapFailure(f.resp)
+    }));
+  return { issues, updated };
+}
+
 /**
  * The view output columns a set of dropped ORIGIN columns takes with it. Only
  * columns the view uses purely as plain selected columns resolve to an output;
@@ -2406,4 +2558,13 @@ function setDataflowVersionDescription(definition, originName, targetName, count
   if (!definition || typeof definition !== 'object') return;
   const description = buildDataflowVersionDescription(originName, targetName, count);
   definition.onboardFlowVersion = { ...(definition.onboardFlowVersion || {}), description };
+}
+
+function withConditionalFormatColumns(card, columns) {
+  const formats = card?.definition?.conditionalFormats;
+  if (!Array.isArray(formats)) return card;
+  return {
+    ...card,
+    definition: { ...card.definition, conditionalFormats: repointConditionalFormatColumns(formats, columns) }
+  };
 }

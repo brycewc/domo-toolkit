@@ -1,3 +1,4 @@
+import { beastModeSaveTarget } from '@/utils/beastModeLinks';
 import { DEPENDENCY_FETCH_CONCURRENCY } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
 
@@ -300,6 +301,59 @@ export async function getBeastModeReferenceGraph(beastModes, tabId = null) {
     graph.set(sourceId, refs);
   }
   return graph;
+}
+
+export async function getBeastModesSavedOnCard({ cardId, datasetIds, drillIds = [], tabId = null }) {
+  if (datasetIds.length === 0) return [];
+  const cardLevel = await executeInPage(
+    async (datasetIds) => {
+      const all = [];
+      const limit = 100;
+      let offset = 0;
+      let moreData = true;
+      while (moreData) {
+        const response = await fetch('/api/query/v1/functions/search', {
+          body: JSON.stringify({
+            filters: [{ field: 'dataset', idList: datasetIds }, { field: 'notvariable' }],
+            limit,
+            offset,
+            sort: { ascending: true, field: 'name' }
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST'
+        });
+        if (!response.ok) {
+          const error = new Error(`Failed to search Beast Modes. HTTP status: ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
+        const data = await response.json();
+        const results = data?.results || [];
+        for (const f of results) {
+          if (f?.variable === true) continue;
+          const datasetLink = (f?.links || []).find((l) => l?.resource?.type === 'DATA_SOURCE');
+          if (!datasetLink || datasetLink.visible === true) continue;
+          all.push({ id: f.id, links: f.links, name: f.name || String(f.id) });
+        }
+        offset += limit;
+        moreData = Boolean(data?.hasMore) && results.length > 0;
+      }
+      return all;
+    },
+    [[...new Set(datasetIds.map(String))]],
+    tabId
+  );
+
+  const rootId = String(cardId);
+  const drillIdSet = new Set(drillIds.map(String));
+  return (cardLevel || []).flatMap(({ id, links, name }) => {
+    const target = beastModeSaveTarget(links);
+    if (target?.typeId === 'CARD' && target.id === rootId) return [{ drillId: null, id, name }];
+    if (target?.typeId === 'DRILL_VIEW' && (target.parentId === rootId || drillIdSet.has(target.id))) {
+      return [{ drillId: target.id, id, name }];
+    }
+    return [];
+  });
 }
 
 /**

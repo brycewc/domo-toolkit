@@ -10,7 +10,14 @@ import { useUserLookup } from '@/hooks/useUserLookup';
 import { useViewReady } from '@/hooks/useViewReady';
 import { DomoObject } from '@/models/DomoObject';
 import { copyJsonNode, copyToClipboard } from '@/utils/copyToClipboard';
-import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
+import {
+  formatEpochTimestamp,
+  formatLocalDateTime,
+  formatTimestamp,
+  isDateFieldName,
+  isGroupFieldName,
+  isUserFieldName
+} from '@/utils/general';
 import { buildActivityLogAction, buildRefreshAction, buildReloadAction } from '@/utils/headerActions';
 import { getSidepanelData } from '@/utils/sidepanel';
 import IconChevronDown from '@icons/chevron-down.svg?react';
@@ -278,7 +285,7 @@ export function ObjectDetailsView({ instance = null, liveContext = null, onBackT
                           return <GroupIdAnnotation displayName={groupMap[numericValue]} value={params.node} />;
                         }
                       }
-                      if (params?.indexOrName?.toLowerCase()?.includes('id')) {
+                      if (typeof params?.indexOrName === 'string' && params.indexOrName.toLowerCase().includes('id')) {
                         return { enableClipboard: true };
                       } else if (
                         (typeof params.node === 'number' || typeof params.node === 'string') &&
@@ -340,7 +347,7 @@ function formatValue(value, format) {
       const timestamp = typeof value === 'number' && value > 0 && value < 1e11 ? value * 1000 : value;
       const date = new Date(timestamp);
       if (isNaN(date.getTime())) return String(value);
-      return date.toLocaleString();
+      return formatLocalDateTime(date);
     }
     case 'number':
       return typeof value === 'number' ? value.toLocaleString() : String(value);

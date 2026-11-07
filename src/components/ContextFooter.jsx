@@ -7,11 +7,13 @@ import { useConnectorVersion } from '@/hooks/useConnectorVersion';
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
 import { fetchObjectDetailsInPage, getObjectType, matchesCondition } from '@/models/DomoObjectType';
+import { getAccountsForProvider } from '@/services/accounts';
 import { getAlertActions } from '@/services/alerts';
 import { getTemplateApprovals } from '@/services/approvals';
 import { getBeastModeCards } from '@/services/beastModes';
 import { getCardDefinition, getNotebookCardText } from '@/services/cards';
 import { getCodeEngineUsage } from '@/services/codeEngine';
+import { getStreamsForConnector } from '@/services/connectors';
 import { getDesignCards, getDesignInstances } from '@/services/customApps';
 import {
   getDatasetColumns,
@@ -29,6 +31,7 @@ import { getReportsForApp, getSchedulesForReport } from '@/services/reportBuilde
 import { getWorkflowTriggers } from '@/services/workflows';
 import { copyJsonNode } from '@/utils/copyToClipboard';
 import { executeInPage } from '@/utils/executeInPage';
+import { isTypeFeatureEnabled } from '@/utils/featureSwitches';
 import { formatEpochTimestamp, formatTimestamp, isDateFieldName, isGroupFieldName, isUserFieldName } from '@/utils/general';
 import { instanceLabel } from '@/utils/instance';
 import { requestInternalAccess } from '@/utils/internalInstance';
@@ -62,6 +65,10 @@ const LAZY_ARRAY_FETCHERS = {
     getCodeEngineUsage({ kind: 'toolkits', packageId: objectParentId ?? objectId, tabId }).then((usage) => usage.items),
   codeEngineWorkflowUsage: ({ objectId, objectParentId, tabId }) =>
     getCodeEngineUsage({ kind: 'workflows', packageId: objectParentId ?? objectId, tabId }).then((usage) => usage.items),
+  connectorAccounts: ({ details, tabId }) =>
+    details?.connectionType ? getAccountsForProvider(details.connectionType, tabId) : [],
+  connectorStreams: ({ details, tabId }) =>
+    getStreamsForConnector({ connectionType: details?.connectionType, connectorId: details?.id, tabId }),
   dataflowInputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.inputs, tabId }),
   dataflowOutputs: ({ details, tabId }) => getDatasetDetailsForList({ datasets: details?.outputs, tabId }),
   datasetColumns: ({ objectId, tabId }) => getDatasetColumns({ datasetId: objectId, tabId }),
@@ -220,6 +227,7 @@ export function ContextFooter({
           // empty and its length seeds the count before the fetch runs.
           if (related.fetcher) {
             if (related.field && !arrayData?.length) continue;
+            if (!isTypeFeatureEnabled(related.itemTypeId, currentContext)) continue;
             result.push({
               fetcher: related.fetcher,
               id: related.field || related.fetcher,
@@ -329,6 +337,7 @@ export function ContextFooter({
     currentContext?.domoObject?.typeId,
     currentContext?.domoObject?.parentId,
     currentContext?.domoObject?.metadata,
+    currentContext?.featureSwitches,
     developerMode
   ]);
 
@@ -703,7 +712,7 @@ export function ContextFooter({
                           preventing the footer from shifting between two- and three-line objects. */}
                     <span className='w-full truncate text-left text-muted'>
                       {formatTimestamp(currentContext?.domoObject?.metadata?.created)
-                        ? `Created: ${formatTimestamp(currentContext?.domoObject?.metadata?.created)}`
+                        ? `Created: ${formatTimestamp(currentContext?.domoObject?.metadata?.created, { seconds: false })}`
                         : '\u00a0'}
                     </span>
                   </>
@@ -938,7 +947,7 @@ function MetadataJsonView({ collapsed = 1, connectorLatestVersion = null, groupM
             return <GroupIdAnnotation displayName={groupMap[numericValue]} value={params.node} />;
           }
         }
-        if (params?.indexOrName?.toLowerCase()?.includes('id')) {
+        if (typeof params?.indexOrName === 'string' && params.indexOrName.toLowerCase().includes('id')) {
           return { enableClipboard: true };
         } else if (
           (typeof params.node === 'number' || typeof params.node === 'string') &&

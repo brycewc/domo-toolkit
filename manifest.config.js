@@ -1,5 +1,5 @@
 import { defineManifest } from '@crxjs/vite-plugin';
-import pkg from './package.json';
+import pkg from './package.json' with { type: 'json' };
 import { EXCLUDED_HOSTNAMES, INTERNAL_MATCH_PATTERNS } from './src/utils/constants.js';
 
 // Excluded Domo hosts (support, developer, marketing, embed, etc.) as content-script

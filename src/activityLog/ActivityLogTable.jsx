@@ -24,6 +24,7 @@ import { UserFilterAutocomplete } from '@/components/UserFilterAutocomplete';
 import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
 import { useResolveTabId } from '@/hooks/useResolveTabId';
 import { DomoObject } from '@/models/DomoObject';
+import { getObjectType } from '@/models/DomoObjectType';
 import { getDatasetDetailsForList } from '@/services/datasets';
 import { fetchUserDisplayNames, getCustomAvatarUserIds, getInactiveUserIds } from '@/services/users';
 import { activityLogCountLabel } from '@/utils/activityLog';
@@ -33,7 +34,7 @@ import { instanceOriginFromKey } from '@/utils/instance';
 import IconCalendar from '@icons/calendar.svg?react';
 
 import { DataTable } from './components/DataTable';
-import { getActivityLogForObject, getEventTypesForObjectType } from './services/activityLog';
+import { getActivityLogCount, getActivityLogForObject, getEventTypesForObjectType } from './services/activityLog';
 import { getActivityLogFromDataset } from './services/activityLogDataset';
 import { findActivityLogDataset } from './services/findActivityLogDataset';
 
@@ -45,6 +46,8 @@ import { findActivityLogDataset } from './services/findActivityLogDataset';
 export function ActivityLogTable() {
   const [tabId, setTabId] = useState(null);
   const [objects, setObjects] = useState([]); // Array of {type, id}
+  // Set for a `user-actions` log, which is scoped by who acted rather than by objects.
+  const [actor, setActor] = useState(null);
   const [activityLogType, setActivityLogType] = useState(null);
   const [domoInstance, setDomoInstance] = useState(null);
   // The instance's exact origin, so links and avatars keep the scheme and port a
@@ -146,6 +149,11 @@ export function ActivityLogTable() {
   domoInstanceRef.current = domoInstance;
   const objectsRef = useRef(objects);
   objectsRef.current = objects;
+  const actorRef = useRef(actor);
+  actorRef.current = actor;
+  const hasScope = objects.length > 0 || !!actor;
+  // Discards a background count that lands after a newer fetch has replaced its tasks.
+  const countGenerationRef = useRef(0);
   const sortDescriptorRef = useRef(sortDescriptor);
   sortDescriptorRef.current = sortDescriptor;
 
@@ -180,6 +188,7 @@ export function ActivityLogTable() {
     const loadObjects = async () => {
       try {
         const result = await chrome.storage.session.get([
+          'activityLogActor',
           'activityLogTabId',
           'activityLogObjects',
           'activityLogType',
@@ -192,6 +201,7 @@ export function ActivityLogTable() {
         setTabId(tabId);
         const activityLogType = result.activityLogType || null;
         setActivityLogType(activityLogType);
+        setActor(activityLogType === 'user-actions' ? result.activityLogActor || null : null);
         const instance = result.activityLogInstance || null;
         setDomoInstance(instance);
         setDomoOrigin(result.activityLogOrigin || instanceOriginFromKey(instance));
@@ -216,32 +226,43 @@ export function ActivityLogTable() {
 
   // Fetch all possible event types from the API for each unique object type
   const [actionOptions, setActionOptions] = useState([]);
+  const fetchedEventTypeObjectTypesRef = useRef(new Set());
+
+  // The audit API has ~180 object types, too many to look up up front for an actor log.
+  const eventTypeObjectTypesKey = useMemo(() => {
+    const types = actor ? events.map((event) => event.objectType).filter(Boolean) : objects.map((obj) => obj.type);
+    return [...new Set(types)].sort().join(',');
+  }, [actor, events, objects]);
 
   useEffect(() => {
-    if (!tabId || objects.length === 0) return;
+    if (!tabId || !eventTypeObjectTypesKey) return;
 
-    const uniqueTypes = [...new Set(objects.map((obj) => obj.type))];
+    const unfetchedTypes = eventTypeObjectTypesKey
+      .split(',')
+      .filter((type) => !fetchedEventTypeObjectTypesRef.current.has(type));
+    if (unfetchedTypes.length === 0) return;
+    unfetchedTypes.forEach((type) => fetchedEventTypeObjectTypesRef.current.add(type));
 
     resolveTabId()
       .then((resolvedTabId) => {
         if (!resolvedTabId) return;
-        return Promise.all(uniqueTypes.map((type) => getEventTypesForObjectType(type, resolvedTabId).catch(() => [])));
+        return Promise.all(unfetchedTypes.map((type) => getEventTypesForObjectType(type, resolvedTabId).catch(() => [])));
       })
       .then((results) => {
         if (!results) return;
-        const seen = new Set();
-        const options = results
-          .flat()
-          .filter((item) => {
+        setActionOptions((prev) => {
+          const seen = new Set(prev.map((item) => item.type.toLowerCase()));
+          const added = results.flat().filter((item) => {
             const key = item.type.toLowerCase();
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
-          })
-          .sort((a, b) => a.translation.localeCompare(b.translation));
-        setActionOptions(options);
+          });
+          if (added.length === 0) return prev;
+          return [...prev, ...added].sort((a, b) => a.translation.localeCompare(b.translation));
+        });
       });
-  }, [tabId, objects]);
+  }, [tabId, eventTypeObjectTypesKey]);
 
   const actionFilterOptions = useMemo(
     () => actionOptions.map((action) => ({ id: action.type, label: action.translation })),
@@ -406,6 +427,8 @@ export function ActivityLogTable() {
           if (resolvedUrlKeysRef.current.has(key)) continue;
           resolvedUrlKeysRef.current.add(key);
 
+          // Audit types like ACCESS_TOKEN and dataset sources like SYSTEM aren't in the registry, so the constructor throws.
+          if (!getObjectType(type)) continue;
           const obj = new DomoObject(type, id, baseUrl);
           if (!obj.hasUrl()) continue;
 
@@ -469,10 +492,38 @@ export function ActivityLogTable() {
       // Show comment column only when single object, or when it replaces the dataset's Source column
       additionalComment: activityLogType === 'single-object' || switchedToApi,
       // Show object column only when multiple objects
-      objectName: activityLogType !== 'single-object'
+      objectName: activityLogType !== 'single-object',
+      userName: !actor
     }),
-    [activityLogType, switchedToApi]
+    [activityLogType, actor, switchedToApi]
   );
+
+  const loadTaskTotalsInBackground = ({ countGeneration, dateRangeEpoch, resolvedTabId, tasks }) => {
+    tasks.forEach((task) => {
+      getActivityLogCount({
+        end: dateRangeEpoch.end,
+        eventType: task.eventType,
+        objectId: task.objectId,
+        objectType: task.objectType,
+        start: dateRangeEpoch.start,
+        tabId: resolvedTabId,
+        user: task.user
+      })
+        .then((total) => {
+          if (countGeneration !== countGenerationRef.current) return;
+          setObjectStates((prev) => {
+            const state = prev[task.key];
+            if (!state) return prev;
+            return { ...prev, [task.key]: { ...state, hasMore: state.offset < total, total } };
+          });
+        })
+        .catch((err) => {
+          console.error(`Error counting events for ${task.key}:`, err);
+          if (countGeneration !== countGenerationRef.current) return;
+          setObjectStates((prev) => (prev[task.key] ? { ...prev, [task.key]: { ...prev[task.key], countFailed: true } } : prev));
+        });
+    });
+  };
 
   // Fetch activity log events from all objects (re-runs when userFilter changes)
   useEffect(() => {
@@ -483,10 +534,11 @@ export function ActivityLogTable() {
       // after the dataset's and clobber it (zeroing the count, breaking scroll).
       if (!source) return;
 
-      if (!tabId || objects.length === 0) {
+      if (!tabId || !hasScope) {
         setIsInitialLoad(false);
         return;
       }
+      const countGeneration = ++countGenerationRef.current;
 
       // Source swaps (api ↔ dataset) should show the full initial-load skeleton —
       // the data shape is identical but the source is fundamentally different,
@@ -518,6 +570,7 @@ export function ActivityLogTable() {
             datasetId,
             filters: buildDatasetFilters({
               actionFilter: actionFilterRef.current,
+              actor,
               dateRangeEpoch,
               mode: userFilterModeRef.current,
               objects,
@@ -542,13 +595,19 @@ export function ActivityLogTable() {
           // In exclude mode the audit API can't negate, so don't fan out per user;
           // fetch unfiltered and strip the excluded users client-side (see filteredEvents).
           const excludeMode = userFilterModeRef.current === 'exclude';
-          const tasks = buildFetchTasks(objects, excludeMode ? [] : userFilterRef.current, actionFilterRef.current);
+          const tasks = buildFetchTasks({
+            actionFilter: actionFilterRef.current,
+            actor,
+            objects,
+            userFilter: excludeMode ? [] : userFilterRef.current
+          });
 
           const fetchThunks = tasks.map(
             (task) => () =>
               getActivityLogForObject({
                 end: dateRangeEpoch.end,
                 eventType: task.eventType,
+                includeCount: !actor,
                 limit: pageSize,
                 objectId: task.objectId,
                 objectType: task.objectType,
@@ -563,7 +622,7 @@ export function ActivityLogTable() {
                   key: task.key,
                   objectId: task.objectId,
                   objectType: task.objectType,
-                  total: result?.total ?? 0,
+                  total: result?.total === undefined ? 0 : result.total,
                   user: task.user
                 }))
                 .catch((err) => {
@@ -586,7 +645,7 @@ export function ActivityLogTable() {
           results.forEach(({ events, eventType, key, objectId, objectType, total, user }) => {
             newStates[key] = {
               eventType,
-              hasMore: events.length < total,
+              hasMore: hasMorePages({ fetched: events.length, offset: events.length, pageSize, total }),
               objectId,
               objectType,
               offset: events.length,
@@ -602,6 +661,10 @@ export function ActivityLogTable() {
           allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
 
           setEvents(allEvents);
+
+          if (actor) {
+            loadTaskTotalsInBackground({ countGeneration, dateRangeEpoch, resolvedTabId, tasks });
+          }
         }
       } catch (err) {
         console.error('Error fetching activity log:', err);
@@ -620,7 +683,7 @@ export function ActivityLogTable() {
     fetchEvents();
     // datasetSortKey collapses to '' when irrelevant (api source, or non-time
     // active sort) so toggling User/Action sort doesn't trigger refetch.
-  }, [objects, tabId, refreshKey, userFilterKey, dateRangeEpoch, source, domoInstance, datasetSortKey]);
+  }, [objects, actor, tabId, refreshKey, userFilterKey, dateRangeEpoch, source, domoInstance, datasetSortKey]);
 
   // Resolve the DomoStats dataset's link and how fresh it is, for the source
   // banner. Failures stay silent: the banner omits whichever piece is missing,
@@ -668,8 +731,16 @@ export function ActivityLogTable() {
 
   const total = useMemo(() => {
     if (source === 'dataset') return datasetState.total;
-    return Object.values(objectStates).reduce((sum, state) => sum + state.total, 0);
+    const states = Object.values(objectStates);
+    // Null while an actor log's background count is still running.
+    if (states.some((state) => state.total == null)) return null;
+    return states.reduce((sum, state) => sum + state.total, 0);
   }, [source, datasetState.total, objectStates]);
+
+  const isCountingTotal = useMemo(
+    () => source !== 'dataset' && Object.values(objectStates).some((state) => state.total == null && !state.countFailed),
+    [source, objectStates]
+  );
 
   // Check if any objects still have more events to fetch
   const hasMore = useMemo(() => {
@@ -702,6 +773,7 @@ export function ActivityLogTable() {
           datasetId,
           filters: buildDatasetFilters({
             actionFilter: actionFilterRef.current,
+            actor: actorRef.current,
             dateRangeEpoch: dateRangeEpochRef.current,
             mode: userFilterModeRef.current,
             objects: objectsRef.current,
@@ -759,6 +831,7 @@ export function ActivityLogTable() {
           getActivityLogForObject({
             end: dateRangeEpochRef.current.end,
             eventType: task.eventType,
+            includeCount: !actorRef.current,
             limit: pageSize,
             objectId: task.objectId,
             objectType: task.objectType,
@@ -770,7 +843,7 @@ export function ActivityLogTable() {
             .then((result) => ({
               events: result?.events ?? [],
               key: task.key,
-              total: result?.total ?? 0
+              total: result?.total === undefined ? 0 : result.total
             }))
             .catch((err) => {
               console.error(`Error fetching more for ${task.key}:`, err);
@@ -789,11 +862,13 @@ export function ActivityLogTable() {
         results.forEach(({ events, key, total }) => {
           const currentState = newStates[key];
           const newOffset = currentState.offset + events.length;
+          // An uncounted page keeps whatever total the background count has already set.
+          const knownTotal = total ?? currentState.total;
           newStates[key] = {
             ...currentState,
-            hasMore: newOffset < total,
+            hasMore: hasMorePages({ fetched: events.length, offset: newOffset, pageSize, total: knownTotal }),
             offset: newOffset,
-            total
+            total: knownTotal
           };
         });
         return newStates;
@@ -887,7 +962,7 @@ export function ActivityLogTable() {
 
   // Fetch all data for export — paginates through all (object × user) tasks
   const fetchAllDataForExport = useCallback(async () => {
-    if (objects.length === 0) {
+    if (!hasScope) {
       return filteredEvents;
     }
 
@@ -899,7 +974,12 @@ export function ActivityLogTable() {
     // In exclude mode the audit API can't negate, so don't fan out per user;
     // fetch unfiltered and strip the excluded users client-side (see filteredEvents).
     const excludeMode = userFilterModeRef.current === 'exclude';
-    const tasks = buildFetchTasks(objects, excludeMode ? [] : userFilterRef.current, actionFilterRef.current);
+    const tasks = buildFetchTasks({
+      actionFilter: actionFilterRef.current,
+      actor,
+      objects,
+      userFilter: excludeMode ? [] : userFilterRef.current
+    });
 
     for (const task of tasks) {
       let offset = 0;
@@ -910,6 +990,7 @@ export function ActivityLogTable() {
           const result = await getActivityLogForObject({
             end: dateRangeEpoch.end,
             eventType: task.eventType,
+            includeCount: !actor,
             limit: exportPageSize,
             objectId: task.objectId,
             objectType: task.objectType,
@@ -920,12 +1001,13 @@ export function ActivityLogTable() {
           });
 
           const events = result?.events ?? [];
-          const total = result?.total ?? 0;
 
           allEvents.push(...events);
 
           offset += events.length;
-          taskHasMore = offset < total && events.length > 0;
+          taskHasMore =
+            events.length > 0 &&
+            hasMorePages({ fetched: events.length, offset, pageSize: exportPageSize, total: result?.total });
         } catch (err) {
           console.error(`Error fetching all events for ${task.key}:`, err);
           taskHasMore = false;
@@ -946,7 +1028,7 @@ export function ActivityLogTable() {
       result = result.filter((event) => event.objectType && objectTypeFilter.has(event.objectType));
     }
     return result;
-  }, [resolveTabId, objects, filteredEvents, userFilterKey, dateRangeEpoch, objectTypeFilter]);
+  }, [resolveTabId, objects, actor, hasScope, filteredEvents, userFilterKey, dateRangeEpoch, objectTypeFilter]);
 
   // Memoize filter toolbar so it doesn't re-render during event fetches
   const customFilters = useMemo(
@@ -1046,18 +1128,21 @@ export function ActivityLogTable() {
     ]
   );
 
+  // An actor log is already filtered to one user.
   const userFilterControl = useMemo(
-    () => (
-      <UserFilterAutocomplete
-        domoOrigin={domoOrigin}
-        mode={userFilterMode}
-        tabId={tabId}
-        value={userFilter}
-        onChange={setUserFilter}
-        onModeChange={setUserFilterMode}
-      />
-    ),
-    [domoOrigin, tabId, userFilter, userFilterMode]
+    () =>
+      actor ? null : (
+        <UserFilterAutocomplete
+          includeInactive
+          domoOrigin={domoOrigin}
+          mode={userFilterMode}
+          tabId={tabId}
+          value={userFilter}
+          onChange={setUserFilter}
+          onModeChange={setUserFilterMode}
+        />
+      ),
+    [actor, domoOrigin, tabId, userFilter, userFilterMode]
   );
 
   // Memoize export config to avoid new object reference each render
@@ -1181,7 +1266,13 @@ export function ActivityLogTable() {
         <div className='flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'>
           <span className='min-w-0 grow text-lg leading-snug font-semibold break-normal'>
             Activity Log for{' '}
-            {activityLogType === 'single-object' ? (
+            {actor ? (
+              <>
+                <span>actions by User </span>
+                <span className='text-accent'>{actor.name}</span>
+                <span> (ID: {actor.id})</span>
+              </>
+            ) : activityLogType === 'single-object' ? (
               <>
                 <span>{objects[0]?.typeName ?? objects[0]?.type} </span>
                 <span className='text-accent'>{objects[0]?.name}</span>
@@ -1198,12 +1289,17 @@ export function ActivityLogTable() {
               activityLogCountLabel({ count: objects.length, type: activityLogType }).toLowerCase()
             )}
           </span>
-          {total > 0 && (
+          {(total > 0 || (total == null && events.length > 0)) && (
             <p className='text-base text-muted'>
               {filteredEvents.length !== events.length ? (
                 <>
-                  Showing {filteredEvents.length.toLocaleString()} filtered of {events.length.toLocaleString()} fetched (
-                  {total.toLocaleString()} total)
+                  Showing {filteredEvents.length.toLocaleString()} filtered of {events.length.toLocaleString()} fetched
+                  {total != null && <> ({total.toLocaleString()} total)</>}
+                </>
+              ) : total == null ? (
+                <>
+                  Showing {events.length.toLocaleString()} events
+                  {isCountingTotal && ' (counting total...)'}
                 </>
               ) : (
                 <>
@@ -1219,6 +1315,7 @@ export function ActivityLogTable() {
     ),
     [
       activityLogType,
+      actor,
       datasetFetchError,
       datasetLastUpdated,
       datasetUrl,
@@ -1231,6 +1328,7 @@ export function ActivityLogTable() {
       freshnessTick,
       handleSwitchToApi,
       handleUseDomoStats,
+      isCountingTotal,
       isDiscovering,
       isFetchingMore,
       isSearching,
@@ -1325,30 +1423,32 @@ export function ActivityLogTable() {
  * expects. Multi-object/multi-action/multi-user filters become `IN(...)` clauses
  * in the dataset query (no fan-out, unlike the audit-API path).
  */
-function buildDatasetFilters({ actionFilter, dateRangeEpoch, mode = 'include', objects, userFilter }) {
+function buildDatasetFilters({ actionFilter, actor, dateRangeEpoch, mode = 'include', objects, userFilter }) {
   const objectIds = objects.map((o) => String(o.id));
   const objectTypes = [...new Set(objects.map((o) => o.type))];
   const actions = actionFilter && actionFilter.size > 0 ? [...actionFilter] : [];
-  const selectedUserIds = Array.isArray(userFilter) ? userFilter : [];
+  const selectedUserIds = actor ? [actor.id] : Array.isArray(userFilter) ? userFilter : [];
   // Exclude mode negates server-side via NOT IN; include mode uses IN.
-  const userIds = mode === 'exclude' ? [] : selectedUserIds;
-  const excludeUserIds = mode === 'exclude' ? selectedUserIds : [];
+  const excludeMode = !actor && mode === 'exclude';
+  const userIds = excludeMode ? [] : selectedUserIds;
+  const excludeUserIds = excludeMode ? selectedUserIds : [];
   const dateRange =
     dateRangeEpoch?.start && dateRangeEpoch?.end ? { end: dateRangeEpoch.end, start: dateRangeEpoch.start } : null;
   return { actions, dateRange, excludeUserIds, objectIds, objectTypes, userIds };
 }
 
 /**
- * Build a list of fetch tasks from objects and an optional user filter.
+ * Build a list of fetch tasks from objects (or an actor) and an optional user filter.
  * Each task maps to a single API call and a unique pagination key.
  */
-function buildFetchTasks(objects, userFilter, actionFilter) {
+function buildFetchTasks({ actionFilter, actor, objects, userFilter }) {
   const actions = actionFilter.size > 0 ? [...actionFilter] : [undefined];
-  const users = userFilter.length > 0 ? userFilter : [undefined];
-  return objects.flatMap((obj) =>
+  const scopes = actor ? [{ id: undefined, type: undefined }] : objects;
+  const users = actor ? [actor.id] : userFilter.length > 0 ? userFilter : [undefined];
+  return scopes.flatMap((obj) =>
     actions.flatMap((eventType) =>
       users.map((user) => {
-        const parts = [obj.type, obj.id];
+        const parts = actor ? ['actor'] : [obj.type, obj.id];
         if (user) parts.push(user);
         if (eventType) parts.push(eventType);
         return {
@@ -1690,6 +1790,10 @@ function getSourceTypeColor(type) {
  * Run an array of thunks (functions returning promises) with limited concurrency.
  * Returns results in the same order as the input thunks.
  */
+function hasMorePages({ fetched, offset, pageSize, total }) {
+  return total == null ? fetched === pageSize : offset < total;
+}
+
 async function promisePool(taskFns, concurrency = 6) {
   const results = [];
   let index = 0;

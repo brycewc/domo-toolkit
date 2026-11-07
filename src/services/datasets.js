@@ -10,9 +10,8 @@ const DATASETS_PAGE_SIZE = 50;
 /**
  * Cancel every currently running execution for a stream, not just the latest.
  * Domo can wedge a stream with several executions stuck in the ACTIVE state at
- * once, so this scans the most recent executions, aborts each one still ACTIVE,
- * and reports how many it cancelled. Running executions are always recent, so
- * the recent-window scan reliably covers the stuck ones.
+ * once, so this aborts the stream's current execution plus every other ACTIVE
+ * one among the most recent executions, and reports how many it cancelled.
  * @param {Object} params
  * @param {string|number} params.streamId - The stream ID
  * @param {number} [params.tabId] - Optional Chrome tab ID
@@ -21,25 +20,32 @@ const DATASETS_PAGE_SIZE = 50;
 export async function cancelStreamExecution({ streamId, tabId }) {
   return executeInPage(
     async (streamId) => {
-      const stateResponse = await fetch(`/api/data/v1/streams/state/${streamId}`);
-      if (!stateResponse.ok) {
-        const error = new Error(`Failed to fetch stream state for stream ${streamId}. HTTP status: ${stateResponse.status}`);
-        error.status = stateResponse.status;
-        throw error;
-      }
-      const stateData = await stateResponse.json();
-      const limit = 100;
-      const latestExecutionId = stateData[0]?.executionId ?? 0;
-      const offset = latestExecutionId < limit ? 0 : latestExecutionId - limit;
+      const fetchJson = async (url, label) => {
+        const response = await fetch(url);
+        if (!response.ok) {
+          const error = new Error(`Failed to fetch ${label} for stream ${streamId}. HTTP status: ${response.status}`);
+          error.status = response.status;
+          throw error;
+        }
+        return response.json();
+      };
 
-      const listResponse = await fetch(`/api/data/v1/streams/${streamId}/executions?limit=${limit}&offset=${offset}`);
-      if (!listResponse.ok) {
-        const error = new Error(`Failed to fetch executions for stream ${streamId}. HTTP status: ${listResponse.status}`);
-        error.status = listResponse.status;
-        throw error;
+      const stream = await fetchJson(`/api/data/v1/streams/${streamId}`, 'details');
+      const latestExecutionId = stream.currentExecution?.executionId ?? stream.lastExecution?.executionId;
+      if (!latestExecutionId) {
+        return { cancelled: 0 };
       }
-      const executions = await listResponse.json();
-      const running = executions.filter((execution) => execution.currentState === 'ACTIVE');
+
+      // offset is a row index, not an execution ID, and a stream's IDs need not start at 1.
+      // Gaps from removed executions push this window past the newest rows, which currentExecution covers.
+      const limit = 100;
+      const [firstExecution] = await fetchJson(`/api/data/v1/streams/${streamId}/executions?limit=1&offset=0`, 'executions');
+      const offset = Math.max(0, latestExecutionId - (firstExecution?.executionId ?? latestExecutionId) - limit + 1);
+      const recent = await fetchJson(`/api/data/v1/streams/${streamId}/executions?limit=${limit}&offset=${offset}`, 'executions');
+
+      const byId = new Map(recent.map((execution) => [execution.executionId, execution]));
+      if (stream.currentExecution) byId.set(stream.currentExecution.executionId, stream.currentExecution);
+      const running = [...byId.values()].filter((execution) => execution.currentState === 'ACTIVE');
       if (running.length === 0) {
         return { cancelled: 0 };
       }

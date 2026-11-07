@@ -32,6 +32,8 @@ VITE_DOMO_ACTIVITY_LOG_DATASET_ID=<optional, see below>
 
 Vite proxies `/api/*` to `VITE_DOMO_BASE_URL` and injects `X-Domo-Developer-Token: VITE_DOMO_TOKEN`. The `chromePolyfill.js` reads these env vars and seeds `chrome.storage.session` so the components find their initial state.
 
+`/dev-activity-log?actor=<userId>` opens the log on the actions that user took (the `user-actions` log type) instead of on `VITE_DOMO_ENTITY_ID`. It is a query param rather than an env var so it needs no dev-server restart.
+
 `VITE_DOMO_ACTIVITY_LOG_DATASET_ID` is optional and only affects `/dev-activity-log`. Setting it seeds `chrome.storage.local` with that instance's `activityLogDatasetId` plus `preferActivityLogDataset`, so the view opens on the DomoStats dataset source instead of the audit API. Without it the polyfill's `chrome.storage.local` starts empty, so the view opens on the API source and the dataset path is only reachable by clicking "Use DomoStats" to run discovery.
 
 ## Three layers of verification (use what fits)

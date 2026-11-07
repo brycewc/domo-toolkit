@@ -33,9 +33,10 @@ export async function cancelWorkflowExecution({ executionId, tabId = null }) {
 }
 
 /**
- * Delete a Workflow Model. Internally lists the model's versions and
- * deactivates any that are still active before issuing the DELETE, because
- * the delete endpoint rejects models with active versions.
+ * Delete a Workflow Model. Deactivates every deployment that would block the
+ * delete first, including one left behind on a deleted version (DOMO-504239).
+ * The delete endpoint answers 200 even when it deleted nothing, with the number
+ * of models deleted as the body (DOMO-504240), so that count is checked.
  * @param {Object} params
  * @param {string} params.modelId - The Workflow Model ID
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
@@ -63,10 +64,40 @@ export async function deleteWorkflow({ modelId, tabId = null }) {
         }
       }
 
+      // The versions list omits deleted versions; the locks map lists every version.
+      const locksRes = await fetch(`/api/workflow/v1/models/${modelId}/locks`);
+      if (!locksRes.ok) {
+        return { error: `Failed to list workflow versions: HTTP ${locksRes.status}`, ok: false };
+      }
+      const locks = await locksRes.json();
+      const liveVersionNumbers = new Set(versions.map((v) => v.version));
+      const deletedVersionNumbers = Object.keys(locks || {}).filter((version) => !liveVersionNumbers.has(version));
+      for (const version of deletedVersionNumbers) {
+        const deactivateRes = await fetch(`/api/workflow/v1/models/${modelId}/versions/${version}/deployment`, {
+          body: JSON.stringify({
+            active: false
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'PUT'
+        });
+        // Always 404s for a deleted version: before the deactivation is written
+        // when it has no deployment, after it when it does.
+        if (!deactivateRes.ok && deactivateRes.status !== 404) {
+          return {
+            error: `Failed to deactivate deleted version ${version}: HTTP ${deactivateRes.status}`,
+            ok: false
+          };
+        }
+      }
+
       const deleteRes = await fetch(`/api/workflow/v1/models/${modelId}`, {
         method: 'DELETE'
       });
       if (!deleteRes.ok) return { error: `HTTP ${deleteRes.status}`, ok: false };
+      const deletedCount = Number(await deleteRes.text());
+      if (!(deletedCount >= 1)) {
+        return { error: 'Domo reported success but did not delete the workflow', ok: false };
+      }
       return { ok: true };
     },
     [modelId],

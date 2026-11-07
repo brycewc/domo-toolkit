@@ -1,6 +1,7 @@
 import {
   Autocomplete,
   Avatar,
+  Chip,
   Description,
   EmptyState,
   Label,
@@ -15,6 +16,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { FittedTagGroup } from '@/components/FittedTagGroup';
+import { InactiveUserOverlay } from '@/components/InactiveUserOverlay';
 import { getCustomAvatarUserIds, searchUsers } from '@/services/users';
 import { getInitials } from '@/utils/general';
 
@@ -25,9 +27,11 @@ import { getInitials } from '@/utils/general';
  * accessible name so screen readers announce the right entity ("User" vs "Owner").
  * `knownUsers` pre-seeds {id, displayName} pairs so tags for externally-set selections
  * render a name without waiting on a search that may not surface that user.
+ * `includeInactive` also lists deleted users, marked as inactive.
  */
 export function UserFilterAutocomplete({
   domoOrigin,
+  includeInactive = false,
   knownUsers,
   label = 'User',
   mode = 'include',
@@ -95,7 +99,7 @@ export function UserFilterAutocomplete({
     async function fetchInitialUsers() {
       setIsLoading(true);
       try {
-        const { totalCount, users: fetchedUsers } = await searchUsers('', tabId, 0);
+        const { totalCount, users: fetchedUsers } = await searchUsers('', tabId, 0, { includeInactive });
         if (!controller.signal.aborted) {
           setUsers(fetchedUsers);
           setHasMore(totalCount !== null && fetchedUsers.length < totalCount);
@@ -120,7 +124,7 @@ export function UserFilterAutocomplete({
     return () => {
       controller.abort();
     };
-  }, [tabId, hasFetchedInitial]);
+  }, [tabId, hasFetchedInitial, includeInactive]);
 
   // Refetch users when search text changes (debounced)
   useEffect(() => {
@@ -134,7 +138,7 @@ export function UserFilterAutocomplete({
       setIsLoading(true);
       setSearchOffset(0);
       try {
-        const { totalCount, users: fetchedUsers } = await searchUsers(searchText, tabId, 0);
+        const { totalCount, users: fetchedUsers } = await searchUsers(searchText, tabId, 0, { includeInactive });
         if (!controller.signal.aborted) {
           setUsers(fetchedUsers);
           setHasMore(totalCount !== null && fetchedUsers.length < totalCount);
@@ -157,7 +161,7 @@ export function UserFilterAutocomplete({
       clearTimeout(debounceTimer);
       controller.abort();
     };
-  }, [searchText, tabId, hasFetchedInitial]);
+  }, [searchText, tabId, hasFetchedInitial, includeInactive]);
 
   // Load more users for pagination
   const loadMoreUsers = useCallback(async () => {
@@ -165,7 +169,7 @@ export function UserFilterAutocomplete({
 
     setIsLoadingMore(true);
     try {
-      const { totalCount, users: fetchedUsers } = await searchUsers(searchText, tabId, searchOffset);
+      const { totalCount, users: fetchedUsers } = await searchUsers(searchText, tabId, searchOffset, { includeInactive });
       const newUsers = [...users, ...fetchedUsers];
       setUsers(newUsers);
       setHasMore(totalCount !== null && newUsers.length < totalCount);
@@ -176,7 +180,7 @@ export function UserFilterAutocomplete({
     } finally {
       setIsLoadingMore(false);
     }
-  }, [isLoadingMore, hasMore, searchText, tabId, searchOffset, users]);
+  }, [isLoadingMore, hasMore, searchText, tabId, searchOffset, users, includeInactive]);
 
   // Build avatar URL
   const getAvatarUrl = useCallback(
@@ -267,8 +271,12 @@ export function UserFilterAutocomplete({
                 <span className='shrink-0 text-xs font-medium text-muted'>{mode === 'exclude' ? 'not in' : 'in'}</span>
                 <FittedTagGroup
                   ariaLabel='Selected users'
-                  items={value.map((key) => ({ id: key, label: String(getUserName(key)) }))}
                   onRemove={handleRemoveTags}
+                  items={value.map((key) => ({
+                    className: selectedUsersRef.current.get(key)?.isActive === false ? 'opacity-60' : undefined,
+                    id: key,
+                    label: String(getUserName(key))
+                  }))}
                 />
               </div>
             );
@@ -330,10 +338,18 @@ export function UserFilterAutocomplete({
                 <Avatar size='sm'>
                   {customAvatarIds.has(user.id) && <Avatar.Image src={getAvatarUrl(user.id)} />}
                   <Avatar.Fallback>{getInitials(user.displayName)}</Avatar.Fallback>
+                  {!user.isActive && <InactiveUserOverlay />}
                 </Avatar>
-                <div className='flex flex-col'>
-                  <Label>{user.displayName}</Label>
-                  <Description>{user.emailAddress}</Description>
+                <div className='flex min-w-0 flex-col'>
+                  <div className='flex items-center gap-1.5'>
+                    <Label>{user.displayName}</Label>
+                    {!user.isActive && (
+                      <Chip color='danger' size='sm' variant='soft'>
+                        <Chip.Label>Inactive</Chip.Label>
+                      </Chip>
+                    )}
+                  </div>
+                  <Description>{user.userName}</Description>
                 </div>
                 <ListBox.ItemIndicator />
               </ListBox.Item>

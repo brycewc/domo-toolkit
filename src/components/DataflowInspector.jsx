@@ -394,7 +394,7 @@ export function DataflowInspector({
                         </Link>
                       );
                     }
-                    if (params?.indexOrName?.toLowerCase()?.includes('id')) {
+                    if (typeof params?.indexOrName === 'string' && params.indexOrName.toLowerCase().includes('id')) {
                       return { enableClipboard: true };
                     }
                     if (

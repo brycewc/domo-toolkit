@@ -87,14 +87,14 @@ All PRs are reviewed before merging. You may be asked to make changes -- this is
 
 | Category             | Technology         | Version |
 | -------------------- | ------------------ | ------- |
-| **Framework**        | React              | 19.2.7  |
-| **Bundler**          | Vite               | 8.0.16  |
-| **Extension Plugin** | @crxjs/vite-plugin | 2.5.0   |
+| **Framework**        | React              | 19.3.1  |
+| **Bundler**          | Vite               | 8.3.5   |
+| **Extension Plugin** | @crxjs/vite-plugin | 3.0.0   |
 | **UI Library**       | @heroui/react      | 3.2.6   |
-| **CSS**              | Tailwind CSS       | 4.3.0   |
-| **Graph Layout**     | @dagrejs/dagre     | 3.0.0   |
-| **Linter**           | ESLint             | 10.4.1  |
-| **Formatter**        | Prettier           | 3.8.3   |
+| **CSS**              | Tailwind CSS       | 4.3.3   |
+| **Graph Layout**     | @dagrejs/dagre     | 3.1.1   |
+| **Linter**           | ESLint             | 10.13.0 |
+| **Formatter**        | Prettier           | 3.9.10  |
 
 ### Project Structure
 
@@ -150,6 +150,8 @@ Content Script (detects page context)
 - **DomoObjectType** - Registry of \~100+ supported object types with URL patterns, ID validation, and API configs
 
 ### Development Setup
+
+Requires Node.js 24, pinned in `.nvmrc` (nvm, fnm, and mise all pick it up).
 
 ```bash
 # Clone the repository (or your fork)

@@ -144,7 +144,7 @@ export default defineConfig(({ mode }) => {
       {
         configureServer(server) {
           server.middlewares.use((req, res, next) => {
-            if (req.url !== '/dev-activity-log') return next();
+            if (req.url.split('?')[0] !== '/dev-activity-log') return next();
             res.setHeader('Content-Type', 'text/html');
             res.end(
               [
@@ -188,10 +188,10 @@ export default defineConfig(({ mode }) => {
         // imports from the 'react-stately' package root, which must stay resolvable.
         {
           find: /^react-stately\/useTooltipTriggerState$/,
-          replacement: path.resolve(__dirname, 'src/vendor/useTooltipTriggerState.js')
+          replacement: path.resolve(import.meta.dirname,'src/vendor/useTooltipTriggerState.js')
         },
-        { find: '@', replacement: path.resolve(__dirname, 'src') },
-        { find: '@icons', replacement: path.resolve(__dirname, 'src/assets/icons') }
+        { find: '@', replacement: path.resolve(import.meta.dirname,'src') },
+        { find: '@icons', replacement: path.resolve(import.meta.dirname,'src/assets/icons') }
       ],
       // react18-json-view is linked with portal:, so Vite resolves it through a
       // symlink into vendor/react18-json-view. That vendored ES build leaves
