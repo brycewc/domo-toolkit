@@ -26,7 +26,7 @@ import { useResolveTabId } from '@/hooks/useResolveTabId';
 import { DomoObject } from '@/models/DomoObject';
 import { getObjectType } from '@/models/DomoObjectType';
 import { getDatasetDetailsForList } from '@/services/datasets';
-import { fetchUserDisplayNames, getCustomAvatarUserIds, getInactiveUserIds } from '@/services/users';
+import { fetchUserDisplayNames, getCustomAvatarUserIds, getInactiveUserIds, searchUsers } from '@/services/users';
 import { activityLogCountLabel } from '@/utils/activityLog';
 import { ACTION_COLOR_PATTERNS } from '@/utils/constants';
 import { formatRelativeTime, formatTimestamp, getInitials } from '@/utils/general';
@@ -71,6 +71,8 @@ export function ActivityLogTable() {
   const [dateRange, setDateRange] = useState(null);
   const [userFilter, setUserFilter] = useState([]);
   const [userFilterMode, setUserFilterMode] = useState('include');
+  const [defaultUserFilterResolved, setDefaultUserFilterResolved] = useState(false);
+  const [defaultExcludedUsers, setDefaultExcludedUsers] = useState([]);
   const [actionFilter, setActionFilter] = useState(new Set());
   const actionFilterRef = useRef(new Set());
   const [objectTypeFilter, setObjectTypeFilter] = useState(new Set());
@@ -223,6 +225,39 @@ export function ActivityLogTable() {
 
     loadObjects();
   }, []);
+
+  useEffect(() => {
+    if (!configLoaded || defaultUserFilterResolved) return;
+    if (actor || !tabId) {
+      setDefaultUserFilterResolved(true);
+      return;
+    }
+    let cancelled = false;
+    resolveTabId()
+      .then((resolvedTabId) =>
+        resolvedTabId
+          ? searchUsers(DEFAULT_EXCLUDED_USER_NAME, resolvedTabId, 0, { includeInactive: true })
+          : null
+      )
+      .then((result) => {
+        if (cancelled) return;
+        const match = result?.users?.find(
+          (user) => user.displayName?.trim().toLowerCase() === DEFAULT_EXCLUDED_USER_NAME.toLowerCase()
+        );
+        if (match && userFilterRef.current.length === 0) {
+          setDefaultExcludedUsers([{ displayName: match.displayName, id: match.id }]);
+          setUserFilter([match.id]);
+          setUserFilterMode('exclude');
+        }
+      })
+      .catch((err) => console.warn('Could not look up the default excluded user:', err))
+      .finally(() => {
+        if (!cancelled) setDefaultUserFilterResolved(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [actor, configLoaded, defaultUserFilterResolved, resolveTabId, tabId]);
 
   // Fetch all possible event types from the API for each unique object type
   const [actionOptions, setActionOptions] = useState([]);
@@ -532,7 +567,7 @@ export function ActivityLogTable() {
       // fetch. Fetching now would hit the audit API before we know whether this
       // instance is set to always use DomoStats, and that response could land
       // after the dataset's and clobber it (zeroing the count, breaking scroll).
-      if (!source) return;
+      if (!source || !defaultUserFilterResolved) return;
 
       if (!tabId || !hasScope) {
         setIsInitialLoad(false);
@@ -683,7 +718,18 @@ export function ActivityLogTable() {
     fetchEvents();
     // datasetSortKey collapses to '' when irrelevant (api source, or non-time
     // active sort) so toggling User/Action sort doesn't trigger refetch.
-  }, [objects, actor, tabId, refreshKey, userFilterKey, dateRangeEpoch, source, domoInstance, datasetSortKey]);
+  }, [
+    objects,
+    actor,
+    tabId,
+    refreshKey,
+    userFilterKey,
+    dateRangeEpoch,
+    source,
+    domoInstance,
+    datasetSortKey,
+    defaultUserFilterResolved
+  ]);
 
   // Resolve the DomoStats dataset's link and how fresh it is, for the source
   // banner. Failures stay silent: the banner omits whichever piece is missing,
@@ -1135,6 +1181,7 @@ export function ActivityLogTable() {
         <UserFilterAutocomplete
           includeInactive
           domoOrigin={domoOrigin}
+          knownUsers={defaultExcludedUsers}
           mode={userFilterMode}
           tabId={tabId}
           value={userFilter}
@@ -1142,7 +1189,7 @@ export function ActivityLogTable() {
           onModeChange={setUserFilterMode}
         />
       ),
-    [actor, domoOrigin, tabId, userFilter, userFilterMode]
+    [actor, defaultExcludedUsers, domoOrigin, tabId, userFilter, userFilterMode]
   );
 
   // Memoize export config to avoid new object reference each render
@@ -1597,6 +1644,8 @@ function createSourceColumn({ idKey = 'sourceId', nameKey = 'sourceName', object
     width: '2fr'
   };
 }
+
+const DEFAULT_EXCLUDED_USER_NAME = 'MajorDomo Service Account';
 
 const FRESHNESS_POLL_MS = 5 * 60 * 1000;
 
