@@ -130,7 +130,7 @@ export const userDuplicator = {
   fetchPreview: ({ context, source }) => fetchDuplicationPreview({ sourceUserId: source.id, tabId: context.tabId }),
   Form: UserForm,
   formatError: ({ error, options }) => ({
-    description: error.message || 'An error occurred',
+    description: error.message || 'An error occurred.',
     status: 'danger',
     timeout: 5000,
     title: options.mode === 'existing' ? 'Failed to Add Access' : 'Duplication Failed'
@@ -161,7 +161,7 @@ export const userDuplicator = {
       };
     }
     return {
-      description: result.errors[0]?.message || (result.created ? 'Unable to create new user' : 'Unable to add access'),
+      description: result.errors[0]?.message || (result.created ? 'Unable to create new user.' : 'Unable to add access.'),
       status: 'danger',
       timeout: 5000,
       title: result.created ? 'Duplication Failed' : 'Failed to Add Access'

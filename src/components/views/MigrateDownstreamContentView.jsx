@@ -229,13 +229,15 @@ export function MigrateDownstreamContentView({
         return;
       }
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
-      const launchScope = context && !isDatasetTypeId(context.domoObject?.typeId) ? data.scopeFrom || scopeFromContext(context) : null;
+      const launchScope =
+        context && !isDatasetTypeId(context.domoObject?.typeId) ? data.scopeFrom || scopeFromContext(context) : null;
       if (launchScope) {
         const metadata = context.domoObject?.metadata;
         const isWholeApp = launchScope.kind === 'app' || launchScope.kind === 'worksheet';
         setScopeFrom(launchScope);
         const name =
-          (isWholeApp ? metadata?.parent?.name : metadata?.name) || `${SCOPE_KIND_NOUNS[launchScope.kind]} ${launchScope.id}`;
+          (isWholeApp ? metadata?.parent?.name : metadata?.name) ||
+          `${SCOPE_KIND_NOUNS[launchScope.kind]} ${launchScope.id}`;
         setLaunchName(name);
         setLaunchScopeLabel(
           formatLocationName({ kind: launchScope.kind, name, parentName: isWholeApp ? null : metadata?.parent?.name })
@@ -246,7 +248,7 @@ export function MigrateDownstreamContentView({
         return;
       }
       if (!context || !isDatasetTypeId(context.domoObject?.typeId)) {
-        onStatusUpdate?.('Error', 'Migrate requires a dataset, page, or App Studio view', 'danger');
+        onStatusUpdate?.('Error', 'Migrate requires a dataset, page, or App Studio view.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -260,7 +262,7 @@ export function MigrateDownstreamContentView({
       if (data.checkJupyterWorkspaces) setJupyterCheckStarted(true);
     } catch (error) {
       console.error('[MigrateDownstreamContentView] Error loading data:', error);
-      onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
+      onStatusUpdate?.('Error', error.message || 'Failed to load context.', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
@@ -361,7 +363,8 @@ export function MigrateDownstreamContentView({
         setSourceCandidates({ error: null, items: candidates, status: 'loaded' });
       })
       .catch((err) => {
-        if (!cancelled) setSourceCandidates({ error: err?.message || 'Failed to load datasets', items: [], status: 'error' });
+        if (!cancelled)
+          setSourceCandidates({ error: err?.message || 'Failed to load datasets', items: [], status: 'error' });
       });
     return () => {
       cancelled = true;
@@ -408,7 +411,7 @@ export function MigrateDownstreamContentView({
   useEffect(() => {
     if (page !== 'source' || lastMigration || sourceCandidates.status !== 'loaded') return;
     if (remainingCandidates.length === 0) {
-      onStatusUpdate?.('Nothing to Migrate', `**${launchName}** has no cards to migrate`, 'warning');
+      onStatusUpdate?.('Nothing to Migrate', `**${launchName}** has no cards to migrate.`, 'warning');
       onBackToDefault?.();
     } else if (remainingCandidates.length === 1) {
       handleSelectSource(remainingCandidates[0]);
@@ -487,9 +490,7 @@ export function MigrateDownstreamContentView({
 
   const scopedPageIds = useMemo(
     () =>
-      scope
-        ? [...scope.locationKeys].filter((key) => key.startsWith('page:')).map((key) => key.slice('page:'.length))
-        : [],
+      scope ? [...scope.locationKeys].filter((key) => key.startsWith('page:')).map((key) => key.slice('page:'.length)) : [],
     [scope]
   );
 
@@ -527,7 +528,8 @@ export function MigrateDownstreamContentView({
     return keys;
   }, [scope, scopedPageIds, subpagesByPageId]);
 
-  const scopeLoading = scope !== null && (cardLocations.status === 'idle' || cardLocations.status === 'loading' || subpagesLoading);
+  const scopeLoading =
+    scope !== null && (cardLocations.status === 'idle' || cardLocations.status === 'loading' || subpagesLoading);
 
   const isCardInScope = useCallback(
     (cardId) => {
@@ -578,7 +580,11 @@ export function MigrateDownstreamContentView({
       const others = (cardLocations.locationIdsByCardId[String(card.id)] || []).filter(
         (key) => !effectiveScopeKeys.has(key)
       );
-      if (others.length > 0) shared.set(String(card.id), others.map((key) => locationsByKey.get(key)?.name || key));
+      if (others.length > 0)
+        shared.set(
+          String(card.id),
+          others.map((key) => locationsByKey.get(key)?.name || key)
+        );
     }
     return shared;
   }, [cardLocations, effectiveScopeKeys, locationsByKey, scopedResults]);
@@ -658,10 +664,7 @@ export function MigrateDownstreamContentView({
   const totalAvailable = useMemo(() => Object.values(totalsByType).reduce((a, b) => a + b, 0), [totalsByType]);
 
   // The bail-out reads unscoped totals, since a scope that matches nothing is still worth showing.
-  const unscopedTotal = useMemo(
-    () => Object.values(countLoadedByType(results)).reduce((a, b) => a + b, 0),
-    [results]
-  );
+  const unscopedTotal = useMemo(() => Object.values(countLoadedByType(results)).reduce((a, b) => a + b, 0), [results]);
 
   // All three lineage fetches settled with zero downstream content: there's
   // nothing to migrate. Bail straight back to the default view with a warning
@@ -693,7 +696,7 @@ export function MigrateDownstreamContentView({
       let toastKey;
       toastKey = showStatus(
         'Nothing to Migrate',
-        `**${datasetName}** has no downstream content to migrate, but Jupyter Workspaces haven't been searched`,
+        `**${datasetName}** has no downstream content to migrate, but Jupyter Workspaces haven't been searched.`,
         'warning',
         15000,
         {
@@ -714,7 +717,7 @@ export function MigrateDownstreamContentView({
         }
       );
     } else {
-      onStatusUpdate?.('Nothing to Migrate', `**${datasetName}** has no downstream content to migrate`, 'warning');
+      onStatusUpdate?.('Nothing to Migrate', `**${datasetName}** has no downstream content to migrate.`, 'warning');
     }
     onBackToDefault?.();
   }, [
@@ -1645,58 +1648,60 @@ export function MigrateDownstreamContentView({
 
   const dataListItems = useMemo(
     () =>
-      MIGRATE_TYPES.filter((t) => (!t.onDemand || jupyterCheckStarted) && !(scope && SCOPE_HIDDEN_TYPES.has(t.key))).map((t) => {
-        const result = scopedResults[t.key];
-        const xfer = transferStatus[t.key];
-        const status = xfer?.status ?? result?.status ?? 'loading';
+      MIGRATE_TYPES.filter((t) => (!t.onDemand || jupyterCheckStarted) && !(scope && SCOPE_HIDDEN_TYPES.has(t.key))).map(
+        (t) => {
+          const result = scopedResults[t.key];
+          const xfer = transferStatus[t.key];
+          const status = xfer?.status ?? result?.status ?? 'loading';
 
-        let count;
-        let countLabel = null;
-        let error = null;
-        let errorDetail = null;
-        let children;
+          let count;
+          let countLabel = null;
+          let error = null;
+          let errorDetail = null;
+          let children;
 
-        if (result?.status === 'loaded' && result.items?.items) {
-          const items = result.items.items;
-          if (t.key === 'cards') {
-            // Drills nest under their parent card, so the group's own count is
-            // the parent cards; the drill total rides along as "+ N drills".
-            const drillsCount = items.filter((c) => c.isDrill).length;
-            count = items.length - drillsCount;
-            if (drillsCount > 0) countLabel = `+ ${drillsCount} drill${drillsCount === 1 ? '' : 's'}`;
-            children = buildCardItems(items, origin, sharedCardLocations);
-          } else {
-            count = items.length;
-            children = buildLeafItems(t.key, items, origin);
+          if (result?.status === 'loaded' && result.items?.items) {
+            const items = result.items.items;
+            if (t.key === 'cards') {
+              // Drills nest under their parent card, so the group's own count is
+              // the parent cards; the drill total rides along as "+ N drills".
+              const drillsCount = items.filter((c) => c.isDrill).length;
+              count = items.length - drillsCount;
+              if (drillsCount > 0) countLabel = `+ ${drillsCount} drill${drillsCount === 1 ? '' : 's'}`;
+              children = buildCardItems(items, origin, sharedCardLocations);
+            } else {
+              count = items.length;
+              children = buildLeafItems(t.key, items, origin);
+            }
+          } else if (result?.status === 'error') {
+            error = result.error;
           }
-        } else if (result?.status === 'error') {
-          error = result.error;
-        }
 
-        if (xfer) {
-          if (xfer.error) error = xfer.error;
-          if (xfer.errorDetail) errorDetail = xfer.errorDetail;
-          if (xfer.count !== undefined) count = xfer.count;
-          // Transfer progress shows a plain count, not the "+ N drills" tally.
-          countLabel = null;
-        }
+          if (xfer) {
+            if (xfer.error) error = xfer.error;
+            if (xfer.errorDetail) errorDetail = xfer.errorDetail;
+            if (xfer.count !== undefined) count = xfer.count;
+            // Transfer progress shows a plain count, not the "+ N drills" tally.
+            countLabel = null;
+          }
 
-        return new DataListItem({
-          annotation: t.key === 'jupyterWorkspaces' ? JUPYTER_VISIBILITY_NOTE : null,
-          children,
-          count,
-          countLabel,
-          error,
-          errorDetail,
-          id: t.key,
-          isVirtualParent: true,
-          label: typeGroupLabel(t.key),
-          status,
-          // typeId drives the leading ObjectTypeIcon on the parent row,
-          // matching the icon already shown on each leaf inside the group.
-          typeId: TYPE_KEY_TO_DOMO_TYPE[t.key]
-        });
-      }),
+          return new DataListItem({
+            annotation: t.key === 'jupyterWorkspaces' ? JUPYTER_VISIBILITY_NOTE : null,
+            children,
+            count,
+            countLabel,
+            error,
+            errorDetail,
+            id: t.key,
+            isVirtualParent: true,
+            label: typeGroupLabel(t.key),
+            status,
+            // typeId drives the leading ObjectTypeIcon on the parent row,
+            // matching the icon already shown on each leaf inside the group.
+            typeId: TYPE_KEY_TO_DOMO_TYPE[t.key]
+          });
+        }
+      ),
     [jupyterCheckStarted, origin, scope, scopedResults, sharedCardLocations, transferStatus]
   );
 
@@ -2238,7 +2243,7 @@ export function MigrateDownstreamContentView({
         closeOrOfferAnother();
       }
     } catch (err) {
-      showStatus('Migration Failed', err.message || 'An error occurred', 'danger', 7000);
+      showStatus('Migration Failed', err.message || 'An error occurred.', 'danger', 7000);
       // The run threw before finishing, so some rows are still mid-flight. Mark
       // those failed (otherwise the list shows a frozen spinner) and return to
       // the list so the failure is visible on the per-type rows.
@@ -2307,25 +2312,26 @@ export function MigrateDownstreamContentView({
   // Domo can't be asked which workspaces read a dataset, so the only way to find
   // them is to list every workspace in the instance and match here. Too heavy to
   // run on open, so it's offered instead.
-  const jupyterPrompt = !jupyterCheckStarted && !scope && jupyterEnabled ? (
-    <Alert className='w-full' status='accent' variant='transparent'>
-      <Alert.Content>
-        <Alert.Title className='flex items-center gap-1'>
-          <Alert.Indicator>
-            <IconInfoCircle data-slot='alert-default-icon' />
-          </Alert.Indicator>
-          Jupyter Workspaces Aren't Searched Automatically
-        </Alert.Title>
-        <Alert.Description>
-          Finding them means reading every Jupyter Workspace in the instance, so it only runs when you ask.
-        </Alert.Description>
-        <Button fullWidth className='mt-2' size='sm' variant='secondary' onPress={() => setJupyterCheckStarted(true)}>
-          <IconSync />
-          Check Jupyter Workspaces
-        </Button>
-      </Alert.Content>
-    </Alert>
-  ) : null;
+  const jupyterPrompt =
+    !jupyterCheckStarted && !scope && jupyterEnabled ? (
+      <Alert className='w-full' status='accent' variant='transparent'>
+        <Alert.Content>
+          <Alert.Title className='flex items-center gap-1'>
+            <Alert.Indicator>
+              <IconInfoCircle data-slot='alert-default-icon' />
+            </Alert.Indicator>
+            Jupyter Workspaces Aren't Searched Automatically
+          </Alert.Title>
+          <Alert.Description>
+            Finding them means reading every Jupyter Workspace in the instance, so it only runs when you ask.
+          </Alert.Description>
+          <Button fullWidth className='mt-2' size='sm' variant='secondary' onPress={() => setJupyterCheckStarted(true)}>
+            <IconSync />
+            Check Jupyter Workspaces
+          </Button>
+        </Alert.Content>
+      </Alert>
+    ) : null;
 
   // Page 1: choose what downstream content to migrate. The type groups live in
   // the DataList; the only footer action is Next, which advances to page 2.
@@ -3137,7 +3143,18 @@ function parseLeafTypeKey(id) {
   return MIGRATE_TYPES.some((t) => t.key === candidate) ? candidate : null;
 }
 
-function SourceStep({ candidates, error, lastMigration, launchName, launchTypeId, noun, onClose, onRetry, onSelect, status }) {
+function SourceStep({
+  candidates,
+  error,
+  lastMigration,
+  launchName,
+  launchTypeId,
+  noun,
+  onClose,
+  onRetry,
+  onSelect,
+  status
+}) {
   return (
     <Card className='flex min-h-0 w-full flex-1 flex-col gap-0 p-2'>
       <ViewHeader

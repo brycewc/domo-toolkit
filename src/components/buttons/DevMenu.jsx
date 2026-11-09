@@ -10,6 +10,7 @@ import { buildExcelBlob, generateExportFilename } from '@/utils/exportData';
 import IconAiSparkle from '@icons/ai-sparkle.svg?react';
 import IconCode from '@icons/code.svg?react';
 import IconEnvelope from '@icons/envelope.svg?react';
+import IconKey from '@icons/key.svg?react';
 import IconShield from '@icons/shield.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconTrash from '@icons/trash.svg?react';
@@ -19,6 +20,11 @@ const DEV_ACTIONS = [
     icon: IconSync,
     id: 'refreshContext',
     label: 'Refresh Context'
+  },
+  {
+    icon: IconKey,
+    id: 'refetchPermissions',
+    label: 'Refetch Permissions'
   },
   {
     icon: IconTrash,
@@ -86,6 +92,9 @@ export function DevMenu() {
       case 'clearSessionStorage':
         await clearSessionStorage(showStatus);
         break;
+      case 'refetchPermissions':
+        await refetchPermissions(showStatus);
+        break;
       case 'refreshContext':
         await refreshCurrentContext(showStatus);
         break;
@@ -147,9 +156,27 @@ export function DevMenu() {
 async function clearSessionStorage(showStatus) {
   try {
     await chrome.storage.session.clear();
-    showStatus('Session Storage Cleared', 'Removed all cached contexts and handoff data', 'success');
+    showStatus('Session Storage Cleared', 'Removed all cached contexts and handoff data.', 'success');
   } catch (error) {
-    showStatus('Clear Failed', error.message || 'Unknown error', 'danger');
+    showStatus('Clear Failed', error.message || 'Unknown error.', 'danger');
+  }
+}
+
+async function refetchPermissions(showStatus) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      showStatus('Refetch Failed', 'No active tab found.', 'danger');
+      return;
+    }
+    const response = await chrome.runtime.sendMessage({ tabId: tab.id, type: 'REFETCH_INSTANCE_USER' });
+    if (response?.success) {
+      showStatus('Permissions Refetched', `Loaded ${response.rightsCount} rights for **${response.instance}**.`, 'success');
+    } else {
+      showStatus('Refetch Failed', response?.error || 'Unknown error.', 'danger');
+    }
+  } catch (error) {
+    showStatus('Refetch Failed', error.message || 'Unknown error.', 'danger');
   }
 }
 
@@ -164,17 +191,17 @@ async function refreshCurrentContext(showStatus) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) {
-      showStatus('Refresh Failed', 'No active tab found', 'danger');
+      showStatus('Refresh Failed', 'No active tab found.', 'danger');
       return;
     }
     const response = await chrome.runtime.sendMessage({ tabId: tab.id, type: 'DETECT_CONTEXT' });
     if (response?.success) {
-      showStatus('Context Refreshed', 'Re-detected the current tab context', 'success');
+      showStatus('Context Refreshed', 'Re-detected the current tab context.', 'success');
     } else {
-      showStatus('Refresh Failed', response?.error || 'Unknown error', 'danger');
+      showStatus('Refresh Failed', response?.error || 'Unknown error.', 'danger');
     }
   } catch (error) {
-    showStatus('Refresh Failed', error.message || 'Unknown error', 'danger');
+    showStatus('Refresh Failed', error.message || 'Unknown error.', 'danger');
   }
 }
 
@@ -192,7 +219,7 @@ async function runTestTransferEmail(showStatus) {
     const email = user?.emailAddress || user?.email;
     const displayName = user?.displayName || `User ${userId}`;
     if (!email) {
-      showStatus('Dev Email Failed', 'Could not resolve an email for the current user', 'danger');
+      showStatus('Dev Email Failed', 'Could not resolve an email for the current user.', 'danger');
       return;
     }
 
@@ -224,8 +251,8 @@ async function runTestTransferEmail(showStatus) {
       subject: 'Dev Menu — Transfer Email Pipeline Test'
     });
 
-    showStatus('Dev Email Sent', `Delivered to **${email}**`, 'success');
+    showStatus('Dev Email Sent', `Delivered to **${email}**.`, 'success');
   } catch (error) {
-    showStatus('Dev Email Failed', error.message || 'Unknown error', 'danger');
+    showStatus('Dev Email Failed', error.message || 'Unknown error.', 'danger');
   }
 }

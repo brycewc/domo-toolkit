@@ -31,7 +31,7 @@ export function GetCardPages({ currentContext, isDisabled, onStatusUpdate }) {
 
     const parentId = domoObject?.parentId;
     if (!parentId) {
-      onStatusUpdate?.('Error', 'Could not determine parent ID', 'danger');
+      onStatusUpdate?.('Error', 'Could not determine parent ID.', 'danger');
       return;
     }
 
@@ -67,7 +67,7 @@ export function GetCardPages({ currentContext, isDisabled, onStatusUpdate }) {
                         `this ${currentContext.domoObject.typeName?.toLowerCase()}`;
                       return {
                         empty: true,
-                        message: `No cards found on ${objectName}`,
+                        message: `No cards found on ${objectName}.`,
                         title: 'No Cards Found'
                       };
                     }

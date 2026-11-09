@@ -158,7 +158,7 @@ export function UpdateTriggerVersionsView({
         ctx = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       }
       if (!ctx?.domoObject?.id) {
-        onStatusUpdate?.('Error', 'No workflow context available', 'danger');
+        onStatusUpdate?.('Error', 'No workflow context available.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -202,7 +202,7 @@ export function UpdateTriggerVersionsView({
       setTargetVersion(latestVersion(versionList));
     } catch (error) {
       if (mountedRef.current) {
-        onStatusUpdate?.('Error', error.message || 'Failed to load triggers', 'danger');
+        onStatusUpdate?.('Error', error.message || 'Failed to load triggers.', 'danger');
         onBackToDefault?.();
       }
     } finally {

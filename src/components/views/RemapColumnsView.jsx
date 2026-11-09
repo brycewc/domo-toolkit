@@ -135,7 +135,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       }
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       if (!context || !isDatasetTypeId(context.domoObject?.typeId)) {
-        onStatusUpdate?.('Error', 'Remap Columns requires a dataset in scope', 'danger');
+        onStatusUpdate?.('Error', 'Remap Columns requires a dataset in scope.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -148,7 +148,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
       setIsView(isViewOrFusionType(context.domoObject?.metadata?.details));
     } catch (error) {
       console.error('[RemapColumnsView] Error loading data:', error);
-      onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
+      onStatusUpdate?.('Error', error.message || 'Failed to load context.', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
@@ -418,7 +418,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
   useEffect(() => {
     if (bailedRef.current || !nothingToDo) return;
     bailedRef.current = true;
-    onStatusUpdate?.('Nothing to Remap', `No broken column references found on **${datasetName}**`, 'warning');
+    onStatusUpdate?.('Nothing to Remap', `No broken column references found on **${datasetName}**.`, 'warning');
     onBackToDefault?.();
   }, [datasetName, nothingToDo, onBackToDefault, onStatusUpdate]);
 
@@ -790,7 +790,7 @@ export function RemapColumnsView({ currentContext = null, instance = null, onBac
         onBackToDefault?.();
       }
     } catch (err) {
-      showStatus('Remap Failed', err.message || 'An error occurred', 'danger', 7000);
+      showStatus('Remap Failed', err.message || 'An error occurred.', 'danger', 7000);
       if (mountedRef.current) {
         setTransferStatus((prevStatus) => {
           const nextStatus = { ...prevStatus };

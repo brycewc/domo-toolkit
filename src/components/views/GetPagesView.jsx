@@ -1,4 +1,4 @@
-import { Button, Card, Spinner } from '@heroui/react';
+import { Button, Card, Spinner, toast } from '@heroui/react';
 import { useEffect, useRef, useState } from 'react';
 
 import { Alert } from '@/components/Alert';
@@ -15,7 +15,7 @@ import { waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { soleExpandedGroupIds, withCanonicalGroups } from '@/utils/dataListGroups';
 import { waitForChildPages } from '@/utils/pageHelpers';
-import { getSidepanelData } from '@/utils/sidepanel';
+import { getSidepanelData, launchView } from '@/utils/sidepanel';
 import IconPagesBars from '@icons/pages-bars.svg?react';
 import IconSync from '@icons/sync.svg?react';
 import IconTree from '@icons/tree.svg?react';
@@ -205,6 +205,12 @@ export function GetPagesView({
         workspaceResult = await readCardWorkspaces(queriedCards, await getValidTabForInstance(instance));
       }
 
+      const offersWorkspaceCheck = sidepanelType === 'getCardPages' && objectType !== 'CARD' && queriedCards.length > 0;
+      if (data.checkWorkspaces && offersWorkspaceCheck && !workspaceResult) {
+        workspaceResult = await readCardWorkspaces(queriedCards, await getValidTabForInstance(instance));
+        if (mountedRef.current) setWorkspaceCheck(workspaceCheckState(workspaceResult));
+      }
+
       // Cache card pages on background context so activity log can reuse them
       if (sidepanelType === 'getCardPages' && childPages?.length > 0) {
         chrome.runtime
@@ -238,11 +244,19 @@ export function GetPagesView({
           sidepanelType === 'getCardPages'
             ? isCardless
               ? noCardsMessage(objectType, objectName)
-              : noCardPagesMessage(objectType, objectName)
+              : noCardPagesMessage(
+                  objectType,
+                  objectName,
+                  offersWorkspaceCheck ? (workspaceResult ? 'checked' : 'unchecked') : null
+                )
             : objectType === 'DATA_APP_VIEW'
-              ? `No views (pages) found for app studio app ${objectId}`
-              : `No child pages found for page ${objectId}`;
-        onStatusUpdate?.(isCardless ? 'No Cards Found' : 'No Pages Found', message, 'warning');
+              ? `No views (pages) found for app studio app ${objectId}.`
+              : `No child pages found for page ${objectId}.`;
+        if (offersWorkspaceCheck) {
+          reportNoCardPages(message, workspaceResult, { currentContext: context, type: 'getCardPages' });
+        } else {
+          onStatusUpdate?.(isCardless ? 'No Cards Found' : 'No Pages Found', message, 'warning');
+        }
         onBackToDefault?.();
         setIsLoading(false);
         return;
@@ -367,11 +381,21 @@ export function GetPagesView({
         parentName: page.parentName || null
       }));
 
+    const cards = [...cardById.values()];
+    const workspaceResult =
+      data.checkWorkspaces || groupedRef.current?.workspaceResult ? await readCardWorkspaces(cards, tabId) : null;
+    if (data.checkWorkspaces && mountedRef.current) setWorkspaceCheck(workspaceCheckState(workspaceResult));
+
     // Only real pages make this view worth showing; no other pages means the cards
     // live only on this app/worksheet, which is a toast rather than a view showing a
     // lone Cards that Only Live Here group (see loadPagesData).
-    if (childPages.length === 0 && !embedResult?.embeds?.length) {
-      onStatusUpdate?.('No Pages Found', `Cards on this ${parentLabel} are not used on any other pages.`, 'warning');
+    if (childPages.length === 0 && !embedResult?.embeds?.length && !hasWorkspaces(workspaceResult)) {
+      if (!mountedRef.current) return;
+      reportNoCardPages(
+        `Cards on this ${parentLabel} are not used on any other ${workspaceResult ? 'pages or workspaces' : 'pages'}.`,
+        workspaceResult,
+        { currentContext: context, parentId, scope: 'parent', type: 'getCardPages' }
+      );
       onBackToDefault?.();
       return;
     }
@@ -388,12 +412,9 @@ export function GetPagesView({
     });
 
     setError(null);
-    const workspaceResult = groupedRef.current?.workspaceResult
-      ? await readCardWorkspaces([...cardById.values()], tabId)
-      : null;
     showGroupedPages({
       args: [childPages, origin, result.cardsByPage, result.orphanedCards, parentTypeId, embedResult],
-      cards: [...cardById.values()],
+      cards,
       instance,
       workspaceResult
     });
@@ -416,6 +437,33 @@ export function GetPagesView({
     }
     setWorkspaceCheck({ error: null, status: 'loaded' });
     showGroupedPages({ ...grouped, workspaceResult: result });
+  };
+
+  const reportNoCardPages = (message, workspaceResult, relaunchOptions) => {
+    if (workspaceResult?.error) {
+      onStatusUpdate?.('No Pages Found', `${message} Workspaces could not be checked: ${workspaceResult.error}.`, 'danger');
+      return;
+    }
+    if (workspaceResult) {
+      onStatusUpdate?.('No Pages Found', message, 'warning');
+      return;
+    }
+    const toastKey = onStatusUpdate?.('No Pages Found', `${message} Workspaces haven't been searched.`, 'warning', 15000, {
+      actionProps: {
+        children: (
+          <>
+            <IconSync />
+            Check Workspaces
+          </>
+        ),
+        onPress: () => {
+          launchView({ ...relaunchOptions, checkWorkspaces: true });
+          toast.close(toastKey);
+        },
+        size: 'sm',
+        variant: 'secondary'
+      }
+    });
   };
 
   /**
@@ -506,9 +554,9 @@ export function GetPagesView({
     setIsRefreshing(true);
     try {
       await loadPagesData(true); // Force fresh API call
-      onStatusUpdate?.('Refreshed', 'Page data updated successfully', 'success', 2000);
+      onStatusUpdate?.('Refreshed', 'Page data updated successfully.', 'success', 2000);
     } catch (err) {
-      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data', 'danger', 3000);
+      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data.', 'danger', 3000);
     } finally {
       setIsRefreshing(false);
     }
@@ -905,39 +953,43 @@ function hasWorkspaces(workspaceResult) {
   return Object.keys(workspaceResult?.workspacesByCard || {}).length > 0;
 }
 
-function noCardPagesMessage(objectType, objectName) {
+function noCardPagesMessage(objectType, objectName, workspaceCheck = null) {
+  const found = workspaceCheck === 'checked' ? 'No pages or workspaces found' : 'No pages found';
   switch (objectType) {
     case 'BEAST_MODE_FORMULA':
-      return `No pages found for cards using Beast Mode **${objectName}**`;
+      return `${found} for cards using Beast Mode **${objectName}**.`;
     case 'CARD':
-      return 'This card does not appear on any app studio apps, dashboards, embeds, report builder pages, workspaces, or worksheets';
+      return 'This card does not appear on any app studio apps, dashboards, embeds, report builder pages, workspaces, or worksheets.';
     case 'DATA_FUSION':
     case 'DATA_MODEL':
     case 'DATA_SOURCE':
     case 'VIEW':
-      return `No pages found for cards using dataset **${objectName}**`;
+      return `${found} for cards using dataset **${objectName}**.`;
     case 'USER':
-      return `No pages found for cards owned by **${objectName}**`;
+      return `${found} for cards owned by **${objectName}**.`;
     default:
-      return `Cards on **${objectName}** are not used on any other app studio apps, dashboards, embeds, report builder pages, or worksheets`;
+      if (workspaceCheck === 'checked')
+        return `Cards on **${objectName}** aren't on any other pages, embeds, or workspaces.`;
+      if (workspaceCheck === 'unchecked') return `Cards on **${objectName}** aren't on any other pages or embeds.`;
+      return `Cards on **${objectName}** are not used on any other app studio apps, dashboards, embeds, report builder pages, or worksheets.`;
   }
 }
 
 function noCardsMessage(objectType, objectName) {
   switch (objectType) {
     case 'BEAST_MODE_FORMULA':
-      return `No cards use Beast Mode **${objectName}**`;
+      return `No cards use Beast Mode **${objectName}**.`;
     case 'DATA_FUSION':
     case 'DATA_MODEL':
     case 'DATA_SOURCE':
     case 'VIEW':
-      return `No cards are built on dataset **${objectName}**`;
+      return `No cards are built on dataset **${objectName}**.`;
     case 'DATAFLOW_TYPE':
-      return `No cards are built on the output datasets of **${objectName}**`;
+      return `No cards are built on the output datasets of **${objectName}**.`;
     case 'USER':
-      return `**${objectName}** does not own any cards`;
+      return `**${objectName}** does not own any cards.`;
     default:
-      return `No cards found on **${objectName}**`;
+      return `No cards found on **${objectName}**.`;
   }
 }
 
@@ -1288,4 +1340,8 @@ function transformGroupedPagesData(
       ? [...CARD_PAGE_GROUPS, ...embedGroups, ...workspaceGroups]
       : [...CARD_PAGE_GROUPS, ...embedGroups, ...workspaceGroups, trailingGroup];
   return withCanonicalGroups(items, canonicalGroups);
+}
+
+function workspaceCheckState(workspaceResult) {
+  return workspaceResult?.error ? { error: workspaceResult.error, status: 'error' } : { error: null, status: 'loaded' };
 }

@@ -158,9 +158,9 @@ export function GetUsageView({
     setIsRefreshing(true);
     try {
       await loadUsageData(true);
-      onStatusUpdate?.('Refreshed', 'Usage data updated successfully', 'success', 2000);
+      onStatusUpdate?.('Refreshed', 'Usage data updated successfully.', 'success', 2000);
     } catch (err) {
-      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data', 'danger', 3000);
+      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data.', 'danger', 3000);
     } finally {
       setIsRefreshing(false);
     }

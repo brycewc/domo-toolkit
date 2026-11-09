@@ -240,9 +240,9 @@ export function GetDatasetsView({
     setIsRefreshing(true);
     try {
       await loadDatasetsData(true);
-      onStatusUpdate?.('Refreshed', 'DataSet data updated successfully', 'success', 2000);
+      onStatusUpdate?.('Refreshed', 'DataSet data updated successfully.', 'success', 2000);
     } catch (err) {
-      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data', 'danger', 3000);
+      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data.', 'danger', 3000);
     } finally {
       setIsRefreshing(false);
     }

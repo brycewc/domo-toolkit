@@ -68,7 +68,7 @@ export function ManageCardOwnersView({ instance = null, onBackToDefault = null, 
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       const domoObject = context?.domoObject;
       if (!context || !SUPPORTED_TYPES.includes(domoObject?.typeId)) {
-        onStatusUpdate?.('Error', 'Manage Card Owners is not available for this object', 'danger');
+        onStatusUpdate?.('Error', 'Manage Card Owners is not available for this object.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -125,9 +125,9 @@ export function ManageCardOwnersView({ instance = null, onBackToDefault = null, 
     setIsRefreshing(true);
     try {
       await loadData({ isRefresh: true });
-      onStatusUpdate?.('Refreshed', 'Owner data updated', 'success', 2000);
+      onStatusUpdate?.('Refreshed', 'Owner data updated.', 'success', 2000);
     } catch (err) {
-      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh owners', 'danger', 3000);
+      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh owners.', 'danger', 3000);
     } finally {
       if (mountedRef.current) setIsRefreshing(false);
     }
@@ -181,7 +181,9 @@ export function ManageCardOwnersView({ instance = null, onBackToDefault = null, 
         const item = DataListItem.fromDomoObject(new DomoObject('CARD', card.id, origin, { name: card.name }), {
           label: card.name
         });
-        item.metadata = card.readable ? `${card.owners.length} owner${card.owners.length === 1 ? '' : 's'}` : 'Owners unavailable';
+        item.metadata = card.readable
+          ? `${card.owners.length} owner${card.owners.length === 1 ? '' : 's'}`
+          : 'Owners unavailable';
         item.muted = !card.readable;
         return item;
       }),
@@ -220,7 +222,7 @@ export function ManageCardOwnersView({ instance = null, onBackToDefault = null, 
   const handleSave = () => {
     const targets = cards.filter((c) => c.readable && selectedIds.has(String(c.id)));
     if (targets.length === 0) {
-      onStatusUpdate?.('No Cards Selected', 'Select at least one card', 'warning', 2500);
+      onStatusUpdate?.('No Cards Selected', 'Select at least one card.', 'warning', 2500);
       return;
     }
     if (!hasEdits) return;
@@ -237,7 +239,10 @@ export function ManageCardOwnersView({ instance = null, onBackToDefault = null, 
       return resulting.size === 0;
     });
     if (orphaned.length > 0) {
-      const names = orphaned.slice(0, 3).map((c) => c.name).join(', ');
+      const names = orphaned
+        .slice(0, 3)
+        .map((c) => c.name)
+        .join(', ');
       const more = orphaned.length > 3 ? ` and ${orphaned.length - 3} more` : '';
       onStatusUpdate?.(
         'Cannot Remove All Owners',
@@ -341,7 +346,13 @@ export function ManageCardOwnersView({ instance = null, onBackToDefault = null, 
       {displayedOwners.length > 0 ? (
         <div className='flex max-h-28 flex-wrap gap-1 overflow-y-auto'>
           {displayedOwners.map(({ cards: ownerCards, entity, key, partial, presentCount, total }) => (
-            <Chip className='h-6 max-w-full px-2 text-xs' color={partial ? 'warning' : 'accent'} key={key} size='sm' variant='soft'>
+            <Chip
+              className='h-6 max-w-full px-2 text-xs'
+              color={partial ? 'warning' : 'accent'}
+              key={key}
+              size='sm'
+              variant='soft'
+            >
               {entity.type === 'GROUP' ? (
                 <IconPeople className='size-3 shrink-0' />
               ) : (
@@ -395,7 +406,13 @@ export function ManageCardOwnersView({ instance = null, onBackToDefault = null, 
         add it to all, or leave it to keep it on only those cards.
       </span>
 
-      <Button fullWidth isDisabled={isSubmitting || !hasEdits} isPending={isSubmitting} variant='primary' onPress={handleSave}>
+      <Button
+        fullWidth
+        isDisabled={isSubmitting || !hasEdits}
+        isPending={isSubmitting}
+        variant='primary'
+        onPress={handleSave}
+      >
         <IconPersonCard />
         Save Owners
       </Button>

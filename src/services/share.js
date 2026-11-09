@@ -167,7 +167,7 @@ async function shareForType({ object, tabId, userId }) {
     case 'APP':
     case 'RYUU_APP':
       await shareCustomAppDesign({ designId: object.id, tabId, userId });
-      return `Custom App Design ${object.id} shared successfully`;
+      return `Custom App Design ${object.id} shared successfully.`;
 
     case 'CARD': {
       if (object.metadata?.details?.type !== 'domoapp') {
@@ -201,13 +201,13 @@ async function shareForType({ object, tabId, userId }) {
           )
         );
       }
-      return `Custom App Design ${designId} shared successfully (including ${appInstanceId} AppDB collections)`;
+      return `Custom App Design ${designId} shared successfully (including ${appInstanceId} AppDB collections).`;
     }
 
     case 'DATA_APP':
     case 'WORKSHEET':
       throwFirstFailure(await shareStudioApps({ appIds: [object.id], tabId, userId }));
-      return `${object.typeName || 'App'} ${object.id} shared successfully`;
+      return `${object.typeName || 'App'} ${object.id} shared successfully.`;
 
     case 'DATA_APP_VIEW':
     case 'WORKSHEET_VIEW': {
@@ -216,7 +216,7 @@ async function shareForType({ object, tabId, userId }) {
         throw new Error('Parent app ID not found, cannot share app page');
       }
       throwFirstFailure(await shareStudioApps({ appIds: [parentId], tabId, userId }));
-      return `App ${parentId} shared successfully`;
+      return `App ${parentId} shared successfully.`;
     }
 
     case 'DATA_FUSION':
@@ -235,14 +235,14 @@ async function shareForType({ object, tabId, userId }) {
       }
       await Promise.all(accountIds.map((accountId) => shareAccount({ accountId, tabId, userId })));
       if (accountIds.length === 1) {
-        return `Account ${accountIds[0]} shared successfully`;
+        return `Account ${accountIds[0]} shared successfully.`;
       }
-      return `${accountIds.length} accounts shared successfully (${accountIds.join(', ')})`;
+      return `${accountIds.length} accounts shared successfully (${accountIds.join(', ')}).`;
     }
 
     case 'HOPPER_QUEUE':
       await shareTaskCenterQueue({ queueId: object.id, tabId, userId });
-      return `Task Center Queue ${object.id} shared successfully`;
+      return `Task Center Queue ${object.id} shared successfully.`;
 
     // A task holds no permissions of its own; access to one comes from its queue.
     case 'HOPPER_TASK': {
@@ -251,12 +251,12 @@ async function shareForType({ object, tabId, userId }) {
         throw new Error("Could not find the task's queue, so there is nothing to share");
       }
       await shareTaskCenterQueue({ queueId, tabId, userId });
-      return `Task Center Queue ${queueId} shared successfully`;
+      return `Task Center Queue ${queueId} shared successfully.`;
     }
 
     case 'PAGE':
       throwFirstFailure(await sharePages({ pageIds: [object.id], tabId, userId }));
-      return `Page ${object.id} shared successfully`;
+      return `Page ${object.id} shared successfully.`;
 
     default:
       throw new Error(`Sharing not supported for object type: ${object.typeId}`);

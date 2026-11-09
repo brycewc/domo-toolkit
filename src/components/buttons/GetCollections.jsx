@@ -24,7 +24,7 @@ export function GetCollections({ currentContext, isDisabled, onStatusUpdate }) {
 
     const parentId = currentContext?.domoObject?.parentId;
     if (!parentId) {
-      onStatusUpdate?.('Error', 'Could not determine parent app ID', 'danger');
+      onStatusUpdate?.('Error', 'Could not determine parent app ID.', 'danger');
       return;
     }
 

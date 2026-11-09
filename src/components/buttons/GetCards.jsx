@@ -31,7 +31,7 @@ export function GetCards({ currentContext, isDisabled, onStatusUpdate }) {
 
     const parentId = domoObject?.parentId;
     if (!parentId) {
-      onStatusUpdate?.('Error', 'Could not determine parent ID', 'danger');
+      onStatusUpdate?.('Error', 'Could not determine parent ID.', 'danger');
       return;
     }
 

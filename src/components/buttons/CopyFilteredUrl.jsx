@@ -74,17 +74,17 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       setTimeout(() => setIsCopied(false), 2000);
 
       if (allFilters.length === 0 && changedCount === 0) {
-        showStatus('No Filters or Variables Active', 'Copied base URL without filters', 'warning', 3000);
+        showStatus('No Filters or Variables Active', 'Copied base URL without filters.', 'warning', 3000);
       } else {
         showStatus(
           'Success',
-          `Captured ${describeCapture(allFilters.length, changedCount)} and copied URL`,
+          `Captured ${describeCapture(allFilters.length, changedCount)} and copied URL.`,
           'success',
           3000
         );
       }
     } catch (_error) {
-      showStatus('Error', 'Failed to detect filters', 'danger', 3000);
+      showStatus('Error', 'Failed to detect filters.', 'danger', 3000);
     }
   };
 
@@ -109,7 +109,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       if (allFilters.length === 0 && changedCount === 0) {
         setIsFailed(true);
         setTimeout(() => setIsFailed(false), 2000);
-        showStatus('No Filters or Variables Active', 'Nothing to apply', 'danger', 3000);
+        showStatus('No Filters or Variables Active', 'Nothing to apply.', 'danger', 3000);
         return;
       }
 
@@ -117,12 +117,12 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
 
       showStatus(
         'Applying Filters',
-        `Reloading this tab with ${describeCapture(allFilters.length, changedCount)}`,
+        `Reloading this tab with ${describeCapture(allFilters.length, changedCount)}.`,
         'success',
         3000
       );
     } catch (_error) {
-      showStatus('Error', 'Failed to apply filters', 'danger', 3000);
+      showStatus('Error', 'Failed to apply filters.', 'danger', 3000);
     }
   };
 
@@ -139,7 +139,7 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       if (allFilters.length === 0 && changedCount === 0) {
         setIsFailed(true);
         setTimeout(() => setIsFailed(false), 2000);
-        showStatus('No Filters or Variables Active', 'No params to copy', 'danger', 3000);
+        showStatus('No Filters or Variables Active', 'No params to copy.', 'danger', 3000);
         return;
       }
 
@@ -149,9 +149,9 @@ export function CopyFilteredUrl({ currentContext, isDisabled }) {
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
 
-      showStatus('Success', `Copied params with ${describeCapture(allFilters.length, changedCount)}`, 'success', 3000);
+      showStatus('Success', `Copied params with ${describeCapture(allFilters.length, changedCount)}.`, 'success', 3000);
     } catch (_error) {
-      showStatus('Error', 'Failed to copy filter params', 'danger', 3000);
+      showStatus('Error', 'Failed to copy filter params.', 'danger', 3000);
     }
   };
 

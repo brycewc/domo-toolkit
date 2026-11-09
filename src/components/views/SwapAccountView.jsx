@@ -75,7 +75,7 @@ export function SwapAccountView({ instance = null, liveContext = null, onBackToD
       const resolvedStreamId = details?.streamId ?? domoObject?.metadata?.parent?.details?.id ?? null;
       const accountIds = getAccountIdsForDomoObject(domoObject);
       if (!context || !resolvedStreamId || accountIds.length === 0) {
-        onStatusUpdate?.('Error', 'This dataset has no stream account to swap', 'danger');
+        onStatusUpdate?.('Error', 'This dataset has no stream account to swap.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -94,7 +94,7 @@ export function SwapAccountView({ instance = null, liveContext = null, onBackToD
       loadAccounts(provider, context.tabId, { openPicker: accountIds.length === 1, openWhenEmpty: isLegacy });
     } catch (error) {
       console.error('[SwapAccountView] Error loading data:', error);
-      onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
+      onStatusUpdate?.('Error', error.message || 'Failed to load context.', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
@@ -142,7 +142,7 @@ export function SwapAccountView({ instance = null, liveContext = null, onBackToD
   const applyAccountChanges = (accountChanges, runAfter) => {
     const changeCount = Object.keys(accountChanges).length;
     if (changeCount === 0) {
-      onStatusUpdate?.('No Changes to Apply', 'Choose a different account first', 'warning', 2000);
+      onStatusUpdate?.('No Changes to Apply', 'Choose a different account first.', 'warning', 2000);
       return;
     }
 

@@ -68,7 +68,7 @@ export function GeneratePackageDefinitionFromJSDocView({
       }
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       if (!context?.domoObject) {
-        onStatusUpdate?.('Error', 'No package context available', 'danger');
+        onStatusUpdate?.('Error', 'No package context available.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -77,7 +77,7 @@ export function GeneratePackageDefinitionFromJSDocView({
       const tabId = context.tabId;
 
       if (!packageId) {
-        onStatusUpdate?.('Error', 'Could not determine package ID', 'danger');
+        onStatusUpdate?.('Error', 'Could not determine package ID.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -221,8 +221,8 @@ export function GeneratePackageDefinitionFromJSDocView({
     onStatusUpdate?.(
       'Already Up to Date',
       packageDef?.name
-        ? `Package **${packageDef.name}** matches the JSDoc, no sync needed`
-        : 'Package matches the JSDoc, no sync needed',
+        ? `Package **${packageDef.name}** matches the JSDoc, no sync needed.`
+        : 'Package matches the JSDoc, no sync needed.',
       'warning',
       3000
     );

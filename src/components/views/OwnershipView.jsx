@@ -139,6 +139,7 @@ export function OwnershipView({
   // `handleSelectionChange`, same pattern as MigrateDownstreamContentView.
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [defaultDeleteAfterTransfer, setDefaultDeleteAfterTransfer] = useState(false);
   // True when selection-mode was engaged with a pre-selection that may need
   // hydration/pruning once fetches settle; currently only the
   // TransferOwnership launch path (`autoEnableSelectionMode`) uses this.
@@ -187,7 +188,7 @@ export function OwnershipView({
       }
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       if (!context) {
-        onStatusUpdate?.('Error', 'No context available', 'danger');
+        onStatusUpdate?.('Error', 'No context available.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -205,6 +206,7 @@ export function OwnershipView({
       setOrigin(baseUrl);
       setTabId(context.tabId);
       setLaunchContext(context);
+      setDefaultDeleteAfterTransfer(!!data.deleteAfterTransfer && !isGroup);
 
       // Transfer Ownership action button passes `autoEnableSelectionMode: true`
       // so we engage selection mode as soon as the view mounts. We
@@ -236,7 +238,7 @@ export function OwnershipView({
       }
     } catch (error) {
       console.error('[OwnershipView] Error loading data:', error);
-      onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
+      onStatusUpdate?.('Error', error.message || 'Failed to load context.', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
@@ -330,11 +332,24 @@ export function OwnershipView({
     emptyHandledRef.current = true;
     showStatus(
       'No Objects Owned',
-      `${isGroupSource ? 'Group' : 'User'} **${userName}** does not own any objects`,
-      'warning'
+      defaultDeleteAfterTransfer
+        ? `User **${userName}** does not own any objects, so there is nothing to transfer. Delete the user from their profile in Domo.`
+        : `${isGroupSource ? 'Group' : 'User'} **${userName}** does not own any objects.`,
+      'warning',
+      defaultDeleteAfterTransfer ? 7000 : undefined
     );
     onBackToDefault?.();
-  }, [errorCount, isFullyLoaded, isGroupSource, onBackToDefault, results, showStatus, totalObjects, userName]);
+  }, [
+    defaultDeleteAfterTransfer,
+    errorCount,
+    isFullyLoaded,
+    isGroupSource,
+    onBackToDefault,
+    results,
+    showStatus,
+    totalObjects,
+    userName
+  ]);
 
   // Every type the toolkit user can actually transfer right now (loaded, > 0
   // items, not forbidden). Recomputed when fetch results change so the "Select
@@ -549,7 +564,7 @@ export function OwnershipView({
         const launchedForRequest = activityLogRequest.requestedAt < mountedAtRef.current;
         closeQueuedLogToast();
         queuedLogToastIdRef.current = toast(launchedForRequest ? 'Loading Owned Objects' : 'Activity Log Queued', {
-          description: 'The activity log opens once every type finishes loading',
+          description: 'The activity log opens once every type finishes loading.',
           isLoading: true,
           timeout: 0
         });
@@ -578,7 +593,7 @@ export function OwnershipView({
       })
       .catch((err) => {
         console.error('[OwnershipView] Error opening activity log:', err);
-        onStatusUpdate?.('Error', `Failed to open activity log: ${err.message}`, 'danger', 5000);
+        onStatusUpdate?.('Error', `Failed to open activity log: ${err.message}.`, 'danger', 5000);
       });
   }, [
     activityLogRequest,
@@ -1047,14 +1062,14 @@ export function OwnershipView({
               await sendEmail(email, tabId);
             }
           } catch (err) {
-            showStatus('Email Not Sent', err.message || 'Failed to email transfer summary', 'warning', 5000);
+            showStatus('Email Not Sent', err.message || 'Failed to email transfer summary.', 'warning', 5000);
           }
         }
 
         if (totalFailed === 0 && deleteAfterTransfer && deleteBlockedReason) {
           showStatus(
             'Transfer Complete (User Not Deleted)',
-            `Transferred **${totalSucceeded}** object${totalSucceeded !== 1 ? 's' : ''} but did not delete **${userName}**: ${deleteBlockedReason}`,
+            `Transferred **${totalSucceeded}** object${totalSucceeded !== 1 ? 's' : ''} but did not delete **${userName}**: ${deleteBlockedReason}.`,
             'warning',
             7000
           );
@@ -1063,7 +1078,7 @@ export function OwnershipView({
             await deleteUser(userId, tabId);
             showStatus(
               'Transfer Complete',
-              `Transferred **${totalSucceeded}** object${totalSucceeded !== 1 ? 's' : ''} and deleted user **${userName}**`,
+              `Transferred **${totalSucceeded}** object${totalSucceeded !== 1 ? 's' : ''} and deleted user **${userName}**.`,
               'success',
               7000
             );
@@ -1071,7 +1086,7 @@ export function OwnershipView({
           } catch (error) {
             showStatus(
               'Transfer Complete (Delete Failed)',
-              `Transferred **${totalSucceeded}** object${totalSucceeded !== 1 ? 's' : ''} but failed to delete user: ${error.message}`,
+              `Transferred **${totalSucceeded}** object${totalSucceeded !== 1 ? 's' : ''} but failed to delete user: ${error.message}.`,
               'warning',
               7000
             );
@@ -1079,20 +1094,20 @@ export function OwnershipView({
         } else if (totalFailed > 0) {
           showStatus(
             'Transfer Partially Complete',
-            `**${totalSucceeded}** succeeded, **${totalFailed}** failed`,
+            `**${totalSucceeded}** succeeded, **${totalFailed}** failed.`,
             'warning',
             7000
           );
         } else {
           showStatus(
             'Transfer Complete',
-            `Transferred **${totalSucceeded}** object${totalSucceeded !== 1 ? 's' : ''}`,
+            `Transferred **${totalSucceeded}** object${totalSucceeded !== 1 ? 's' : ''}.`,
             'success',
             7000
           );
         }
       } catch (err) {
-        showStatus('Transfer Failed', err.message || 'An error occurred', 'danger', 7000);
+        showStatus('Transfer Failed', err.message || 'An error occurred.', 'danger', 7000);
       } finally {
         if (mountedRef.current) {
           setIsTransferring(false);
@@ -1300,6 +1315,7 @@ export function OwnershipView({
       />
       <TransferOwnershipModal
         currentContext={launchContext}
+        defaultDeleteAfterTransfer={defaultDeleteAfterTransfer}
         deleteBlockedReason={deleteBlockedReason}
         isOpen={transferModalOpen && isActive}
         notCheckedTypeLabels={UNSUPPORTED_TYPE_LABELS}

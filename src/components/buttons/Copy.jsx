@@ -23,8 +23,7 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
     const resolve = (source) =>
       typeof source === 'function' ? source(domoObject) : source.split('.').reduce((cur, key) => cur?.[key], domoObject);
 
-    const isVisible = (config) =>
-      config.when ? matchesCondition(config.when, domoObject) : !!resolve(config.source);
+    const isVisible = (config) => (config.when ? matchesCondition(config.when, domoObject) : !!resolve(config.source));
 
     return typeModel.copyConfigs
       .filter((c) => !c.primary && isVisible(c))
@@ -44,9 +43,9 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
       await copyToClipboard(copy.value, currentContext.tabId);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
-      onStatusUpdate?.('Success', `Copied ${copy.label} **${copy.value}** to clipboard`, 'success', 2000);
+      onStatusUpdate?.('Success', `Copied ${copy.label} **${copy.value}** to clipboard.`, 'success', 2000);
     } catch (error) {
-      onStatusUpdate?.('Error', `Failed to copy ${copy.label.toLowerCase()} to clipboard`, 'error', 3000);
+      onStatusUpdate?.('Error', `Failed to copy ${copy.label.toLowerCase()} to clipboard.`, 'error', 3000);
     }
   };
 
@@ -56,9 +55,9 @@ export function Copy({ currentContext, isDisabled, onStatusUpdate }) {
     const label = item.label.replace('Copy ', '');
     try {
       await copyToClipboard(item.value, currentContext.tabId);
-      onStatusUpdate?.('Success', `Copied ${label} **${item.value}** to clipboard`, 'success', 2000);
+      onStatusUpdate?.('Success', `Copied ${label} **${item.value}** to clipboard.`, 'success', 2000);
     } catch (error) {
-      onStatusUpdate?.('Error', `Failed to copy ${label.toLowerCase()} to clipboard`, 'error', 3000);
+      onStatusUpdate?.('Error', `Failed to copy ${label.toLowerCase()} to clipboard.`, 'error', 3000);
     }
   };
 

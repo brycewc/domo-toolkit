@@ -95,13 +95,13 @@ export async function clearCookies({ daSidsToPreserve = [], domains = null, excl
     // Build description based on mode
     let description;
     if (domains === null || domains.length === 0) {
-      description = `Successfully cleared ${removedCount} Domo cookie${removedCount !== 1 ? 's' : ''} for all instances`;
+      description = `Successfully cleared ${removedCount} Domo cookie${removedCount !== 1 ? 's' : ''} for all instances.`;
     } else if (excludeDomains) {
       const domainList = domains.join(', ');
-      description = `Successfully cleared ${removedCount} Domo cookie${removedCount !== 1 ? 's' : ''} for all instances except ${domainList}`;
+      description = `Successfully cleared ${removedCount} Domo cookie${removedCount !== 1 ? 's' : ''} for all instances except ${domainList}.`;
     } else {
       const domainList = domains.join(', ');
-      description = `Successfully cleared ${removedCount} Domo cookie${removedCount !== 1 ? 's' : ''} for ${domainList}`;
+      description = `Successfully cleared ${removedCount} Domo cookie${removedCount !== 1 ? 's' : ''} for ${domainList}.`;
     }
 
     // Show result message
@@ -119,7 +119,7 @@ export async function clearCookies({ daSidsToPreserve = [], domains = null, excl
       return {
         description: `Cleared ${removedCount} Domo cookie${removedCount !== 1 ? 's' : ''}, but ${errors.length} error${
           errors.length !== 1 ? 's' : ''
-        } occurred`,
+        } occurred.`,
         status: 'warning',
         title: 'Partial Success'
       };

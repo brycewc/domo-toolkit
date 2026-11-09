@@ -150,7 +150,7 @@ export function MigrateBeastModeUsageView({
       }
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       if (!context || context.domoObject?.typeId !== 'BEAST_MODE_FORMULA') {
-        onStatusUpdate?.('Error', 'Migrate Content requires a Beast Mode in scope', 'danger');
+        onStatusUpdate?.('Error', 'Migrate Content requires a Beast Mode in scope.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -160,7 +160,7 @@ export function MigrateBeastModeUsageView({
       const template = details?.links ? details : await getFunctionTemplate(context.domoObject.id, context.tabId);
       const dataset = datasetIdFromBeastModeLinks(template?.links);
       if (!dataset) {
-        onStatusUpdate?.('Error', "Couldn't determine which DataSet this Beast Mode belongs to", 'danger');
+        onStatusUpdate?.('Error', "Couldn't determine which DataSet this Beast Mode belongs to.", 'danger');
         onBackToDefault?.();
         return;
       }
@@ -172,7 +172,7 @@ export function MigrateBeastModeUsageView({
       setTabId(context.tabId);
     } catch (error) {
       console.error('[MigrateBeastModeUsageView] Error loading data:', error);
-      onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
+      onStatusUpdate?.('Error', error.message || 'Failed to load context.', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
@@ -569,8 +569,8 @@ export function MigrateBeastModeUsageView({
     bailedRef.current = true;
     const message =
       otherLinks.length > 0
-        ? `Only content this tool can't repoint uses **${beastModeName}**`
-        : `Nothing uses **${beastModeName}**`;
+        ? `Only content this tool can't repoint uses **${beastModeName}**.`
+        : `Nothing uses **${beastModeName}**.`;
     onStatusUpdate?.('Nothing to Migrate', message, 'warning');
     onBackToDefault?.();
   }, [beastModeName, nothingToMigrate, onBackToDefault, onStatusUpdate, otherLinks.length]);
@@ -789,7 +789,7 @@ export function MigrateBeastModeUsageView({
         onBackToDefault?.();
       }
     } catch (err) {
-      showStatus('Migration Failed', err.message || 'An error occurred', 'danger', 7000);
+      showStatus('Migration Failed', err.message || 'An error occurred.', 'danger', 7000);
       if (mountedRef.current) {
         setTransferStatus((prevStatus) => {
           const nextStatus = { ...prevStatus };

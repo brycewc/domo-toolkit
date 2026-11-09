@@ -256,10 +256,10 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         }
 
         domoObject.navigateTo(currentContext?.tabId).catch((err) => {
-          onStatusUpdate?.('Navigation Failed', err.message || 'Error navigating to object', 'danger', 4000);
+          onStatusUpdate?.('Navigation Failed', err.message || 'Error navigating to object.', 'danger', 4000);
         });
       } catch (err) {
-        onStatusUpdate?.('Error', err.message || 'An error occurred', 'danger', 4000);
+        onStatusUpdate?.('Error', err.message || 'An error occurred.', 'danger', 4000);
       }
     },
     [currentContext, onStatusUpdate]
@@ -295,7 +295,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
           domoObject = buildResolvedDomoObject(typeConfig, metadata, baseUrl, copiedId);
         }
         if (!domoObject && typeConfig.id === 'STREAM') {
-          onStatusUpdate?.('No DataSet Found', 'Could not find a dataset associated with this stream', 'warning', 4000);
+          onStatusUpdate?.('No DataSet Found', 'Could not find a dataset associated with this stream.', 'warning', 4000);
           return;
         }
       }

@@ -307,17 +307,16 @@ export function GetCardsView({
     setIsRefreshing(true);
     try {
       await loadCardsData(true);
-      onStatusUpdate?.('Refreshed', 'Data updated successfully', 'success', 2000);
+      onStatusUpdate?.('Refreshed', 'Data updated successfully.', 'success', 2000);
     } catch (err) {
-      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data', 'danger', 3000);
+      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data.', 'danger', 3000);
     } finally {
       setIsRefreshing(false);
     }
   };
 
   const hasMultipleTypes =
-    [itemCounts.cards > 0, itemCounts.forms > 0, itemCounts.queues > 0, itemCounts.workflows > 0].filter(Boolean).length >
-    1;
+    [itemCounts.cards > 0, itemCounts.forms > 0, itemCounts.queues > 0, itemCounts.workflows > 0].filter(Boolean).length > 1;
 
   const totalItems = itemCounts.cards + itemCounts.forms + itemCounts.queues + itemCounts.workflows;
 

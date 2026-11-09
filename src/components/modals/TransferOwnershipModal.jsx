@@ -26,6 +26,7 @@ import IconX from '@icons/x.svg?react';
  *
  * @param {Object} props
  * @param {Object} props.currentContext - Active DomoContext (carries baseUrl, tabId, user.metadata.USER_RIGHTS, and the source user's reportsTo).
+ * @param {boolean} [props.defaultDeleteAfterTransfer=false] - Whether the delete toggle starts on each time the modal opens.
  * @param {string|null} [props.deleteBlockedReason=null] - Why deleting the source is unsafe right now; disables the delete toggle and is shown as its description.
  * @param {boolean} props.isOpen
  * @param {string[]} [props.notCheckedTypeLabels=[]] - Types that can't be listed by owner, named in the warning shown while delete is on.
@@ -39,6 +40,7 @@ import IconX from '@icons/x.svg?react';
  */
 export function TransferOwnershipModal({
   currentContext,
+  defaultDeleteAfterTransfer = false,
   deleteBlockedReason = null,
   isOpen,
   notCheckedTypeLabels = [],
@@ -72,8 +74,8 @@ export function TransferOwnershipModal({
     if (!isOpen) return;
     setEmailNewOwner(false);
     setEmailCurrentUser(true);
-    setDeleteAfterTransfer(false);
-  }, [isOpen]);
+    setDeleteAfterTransfer(defaultDeleteAfterTransfer);
+  }, [defaultDeleteAfterTransfer, isOpen]);
 
   // Resolve manager (reportsTo) for the manager-shortcut button. User-only, so
   // skipped for a group source. Only fires while the modal is open so we don't

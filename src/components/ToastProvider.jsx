@@ -47,7 +47,9 @@ export function ToastProvider(props) {
                 </ToastTitle>
               )}
               {!!description && (
-                <ToastDescription className='line-clamp-4 max-h-25 overflow-hidden'>{description}</ToastDescription>
+                <ToastDescription className='line-clamp-4 max-h-25 overflow-hidden' onMouseEnter={showFullTextWhenClamped}>
+                  {description}
+                </ToastDescription>
               )}
               {actionProps?.children && <ToastActionButton {...actionProps}>{actionProps.children}</ToastActionButton>}
             </ToastContent>
@@ -78,4 +80,9 @@ function defaultIndicatorFor(variant) {
     default:
       return <IconInfoCircle className='text-accent' data-slot='toast-default-icon' />;
   }
+}
+
+function showFullTextWhenClamped(event) {
+  const element = event.currentTarget;
+  element.title = element.scrollHeight > element.clientHeight ? element.textContent : '';
 }

@@ -122,7 +122,7 @@ export const colorRulesDuplicator = {
   },
   Form: ColorRulesForm,
   formatError: ({ error }) => ({
-    description: error.message || 'Failed to copy color rules',
+    description: error.message || 'Failed to copy color rules.',
     status: 'danger',
     timeout: 5000,
     title: 'Copy Failed'

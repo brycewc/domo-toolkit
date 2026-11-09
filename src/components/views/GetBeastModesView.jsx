@@ -133,9 +133,9 @@ export function GetBeastModesView({
     setIsRefreshing(true);
     try {
       await loadBeastModesData();
-      onStatusUpdate?.('Refreshed', 'Data updated successfully', 'success', 2000);
+      onStatusUpdate?.('Refreshed', 'Data updated successfully.', 'success', 2000);
     } catch (err) {
-      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data', 'danger', 3000);
+      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data.', 'danger', 3000);
     } finally {
       setIsRefreshing(false);
     }

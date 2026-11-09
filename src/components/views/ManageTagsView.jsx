@@ -78,7 +78,7 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       const domoObject = context?.domoObject;
       if (!context || domoObject?.typeId !== 'DATAFLOW_TYPE') {
-        onStatusUpdate?.('Error', 'Manage Tags is only available for dataflows', 'danger');
+        onStatusUpdate?.('Error', 'Manage Tags is only available for dataflows.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -162,9 +162,9 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
     setIsRefreshing(true);
     try {
       await loadData({ isRefresh: true });
-      onStatusUpdate?.('Refreshed', 'Tag data updated', 'success', 2000);
+      onStatusUpdate?.('Refreshed', 'Tag data updated.', 'success', 2000);
     } catch (err) {
-      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh tags', 'danger', 3000);
+      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh tags.', 'danger', 3000);
     } finally {
       if (mountedRef.current) setIsRefreshing(false);
     }
@@ -289,7 +289,7 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
   const handleSave = () => {
     const targets = objects.filter((o) => o.readable && selectedIds.has(o.id));
     if (targets.length === 0) {
-      onStatusUpdate?.('No Objects Selected', 'Select at least one object to tag', 'warning', 2500);
+      onStatusUpdate?.('No Objects Selected', 'Select at least one object to tag.', 'warning', 2500);
       return;
     }
 
@@ -307,7 +307,7 @@ export function ManageTagsView({ currentContext = null, instance = null, onBackT
 
     const changedCount = (dataflowPayload ? 1 : 0) + datasetPayloads.length;
     if (changedCount === 0) {
-      onStatusUpdate?.('No Changes to Apply', 'The selected objects already have these tags', 'warning', 2500);
+      onStatusUpdate?.('No Changes to Apply', 'The selected objects already have these tags.', 'warning', 2500);
       return;
     }
 

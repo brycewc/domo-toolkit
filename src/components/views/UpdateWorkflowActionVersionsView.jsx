@@ -92,7 +92,7 @@ export function UpdateWorkflowActionVersionsView({
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
 
       if (!context) {
-        onStatusUpdate?.('Error', 'No context available', 'danger');
+        onStatusUpdate?.('Error', 'No context available.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -143,7 +143,7 @@ export function UpdateWorkflowActionVersionsView({
         if (isCEVersion) {
           const wfVersion = context.domoObject.metadata?.context?.workflowVersionNumber;
           if (!workflowModelId || !wfVersion) {
-            onStatusUpdate?.('Error', 'Missing workflow context for code engine version', 'danger');
+            onStatusUpdate?.('Error', 'Missing workflow context for code engine version.', 'danger');
             onBackToDefault?.();
             return;
           }
@@ -190,7 +190,7 @@ export function UpdateWorkflowActionVersionsView({
       setPackages(groupEntries);
     } catch (error) {
       console.error('[UpdateWorkflowActionVersions] Error loading data:', error);
-      onStatusUpdate?.('Error', error.message || 'Failed to load workflow actions', 'danger');
+      onStatusUpdate?.('Error', error.message || 'Failed to load workflow actions.', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }

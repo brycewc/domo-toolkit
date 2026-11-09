@@ -35,7 +35,7 @@ const DELETE_HANDLERS = {
 export async function deleteObject({ object, tabId = null }) {
   if (!object?.typeId || !object?.id) {
     return {
-      statusDescription: 'Invalid object provided for deletion',
+      statusDescription: 'Invalid object provided for deletion.',
       statusTitle: 'Delete Failed',
       statusType: 'danger',
       success: false
@@ -45,7 +45,7 @@ export async function deleteObject({ object, tabId = null }) {
   const handler = DELETE_HANDLERS[object.typeId];
   if (!handler) {
     return {
-      statusDescription: `Deletion not supported for object type: ${object.typeId}`,
+      statusDescription: `Deletion not supported for object type: ${object.typeId}.`,
       statusTitle: 'Delete Failed',
       statusType: 'danger',
       success: false
@@ -55,7 +55,7 @@ export async function deleteObject({ object, tabId = null }) {
   try {
     await handler({ id: object.id, tabId });
     return {
-      statusDescription: `Deleted ${object.typeName?.toLowerCase() || 'object'} **${object.id}**`,
+      statusDescription: `Deleted ${object.typeName?.toLowerCase() || 'object'} **${object.id}**.`,
       statusTitle: 'Deleted Successfully',
       statusType: 'success',
       success: true
@@ -63,7 +63,7 @@ export async function deleteObject({ object, tabId = null }) {
   } catch (error) {
     console.error('Error in deleteObject:', error);
     return {
-      statusDescription: error.message || 'Failed to delete object',
+      statusDescription: error.message || 'Failed to delete object.',
       statusTitle: 'Delete Failed',
       statusType: 'danger',
       success: false

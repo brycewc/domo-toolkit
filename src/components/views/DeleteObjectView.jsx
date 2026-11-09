@@ -161,8 +161,8 @@ const deletersByType = {
     },
     successMessage: ({ name }, result) =>
       result?.versionsDeleted > 0
-        ? `**${name}** and its ${result.versionsDeleted} deployed version${result.versionsDeleted !== 1 ? 's' : ''} deleted`
-        : `**${name}** deleted`,
+        ? `**${name}** and its ${result.versionsDeleted} deployed version${result.versionsDeleted !== 1 ? 's' : ''} deleted.`
+        : `**${name}** deleted.`,
     typeName: 'Code Engine Package'
   },
   DATA_APP_VIEW: {
@@ -283,7 +283,7 @@ const deletersByType = {
           return result;
         },
         successMessage: ({ dataflowName }, result) =>
-          `**${dataflowName}**, ${result.datasetsDeleted} output dataset${result.datasetsDeleted !== 1 ? 's' : ''}, and ${result.inputsDeleted} input dataset${result.inputsDeleted !== 1 ? 's' : ''} deleted`,
+          `**${dataflowName}**, ${result.datasetsDeleted} output dataset${result.datasetsDeleted !== 1 ? 's' : ''}, and ${result.inputsDeleted} input dataset${result.inputsDeleted !== 1 ? 's' : ''} deleted.`,
         tooltip: () => 'Also deletes the connector input datasets you checked, which nothing else uses'
       }
     ],
@@ -336,7 +336,7 @@ const deletersByType = {
     },
     selectionGroupKey: 'dataflowInputs',
     successMessage: ({ name, outputCount }) =>
-      `**${name}** and ${outputCount} output dataset${outputCount !== 1 ? 's' : ''} deleted`,
+      `**${name}** and ${outputCount} output dataset${outputCount !== 1 ? 's' : ''} deleted.`,
     typeName: 'DataFlow'
   },
   HOPPER_TASK: {
@@ -389,8 +389,8 @@ const deletersByType = {
             ? `Workflow execution cancelled, which voided **${taskName}**`
             : `Workflow execution cancelled and **${taskName}** voided`;
           return result?.permissionRevertError
-            ? `${base}, but the Void Tasks permission granted to do it could not be removed again`
-            : base;
+            ? `${base}, but the Void Tasks permission granted to do it could not be removed again.`
+            : `${base}.`;
         },
         tooltip: () => 'Stops the Workflow run instead of leaving it failed, then voids the task'
       }
@@ -427,8 +427,8 @@ const deletersByType = {
     },
     successMessage: ({ name }, result) =>
       result?.permissionRevertError
-        ? `**${name}** voided, but the Void Tasks permission granted to do it could not be removed again`
-        : `**${name}** voided`,
+        ? `**${name}** voided, but the Void Tasks permission granted to do it could not be removed again.`
+        : `**${name}** voided.`,
     typeName: 'Task'
   },
   MAGNUM_COLLECTION: {
@@ -478,7 +478,7 @@ const deletersByType = {
           return result;
         },
         successMessage: ({ datastoreName }, result) =>
-          `**${datastoreName}** and ${result.collectionsDeleted} collection${result.collectionsDeleted !== 1 ? 's' : ''} deleted`,
+          `**${datastoreName}** and ${result.collectionsDeleted} collection${result.collectionsDeleted !== 1 ? 's' : ''} deleted.`,
         tooltip: () => 'Deletes the entire datastore and every collection in it, not just this collection'
       }
     ],
@@ -553,7 +553,7 @@ const deletersByType = {
             context,
             datasetId: findRelatedDataset(deps)?.items?.[0]?.id
           }),
-        successMessage: ({ datasetName, templateName }) => `**${templateName}** and dataset **${datasetName}** deleted`,
+        successMessage: ({ datasetName, templateName }) => `**${templateName}** and dataset **${datasetName}** deleted.`,
         tooltip: () => 'Also deletes the related dataset, not just the template'
       }
     ],
@@ -661,8 +661,8 @@ const onlyHereCardsCascade = {
     }),
   successMessage: ({ pageName }, result) =>
     result.cardsDeleted === 0
-      ? `**${pageName}** deleted; its cards live elsewhere and were left in place`
-      : `**${pageName}** and ${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's' : ''} that only lived here deleted`,
+      ? `**${pageName}** deleted; its cards live elsewhere and were left in place.`
+      : `**${pageName}** and ${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's' : ''} that only lived here deleted.`,
   tooltip: () => 'Deletes only the cards that live on no other page, leaving shared cards in place'
 };
 // App studio and worksheet pages offer the same three alternates, ordered by how
@@ -737,7 +737,7 @@ export function DeleteObjectView({
       const typeId = context?.domoObject?.typeId;
       const cfg = deletersByType[typeId];
       if (!context || !cfg) {
-        onStatusUpdate?.('Error', `Delete not supported for ${typeId}`, 'danger');
+        onStatusUpdate?.('Error', `Delete not supported for ${typeId}.`, 'danger');
         onBackToDefault?.();
         return;
       }
@@ -747,7 +747,7 @@ export function DeleteObjectView({
       loadDependencies(context);
     } catch (error) {
       console.error('[DeleteObjectView] Error loading data:', error);
-      onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
+      onStatusUpdate?.('Error', error.message || 'Failed to load context.', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
@@ -865,7 +865,7 @@ export function DeleteObjectView({
 
     showPromiseStatus(promise, {
       error: (err) => ({
-        description: err.message || `Failed to ${verb} **${objectName}**`,
+        description: err.message || `Failed to ${verb} **${objectName}**.`,
         title: 'Error'
       }),
       loading: isCascade
@@ -1362,11 +1362,11 @@ function buildAppCascade({ cardScope }) {
     },
     successMessage: ({ appName }, result) => {
       if (!isOnlyHere) {
-        return `**${appName}** and ${result.cardCount} card${result.cardCount !== 1 ? 's' : ''} deleted`;
+        return `**${appName}** and ${result.cardCount} card${result.cardCount !== 1 ? 's' : ''} deleted.`;
       }
       return result.cardCount === 0
-        ? `**${appName}** deleted; its cards appear outside it and were left in place`
-        : `**${appName}** and ${result.cardCount} card${result.cardCount !== 1 ? 's' : ''} that only lived in it deleted`;
+        ? `**${appName}** deleted; its cards appear outside it and were left in place.`
+        : `**${appName}** and ${result.cardCount} card${result.cardCount !== 1 ? 's' : ''} that only lived in it deleted.`;
     },
     tooltip: ({ appLabel }) =>
       isOnlyHere
@@ -1993,7 +1993,7 @@ function resolveSuccessDescription({ cascade, cascadeCtx, config, currentContext
       result
     );
   }
-  return result?.statusDescription || `**${objectName}** deleted`;
+  return result?.statusDescription || `**${objectName}** deleted.`;
 }
 
 function resolveSuffix(config, context) {

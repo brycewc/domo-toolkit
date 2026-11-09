@@ -64,7 +64,7 @@ export async function addAccessToExistingUser({
       cardResults: { attempted: cards, errors: [] },
       copied: { cards: 0, customApps: 0, fields: [], groups: [], locale: null, pages: 0 },
       created: false,
-      errors: [{ message: 'No target user supplied', step: 'target' }],
+      errors: [{ message: 'No target user supplied.', step: 'target' }],
       newUser: null,
       pageResults: { attempted: pages, errors: [] },
       success: false
@@ -92,8 +92,7 @@ export async function addAccessToExistingUser({
       id: targetUser.id
     },
     pageResults: grants.pageResults,
-    success:
-      grants.errors.length === 0 && grants.cardResults.errors.length === 0 && grants.pageResults.errors.length === 0
+    success: grants.errors.length === 0 && grants.cardResults.errors.length === 0 && grants.pageResults.errors.length === 0
   };
 }
 
@@ -155,7 +154,7 @@ export async function duplicateUser({
       created: true,
       errors: [
         {
-          message: `Source user ${sourceUserId} not found`,
+          message: `Source user ${sourceUserId} not found.`,
           step: 'fetchSource'
         }
       ],
@@ -186,7 +185,7 @@ export async function duplicateUser({
       created: true,
       errors: [
         {
-          message: 'Failed to create new user, role may be invalid or email already in use',
+          message: 'Failed to create new user, role may be invalid or email already in use.',
           step: 'createUser'
         }
       ],
@@ -266,8 +265,7 @@ export async function duplicateUser({
       id: newUserId
     },
     pageResults: grants.pageResults,
-    success:
-      errors.length === 0 && grants.cardResults.errors.length === 0 && grants.pageResults.errors.length === 0
+    success: errors.length === 0 && grants.cardResults.errors.length === 0 && grants.pageResults.errors.length === 0
   };
 }
 

@@ -69,7 +69,7 @@ export function GenerateSchemaView({ instance = null, liveContext = null, onBack
       }
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       if (!context?.domoObject || context.domoObject.typeId !== 'MAGNUM_COLLECTION') {
-        onStatusUpdate?.('Error', 'No AppDB collection context available', 'danger');
+        onStatusUpdate?.('Error', 'No AppDB collection context available.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -81,14 +81,14 @@ export function GenerateSchemaView({ instance = null, liveContext = null, onBack
       if (!mountedRef.current) return;
 
       if (!docs || docs.length === 0) {
-        showStatus('Nothing to Infer', 'No documents found in this collection, cannot infer a schema', 'warning');
+        showStatus('Nothing to Infer', 'No documents found in this collection, cannot infer a schema.', 'warning');
         onBackToDefault?.();
         return;
       }
 
       const inferred = inferColumnsFromDocuments(docs);
       if (inferred.length === 0) {
-        showStatus('Nothing to Infer', 'Documents were found but none have content keys to infer from', 'warning');
+        showStatus('Nothing to Infer', 'Documents were found but none have content keys to infer from.', 'warning');
         onBackToDefault?.();
         return;
       }
@@ -180,7 +180,7 @@ export function GenerateSchemaView({ instance = null, liveContext = null, onBack
     const payload = buildSchemaPayload();
 
     if (!datastoreId) {
-      onStatusUpdate?.('Cannot Sync', 'Parent datastore id is missing on this collection', 'danger');
+      onStatusUpdate?.('Cannot Sync', 'Parent datastore id is missing on this collection.', 'danger');
       return;
     }
 

@@ -148,7 +148,7 @@ export function UpdateDetailsView({ instance = null, liveContext = null, onBackT
       const typeId = context?.domoObject?.typeId;
       const cfg = updatersByType[typeId];
       if (!context || !cfg) {
-        onStatusUpdate?.('Error', `Update Details not supported for ${typeId}`, 'danger');
+        onStatusUpdate?.('Error', `Update Details not supported for ${typeId}.`, 'danger');
         onBackToDefault?.();
         return;
       }
@@ -162,7 +162,7 @@ export function UpdateDetailsView({ instance = null, liveContext = null, onBackT
       if (cfg.loadOptions) loadOptions(cfg);
     } catch (error) {
       console.error('[UpdateDetailsView] Error loading data:', error);
-      onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
+      onStatusUpdate?.('Error', error.message || 'Failed to load context.', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
@@ -218,15 +218,15 @@ export function UpdateDetailsView({ instance = null, liveContext = null, onBackT
     showPromiseStatus(promise, {
       error: (err) => ({
         description: isReset
-          ? `Could not reset ${config.typeName} **userDefinedType**: ${err.message || 'An error occurred'}`
-          : `Could not update ${config.typeName} **${fieldList}**: ${err.message || 'An error occurred'}`,
+          ? `Could not reset ${config.typeName} **userDefinedType**: ${err.message || 'An error occurred'}.`
+          : `Could not update ${config.typeName} **${fieldList}**: ${err.message || 'An error occurred'}.`,
         title: 'Error'
       }),
       loading: isReset
         ? `Resetting ${config.typeName} **userDefinedType**…`
         : `Updating ${config.typeName} **${fieldList}**…`,
       success: (f) => ({
-        description: isReset ? `Reset ${config.typeName} **userDefinedType**` : `Updated ${config.typeName} **${f}**`,
+        description: isReset ? `Reset ${config.typeName} **userDefinedType**.` : `Updated ${config.typeName} **${f}**.`,
         title: 'Success'
       })
     });
@@ -244,16 +244,16 @@ export function UpdateDetailsView({ instance = null, liveContext = null, onBackT
   const handleSubmit = () => {
     const diff = buildDiff();
     if (Object.keys(diff).length === 0) {
-      onStatusUpdate?.('No Changes', 'No fields were modified', 'warning', 2000);
+      onStatusUpdate?.('No Changes', 'No fields were modified.', 'warning', 2000);
       return;
     }
     for (const f of config.fields) {
       if (f.required && !(values[f.key] ?? '').trim()) {
-        onStatusUpdate?.('Missing Required Field', `**${f.label}** cannot be empty`, 'warning', 2000);
+        onStatusUpdate?.('Missing Required Field', `**${f.label}** cannot be empty.`, 'warning', 2000);
         return;
       }
       if (f.kind === 'email' && diff[f.key] !== undefined && !EMAIL_PATTERN.test(diff[f.key])) {
-        onStatusUpdate?.('Invalid Email', `**${f.label}** must be a valid email address`, 'warning', 2000);
+        onStatusUpdate?.('Invalid Email', `**${f.label}** must be a valid email address.`, 'warning', 2000);
         return;
       }
     }

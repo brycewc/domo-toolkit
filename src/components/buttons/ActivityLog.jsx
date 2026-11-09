@@ -38,8 +38,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
       ? 'You need the Audit permission to view activity logs'
       : null;
   const typeId = currentContext?.domoObject?.typeId;
-  const hasCards =
-    isDatasetTypeId(typeId) || ['DATA_APP_VIEW', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
+  const hasCards = isDatasetTypeId(typeId) || ['DATA_APP_VIEW', 'DATAFLOW_TYPE', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
   const ownsCards = ['GROUP', 'USER'].includes(typeId);
   const longPressEnabled = !isDisabled && (hasCards || ownsCards);
   const typeLabel = currentContext?.domoObject?.typeName?.toLowerCase() || 'object';
@@ -63,7 +62,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
 
   const handleClick = async (key = null) => {
     if (!currentContext?.domoObject || !currentContext?.domoObject.id || !currentContext?.domoObject.objectType) {
-      onStatusUpdate?.('No Object Detected', 'Navigate to a Domo object page to use this feature', 'warning');
+      onStatusUpdate?.('No Object Detected', 'Navigate to a Domo object page to use this feature.', 'warning');
       return;
     }
 
@@ -89,7 +88,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           actor = { id: String(currentContext.domoObject.id), name: currentContext.domoObject.metadata?.name || '' };
           activityLogObjects = [];
           activityLogType = 'user-actions';
-          message = `Navigating to activity log for actions taken by ${objectName}`;
+          message = `Navigating to activity log for actions taken by ${objectName}.`;
           break;
         }
         case 'card-pages': {
@@ -102,7 +101,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
             if (!cards || cards.length === 0) {
               onStatusUpdate?.(
                 'No Cards Found',
-                ownsCards ? `No cards owned by ${objectName}` : `No cards found on ${objectName}`,
+                ownsCards ? `No cards owned by ${objectName}.` : `No cards found on ${objectName}.`,
                 'warning'
               );
               setIsLoading(false);
@@ -120,11 +119,11 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
 
           if (validPages.length === 0) {
             if (pages.length === 0) {
-              onStatusUpdate?.('No Pages Found', `${cardsPhrase} are not used on any pages`, 'warning', 5000);
+              onStatusUpdate?.('No Pages Found', `${cardsPhrase} are not used on any pages.`, 'warning', 5000);
             } else {
               onStatusUpdate?.(
                 'No Valid Pages Found',
-                `${cardsPhrase} are only used on Overview, Favorites, or Shared pages`,
+                `${cardsPhrase} are only used on Overview, Favorites, or Shared pages.`,
                 'warning',
                 5000
               );
@@ -134,7 +133,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           }
 
           activityLogObjects = validPages;
-          message = `Navigating to activity log for ${validPages.length} ${validPages.length === 1 ? 'page' : 'pages'} containing cards ${ownsCards ? 'owned by' : 'from'} ${objectName}`;
+          message = `Navigating to activity log for ${validPages.length} ${validPages.length === 1 ? 'page' : 'pages'} containing cards ${ownsCards ? 'owned by' : 'from'} ${objectName}.`;
           break;
         }
         case 'cards': {
@@ -143,7 +142,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           if (!cards || cards.length === 0) {
             onStatusUpdate?.(
               'No Cards Found',
-              ownsCards ? `No cards owned by ${objectName}` : `No cards found on ${objectName}`,
+              ownsCards ? `No cards owned by ${objectName}.` : `No cards found on ${objectName}.`,
               'warning',
               5000
             );
@@ -156,7 +155,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
             type: 'CARD'
           }));
           activityLogType = 'cards';
-          message = `Navigating to activity log for ${cards.length} ${cards.length === 1 ? 'card' : 'cards'} ${ownsCards ? 'owned by' : 'on'} ${objectName}`;
+          message = `Navigating to activity log for ${cards.length} ${cards.length === 1 ? 'card' : 'cards'} ${ownsCards ? 'owned by' : 'on'} ${objectName}.`;
           break;
         }
         case 'child-pages': {
@@ -184,7 +183,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           if (childPageIds.length === 0) {
             onStatusUpdate?.(
               'No Child Pages Found',
-              `No child pages found for ${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}**`,
+              `No child pages found for ${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}**.`,
               'warning',
               5000
             );
@@ -196,7 +195,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
             id: String(id),
             type: currentContext?.domoObject.typeId
           }));
-          message = `Navigating to activity log for ${activityLogObjects.length} child pages`;
+          message = `Navigating to activity log for ${activityLogObjects.length} child pages.`;
           break;
         }
         case 'owned-objects': {
@@ -209,7 +208,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           if (!parent) {
             onStatusUpdate?.(
               'No Parent Found',
-              `Could not determine the parent ${parentTypeName?.toLowerCase() || 'object'} for ${objectName}`,
+              `Could not determine the parent ${parentTypeName?.toLowerCase() || 'object'} for ${objectName}.`,
               'warning',
               5000
             );
@@ -219,7 +218,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
 
           activityLogObjects = [parent];
           activityLogType = 'single-object';
-          message = `Navigating to activity log for ${parentTypeName?.toLowerCase()} **${parent.name ? `"${parent.name}"` : parent.id}**`;
+          message = `Navigating to activity log for ${parentTypeName?.toLowerCase()} **${parent.name ? `"${parent.name}"` : parent.id}**.`;
           break;
         }
         default: {
@@ -228,7 +227,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
           const target = getActivityLogTarget(currentContext.domoObject);
           activityLogObjects = target.objects;
           activityLogType = target.type;
-          message = `Navigating to activity log for ${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}**${target.type === 'object-and-parent' ? ` and its parent ${parentTypeName?.toLowerCase()}` : ''}`;
+          message = `Navigating to activity log for ${currentContext?.domoObject.typeName?.toLowerCase()} **${currentContext?.domoObject.id}**${target.type === 'object-and-parent' ? ` and its parent ${parentTypeName?.toLowerCase()}` : ''}.`;
           break;
         }
       }
@@ -245,7 +244,7 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
       });
     } catch (err) {
       console.error('Error opening activity log:', err);
-      onStatusUpdate?.('Error', `Failed to open activity log: ${err.message}`, 'danger', 5000);
+      onStatusUpdate?.('Error', `Failed to open activity log: ${err.message}.`, 'danger', 5000);
     } finally {
       setIsLoading(false);
     }

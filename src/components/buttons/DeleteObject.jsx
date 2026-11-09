@@ -26,6 +26,7 @@ const SUPPORTED_TYPES = [
   'REPORT_SCHEDULE',
   'RYUU_APP',
   'TEMPLATE',
+  'USER',
   'VARIABLE',
   'VIEW',
   'WORKFLOW_MODEL',
@@ -39,10 +40,11 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
   const typeName = currentContext?.domoObject?.typeName?.toLowerCase() || 'object';
 
   const isInWorkflow = isCodeEngineInWorkflow(currentContext);
+  const isUser = typeId === 'USER';
   const isVoid = typeId === 'HOPPER_TASK';
+  const isSelf = isUser && String(currentContext?.domoObject?.id) === String(currentContext?.user?.id);
 
-  const isDataflowOutputDataset =
-    isDatasetTypeId(typeId) && isDataflowOutput(currentContext?.domoObject?.metadata?.details);
+  const isDataflowOutputDataset = isDatasetTypeId(typeId) && isDataflowOutput(currentContext?.domoObject?.metadata?.details);
 
   // A task's status is only known once its details load, and the workflow
   // user-task-response page carries no queue to load them with, so an unknown
@@ -82,6 +84,9 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
     if (typeId === 'CARD' || typeId === 'DATA_APP_VIEW' || typeId === 'PAGE' || typeId === 'WORKSHEET_VIEW') {
       return !isOwner && !userRights.includes('content.admin');
     }
+    if (isUser) {
+      return !userRights.includes('user.edit');
+    }
     if (typeId === 'TEMPLATE') {
       return !isOwner && !userRights.includes('approvalcenter.admin');
     }
@@ -104,6 +109,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
     isDataflowOutputDataset ||
     isInWorkflow ||
     !!closedTaskReason ||
+    isSelf ||
     isDeleteForbidden;
 
   // Persistent reasons the action is unavailable (the pending state is transient
@@ -121,9 +127,11 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
               ? 'Open the code engine package itself to delete it'
               : closedTaskReason
                 ? closedTaskReason
-                : isDeleteForbidden
-                  ? `You don't have permission to delete this ${typeName}`
-                  : null;
+                : isSelf
+                  ? "You can't delete yourself"
+                  : isDeleteForbidden
+                    ? `You don't have permission to delete this ${typeName}`
+                    : null;
 
   const ActionIcon = isVoid ? IconCancel : IconTrash;
 
@@ -146,17 +154,31 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
         isPending={isPending}
         variant='tertiary'
         onPress={() =>
-          launch({
-            currentContext,
-            onStatusUpdate,
-            type: 'deleteObject'
-          })
+          launch(
+            isUser
+              ? {
+                  autoEnableSelectionMode: true,
+                  currentContext,
+                  deleteAfterTransfer: true,
+                  onStatusUpdate,
+                  type: 'ownership'
+                }
+              : {
+                  currentContext,
+                  onStatusUpdate,
+                  type: 'deleteObject'
+                }
+          )
         }
       >
         {({ isDisabled: btnDisabled }) => <ActionIcon className={btnDisabled ? '' : 'text-danger'} />}
       </Button>
       <Tooltip.Content className='max-w-60' offset={4}>
-        {isVoid ? 'List related objects and confirm void' : 'List dependencies and confirm delete'}
+        {isVoid
+          ? 'List related objects and confirm void'
+          : isUser
+            ? 'Transfer owned objects, then delete user'
+            : 'List dependencies and confirm delete'}
       </Tooltip.Content>
     </Tooltip>
   );

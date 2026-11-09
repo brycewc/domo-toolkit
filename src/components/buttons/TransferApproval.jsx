@@ -31,7 +31,7 @@ export function TransferApproval({ currentContext, isDisabled, onStatusUpdate })
 
   const submitTransfer = (toUserId) => {
     if (!toUserId) {
-      onStatusUpdate?.('Blank Approver', 'Please choose an approver', 'warning', 2000);
+      onStatusUpdate?.('Blank Approver', 'Please choose an approver.', 'warning', 2000);
       return;
     }
 
@@ -46,9 +46,7 @@ export function TransferApproval({ currentContext, isDisabled, onStatusUpdate })
     // required field). Easier to stop it here than to clean it up later.
     const chain = details?.chain || [];
     const pendingIdx = details?.approvalChainIdx;
-    const duplicateStep = chain.find(
-      (step, i) => i !== pendingIdx && String(step?.approver?.id) === String(toUserId)
-    );
+    const duplicateStep = chain.find((step, i) => i !== pendingIdx && String(step?.approver?.id) === String(toUserId));
     if (duplicateStep) {
       const who = duplicateStep.approver?.displayName || 'That user';
       onStatusUpdate?.(

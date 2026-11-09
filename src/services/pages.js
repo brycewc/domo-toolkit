@@ -141,7 +141,9 @@ export async function deletePageAndAllCards({
             });
 
             if (!deleteCardsResponse.ok) {
-              const error = new Error(`Failed to delete cards for page ${pageId}. HTTP status: ${deleteCardsResponse.status}`);
+              const error = new Error(
+                `Failed to delete cards for page ${pageId}. HTTP status: ${deleteCardsResponse.status}`
+              );
               error.status = deleteCardsResponse.status;
               throw error;
             }
@@ -186,7 +188,7 @@ export async function deletePageAndAllCards({
       return {
         cardIds,
         cardsDeleted: result.cardsDeleted,
-        statusDescription: `Page **${pageId}** and ${cardPhrase} were deleted successfully`,
+        statusDescription: `Page **${pageId}** and ${cardPhrase} were deleted successfully.`,
         statusTitle: 'Delete Successful',
         statusType: 'success',
         success: true
@@ -195,7 +197,7 @@ export async function deletePageAndAllCards({
       return {
         cardsDeleted: result.cardsDeleted,
         statusCode: result.statusCode,
-        statusDescription: `All **${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's** were' : '** was'} deleted successfully, but page deletion failed.\nHTTP status: ${result.statusCode}`,
+        statusDescription: `All **${result.cardsDeleted} card${result.cardsDeleted !== 1 ? 's** were' : '** was'} deleted successfully, but page deletion failed.\nHTTP status: ${result.statusCode}.`,
         statusTitle: 'Failed to Delete Page',
         statusType: 'danger',
         success: false

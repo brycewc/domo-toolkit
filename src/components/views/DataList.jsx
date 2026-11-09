@@ -324,7 +324,7 @@ export function DataList({
         }
       } catch (err) {
         console.error(`[DataList] Error in header action ${actionType}:`, err);
-        onStatusUpdate?.('Error', err.message || `Failed to ${actionType}`, 'danger', 3000);
+        onStatusUpdate?.('Error', err.message || `Failed to ${actionType}.`, 'danger', 3000);
       }
     },
     [
@@ -354,7 +354,7 @@ export function DataList({
           // container row's own type never swallows the "just the children" scope.
           const objects = collectActivityLogObjects(item.children ?? []).filter((object) => object.type === typeId);
           if (objects.length === 0) {
-            onStatusUpdate?.('No Objects', 'No loggable objects found here', 'warning', 3000);
+            onStatusUpdate?.('No Objects', 'No loggable objects found here.', 'warning', 3000);
             return;
           }
           await launchActivityLogForOrigin({ objects, origin: activityLogBaseUrlFor([item]), type: 'multi-object' });
@@ -374,7 +374,7 @@ export function DataList({
           case 'activityLogAll': {
             const objects = collectActivityLogObjects([item]);
             if (objects.length === 0) {
-              onStatusUpdate?.('No Objects', 'No loggable objects found here', 'warning', 3000);
+              onStatusUpdate?.('No Objects', 'No loggable objects found here.', 'warning', 3000);
               break;
             }
             await launchActivityLogForOrigin({ objects, origin: activityLogBaseUrlFor([item]), type: 'multi-object' });
@@ -386,7 +386,7 @@ export function DataList({
             // still wanting the canonical id available for paste.
             const copyId = item.originalId ?? item.id;
             await copyToClipboard(copyId?.toString() || '');
-            onStatusUpdate?.('Copied', `ID **${copyId}** copied to clipboard`, 'success', 2000);
+            onStatusUpdate?.('Copied', `ID **${copyId}** copied to clipboard.`, 'success', 2000);
             break;
           }
           case 'lineage': {
@@ -450,7 +450,7 @@ export function DataList({
         }
       } catch (err) {
         console.error(`[DataList] Error in item action ${actionType}:`, err);
-        onStatusUpdate?.('Error', err.message || `Failed to ${actionType}`, 'danger', 3000);
+        onStatusUpdate?.('Error', err.message || `Failed to ${actionType}.`, 'danger', 3000);
       }
     },
     [currentContext, itemLabel, onStatusUpdate, shareItemsWithSelf, shareOneWithSelf]
@@ -853,8 +853,8 @@ function openUrlsWithLimit({ itemLabel, onStatusUpdate, urls }) {
   const label = `${itemLabel}${total !== 1 ? 's' : ''}`;
   const description =
     total > opened.length
-      ? `Opened the first **${opened.length}** of **${total}** ${label} in new tabs`
-      : `Opened **${total}** ${label} in new tabs`;
+      ? `Opened the first **${opened.length}** of **${total}** ${label} in new tabs.`
+      : `Opened **${total}** ${label} in new tabs.`;
   onStatusUpdate?.('Opened', description, 'success', 2000);
 }
 

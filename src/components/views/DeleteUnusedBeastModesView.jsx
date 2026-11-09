@@ -63,7 +63,7 @@ export function DeleteUnusedBeastModesView({
       const domoObject = context?.domoObject;
       const objectType = domoObject?.typeId;
       if (!context || (!isDatasetTypeId(objectType) && objectType !== 'USER')) {
-        onStatusUpdate?.('Error', 'Delete Unused Beast Modes supports datasets and users only', 'danger');
+        onStatusUpdate?.('Error', 'Delete Unused Beast Modes supports datasets and users only.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -251,16 +251,16 @@ export function DeleteUnusedBeastModesView({
         setSelectedIds(new Set());
         const ok = succeededIds.size;
         if (errors.length === 0) {
-          showStatus('Deleted', `Deleted **${ok}** unused ${ok === 1 ? 'item' : 'items'}`, 'success');
+          showStatus('Deleted', `Deleted **${ok}** unused ${ok === 1 ? 'item' : 'items'}.`, 'success');
         } else {
-          showStatus('Partially Deleted', `Deleted **${ok}**, **${errors.length}** failed`, 'warning');
+          showStatus('Partially Deleted', `Deleted **${ok}**, **${errors.length}** failed.`, 'warning');
         }
         // Everything cleared: the toast is the confirmation, so close the view
         // like other views do instead of leaving an empty "All clean" panel.
         if (remaining.length === 0) onBackToDefault?.();
       })
       .catch((err) => {
-        if (mountedRef.current) showStatus('Delete Failed', err.message || 'An error occurred', 'danger');
+        if (mountedRef.current) showStatus('Delete Failed', err.message || 'An error occurred.', 'danger');
       })
       .finally(() => {
         if (mountedRef.current) {

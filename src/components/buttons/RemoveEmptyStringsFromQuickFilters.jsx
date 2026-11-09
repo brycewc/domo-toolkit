@@ -41,7 +41,7 @@ export function RemoveEmptyStringsFromQuickFilters({ currentContext, onStatusUpd
   const handleClick = () => {
     const definition = definitionRef.current;
     if (!definition) {
-      onStatusUpdate?.('No Definition Found', `No definition found for card **${cardId}**`, 'warning');
+      onStatusUpdate?.('No Definition Found', `No definition found for card **${cardId}**.`, 'warning');
       return;
     }
 

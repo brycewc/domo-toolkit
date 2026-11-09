@@ -554,6 +554,26 @@ function isActionableDomoUrl(url) {
   }
 }
 
+// Unlike backfillInstanceUser, also overwrites tabs that already carry rights.
+async function refetchInstanceUser(tabId) {
+  const context = getTabContext(tabId);
+  if (!context?.instance) {
+    throw new Error('No Domo context for this tab');
+  }
+  const { instance } = context;
+  invalidateInstanceUser(instance);
+  const instanceUser = await getInstanceUser(instance, tabId);
+  if (!instanceUser.user?.metadata?.USER_RIGHTS?.length) {
+    throw new Error('The page returned no permissions. Try reloading the page.');
+  }
+  for (const [cachedTabId, cachedContext] of tabContexts.entries()) {
+    if (cachedContext?.instance !== instance) continue;
+    applyInstanceUser(cachedContext, instanceUser);
+    setTabContext(cachedTabId, cachedContext);
+  }
+  return { instance, rightsCount: instanceUser.user.metadata.USER_RIGHTS.length };
+}
+
 /**
  * Fill in a cached tab's user when an earlier detection left it without one,
  * without redetecting the object. Serves from the per-instance cache when
@@ -2125,6 +2145,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'IS_VERIFIED_DOMO_ORIGIN': {
           const confirmed = sender.tab ? await confirmDomoTab(sender.tab) : false;
           sendResponse({ confirmed, success: true });
+          break;
+        }
+
+        case 'REFETCH_INSTANCE_USER': {
+          await sessionRestore;
+          const result = await refetchInstanceUser(message.tabId);
+          sendResponse({ ...result, success: true });
           break;
         }
 

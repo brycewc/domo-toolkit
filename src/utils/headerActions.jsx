@@ -20,8 +20,8 @@ import IconSync from '@icons/sync.svg?react';
 export function buildActivityLogAction({ contexts = [], domoObject, onStatusUpdate }) {
   const target = getActivityLogTarget(domoObject);
   const instance = instanceKeyFromUrl(domoObject.baseUrl);
-  const userRights = contexts.find((context) => instance && context?.instance === instance && context.user)?.user
-    ?.metadata?.USER_RIGHTS;
+  const userRights = contexts.find((context) => instance && context?.instance === instance && context.user)?.user?.metadata
+    ?.USER_RIGHTS;
   const parentTypeName = getObjectType(getObjectType(domoObject.typeId)?.parents?.[0])?.name;
   const disabledReason = !target
     ? `Could not determine the parent ${parentTypeName ?? 'object'}`
@@ -43,12 +43,12 @@ export function buildActivityLogAction({ contexts = [], domoObject, onStatusUpda
         if (!launched) throw new Error('Could not determine the Domo instance for this object');
         onStatusUpdate?.(
           'Opening Activity Log',
-          `Navigating to activity log for **${domoObject.metadata?.name || domoObject.id}**`,
+          `Navigating to activity log for **${domoObject.metadata?.name || domoObject.id}**.`,
           'success'
         );
       } catch (err) {
         console.error('[headerActions] Error opening activity log:', err);
-        onStatusUpdate?.('Error', `Failed to open activity log: ${err.message}`, 'danger', 5000);
+        onStatusUpdate?.('Error', `Failed to open activity log: ${err.message}.`, 'danger', 5000);
       }
     },
     tooltip: disabledReason ?? 'View activity log'
@@ -108,7 +108,7 @@ export function buildReloadAction({
         await launchView({ currentContext, type: viewType, ...extras });
       } catch (err) {
         console.error('[headerActions] Error in reload:', err);
-        onStatusUpdate?.('Error', err.message || 'Failed to reload', 'danger', 3000);
+        onStatusUpdate?.('Error', err.message || 'Failed to reload.', 'danger', 3000);
       }
     },
     tooltip: disabledReason ?? 'Reload for current object'

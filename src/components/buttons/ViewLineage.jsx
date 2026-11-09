@@ -37,7 +37,7 @@ export function ViewLineage({ currentContext, onStatusUpdate }) {
       window.close();
     } catch (err) {
       console.error('Error opening lineage viewer:', err);
-      onStatusUpdate?.('Error', `Failed to open lineage viewer: ${err.message}`, 'danger');
+      onStatusUpdate?.('Error', `Failed to open lineage viewer: ${err.message}.`, 'danger');
     }
   };
 

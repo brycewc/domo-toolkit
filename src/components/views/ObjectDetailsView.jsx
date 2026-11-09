@@ -126,9 +126,9 @@ export function ObjectDetailsView({ instance = null, liveContext = null, onBackT
     if (!domoObject?.id) return;
     try {
       await copyToClipboard(domoObject.id.toString());
-      onStatusUpdate?.('Copied', `ID **${domoObject.id}** copied to clipboard`, 'success', 2000);
+      onStatusUpdate?.('Copied', `ID **${domoObject.id}** copied to clipboard.`, 'success', 2000);
     } catch (err) {
-      onStatusUpdate?.('Error', 'Failed to copy ID', 'danger', 3000);
+      onStatusUpdate?.('Error', 'Failed to copy ID.', 'danger', 3000);
     }
   };
 

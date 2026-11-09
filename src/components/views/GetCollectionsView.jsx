@@ -123,9 +123,9 @@ export function GetCollectionsView({
     setIsRefreshing(true);
     try {
       await loadCollectionsData(true);
-      onStatusUpdate?.('Refreshed', 'Collection data updated successfully', 'success', 2000);
+      onStatusUpdate?.('Refreshed', 'Collection data updated successfully.', 'success', 2000);
     } catch (err) {
-      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data', 'danger', 3000);
+      onStatusUpdate?.('Refresh Failed', err.message || 'Failed to refresh data.', 'danger', 3000);
     } finally {
       setIsRefreshing(false);
     }

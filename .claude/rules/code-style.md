@@ -163,6 +163,12 @@ Button labels use **Title Case**, not sentence case: capitalize the first letter
 
 A view's header title uses **Title Case**, the same convention as button labels above. This is the `feature` string passed to `DataList` (which renders before the object's name), and any standalone heading a view renders itself. Write `Card Owners for`, `Manage Tags for`, `Card Locks for`, not `Card owners for` or `Card locks for`. The same minor-word exceptions apply (`for` stays lowercase because it isn't the first word). Like button labels, this is a content convention ESLint/Prettier won't catch, so apply it by hand.
 
+## UI Copy: Toast Descriptions
+
+A toast's description (the second argument to `showStatus` / `onStatusUpdate`, or the `description` of a `showPromiseStatus` result) **always ends with a period**, even when it is a single sentence. Write `'Could not determine parent ID.'`, not `'Could not determine parent ID'`. A description ending in an ellipsis for an in-progress state (`'Loading object details...'`) is the one exception. The toast title stays Title Case with no period.
+
+This covers every string that reaches a description, not just inline literals: helper functions that build the message (`noCardPagesMessage`), `successMessage` callbacks, `statusDescription` fields, preCheck `message` values, and fallbacks such as `err.message || 'Failed to refresh data.'`. When a message is composed from parts, end the finished sentence with the period rather than the fragment, so `${message} Workspaces haven't been searched.` builds on a `message` that is already a full sentence. Like button labels, this is a content convention ESLint/Prettier won't catch, so apply it by hand.
+
 ## Unused Variables
 
 - Prefix unused variables/args with `_`: `(_event)`, `_unused`.

@@ -57,14 +57,14 @@ export function DuplicateView({ instance = null, liveContext = null, onBackToDef
       }
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       if (!context) {
-        onStatusUpdate?.('Error', 'No context available', 'danger');
+        onStatusUpdate?.('Error', 'No context available.', 'danger');
         onBackToDefault?.();
         return;
       }
       const typeId = context.domoObject?.typeId;
       const duplicator = getDuplicator(typeId, data.duplicator);
       if (!duplicator) {
-        onStatusUpdate?.('Error', `Duplication is not supported for ${typeId}`, 'danger');
+        onStatusUpdate?.('Error', `Duplication is not supported for ${typeId}.`, 'danger');
         onBackToDefault?.();
         return;
       }
@@ -74,7 +74,7 @@ export function DuplicateView({ instance = null, liveContext = null, onBackToDef
       setSource(duplicator.resolveSource(context));
     } catch (error) {
       console.error('[DuplicateView] Error loading data:', error);
-      onStatusUpdate?.('Error', error.message || 'Failed to load context', 'danger');
+      onStatusUpdate?.('Error', error.message || 'Failed to load context.', 'danger');
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }

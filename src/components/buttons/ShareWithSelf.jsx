@@ -15,7 +15,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
 
   const handleShare = () => {
     if (!currentContext?.domoObject || !currentContext.domoObject.id || !currentContext.domoObject.typeId) {
-      onStatusUpdate?.('No Object Detected', 'Please navigate to a valid Domo object and try again', 'danger');
+      onStatusUpdate?.('No Object Detected', 'Please navigate to a valid Domo object and try again.', 'danger');
       return;
     }
 
@@ -103,8 +103,7 @@ export function ShareWithSelf({ currentContext, isDisabled, onStatusUpdate }) {
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
   const needsContentAdmin =
     contentAdminTypes.includes(currentContext?.domoObject?.typeId) && !userRights.includes('content.admin');
-  const needsAccountAdmin =
-    isDatasetTypeId(currentContext?.domoObject?.typeId) && !userRights.includes('account.admin');
+  const needsAccountAdmin = isDatasetTypeId(currentContext?.domoObject?.typeId) && !userRights.includes('account.admin');
   const needsAppAdmin =
     ['APP', 'RYUU_APP'].includes(currentContext?.domoObject?.typeId) && !userRights.includes('app.admin');
   const taskCenterTypes = ['HOPPER_QUEUE', 'HOPPER_TASK'];

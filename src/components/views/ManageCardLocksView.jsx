@@ -13,12 +13,7 @@ import IconLockOpen from '@icons/lock-open.svg?react';
 
 import { DataList } from './DataList';
 
-export function ManageCardLocksView({
-  instance = null,
-  liveContext = null,
-  onBackToDefault = null,
-  onStatusUpdate = null
-}) {
+export function ManageCardLocksView({ instance = null, liveContext = null, onBackToDefault = null, onStatusUpdate = null }) {
   const [isLoading, setIsLoading] = useState(true);
   const holdContent = useViewReady(!isLoading);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -174,7 +169,7 @@ export function ManageCardLocksView({
         ctx = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       }
       if (!ctx?.domoObject?.id) {
-        onStatusUpdate?.('Error', 'No object context available', 'danger');
+        onStatusUpdate?.('Error', 'No object context available.', 'danger');
         onBackToDefault?.();
         return;
       }
@@ -202,7 +197,7 @@ export function ManageCardLocksView({
       );
     } catch (error) {
       if (mountedRef.current) {
-        onStatusUpdate?.('Error', error.message || 'Failed to load cards', 'danger');
+        onStatusUpdate?.('Error', error.message || 'Failed to load cards.', 'danger');
         onBackToDefault?.();
       }
     } finally {

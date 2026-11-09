@@ -24,7 +24,7 @@ export function MigrateDownstreamContent({ currentContext, onStatusUpdate }) {
   const handleAction = async (kind) => {
     const appId = domoObject?.parentId;
     if (!appId) {
-      onStatusUpdate?.('Error', 'Could not determine parent app ID', 'danger');
+      onStatusUpdate?.('Error', 'Could not determine parent app ID.', 'danger');
       return;
     }
     await launch({
