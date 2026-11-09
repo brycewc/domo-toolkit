@@ -1870,6 +1870,7 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry, un
             <AlertStatusIcon />
             No Dependencies Found
           </Alert.Title>
+          {deps.emptyNote && <Alert.Description>{deps.emptyNote}</Alert.Description>}
           {/* An all-clear would otherwise read as covering the search the user hasn't run. */}
           {unrunCheckLabels.length > 0 && (
             <Alert.Description>{`${unrunCheckLabels.join(' and ')} not searched`}</Alert.Description>

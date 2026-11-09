@@ -104,6 +104,9 @@ function buildAppCardEmbedsGroup({ appSummary, embeds, pageTitleById }) {
  * something the delete removes anyway (a package's own versions) needs this to
  * say the usage check ran and came back empty.
  *
+ * It may also set `emptyNote`: a sentence for the "No dependencies found"
+ * banner, saying what the check covered.
+ *
  * And `deferred`: a promise resolving to a fuller return value of the same shape,
  * for advisory data too slow to hold the listing behind. It replaces the first
  * result, so it must repeat every field that one set, and never reject.
@@ -551,7 +554,8 @@ function normalizeDependencyResult(fetched) {
   // still being read), `appSummary` (app-wide page/card totals for the cascade
   // delete), `onlyHereCardIds` / `appOnlyCardIds` (cards living only on this page,
   // and only in this app, for the alternate deletes' count previews), `clearNote`
-  // (the all-clear banner's sentence), `otherNote` (the Other Dependencies note),
+  // (the all-clear banner's sentence), `emptyNote` (the no-dependencies banner's
+  // sentence), `otherNote` (the Other Dependencies note),
   // and `subjectImpact` (the deleted object's own downstream impact, `null` when
   // unreadable and absent for types that don't read one).
   const allGroups = Array.isArray(fetched) ? fetched : fetched.groups;
@@ -559,6 +563,7 @@ function normalizeDependencyResult(fetched) {
   const appOnlyCardIds = Array.isArray(fetched) ? null : (fetched.appOnlyCardIds ?? null);
   const appSummary = Array.isArray(fetched) ? null : (fetched.appSummary ?? null);
   const clearNote = Array.isArray(fetched) ? null : (fetched.clearNote ?? null);
+  const emptyNote = Array.isArray(fetched) ? null : (fetched.emptyNote ?? null);
   const onlyHereCardIds = Array.isArray(fetched) ? null : (fetched.onlyHereCardIds ?? null);
   const otherNote = Array.isArray(fetched) ? null : (fetched.otherNote ?? null);
   const subjectImpact = Array.isArray(fetched) ? undefined : fetched.subjectImpact;
@@ -568,6 +573,7 @@ function normalizeDependencyResult(fetched) {
     appOnlyCardCount: appOnlyCardIds == null ? null : appOnlyCardIds.length,
     appSummary,
     clearNote,
+    emptyNote,
     onlyHereCardCount: onlyHereCardIds == null ? null : onlyHereCardIds.length,
     otherNote,
     subjectImpact,
@@ -749,6 +755,7 @@ const FETCHERS = {
     ];
 
     return {
+      emptyNote: "This card doesn't live on any app studio apps, dashboards, embeds, report builder pages, or worksheets.",
       groups,
       otherNote: 'Deleting the card takes it off these pages. The pages themselves stay.'
     };
@@ -1684,6 +1691,7 @@ const WORKFLOW_VERSION_TYPES = {
  *   blockingCount: number,
  *   blockingReason: string|null,
  *   clearNote: string|null,
+ *   emptyNote: string|null,
  *   supported: boolean,
  *   appSummary: {cardCount: number, cardIds: number[], pageCount: number}|null,
  *   appOnlyCardCount: number|null,
@@ -1702,6 +1710,7 @@ export async function getDependenciesForDelete({ featureSwitches = null, object,
       blockingReason: null,
       clearNote: null,
       deferred: null,
+      emptyNote: null,
       groups: [],
       onlyHereCardCount: null,
       otherNote: null,
