@@ -19,12 +19,14 @@ import { deleteObject } from '@/services/deleteObject';
 import {
   getDependenciesForDelete,
   withExtraDependencyGroups,
-  withInputJupyterWorkspaceUsage
+  withInputJupyterWorkspaceUsage,
+  withWorkspaceCardUsage
 } from '@/services/dependencies';
 import { getJupyterWorkspacesForDatasets } from '@/services/jupyterWorkspaces';
 import { deletePageAndAllCards } from '@/services/pages';
 import { voidTaskCenterTask } from '@/services/taskCenter';
 import { cancelWorkflowExecution } from '@/services/workflows';
+import { getWorkspacesForCards, groupCardsByWorkspace } from '@/services/workspaces';
 import { redirectTabIfViewingObject, reloadTabIfViewingObject } from '@/utils/currentObject';
 import { parseMarkdownBold } from '@/utils/markdown';
 import { collectShareableObjects } from '@/utils/rowActions';
@@ -167,6 +169,7 @@ const deletersByType = {
     cascadeButtons: undefined,
     confirmSuffix: ' and all its cards',
     holdToConfirm: ({ deps }) => hasGroupItems(deps, 'pageCardEmbeds'),
+    onDemandChecks: [cardWorkspacesCheck()],
     primaryLabel: 'Delete Page and All Cards',
     run: ({ context }) => runPageDelete({ context, parentAppId: context.domoObject.parentId }),
     typeName: 'Page'
@@ -501,6 +504,7 @@ const deletersByType = {
   PAGE: {
     confirmSuffix: ' and all its cards',
     holdToConfirm: ({ deps }) => hasGroupItems(deps, 'pageEmbeds') || hasGroupItems(deps, 'pageCardEmbeds'),
+    onDemandChecks: [cardWorkspacesCheck()],
     primaryLabel: 'Delete Page and All Cards',
     run: ({ context }) => runPageDelete({ context }),
     typeName: 'Page'
@@ -603,6 +607,7 @@ const deletersByType = {
     cascadeButtons: undefined,
     confirmSuffix: ' and all its cards',
     holdToConfirm: ({ deps }) => hasGroupItems(deps, 'pageCardEmbeds'),
+    onDemandChecks: [cardWorkspacesCheck()],
     primaryLabel: 'Delete Worksheet Page and All Cards',
     run: ({ context }) => runPageDelete({ context, parentAppId: context.domoObject.parentId }),
     typeName: 'Worksheet Page'
@@ -624,27 +629,36 @@ const onlyHereCardsCascade = {
       onlyHereCount: deps?.onlyHereCardCount ?? null,
       pageId: context.domoObject.id,
       pageLabel: isWorksheet ? 'Worksheet Page' : 'Page',
-      pageName: context.domoObject.metadata?.name || context.domoObject.id
+      pageName: context.domoObject.metadata?.name || context.domoObject.id,
+      workspacesChecked: Array.isArray(deps?.workspaceCardIds)
     };
   },
-  confirmText: ({ onlyHereCount, pageId, pageLabel, pageName }) => {
+  confirmText: ({ onlyHereCount, pageId, pageLabel, pageName, workspacesChecked }) => {
     const base = `Delete the ${pageLabel.toLowerCase()} **${pageName} (ID: ${pageId})**`;
+    const elsewhere = workspacesChecked ? 'other pages or in workspaces' : 'other pages';
+    const nowhere = workspacesChecked ? 'no other page or workspace' : 'no other page';
     // No count yet (lookup pending or failed): describe the scope without a number.
     if (onlyHereCount == null) {
-      return `${base} and only the cards that appear on no other page permanently? Cards also used on other pages are left in place.`;
+      return `${base} and only the cards that appear on ${nowhere} permanently? Cards also used on ${elsewhere} are left in place.`;
     }
     // Every card is shared elsewhere: the delete removes just the page.
     if (onlyHereCount === 0) {
-      return `${base} permanently? All of its cards also appear on other pages and will be left in place.`;
+      return `${base} permanently? All of its cards also appear on ${elsewhere} and will be left in place.`;
     }
-    return `${base} and its **${onlyHereCount} card${onlyHereCount !== 1 ? 's' : ''}** that appear on no other page permanently? Cards also used on other pages are left in place.`;
+    return `${base} and its **${onlyHereCount} card${onlyHereCount !== 1 ? 's' : ''}** that appear on ${nowhere} permanently? Cards also used on ${elsewhere} are left in place.`;
   },
   holdToConfirm: ({ deps }) =>
     hasGroupItems(deps, 'pageEmbeds') || hasGroupItems(deps, 'pageCardEmbeds', (item) => item.cardOnlyHere !== false),
   isBlocked: ({ blocked }) => blocked,
   label: () => 'Delete Page and Cards that Only Live Here',
   loadingMessage: ({ pageName }) => `Deleting **${pageName}** and cards that only live here…`,
-  run: ({ context }) => runPageDelete({ cardScope: 'onlyHere', context, parentAppId: context.domoObject.parentId }),
+  run: ({ context, deps }) =>
+    runPageDelete({
+      cardScope: 'onlyHere',
+      context,
+      keepCardIds: deps?.workspaceCardIds,
+      parentAppId: context.domoObject.parentId
+    }),
   successMessage: ({ pageName }, result) =>
     result.cardsDeleted === 0
       ? `**${pageName}** deleted; its cards live elsewhere and were left in place`
@@ -1051,14 +1065,19 @@ export function DeleteObjectView({
   // view is still working.
   const runningBanners = checkBanners.filter((entry) => entry.isRunning).map((entry) => entry.node);
   const checkNotices = checkBanners.filter((entry) => !entry.isRunning).map((entry) => entry.node);
-  const depNotice = isLoadingDeps ? null : dependencyBanner;
+  const isAllClear =
+    !isLoadingDeps &&
+    !depsError &&
+    !!deps?.supported &&
+    (deps.totalCount === 0 || (!!deps.clearNote && !(isBlocked && deps.blockingReason)));
+  const depNotice = isLoadingDeps || isAllClear ? null : dependencyBanner;
   const noticeCount = (caveatAlert ? 1 : 0) + checkNotices.length + (depNotice ? 1 : 0);
   // The caveat is a standing note for the type, so it sits above the dependency
   // banner, which comes and goes as the check runs. The other way round, the
   // caveat slides down and back up as the spinner is replaced. An opt-in check's
   // prompt stands until pressed, so it goes with the caveat rather than below.
   const banner =
-    noticeCount > 0 || runningBanners.length > 0 || isLoadingDeps ? (
+    noticeCount > 0 || runningBanners.length > 0 || isLoadingDeps || isAllClear ? (
       <div className='flex w-full flex-col gap-2'>
         {runningBanners}
         {isLoadingDeps ? dependencyBanner : null}
@@ -1096,6 +1115,7 @@ export function DeleteObjectView({
             <Separator />
           </div>
         ) : null}
+        {isAllClear ? dependencyBanner : null}
       </div>
     ) : null;
 
@@ -1454,6 +1474,55 @@ async function cardHostUrl(context) {
   const { origin, pathname } = new URL(tab.url);
   const host = pathname.split('/kpis/details/')[0];
   return origin === context.origin && host && host !== pathname ? `${origin}${host}` : fallback;
+}
+
+// The workspace API answers one card at a time, so this is opt-in on a page.
+function cardWorkspacesCheck() {
+  const pageCards = (deps) => (deps?.groups || []).find((group) => group.key === 'pageCards')?.items || [];
+  return {
+    amend: ({ items, result }) =>
+      withWorkspaceCardUsage(
+        result,
+        items.flatMap((workspace) => workspace.cardIds)
+      ),
+    available: ({ deps }) => pageCards(deps).length > 0,
+    buttonLabel: 'Check Workspaces',
+    key: 'cardWorkspaces',
+    promptDescription: 'Finding them means looking up each card on this page one at a time, so it only runs when you ask.',
+    promptTitle: "Workspaces Aren't Searched Automatically",
+    run: async ({ context, deps }) => {
+      const cardIds = pageCards(deps).map((card) => String(card.id));
+      const { failedCardIds, workspacesByCard } = await getWorkspacesForCards({ cardIds, tabId: context.tabId });
+      // A card left unread could be in a workspace, and the alternate delete would then take it.
+      if (failedCardIds.length > 0) {
+        throw new Error(
+          `Workspaces could not be read for ${failedCardIds.length} of ${cardIds.length} card${cardIds.length !== 1 ? 's' : ''}.`
+        );
+      }
+      return groupCardsByWorkspace(workspacesByCard);
+    },
+    toGroups: ({ context, deps, items }) => {
+      const cardById = new Map(pageCards(deps).map((card) => [String(card.id), card]));
+      return [
+        {
+          annotation: 'Deleting a card takes it out of these workspaces. The workspaces themselves stay.',
+          blocking: false,
+          deleted: false,
+          items: items.map((workspace) => ({
+            children: workspace.cardIds.map((cardId) => cardById.get(cardId)).filter(Boolean),
+            count: workspace.cardIds.length,
+            countLabel: workspace.cardIds.length === 1 ? 'card' : 'cards',
+            id: workspace.id,
+            label: workspace.name,
+            typeId: 'WORKSPACE',
+            url: new DomoObject('WORKSPACE', workspace.id, context.origin).url
+          })),
+          key: 'cardWorkspaces',
+          label: 'Workspaces'
+        }
+      ];
+    }
+  };
 }
 
 function collectPickerAncestors(items, scope) {
@@ -1954,11 +2023,12 @@ function retargetVersionToPackage(context) {
   });
 }
 
-async function runPageDelete({ cardScope = 'all', context, parentAppId = null }) {
+async function runPageDelete({ cardScope = 'all', context, keepCardIds = [], parentAppId = null }) {
   const result = await deletePageAndAllCards({
     appId: parentAppId ? parseInt(parentAppId) : null,
     cardScope,
     currentContext: context,
+    keepCardIds,
     pageId: parseInt(context.domoObject.id),
     pageType: context.domoObject.typeId,
     skipChildPageCheck: true,

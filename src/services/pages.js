@@ -48,6 +48,7 @@ export async function deletePageAndAllCards({
   appId = null,
   cardScope = 'all',
   currentContext = null,
+  keepCardIds = [],
   pageId,
   pageType,
   skipChildPageCheck = false,
@@ -116,7 +117,8 @@ export async function deletePageAndAllCards({
     // action the user did not choose).
     if (cardScope === 'onlyHere' && cardIds.length > 0) {
       try {
-        cardIds = await getOnlyHereCardIds({ cardIds, pageId, tabId });
+        const keep = new Set(keepCardIds.map(String));
+        cardIds = (await getOnlyHereCardIds({ cardIds, pageId, tabId })).filter((id) => !keep.has(String(id)));
       } catch (error) {
         return {
           statusDescription: `Could not determine which cards live only on this page (${error.message}).`,

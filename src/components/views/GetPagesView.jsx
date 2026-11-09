@@ -10,6 +10,7 @@ import { DomoObject } from '@/models/DomoObject';
 import { getCardsForObject, getCardsForParent, getOwnedCards } from '@/services/cards';
 import { getCardEmbeds, toEmbedRow } from '@/services/embeds';
 import { getChildPages, getPagesForCards } from '@/services/pages';
+import { getWorkspacesForCards } from '@/services/workspaces';
 import { waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { soleExpandedGroupIds, withCanonicalGroups } from '@/utils/dataListGroups';
@@ -37,9 +38,12 @@ export function GetPagesView({
   const [items, setItems] = useState([]);
   const [pageData, setPageData] = useState(null); // Store metadata for rebuilding
   const [pageTypeLabel, setPageTypeLabel] = useState('pages');
+  // The opt-in workspace lookup for multi-card queries: null until run, then `{ error, status }`.
+  const [workspaceCheck, setWorkspaceCheck] = useState(null);
 
   const holdContent = useViewReady(!isLoading);
 
+  const groupedRef = useRef(null);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -114,6 +118,8 @@ export function GetPagesView({
       let noCards = false;
       let orphanedCards;
       let embedResult = null;
+      let queriedCards = [];
+      let workspaceResult = null;
 
       if (!childPages && !forceRefresh) {
         // No pre-fetched data (popup handoff)
@@ -141,6 +147,7 @@ export function GetPagesView({
               cardsByPage = result.cardsByPage;
               orphanedCards = result.orphanedCards;
               embedResult = await embedsPromise;
+              queriedCards = waitResult.cards;
             }
           }
           // CARD, DATA_SOURCE, DATAFLOW_TYPE: fall through to fetchFreshPages
@@ -168,6 +175,8 @@ export function GetPagesView({
           embedResult = freshData.embedResult ?? null;
           noCards = Boolean(freshData.noCards);
           orphanedCards = freshData.orphanedCards;
+          queriedCards = freshData.cards ?? [];
+          workspaceResult = freshData.workspaceResult ?? null;
         }
       }
 
@@ -187,6 +196,13 @@ export function GetPagesView({
         embedResult = freshData.embedResult ?? null;
         noCards = Boolean(freshData.noCards);
         orphanedCards = freshData.orphanedCards;
+        queriedCards = freshData.cards ?? [];
+        workspaceResult = freshData.workspaceResult ?? null;
+      }
+
+      // A refresh re-runs a workspace lookup the user already opted into, so the category doesn't vanish.
+      if (forceRefresh && objectType !== 'CARD' && groupedRef.current?.workspaceResult) {
+        workspaceResult = await readCardWorkspaces(queriedCards, await getValidTabForInstance(instance));
       }
 
       // Cache card pages on background context so activity log can reuse them
@@ -215,7 +231,7 @@ export function GetPagesView({
       // which is a toast, not a view showing a lone trailing group. This holds for
       // every object type, including a single card (which would list only itself).
       const noPages = !childPages || !childPages.length;
-      if (noPages && !embedResult?.embeds?.length) {
+      if (noPages && !embedResult?.embeds?.length && !hasWorkspaces(workspaceResult)) {
         if (!mountedRef.current) return;
         const isCardless = sidepanelType === 'getCardPages' && noCards;
         const message =
@@ -247,15 +263,12 @@ export function GetPagesView({
       setError(null);
 
       if (sidepanelType === 'getCardPages') {
-        const transformedItems = transformGroupedPagesData(
-          childPages,
-          origin,
-          cardsByPage,
-          orphanedCards,
-          objectType,
-          embedResult
-        );
-        setItems(transformedItems);
+        showGroupedPages({
+          args: [childPages, origin, cardsByPage, orphanedCards, objectType, embedResult],
+          cards: queriedCards,
+          instance,
+          workspaceResult
+        });
       } else {
         // Normal PAGE or DATA_APP_VIEW data - use existing logic
         // Separate children and grandchildren based on parentPageId
@@ -375,9 +388,34 @@ export function GetPagesView({
     });
 
     setError(null);
-    setItems(
-      transformGroupedPagesData(childPages, origin, result.cardsByPage, result.orphanedCards, parentTypeId, embedResult)
-    );
+    const workspaceResult = groupedRef.current?.workspaceResult
+      ? await readCardWorkspaces([...cardById.values()], tabId)
+      : null;
+    showGroupedPages({
+      args: [childPages, origin, result.cardsByPage, result.orphanedCards, parentTypeId, embedResult],
+      cards: [...cardById.values()],
+      instance,
+      workspaceResult
+    });
+  };
+
+  const showGroupedPages = ({ args, cards, instance, workspaceResult }) => {
+    groupedRef.current = { args, cards, instance, workspaceResult };
+    setItems(transformGroupedPagesData(...args, workspaceResult));
+  };
+
+  const runWorkspaceCheck = async () => {
+    const grouped = groupedRef.current;
+    if (!grouped) return;
+    setWorkspaceCheck({ error: null, status: 'loading' });
+    const result = await readCardWorkspaces(grouped.cards, await getValidTabForInstance(grouped.instance));
+    if (!mountedRef.current) return;
+    if (result.error) {
+      setWorkspaceCheck({ error: result.error, status: 'error' });
+      return;
+    }
+    setWorkspaceCheck({ error: null, status: 'loaded' });
+    showGroupedPages({ ...grouped, workspaceResult: result });
   };
 
   /**
@@ -415,6 +453,7 @@ export function GetPagesView({
       const cardIds = cards.map((card) => card.id);
 
       const embedsPromise = embedsEnabled ? readCardEmbeds(cards, tabId) : null;
+      const workspacesPromise = objectType === 'CARD' ? readCardWorkspaces(cards, tabId) : null;
       // Treat null result the same as empty; keeps the UI stable if the
       // executeInPage bridge nulls out (script timeout, OOM, transient errors).
       const result = (await getPagesForCards(cardIds, tabId)) ?? {
@@ -423,7 +462,7 @@ export function GetPagesView({
         pages: []
       };
       const { cardsByPage, orphanedCards, pages } = result;
-      const embedResult = await embedsPromise;
+      const [embedResult, workspaceResult] = await Promise.all([embedsPromise, workspacesPromise]);
 
       // For page-like types, filter out the current page
       const excludeSelf = PAGE_SCOPED_TYPES.includes(objectType);
@@ -438,7 +477,7 @@ export function GetPagesView({
           parentName: page.parentName || null
         }));
 
-      return { cardsByPage, childPages, embedResult, orphanedCards };
+      return { cards, cardsByPage, childPages, embedResult, orphanedCards, workspaceResult };
     }
 
     // getChildPages / childPagesWarning: hierarchical children
@@ -530,7 +569,7 @@ export function GetPagesView({
       const tally = (list) => {
         let pages = 0;
         for (const item of list || []) {
-          if (item.id === EMBEDS_GROUP.id) continue;
+          if (item.id === EMBEDS_GROUP.id || item.id === WORKSPACES_GROUP.id) continue;
           if (item.typeId === 'CARD') cardIds.add(item.id);
           else if (pageTypes.has(item.typeId)) pages++;
           if (item.children?.length) {
@@ -545,7 +584,8 @@ export function GetPagesView({
       const onlyHere = items.find((item) => item.id === 'ONLY_HERE_group')?.children?.length || 0;
       const embedsGroup = items.find((item) => item.id === EMBEDS_GROUP.id);
       const embeds = embedsGroup?.children?.length ? embedsGroup.count : 0;
-      if (!pages && !orphans && !onlyHere && !embeds) return null;
+      const workspaces = items.find((item) => item.id === WORKSPACES_GROUP.id)?.children?.length || 0;
+      if (!pages && !orphans && !onlyHere && !embeds && !workspaces) return null;
       let text = `${pages} page${pages === 1 ? '' : 's'}`;
       if (cards > 0) {
         text += ` • ${cards} card${cards === 1 ? '' : 's'}`;
@@ -558,6 +598,9 @@ export function GetPagesView({
       }
       if (embeds > 0) {
         text += ` • ${embeds} embed${embeds === 1 ? '' : 's'}`;
+      }
+      if (workspaces > 0) {
+        text += ` • ${workspaces} workspace${workspaces === 1 ? '' : 's'}`;
       }
       return text;
     }
@@ -607,8 +650,12 @@ export function GetPagesView({
     );
   }
 
+  const offersWorkspaceCheck =
+    pageData?.sidepanelType === 'getCardPages' && pageData?.objectType !== 'CARD' && groupedRef.current?.cards?.length > 0;
+
   return (
     <DataList
+      banner={offersWorkspaceCheck ? renderWorkspaceCheckBanner({ check: workspaceCheck, onRun: runWorkspaceCheck }) : null}
       currentContext={currentContext}
       defaultExpandedIds={soleExpandedGroupIds(items)}
       feature={renderFeature()}
@@ -667,6 +714,8 @@ const ONLY_HERE_CARDS_GROUP = { childTypeId: 'CARD', id: 'ONLY_HERE_group', labe
 // card: a "0 orphaned cards" row is meaningless there (the card itself would be
 // the orphan). When the view does build the group, the helper still appends it.
 const ORPHANED_CARDS_GROUP = { childTypeId: 'CARD', id: 'ORPHANED_CARDS_group', label: 'Orphaned Cards' };
+
+const WORKSPACES_GROUP = { childTypeId: 'WORKSPACE', id: 'WORKSPACES_group', label: 'Workspaces' };
 
 /**
  * Build card DataListItem children for a page from the cardsByPage mapping
@@ -754,6 +803,64 @@ function buildEmbedsGroup(embedResult, origin, objectType) {
   });
 }
 
+function buildWorkspacesGroup(workspaceResult, origin, objectType) {
+  if (!workspaceResult) return null;
+  if (workspaceResult.error) {
+    return DataListItem.createGroup({
+      children: [],
+      childTypeId: WORKSPACES_GROUP.childTypeId,
+      count: 0,
+      error: workspaceResult.error,
+      id: WORKSPACES_GROUP.id,
+      label: WORKSPACES_GROUP.label,
+      status: 'error'
+    });
+  }
+
+  const { cardNameById, failedCount, workspacesByCard } = workspaceResult;
+  const byWorkspace = new Map();
+  for (const [cardId, workspaces] of Object.entries(workspacesByCard)) {
+    for (const ws of workspaces) {
+      const id = ws.guid || ws.id;
+      if (!byWorkspace.has(id)) byWorkspace.set(id, { cardIds: [], name: ws.name || `Workspace ${id}` });
+      byWorkspace.get(id).cardIds.push(cardId);
+    }
+  }
+  if (!byWorkspace.size && !failedCount) return null;
+
+  const annotation = failedCount
+    ? `Workspaces could not be read for ${failedCount} card${failedCount !== 1 ? 's' : ''}.`
+    : null;
+  const children = [...byWorkspace.entries()]
+    .map(([id, { cardIds, name }]) => {
+      const workspace = new DomoObject('WORKSPACE', id, origin, { name });
+      // A single-card query already names the card, so repeating it under every workspace is clutter.
+      if (objectType === 'CARD') return DataListItem.fromDomoObject(workspace);
+      const cardChildren = cardIds
+        .map((cardId) => {
+          const cardName = (cardNameById.get(cardId) || '').trim() || `Card ${cardId}`;
+          return DataListItem.fromDomoObject(new DomoObject('CARD', cardId, origin, { name: cardName }));
+        })
+        .sort((a, b) => a.label.localeCompare(b.label));
+      return DataListItem.fromDomoObject(workspace, {
+        children: cardChildren,
+        count: cardChildren.length,
+        countLabel: cardChildren.length === 1 ? 'card' : 'cards'
+      });
+    })
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  return DataListItem.createGroup({
+    annotation,
+    children,
+    childTypeId: WORKSPACES_GROUP.childTypeId,
+    count: children.length,
+    id: WORKSPACES_GROUP.id,
+    label: WORKSPACES_GROUP.label,
+    metadata: `${children.length} workspace${children.length !== 1 ? 's' : ''}`
+  });
+}
+
 function canReadEmbeds(context) {
   return (context.user?.metadata?.USER_RIGHTS || []).includes('content.admin');
 }
@@ -770,9 +877,10 @@ function canReadEmbeds(context) {
  * @param {Array} childPages - The other pages the view lists (self already excluded)
  * @param {Object} [cardsByPage] - Mapping of pageId -> [{ id, name }]
  * @param {Array<{id: string|number, name: string}>} [orphanedCards] - Cards on no page
+ * @param {Set<string>|null} [workspaceCardIds] - Cards in a workspace, which also count as living elsewhere
  * @returns {Array<{id: string|number, name: string}>}
  */
-function findCardsOnlyHere(childPages, cardsByPage, orphanedCards) {
+function findCardsOnlyHere(childPages, cardsByPage, orphanedCards, workspaceCardIds = null) {
   const otherPageIds = new Set((childPages || []).map((page) => String(page.pageId)));
   const cardsOnOtherPages = new Set();
   const candidates = new Map();
@@ -788,7 +896,13 @@ function findCardsOnlyHere(childPages, cardsByPage, orphanedCards) {
     if (!candidates.has(card.id)) candidates.set(card.id, card);
   }
 
-  return [...candidates.values()].filter((card) => !cardsOnOtherPages.has(card.id));
+  return [...candidates.values()].filter(
+    (card) => !cardsOnOtherPages.has(card.id) && !workspaceCardIds?.has(String(card.id))
+  );
+}
+
+function hasWorkspaces(workspaceResult) {
+  return Object.keys(workspaceResult?.workspacesByCard || {}).length > 0;
 }
 
 function noCardPagesMessage(objectType, objectName) {
@@ -796,7 +910,7 @@ function noCardPagesMessage(objectType, objectName) {
     case 'BEAST_MODE_FORMULA':
       return `No pages found for cards using Beast Mode **${objectName}**`;
     case 'CARD':
-      return 'This card does not appear on any app studio apps, dashboards, embeds, report builder pages, or worksheets';
+      return 'This card does not appear on any app studio apps, dashboards, embeds, report builder pages, workspaces, or worksheets';
     case 'DATA_FUSION':
     case 'DATA_MODEL':
     case 'DATA_SOURCE':
@@ -838,6 +952,18 @@ async function readCardEmbeds(cards, tabId) {
   }
 }
 
+// Resolves to `{ error }` rather than rejecting, so a failed read only marks the group.
+async function readCardWorkspaces(cards, tabId) {
+  const cardNameById = new Map(cards.map((card) => [String(card.id), card.title ?? card.name ?? '']));
+  try {
+    const { failedCardIds, workspacesByCard } = await getWorkspacesForCards({ cardIds: [...cardNameById.keys()], tabId });
+    if (failedCardIds.length === cardNameById.size) return { error: 'Failed to read workspaces' };
+    return { cardNameById, failedCount: failedCardIds.length, workspacesByCard };
+  } catch (err) {
+    return { error: err.message || 'Failed to read workspaces' };
+  }
+}
+
 /**
  * Transform grouped pages data into hierarchical structure
  * For CARD and DATA_SOURCE types, childPages is a flat array with pageType property
@@ -849,9 +975,66 @@ async function readCardEmbeds(cards, tabId) {
  * @param {Object} [cardsByPage] - Optional mapping of pageId -> [{ id, name }] for card children
  * @param {Array<{id: string|number, name: string}>} [orphanedCards] - Optional cards that are not on any page
  */
-function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCards, objectType, embedResult = null) {
+function renderWorkspaceCheckBanner({ check, onRun }) {
+  if (check?.status === 'loaded') return null;
+
+  if (check?.status === 'loading') {
+    return (
+      <div className='flex items-center justify-center gap-2 py-3'>
+        <Spinner size='sm' />
+        <span className='text-xs text-muted'>Searching Workspaces…</span>
+      </div>
+    );
+  }
+
+  if (check?.status === 'error') {
+    return (
+      <Alert className='w-full' status='danger' variant='transparent'>
+        <Alert.Content>
+          <Alert.Title className='flex items-center gap-1'>
+            <AlertStatusIcon />
+            Could Not Check Workspaces
+          </Alert.Title>
+          <Alert.Description>{check.error}</Alert.Description>
+          <Button fullWidth className='mt-2' size='sm' variant='secondary' onPress={onRun}>
+            <IconSync /> Retry
+          </Button>
+        </Alert.Content>
+      </Alert>
+    );
+  }
+
+  return (
+    <Alert className='w-full' status='accent' variant='transparent'>
+      <Alert.Content>
+        <Alert.Title className='flex items-center gap-1'>
+          <AlertStatusIcon />
+          Workspaces Aren't Searched Automatically
+        </Alert.Title>
+        <Alert.Description>
+          Finding them means looking up each card one at a time, so it only runs when you ask.
+        </Alert.Description>
+        <Button fullWidth className='mt-2' size='sm' variant='secondary' onPress={onRun}>
+          <IconSync />
+          Check Workspaces
+        </Button>
+      </Alert.Content>
+    </Alert>
+  );
+}
+
+function transformGroupedPagesData(
+  childPages,
+  origin,
+  cardsByPage,
+  orphanedCards,
+  objectType,
+  embedResult = null,
+  workspaceResult = null
+) {
   const embedsGroup = buildEmbedsGroup(embedResult, origin, objectType);
-  if ((!childPages || !childPages.length) && !orphanedCards?.length && !embedsGroup) return [];
+  const workspacesGroup = buildWorkspacesGroup(workspaceResult, origin, objectType);
+  if ((!childPages || !childPages.length) && !orphanedCards?.length && !embedsGroup && !workspacesGroup) return [];
 
   // When querying a single card, every page lists that same card as its only
   // child. The user already knows which card they asked about, so repeating it
@@ -1068,7 +1251,10 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
   // page); for card, dataset, and user queries keep the "on no page at all"
   // (orphaned) set.
   const isHereScoped = HERE_SCOPED_TYPES.includes(objectType);
-  const trailingCards = isHereScoped ? findCardsOnlyHere(childPages, cardsByPage, orphanedCards) : orphanedCards;
+  const workspaceCardIds = workspaceResult?.workspacesByCard ? new Set(Object.keys(workspaceResult.workspacesByCard)) : null;
+  const trailingCards = isHereScoped
+    ? findCardsOnlyHere(childPages, cardsByPage, orphanedCards, workspaceCardIds)
+    : orphanedCards?.filter((card) => !workspaceCardIds?.has(String(card.id)));
   const trailingGroup = isHereScoped ? ONLY_HERE_CARDS_GROUP : ORPHANED_CARDS_GROUP;
 
   if (trailingCards?.length) {
@@ -1093,9 +1279,13 @@ function transformGroupedPagesData(childPages, origin, cardsByPage, orphanedCard
   }
 
   if (embedsGroup) items.push(embedsGroup);
+  if (workspacesGroup) items.push(workspacesGroup);
 
   const embedGroups = embedResult ? [EMBEDS_GROUP] : [];
+  const workspaceGroups = workspaceResult ? [WORKSPACES_GROUP] : [];
   const canonicalGroups =
-    objectType === 'CARD' ? [...CARD_PAGE_GROUPS, ...embedGroups] : [...CARD_PAGE_GROUPS, ...embedGroups, trailingGroup];
+    objectType === 'CARD'
+      ? [...CARD_PAGE_GROUPS, ...embedGroups, ...workspaceGroups]
+      : [...CARD_PAGE_GROUPS, ...embedGroups, ...workspaceGroups, trailingGroup];
   return withCanonicalGroups(items, canonicalGroups);
 }

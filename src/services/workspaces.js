@@ -69,6 +69,54 @@ export async function getOwnedWorkspaces(ownerId, tabId = null, ownerType = 'USE
   );
 }
 
+// The API answers one entity at a time, so cards go through a worker pool; a failed card lands in failedCardIds.
+export async function getWorkspacesForCards({ cardIds, concurrency = 6, tabId = null }) {
+  return executeInPage(
+    async (cardIds, concurrency) => {
+      const limit = 100;
+      const failedCardIds = [];
+      const workspacesByCard = {};
+
+      const readCard = async (cardId) => {
+        const workspaces = [];
+        let offset = 0;
+        while (true) {
+          const response = await fetch(
+            `/api/nav/v1/workspaces/entity/CARD/${encodeURIComponent(cardId)}?limit=${limit}&offset=${offset}`
+          );
+          if (response.status === 404) break;
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          const results = Array.isArray(data?.results) ? data.results : [];
+          workspaces.push(...results);
+          if (results.length < limit) break;
+          offset += limit;
+        }
+        return workspaces;
+      };
+
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: Math.min(concurrency, cardIds.length) }, async () => {
+          while (next < cardIds.length) {
+            const cardId = String(cardIds[next++]);
+            try {
+              const workspaces = await readCard(cardId);
+              if (workspaces.length) workspacesByCard[cardId] = workspaces;
+            } catch {
+              failedCardIds.push(cardId);
+            }
+          }
+        })
+      );
+
+      return { failedCardIds, workspacesByCard };
+    },
+    [cardIds, concurrency],
+    tabId
+  );
+}
+
 /**
  * Fetch every Workspace the given entity has been added to, following the
  * endpoint's limit/offset pagination until a short page is returned.
@@ -114,6 +162,18 @@ export async function getWorkspacesForEntity({ entityId, entityType, limit = 100
     [entityId, entityType, limit],
     tabId
   );
+}
+
+export function groupCardsByWorkspace(workspacesByCard) {
+  const byWorkspace = new Map();
+  for (const [cardId, workspaces] of Object.entries(workspacesByCard || {})) {
+    for (const ws of workspaces) {
+      const id = ws.guid || ws.id;
+      if (!byWorkspace.has(id)) byWorkspace.set(id, { cardIds: [], id, name: ws.name || `Workspace ${id}` });
+      byWorkspace.get(id).cardIds.push(cardId);
+    }
+  }
+  return [...byWorkspace.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**

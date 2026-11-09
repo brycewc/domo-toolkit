@@ -73,7 +73,6 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
   if (
     (isDataset ||
       [
-        'CARD',
         'DATA_APP',
         'DATA_APP_VIEW',
         'DATAFLOW_TYPE',

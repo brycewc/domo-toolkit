@@ -94,12 +94,12 @@ export function GetCardPages({ currentContext, isDisabled, onStatusUpdate }) {
         <Tooltip.Content className='max-w-60' offset={4}>
           <span>
             {isBeastMode
-              ? 'List pages (app studio, dashboard, and worksheet) where the cards using this Beast Mode appear'
+              ? 'List pages (app studio apps, dashboards, and worksheets) and workspaces where the cards using this Beast Mode appear'
               : isUser
-                ? "List pages (app studio, dashboard, and worksheet) where this user's cards appear"
+                ? "List pages (app studio apps, dashboards, and worksheets) and workspaces where this user's cards appear"
                 : isPageLike
-                  ? 'List other pages (app studio, dashboard, and worksheet) where these cards appear'
-                  : 'List pages (app studio, dashboard, and worksheet) where this card appears'}
+                  ? 'List other pages (app studio apps, dashboards, and worksheets) and workspaces where these cards appear'
+                  : 'List pages (app studio apps, dashboards, and worksheets) and workspaces where this card appears'}
           </span>
           {!longPressDisabled && <span className='italic'>Hold for more options</span>}
         </Tooltip.Content>

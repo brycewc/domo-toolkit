@@ -31,6 +31,7 @@ import { resolveObjectSummaries, summaryKey } from './objectSummaries';
 import { getAppOnlyCardIds, getChildPages, getOnlyHereCardIds, getPagesForCards } from './pages';
 import { getTaskCenterQueueName } from './taskCenter';
 import { getVersionDefinition, getWorkflowExecution, getWorkflowModelName, getWorkflowVersions } from './workflows';
+import { getWorkspacesForEntity } from './workspaces';
 
 function buildAppCardEmbedsGroup({ appSummary, embeds, pageTitleById }) {
   const placementByCardId = new Map();
@@ -155,6 +156,7 @@ function buildCardEmbedsGroup({ cards, embeds, onlyHereCardIds }) {
       const sharedNote = cardOnlyHere === false ? ' The card is also on other pages.' : '';
       return {
         ...toEmbedRow(embed, `Embeds the card ${titleById.get(embed.cardId) ?? embed.cardId}.${sharedNote}`),
+        cardId: embed.cardId,
         cardOnlyHere
       };
     }),
@@ -575,6 +577,7 @@ function normalizeDependencyResult(fetched) {
     clearNote,
     emptyNote,
     onlyHereCardCount: onlyHereCardIds == null ? null : onlyHereCardIds.length,
+    onlyHereCardIds: onlyHereCardIds == null ? null : onlyHereCardIds.map(String),
     otherNote,
     subjectImpact,
     supported: true,
@@ -694,9 +697,10 @@ const FETCHERS = {
   },
   CARD: async ({ id, metadata, origin }, tabId) => {
     const cardId = String(id);
-    const [drills, placements] = await Promise.all([
+    const [drills, placements, workspaces] = await Promise.all([
       getCardDrills({ cardId, tabId }),
-      getPagesForCards([cardId], tabId).then((result) => result ?? { pages: [] })
+      getPagesForCards([cardId], tabId).then((result) => result ?? { pages: [] }),
+      getWorkspacesForEntity({ entityId: cardId, entityType: 'CARD', tabId }).catch(() => [])
     ]);
     const drillNameById = new Map(drills.map((drill) => [drill.id, drill.name]));
     const cardDatasetIds = (metadata?.details?.datasources || []).map((ds) => ds.dataSourceId).filter(Boolean);
@@ -751,13 +755,34 @@ const FETCHERS = {
         key: 'cardEmbeds',
         label: 'Embeds'
       },
-      ...buildCardPageGroups(placements.pages, origin)
+      ...buildCardPageGroups(placements.pages, origin),
+      {
+        blocking: false,
+        deleted: false,
+        items: workspaces
+          .map((ws) => {
+            const workspaceId = ws.guid || ws.id;
+            return {
+              id: workspaceId,
+              label: ws.name || `Workspace ${workspaceId}`,
+              typeId: 'WORKSPACE',
+              url: new DomoObject('WORKSPACE', workspaceId, origin).url
+            };
+          })
+          .sort((a, b) => a.label.localeCompare(b.label)),
+        label: 'Workspaces'
+      }
     ];
 
+    const livesNowhere = placements.pages.length === 0 && workspaces.length === 0 && embeds.length === 0;
+    const nowhereNote =
+      "This card doesn't live on any app studio apps, dashboards, embeds, report builder pages, worksheets, or workspaces.";
+
     return {
-      emptyNote: "This card doesn't live on any app studio apps, dashboards, embeds, report builder pages, or worksheets.",
+      clearNote: livesNowhere ? nowhereNote : null,
+      emptyNote: nowhereNote,
       groups,
-      otherNote: 'Deleting the card takes it off these pages. The pages themselves stay.'
+      otherNote: 'Deleting the card takes it off these pages and workspaces. The pages and workspaces themselves stay.'
     };
   },
   // Deleting a package takes every version with it, so what matters is whether
@@ -1696,6 +1721,7 @@ const WORKFLOW_VERSION_TYPES = {
  *   appSummary: {cardCount: number, cardIds: number[], pageCount: number}|null,
  *   appOnlyCardCount: number|null,
  *   onlyHereCardCount: number|null,
+ *   onlyHereCardIds: string[]|null,
  *   otherNote: string|null,
  *   deferred: Promise<Object>|null
  * }>}
@@ -1713,6 +1739,7 @@ export async function getDependenciesForDelete({ featureSwitches = null, object,
       emptyNote: null,
       groups: [],
       onlyHereCardCount: null,
+      onlyHereCardIds: null,
       otherNote: null,
       supported: false,
       totalCount: 0
@@ -1800,4 +1827,29 @@ export function withInputJupyterWorkspaceUsage(result, jupyterWorkspaceCounts) {
     unselectableReasons
   };
   return { ...result, groups: nextGroups };
+}
+
+// A card in a workspace lives somewhere else, so it stops counting as "only lives here".
+export function withWorkspaceCardUsage(result, workspaceCardIds) {
+  if (!result) return result;
+  const inWorkspace = new Set(workspaceCardIds.map(String));
+  const onlyHereCardIds = result.onlyHereCardIds?.filter((id) => !inWorkspace.has(id)) ?? null;
+  const groups = (result.groups || []).map((group) => {
+    if (group.key !== 'pageCardEmbeds') return group;
+    return {
+      ...group,
+      items: group.items.map((item) => {
+        if (item.cardOnlyHere !== true || !inWorkspace.has(String(item.cardId))) return item;
+        const note = 'The card is also in a workspace.';
+        return { ...item, annotation: item.annotation ? `${item.annotation} ${note}` : note, cardOnlyHere: false };
+      })
+    };
+  });
+  return {
+    ...result,
+    groups,
+    onlyHereCardCount: onlyHereCardIds == null ? null : onlyHereCardIds.length,
+    onlyHereCardIds,
+    workspaceCardIds: [...inWorkspace]
+  };
 }
