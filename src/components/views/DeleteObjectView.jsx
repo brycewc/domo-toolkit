@@ -1566,8 +1566,15 @@ function dataflowOutputImpactNotice({ deps }) {
   });
 }
 
+// Connector inputs a Jupyter Workspace uses are never offered for deletion, so
+// only a workspace on an output dataset breaks.
 function dataflowOutputsHoldDuration({ deps }) {
-  return holdDurationForImpacts(findDataflowOutputs(deps).map((o) => o.downstreamImpact));
+  const outputs = findDataflowOutputs(deps);
+  const outputIds = new Set(outputs.map((o) => String(o.id)));
+  if (hasGroupItems(deps, 'jupyterWorkspaces', (w) => w.datasetIds?.some((id) => outputIds.has(String(id))))) {
+    return FULL_HOLD_DURATION;
+  }
+  return holdDurationForImpacts(outputs.map((o) => o.downstreamImpact));
 }
 
 // Jupyter Workspaces drop off the list once the opt-in check has found them, so
@@ -1583,6 +1590,7 @@ function datasetCaveat({ checkResults }) {
 // `subjectImpact` is absent only when the dependency check never read one (it
 // failed or isn't loaded), which is no reason to demand a hold on its own.
 function datasetHoldDuration({ deps }) {
+  if (hasGroupItems(deps, 'jupyterWorkspaces')) return FULL_HOLD_DURATION;
   return deps?.subjectImpact === undefined ? 0 : holdDurationForImpacts([deps.subjectImpact]);
 }
 
@@ -1735,6 +1743,7 @@ function jupyterWorkspacesCheck({ datasetsFor, groupLabel }) {
                 ? `Uses ${workspace.datasetIds.map((id) => nameById.get(String(id)) || id).join(', ')}`
                 : null,
             chip: jupyterUsageChip(workspace),
+            datasetIds: workspace.datasetIds,
             id: workspace.id,
             label: workspace.name || `Jupyter Workspace ${workspace.id}`,
             typeId: 'DATA_SCIENCE_NOTEBOOK',
