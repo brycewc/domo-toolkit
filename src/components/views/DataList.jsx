@@ -1431,7 +1431,9 @@ function DataListItemImpl({
     if (allowed.has('copy')) actions.push(copyButton);
     // Activity-log dropdown on every object: single-object for this row, plus the
     // "all objects" and per-type logs when it has loggable descendants.
-    actions.push(buildActivityLogAction(true, logTypeBuckets.length > 0, logTypeBuckets));
+    if (item.typeId || logTypeBuckets.length > 0) {
+      actions.push(buildActivityLogAction(!!item.typeId, logTypeBuckets.length > 0, logTypeBuckets));
+    }
     return actions;
   }, [hasChildren, handleAction, isCopied, isShared, item, itemActions, objectType, shareEnabled, showActions]);
 

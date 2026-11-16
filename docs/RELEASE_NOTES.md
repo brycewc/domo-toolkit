@@ -3,6 +3,11 @@
 ## New Features and Improvements
 
 - Users now support Delete, which opens Transfer Ownership with Delete user after transfer turned on.
+- Deleting a scheduled report now lists the card or page it is scheduled on.
+- Deleting a scheduled report now lists its recipients under Subscriptions.
+- Deleting a scheduled report now shows whether it is active, disabled, or expired.
+- Deleting an active scheduled report with recipients now requires a hold.
+- Report Builder deliveries no longer support Delete.
 
 ## UI Improvements
 

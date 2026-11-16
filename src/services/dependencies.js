@@ -26,10 +26,12 @@ import {
 } from './datasets';
 import { getAppEmbeds, getCardEmbeds, getPageEmbeds, toEmbedRow } from './embeds';
 import { getBeastModesSavedOnCard, getDatasetFunctions, getDatasetFunctionsForDatasets } from './functions';
+import { fetchGroupDisplayNames } from './groups';
 import { getDownstreamCardsRaw, getDownstreamLineage } from './migrateDownstreamContent';
 import { resolveObjectSummaries, summaryKey } from './objectSummaries';
 import { getAppOnlyCardIds, getChildPages, getOnlyHereCardIds, getPagesForCards } from './pages';
 import { getTaskCenterQueueName } from './taskCenter';
+import { fetchUserDisplayNames } from './users';
 import { getVersionDefinition, getWorkflowExecution, getWorkflowModelName, getWorkflowVersions } from './workflows';
 import { getWorkspacesForEntity } from './workspaces';
 
@@ -299,6 +301,31 @@ function buildPackageWorkflowRows({ activeByModel, origin, usage }) {
  * @param {Map<string, {name: string|null, url: string|null}>} params.summaries - Resolved names and links
  * @returns {Map<string, Array<Object>>}
  */
+function buildSubscriptionItems({ groupNames, origin, recipients, unsubscribed, userNames }) {
+  const unsubscribedKeys = new Set(unsubscribed.map((r) => `${r.type}:${r.value}`));
+  const toItem = ({ type, value }) => {
+    const isUnsubscribed = unsubscribedKeys.has(`${type}:${value}`);
+    const base = {
+      chip: isUnsubscribed ? UNSUBSCRIBED_CHIP : null,
+      id: String(value),
+      muted: isUnsubscribed,
+      order: RECIPIENT_TYPE_ORDER.indexOf(type)
+    };
+    if (type !== 'USER' && type !== 'GROUP') return { ...base, label: String(value), typeId: null };
+    const names = type === 'USER' ? userNames : groupNames;
+    return {
+      ...base,
+      label: names[value] || `${getObjectType(type).name} ${value}`,
+      typeId: type,
+      url: new DomoObject(type, String(value), origin).url
+    };
+  };
+  return recipients
+    .map(toItem)
+    .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
+    .map(({ order: _order, ...item }) => item);
+}
+
 function buildWorkflowReferenceRows({ entries, origin, summaries }) {
   const rows = new Map();
   for (const entry of entries) {
@@ -607,6 +634,14 @@ async function readWorkflowVersionDefinitions({ modelId, tabId, versions }) {
     })
   );
   return definitions;
+}
+
+function scheduledReportResource(details, containerView) {
+  if (Number(details.cardId) > 0) return { id: String(details.cardId), typeId: 'CARD' };
+  if (Number(details.pageId) > 0) return { id: String(details.pageId), typeId: 'PAGE' };
+  const { resourceId, resourceType } = containerView || {};
+  if (resourceId == null || !getObjectType(resourceType)) return null;
+  return { id: String(resourceId), typeId: resourceType };
 }
 
 const DEPLOYED_CHIP = { color: 'warning', label: 'Deployed' };
@@ -1524,6 +1559,66 @@ const FETCHERS = {
     groups.push(buildCardEmbedsGroup({ cards, embeds: cardEmbeds, onlyHereCardIds }));
     return { groups, onlyHereCardIds };
   },
+  REPORT_SCHEDULE: async ({ metadata, origin }, tabId) => {
+    const details = metadata?.details ?? null;
+    if (!details || details.reportView === true) return [];
+
+    const resource = scheduledReportResource(details, metadata?.parent?.details);
+    const recipients = details.schedule?.additionalRecipients || [];
+    const idsOfType = (type) => recipients.filter((r) => r.type === type).map((r) => r.value);
+    const userIds = idsOfType('USER');
+    const groupIds = idsOfType('GROUP');
+
+    const [userNames, groupNames, summaries] = await Promise.all([
+      userIds.length ? fetchUserDisplayNames(userIds, tabId).catch(() => ({})) : {},
+      groupIds.length ? fetchGroupDisplayNames(groupIds, tabId).catch(() => ({})) : {},
+      resource
+        ? resolveObjectSummaries({ baseUrl: origin, refs: [resource], tabId }).catch(() => new Map())
+        : new Map()
+    ]);
+
+    const groups = [];
+    if (resource) {
+      const summary = summaries.get(summaryKey(resource));
+      const typeName = getObjectType(resource.typeId)?.name ?? resource.typeId;
+      groups.push({
+        blocking: false,
+        deleted: false,
+        flat: true,
+        items: [
+          {
+            id: resource.id,
+            label: summary?.name || `${typeName} ${resource.id}`,
+            typeId: resource.typeId,
+            url: summary?.url ?? new DomoObject(resource.typeId, resource.id, origin).url
+          }
+        ],
+        key: 'scheduledOn',
+        label: 'Scheduled On'
+      });
+    }
+    groups.push({
+      annotation: 'These recipients stop receiving the report. Their accounts are not affected.',
+      blocking: false,
+      deleted: true,
+      items: buildSubscriptionItems({
+        groupNames,
+        origin,
+        recipients,
+        unsubscribed: details.schedule?.unsubscribedRecipients || [],
+        userNames
+      }),
+      key: 'subscriptions',
+      label: 'Subscriptions'
+    });
+
+    const noRecipientsNote = 'This report has no subscribers.';
+    return {
+      clearNote: recipients.length === 0 ? noRecipientsNote : null,
+      emptyNote: noRecipientsNote,
+      groups
+    };
+  },
   TEMPLATE: async ({ id, metadata, origin }, tabId) => {
     // datasetId is eagerly enriched onto the current object at detection time
     // (background.js), so it's present here without an extra fetch.
@@ -1681,6 +1776,10 @@ FETCHERS.DATA_MODEL = FETCHERS.DATA_SOURCE;
 FETCHERS.VIEW = FETCHERS.DATA_SOURCE;
 
 const OTHER_SURVIVES_NOTE = 'These are not deleted with the DataSet, but they stop working without it.';
+
+const RECIPIENT_TYPE_ORDER = ['USER', 'GROUP', 'EMAIL'];
+
+const UNSUBSCRIBED_CHIP = { color: 'default', label: 'Unsubscribed' };
 
 // One group per type, so each list header keeps that type's icon. An empty group
 // is dropped before rendering.

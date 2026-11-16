@@ -28,6 +28,7 @@ import { voidTaskCenterTask } from '@/services/taskCenter';
 import { cancelWorkflowExecution } from '@/services/workflows';
 import { getWorkspacesForCards, groupCardsByWorkspace } from '@/services/workspaces';
 import { redirectTabIfViewingObject, reloadTabIfViewingObject } from '@/utils/currentObject';
+import { formatTimestamp } from '@/utils/general';
 import { parseMarkdownBold } from '@/utils/markdown';
 import { collectShareableObjects } from '@/utils/rowActions';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -58,6 +59,9 @@ import { DataList } from './DataList';
  * drop it for this object. `caveatTitle` retitles it for a type whose note is a
  * consequence rather than a gap in the check.
  *
+ * `statusNotice({ context })` returns `{ description, status, title }` or null: an
+ * alert on the object's own state, shown first under Warnings without waiting on deps.
+ *
  * `onDemandChecks` declares lookups too expensive to run on open, each offered as
  * a prompt with a button instead. An entry needs a `key`, the `buttonLabel`,
  * `promptTitle` and `promptDescription` for the prompt, a `run({ context, deps })`
@@ -74,13 +78,13 @@ import { DataList } from './DataList';
  * `confirmNotice({ deps })` adds a notice to the confirm dialog, for primary and
  * cascade deletes alike, and `holdToConfirm` makes its confirm button a
  * hold-to-fire one instead of a click: `true` for the button's default hold, or
- * a function of `{ deps }` returning the hold in milliseconds (0 for none). A
+ * a function of `{ context, deps }` returning the hold in milliseconds (0 for none). A
  * cascade's own `holdToConfirm` takes precedence over the type's for that cascade.
  *
  * A type whose removal isn't a deletion overrides the view's verb with `feature`
  * (the header), `actionIcon` (header and buttons), `confirmActionLabel` (the
  * dialog's confirm button, which also supplies the verb in the failure toast),
- * `confirmText` (the dialog body, built from `{ id, name, typeName }` and
+ * `confirmText` (the dialog body, built from `{ context, id, name, typeName }` and
  * rendered through `parseMarkdownBold`), `dismissLabel` (the dialog's cancel
  * button), and `loadingMessage`.
  */
@@ -511,6 +515,16 @@ const deletersByType = {
   },
   REPORT_SCHEDULE: {
     confirmSuffix: '',
+    confirmText: ({ context, id, name }) => {
+      const { isActive, recipientCount } = scheduledReportStatus(context.domoObject.metadata?.details);
+      const base = `Delete the scheduled report **${name} (ID: ${id})** permanently?`;
+      if (!isActive || recipientCount === 0) return base;
+      return `${base} It stops going to **${recipientCount} ${recipientCount === 1 ? 'person' : 'people'}**.`;
+    },
+    holdToConfirm: ({ context }) => {
+      const { isActive, recipientCount } = scheduledReportStatus(context.domoObject.metadata?.details);
+      return isActive && recipientCount > 0;
+    },
     primaryLabel: 'Delete Scheduled Report',
     run: async ({ context }) => {
       const result = await deleteObject({ object: context.domoObject, tabId: context.tabId });
@@ -525,6 +539,7 @@ const deletersByType = {
       });
       return result;
     },
+    statusNotice: ({ context }) => scheduledReportNotice(context.domoObject.metadata?.details),
     typeName: 'Scheduled Report'
   },
   TEMPLATE: {
@@ -925,7 +940,7 @@ export function DeleteObjectView({
     pendingAction?.kind === 'cascade' && pendingAction.cascade?.holdToConfirm !== undefined
       ? pendingAction.cascade.holdToConfirm
       : config.holdToConfirm;
-  const hold = typeof holdSetting === 'function' ? holdSetting({ deps }) : holdSetting;
+  const hold = typeof holdSetting === 'function' ? holdSetting({ context: currentContext, deps }) : holdSetting;
 
   const primaryLabel =
     typeof config.primaryLabel === 'function' ? config.primaryLabel({ outputCount }) : config.primaryLabel;
@@ -1047,6 +1062,18 @@ export function DeleteObjectView({
       </Alert.Content>
     </Alert>
   ) : null;
+  const statusNotice = config.statusNotice?.({ context: currentContext }) ?? null;
+  const statusAlert = statusNotice ? (
+    <Alert className='w-full' status={statusNotice.status} variant='transparent'>
+      <Alert.Content>
+        <Alert.Title className='flex items-center gap-1'>
+          <AlertStatusIcon />
+          {statusNotice.title}
+        </Alert.Title>
+        <Alert.Description>{parseMarkdownBold(statusNotice.description)}</Alert.Description>
+      </Alert.Content>
+    </Alert>
+  ) : null;
   const checkBanners = onDemandChecks
     .map((check) => ({
       isRunning: checkResults[check.key]?.status === 'loading',
@@ -1071,7 +1098,7 @@ export function DeleteObjectView({
     !!deps?.supported &&
     (deps.totalCount === 0 || (!!deps.clearNote && !(isBlocked && deps.blockingReason)));
   const depNotice = isLoadingDeps || isAllClear ? null : dependencyBanner;
-  const noticeCount = (caveatAlert ? 1 : 0) + checkNotices.length + (depNotice ? 1 : 0);
+  const noticeCount = (statusAlert ? 1 : 0) + (caveatAlert ? 1 : 0) + checkNotices.length + (depNotice ? 1 : 0);
   // The caveat is a standing note for the type, so it sits above the dependency
   // banner, which comes and goes as the check runs. The other way round, the
   // caveat slides down and back up as the spinner is replaced. An opt-in check's
@@ -1105,6 +1132,7 @@ export function DeleteObjectView({
                   {/* `pb-1` rides inside the collapsing panel, so the gap above the
                       separator disappears with the rest of the content when closed. */}
                   <div className='flex flex-col gap-2 pb-2'>
+                    {statusAlert}
                     {caveatAlert}
                     {checkNotices}
                     {depNotice}
@@ -1240,7 +1268,9 @@ export function DeleteObjectView({
                 ) : (
                   <>
                     {config.confirmText ? (
-                      parseMarkdownBold(config.confirmText({ id: domoObject.id, name: objectName, typeName }))
+                      parseMarkdownBold(
+                        config.confirmText({ context: currentContext, id: domoObject.id, name: objectName, typeName })
+                      )
                     ) : (
                       <>
                         Are you sure you want to delete the <span className='lowercase'>{typeName}</span>{' '}
@@ -1399,7 +1429,10 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
             chip: child.chip ?? null,
             // A drill only resolves to a URL through the card it drills from, so
             // a child carrying a parentId passes it to its DomoObject.
-            domoObject: baseUrl ? new DomoObject(child.typeId, child.id, baseUrl, {}, null, child.parentId ?? null) : null,
+            domoObject:
+              baseUrl && child.typeId
+                ? new DomoObject(child.typeId, child.id, baseUrl, {}, null, child.parentId ?? null)
+                : null,
             id: child.id,
             label: child.label,
             muted: child.muted ?? false,
@@ -1413,7 +1446,8 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
         chip: item.chip ?? null,
         count: item.count,
         countLabel: item.countLabel,
-        domoObject: baseUrl ? new DomoObject(item.typeId, item.id, baseUrl, {}, null, item.parentId ?? null) : null,
+        domoObject:
+          baseUrl && item.typeId ? new DomoObject(item.typeId, item.id, baseUrl, {}, null, item.parentId ?? null) : null,
         id: item.id,
         label: item.label,
         muted: item.muted ?? false,
@@ -2096,6 +2130,54 @@ async function runTemplateAndDatasetDelete({ context, datasetId }) {
  * @param {string|null} [params.runningCheckLabel] - Label of the opt-in check in flight, if any
  * @returns {string|null}
  */
+function scheduledReportNotice(details) {
+  if (!details || details.reportView === true) return null;
+  const { isDisabled, isExpired, recipientCount } = scheduledReportStatus(details);
+  const schedule = details.schedule ?? {};
+  const lastSentAt = formatTimestamp(details.recentHistory?.startTime, { seconds: false });
+  const lastSend = !lastSentAt
+    ? 'It has never sent.'
+    : details.recentHistory.status === 'failure'
+      ? `The last send, on ${lastSentAt}, failed.`
+      : `Last sent ${lastSentAt}.`;
+
+  if (isExpired) {
+    const expiredOn = new Date(schedule.expirationDate).toLocaleDateString();
+    return {
+      description: `It expired on ${expiredOn} and no longer sends. ${lastSend}`,
+      status: 'accent',
+      title: 'Report Has Expired'
+    };
+  }
+  if (isDisabled) {
+    return { description: `It is turned off and does not send. ${lastSend}`, status: 'accent', title: 'Report Is Disabled' };
+  }
+  if (recipientCount === 0) {
+    return { description: `It has no recipients, so nothing is delivered. ${lastSend}`, status: 'accent', title: 'Report Is Active' };
+  }
+  const nextSendAt = formatTimestamp(schedule.nextRunDate, { seconds: false });
+  const people = `**${recipientCount} ${recipientCount === 1 ? 'person' : 'people'}**`;
+  return {
+    description: `It reaches ${people}.${nextSendAt ? ` Next send is ${nextSendAt}.` : ''} ${lastSend}`,
+    status: 'warning',
+    title: 'Report Is Active'
+  };
+}
+
+// `active` reads true on every schedule, expired and disabled alike, so only the
+// schedule's own fields decide this. Expiry leaves `enabled` on, so it wins.
+function scheduledReportStatus(details) {
+  const schedule = details?.schedule ?? {};
+  const isExpired = schedule.expirationDate != null && schedule.expirationDate < Date.now();
+  const isDisabled = !isExpired && schedule.enabled === false;
+  return {
+    isActive: !!details && !isExpired && !isDisabled,
+    isDisabled,
+    isExpired,
+    recipientCount: details?.recipientCount ?? 0
+  };
+}
+
 function unavailableReason({ blocked, blockedReason, hasDepsError, isLoadingDeps, runningCheckLabel = null }) {
   if (isLoadingDeps) return 'Checking dependencies…';
   if (hasDepsError) return 'Retry the dependency check before deleting.';

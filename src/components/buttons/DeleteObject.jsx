@@ -45,6 +45,8 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
   const isSelf = isUser && String(currentContext?.domoObject?.id) === String(currentContext?.user?.id);
 
   const isDataflowOutputDataset = isDatasetTypeId(typeId) && isDataflowOutput(currentContext?.domoObject?.metadata?.details);
+  const isReportBuilderDelivery =
+    typeId === 'REPORT_SCHEDULE' && currentContext?.domoObject?.metadata?.details?.reportView === true;
 
   // A task's status is only known once its details load, and the workflow
   // user-task-response page carries no queue to load them with, so an unknown
@@ -107,6 +109,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
     !SUPPORTED_TYPES.includes(typeId) ||
     (typeId === 'DATAFLOW_TYPE' && currentContext?.domoObject?.metadata?.details?.deleted === true) ||
     isDataflowOutputDataset ||
+    isReportBuilderDelivery ||
     isInWorkflow ||
     !!closedTaskReason ||
     isSelf ||
@@ -123,15 +126,17 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
           ? 'This dataflow is already deleted'
           : isDataflowOutputDataset
             ? 'You can delete a dataflow output using the extension from the dataflow itself'
-            : isInWorkflow
-              ? 'Open the code engine package itself to delete it'
-              : closedTaskReason
-                ? closedTaskReason
-                : isSelf
-                  ? "You can't delete yourself"
-                  : isDeleteForbidden
-                    ? `You don't have permission to delete this ${typeName}`
-                    : null;
+            : isReportBuilderDelivery
+              ? "Delete isn't supported for Report Builder deliveries"
+              : isInWorkflow
+                ? 'Open the code engine package itself to delete it'
+                : closedTaskReason
+                  ? closedTaskReason
+                  : isSelf
+                    ? "You can't delete yourself"
+                    : isDeleteForbidden
+                      ? `You don't have permission to delete this ${typeName}`
+                      : null;
 
   const ActionIcon = isVoid ? IconCancel : IconTrash;
 
