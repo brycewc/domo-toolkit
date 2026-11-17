@@ -3,6 +3,7 @@ import { deleteApprovalTemplate } from './approvals';
 import { deleteCards } from './cards';
 import { deleteCustomApp } from './customApps';
 import { deleteFunction } from './functions';
+import { deleteRepository } from './sandbox';
 import { deleteScheduledReport } from './scheduledReports';
 import { deleteWorkflow } from './workflows';
 
@@ -17,6 +18,7 @@ const DELETE_HANDLERS = {
   FUNCTION_TEMPLATE: ({ id, tabId }) => deleteFunction({ functionId: id, tabId }),
   MAGNUM_COLLECTION: ({ id, tabId }) => deleteAppDbCollection({ collectionId: id, tabId }),
   REPORT_SCHEDULE: ({ id, tabId }) => deleteScheduledReport({ reportId: id, tabId }),
+  REPOSITORY: ({ id, tabId }) => deleteRepository({ repositoryId: id, tabId }),
   RYUU_APP: ({ id, tabId }) => deleteCustomApp({ designId: id, tabId }),
   TEMPLATE: ({ id, tabId }) => deleteApprovalTemplate({ tabId, templateId: id }),
   VARIABLE: ({ id, tabId }) => deleteFunction({ functionId: id, tabId }),

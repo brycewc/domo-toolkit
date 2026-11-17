@@ -30,6 +30,7 @@ import { fetchGroupDisplayNames } from './groups';
 import { getDownstreamCardsRaw, getDownstreamLineage } from './migrateDownstreamContent';
 import { resolveObjectSummaries, summaryKey } from './objectSummaries';
 import { getAppOnlyCardIds, getChildPages, getOnlyHereCardIds, getPagesForCards } from './pages';
+import { getRepositoryAccess } from './sandbox';
 import { getTaskCenterQueueName } from './taskCenter';
 import { fetchUserDisplayNames } from './users';
 import { getVersionDefinition, getWorkflowExecution, getWorkflowModelName, getWorkflowVersions } from './workflows';
@@ -1619,6 +1620,52 @@ const FETCHERS = {
       groups
     };
   },
+  REPOSITORY: async ({ id, metadata, origin }, tabId) => {
+    const details = metadata?.details ?? null;
+    if (!details) return [];
+
+    const content = details.repositoryContent || {};
+    const refsFor = ({ field, typeId }) => (content[field] || []).map((itemId) => ({ id: String(itemId), typeId }));
+    const refs = REPOSITORY_CONTENT_GROUPS.flatMap(refsFor);
+
+    const [summaries, sharedDomains] = await Promise.all([
+      refs.length ? resolveObjectSummaries({ baseUrl: origin, refs, tabId }).catch(() => new Map()) : new Map(),
+      Number(details.accessCount) > 0 ? getRepositoryAccess({ repositoryId: id, tabId }).catch(() => []) : []
+    ]);
+
+    const groups = REPOSITORY_CONTENT_GROUPS.map((group) => {
+      const items = refsFor(group).map((ref) => {
+        const summary = summaries.get(summaryKey(ref));
+        return {
+          id: ref.id,
+          label: summary?.name || `${getObjectType(ref.typeId)?.name ?? ref.typeId} ${ref.id}`,
+          typeId: ref.typeId,
+          url: summary?.url ?? new DomoObject(ref.typeId, ref.id, origin).url
+        };
+      });
+      return {
+        blocking: false,
+        deleted: false,
+        items,
+        key: group.key,
+        label: items.length === 1 ? group.singular : group.plural
+      };
+    });
+    groups.push({
+      annotation: 'Content already promoted to these instances keeps working there.',
+      blocking: false,
+      deleted: false,
+      items: sharedDomains.map((domain) => ({ id: domain, label: domain, typeId: null, url: `https://${domain}` })),
+      key: 'sharedInstances',
+      label: sharedDomains.length === 1 ? 'Shared With Instance' : 'Shared With Instances'
+    });
+
+    return {
+      emptyNote: 'This repository holds no content and is not shared with other instances.',
+      groups,
+      otherNote: 'Deleting the repository leaves these in place.'
+    };
+  },
   TEMPLATE: async ({ id, metadata, origin }, tabId) => {
     // datasetId is eagerly enriched onto the current object at detection time
     // (background.js), so it's present here without an extra fetch.
@@ -1778,6 +1825,15 @@ FETCHERS.VIEW = FETCHERS.DATA_SOURCE;
 const OTHER_SURVIVES_NOTE = 'These are not deleted with the DataSet, but they stop working without it.';
 
 const RECIPIENT_TYPE_ORDER = ['USER', 'GROUP', 'EMAIL'];
+
+const REPOSITORY_CONTENT_GROUPS = [
+  { field: 'dataAppIds', key: 'repositoryDataApps', plural: 'Studio Apps', singular: 'Studio App', typeId: 'DATA_APP' },
+  { field: 'pageIds', key: 'repositoryPages', plural: 'Pages', singular: 'Page', typeId: 'PAGE' },
+  { field: 'cardIds', key: 'repositoryCards', plural: 'Cards', singular: 'Card', typeId: 'CARD' },
+  { field: 'dataflowIds', key: 'repositoryDataflows', plural: 'DataFlows', singular: 'DataFlow', typeId: 'DATAFLOW_TYPE' },
+  { field: 'viewIds', key: 'repositoryViews', plural: 'Views', singular: 'View', typeId: 'VIEW' },
+  { field: 'streamIds', key: 'repositoryStreams', plural: 'Streams', singular: 'Stream', typeId: 'STREAM' }
+];
 
 const UNSUBSCRIBED_CHIP = { color: 'default', label: 'Unsubscribed' };
 

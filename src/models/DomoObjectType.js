@@ -1482,7 +1482,7 @@ export const ObjectTypeRegistry = {
     urlPath: '/scheduled-reports/history/{id}'
   }),
   REPOSITORY: new DomoObjectType('REPOSITORY', 'Sandbox Repository', {
-    api: { endpoint: '/versions/v1/repositories/{id}', paths: { name: 'name' } },
+    api: { endpoint: '/version/v1/repositories/{id}', paths: { name: 'name' } },
     extractConfig: { keyword: 'repositories' },
     featureSwitch: ['domo-versions-standard', 'domo-versions-ui'],
     icon: { component: 'Sandcastle' },

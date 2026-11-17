@@ -279,6 +279,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
       'MAGNUM_COLLECTION',
       'PAGE',
       'REPORT_SCHEDULE',
+      'REPOSITORY',
       'RYUU_APP',
       'TEMPLATE',
       'VARIABLE',

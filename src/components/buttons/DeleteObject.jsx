@@ -24,6 +24,7 @@ const SUPPORTED_TYPES = [
   'MAGNUM_COLLECTION',
   'PAGE',
   'REPORT_SCHEDULE',
+  'REPOSITORY',
   'RYUU_APP',
   'TEMPLATE',
   'USER',
@@ -91,6 +92,10 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
     }
     if (typeId === 'TEMPLATE') {
       return !isOwner && !userRights.includes('approvalcenter.admin');
+    }
+    if (typeId === 'REPOSITORY') {
+      // Unknown until details load, so leave the action open rather than block it.
+      return isOwner === false && !userRights.includes('versions.repository.admin');
     }
     if (typeId === 'MAGNUM_COLLECTION') {
       const userId = currentContext?.user?.id;

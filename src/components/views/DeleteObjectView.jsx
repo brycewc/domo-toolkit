@@ -542,6 +542,31 @@ const deletersByType = {
     statusNotice: ({ context }) => scheduledReportNotice(context.domoObject.metadata?.details),
     typeName: 'Scheduled Report'
   },
+  REPOSITORY: {
+    confirmSuffix: '',
+    confirmText: ({ context, id, name }) => {
+      const base = `Delete the sandbox repository **${name} (ID: ${id})** permanently?`;
+      const sharedCount = repositorySharedCount(context);
+      if (sharedCount === 0) return base;
+      const instances = sharedCount === 1 ? '1 other instance** loses' : `${sharedCount} other instances** lose`;
+      return `${base} **${instances} access to it, though content already promoted there keeps working.`;
+    },
+    holdToConfirm: ({ context }) => repositorySharedCount(context) > 0,
+    primaryLabel: 'Delete Sandbox Repository',
+    run: async ({ context }) => {
+      const result = await deleteObject({ object: context.domoObject, tabId: context.tabId });
+      if (result.statusType !== 'success') {
+        throw new Error(result.statusDescription || 'Delete failed');
+      }
+      await redirectTabIfViewingObject({
+        ids: [context.domoObject.id],
+        tabId: context.tabId,
+        url: `${context.origin}/admin/sandbox/repositories`
+      });
+      return result;
+    },
+    typeName: 'Sandbox Repository'
+  },
   TEMPLATE: {
     cascadeButtons: [
       {
@@ -2012,6 +2037,10 @@ function renderDependencyBanner({ deps, error, isBlocked, isLoading, onRetry, un
   }
 
   return null;
+}
+
+function repositorySharedCount(context) {
+  return Number(context.domoObject.metadata?.details?.accessCount) || 0;
 }
 
 function resolveSuccessDescription({ cascade, cascadeCtx, config, currentContext, isCascade, objectName, result }) {

@@ -70,6 +70,11 @@ function computeIsOwner(typeId, details, userId, userGroups) {
     return String(userId) === String(ownerId);
   }
 
+  // The repository reports the current user's own level, which covers co-owners.
+  if (typeId === 'REPOSITORY') {
+    return details?.permission ? details.permission === 'OWNER' : null;
+  }
+
   // Types where owner is a plain ID (always a user)
   if (typeId === 'BEAST_MODE_FORMULA' || typeId === 'MAGNUM_COLLECTION' || typeId === 'VARIABLE') {
     const ownerId = details?.owner;

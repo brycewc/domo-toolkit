@@ -1,6 +1,29 @@
 import { executeInPage } from '@/utils/executeInPage';
 
 /**
+ * Delete a sandbox repository. Content already promoted to other instances is
+ * left in place there.
+ * @param {Object} params
+ * @param {string} params.repositoryId - The repository UUID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<void>} Resolves on success, throws on HTTP failure
+ */
+export async function deleteRepository({ repositoryId, tabId = null }) {
+  return executeInPage(
+    async (repositoryId) => {
+      const response = await fetch(`/api/version/v1/repositories/${repositoryId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+    },
+    [repositoryId],
+    tabId
+  );
+}
+
+/**
  * Get all sandbox repositories owned by a user.
  * @param {number} userId - The Domo user ID
  * @param {number|null} tabId - Optional Chrome tab ID
@@ -54,6 +77,30 @@ export async function getOwnedRepositories(userId, tabId = null) {
       return allRepos;
     },
     [userId],
+    tabId
+  );
+}
+
+/**
+ * Get the other instances a sandbox repository has been shared with.
+ * @param {Object} params
+ * @param {string} params.repositoryId - The repository UUID
+ * @param {number|null} [params.tabId] - Optional Chrome tab ID
+ * @returns {Promise<string[]>} The invited instance domains
+ */
+export async function getRepositoryAccess({ repositoryId, tabId = null }) {
+  return executeInPage(
+    async (repositoryId) => {
+      const response = await fetch(`/api/version/v1/repositories/${repositoryId}/access`);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+      const data = await response.json();
+      return (data.accessList || []).map((entry) => entry.invitedDomain).filter(Boolean);
+    },
+    [repositoryId],
     tabId
   );
 }

@@ -8,6 +8,7 @@
 - Deleting a scheduled report now shows whether it is active, disabled, or expired.
 - Deleting an active scheduled report with recipients now requires a hold.
 - Report Builder deliveries no longer support Delete.
+- Sandbox Repositories now support Delete, listing their content and the instances they are shared with.
 
 ## UI Improvements
 
@@ -20,5 +21,7 @@
 - Hovering over a cut-off notification now shows its full text.
 
 ## Bug Fixes
+
+- Sandbox Repositories now load their details, so their names show instead of IDs.
 
 - Deleting a dataset or dataflow now requires a hold when a Jupyter Workspace uses a dataset the delete removes.
