@@ -53,12 +53,13 @@ export function Export({ currentContext, isDisabled }) {
     const isPython = language === 'PYTHON';
 
     const handleCodeExport = () => {
-      const packageId = isCEVersion ? currentContext?.domoObject?.parentId : currentContext?.domoObject?.id;
+      const packageId = isCEVersion ? currentContext?.domoObject?.parent?.id : currentContext?.domoObject?.id;
       if (!packageId) return;
 
       const metadata = currentContext.domoObject.metadata;
       const name = metadata?.name || 'code-engine-package';
-      const packageName = (isCEVersion ? metadata?.parent?.name : metadata?.name) || 'code-engine-package';
+      const packageName =
+        (isCEVersion ? currentContext.domoObject.parent?.metadata?.name : metadata?.name) || 'code-engine-package';
 
       const exportPromise = getCodeEngineCode({
         packageId,

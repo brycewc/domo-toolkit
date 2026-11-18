@@ -197,5 +197,5 @@ function isSupportedForShare(domoObject) {
 function queueIdForShare(domoObject) {
   if (domoObject?.typeId === 'HOPPER_QUEUE') return domoObject.id ?? null;
   if (domoObject?.typeId !== 'HOPPER_TASK') return null;
-  return domoObject.parentId || domoObject.metadata?.details?.queueId || null;
+  return domoObject.parent?.id || domoObject.metadata?.details?.queueId || null;
 }

@@ -22,7 +22,7 @@ export function GetDatasets({ currentContext, isDisabled, onStatusUpdate }) {
   const handleAction = async (key) => {
     if (key !== 'getAppDatasets') return;
 
-    const parentId = currentContext?.domoObject?.parentId;
+    const parentId = currentContext?.domoObject?.parent?.id;
     if (!parentId) {
       onStatusUpdate?.('Error', 'Could not determine parent app ID.', 'danger');
       return;

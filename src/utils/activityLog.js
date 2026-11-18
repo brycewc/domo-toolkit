@@ -47,14 +47,13 @@ export function collectActivityLogObjects(itemList) {
 
 /** Null when the type has no parent or the parent ID was never resolved. */
 export function getActivityLogParent(domoObject) {
-  const parentTypeId = getObjectType(domoObject?.typeId)?.parents?.[0];
-  const parentId = domoObject?.parentId ?? domoObject?.metadata?.parent?.id;
-  if (!parentTypeId || !parentId) return null;
+  const parent = domoObject?.parent;
+  if (!parent?.id || !parent.typeId) return null;
   return {
-    id: String(parentId),
-    name: domoObject.metadata?.parent?.name || '',
-    type: parentTypeId,
-    typeName: getObjectType(parentTypeId)?.name
+    id: String(parent.id),
+    name: parent.metadata?.name || '',
+    type: parent.typeId,
+    typeName: getObjectType(parent.typeId)?.name
   };
 }
 

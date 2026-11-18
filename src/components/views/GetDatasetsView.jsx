@@ -98,7 +98,7 @@ export function GetDatasetsView({
       const isPageScope = !data.appId && PAGE_TYPES.includes(objectType);
 
       const objectName = data.appId
-        ? domoObject.metadata?.parent?.name || `App ${data.appId}`
+        ? domoObject.parent?.metadata?.name || `App ${data.appId}`
         : domoObject.metadata?.name || `${objectType} ${objectId}`;
 
       // Determine label based on object type and scope

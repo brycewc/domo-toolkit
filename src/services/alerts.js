@@ -1,6 +1,15 @@
 import { DEPENDENCY_FETCH_CONCURRENCY } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
 
+// Carries the card or dataset the alert sits on, which ALERT's parent config reads.
+// Without a type, the ID's shape decides it: card IDs are numeric and dataset IDs are UUIDs.
+export function alertObjectMetadata(alert) {
+  const resourceId = alert?.resourceId == null ? null : String(alert.resourceId);
+  let resourceType = alert?.resourceType ?? null;
+  if (!resourceType && resourceId) resourceType = /^\d+$/.test(resourceId) ? 'CARD' : 'DATASET';
+  return { details: { resourceId, resourceType }, name: alert?.name };
+}
+
 /**
  * Pull the distinct row PDP policies (filter groups) an alert is bound to, from
  * its definition's `filterGroups`. Returns each group's `filterGroupId`, `name`,
@@ -174,7 +183,9 @@ export async function getDownstreamAlerts(datasetId, tabId = null) {
         contextual: a.contextual === true,
         filterGroups: Array.isArray(a.filterGroups) ? a.filterGroups : [],
         id: a.id,
-        name: a.name || String(a.id)
+        name: a.name || String(a.id),
+        resourceId: a.resourceId,
+        resourceType: a.resourceType
       }));
     },
     [datasetId],
@@ -216,7 +227,9 @@ export async function getDownstreamAlertsForDatasets(datasetIds, tabId = null) {
           const data = await response.json();
 
           if (Array.isArray(data) && data.length > 0) {
-            for (const a of data) found.push({ id: a.id, name: a.name || String(a.id) });
+            for (const a of data) {
+              found.push({ id: a.id, name: a.name || String(a.id), resourceId: a.resourceId, resourceType: a.resourceType });
+            }
             offset += limit;
             if (data.length < limit) moreData = false;
           } else {
@@ -277,7 +290,14 @@ export async function getOwnedAlerts(userId, tabId = null) {
         const data = await response.json();
 
         if (data && data.length > 0) {
-          allAlerts.push(...data.map((a) => ({ id: a.id, name: a.name || a.id.toString() })));
+          allAlerts.push(
+            ...data.map((a) => ({
+              id: a.id,
+              name: a.name || a.id.toString(),
+              resourceId: a.resourceId,
+              resourceType: a.resourceType
+            }))
+          );
           offset += limit;
           if (data.length < limit) moreData = false;
         } else {

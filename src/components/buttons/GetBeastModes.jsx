@@ -23,7 +23,7 @@ export function GetBeastModes({ currentContext, isDisabled, onStatusUpdate }) {
   const handleAction = async (key) => {
     if (key !== 'getParentBeastModes') return;
 
-    const parentId = domoObject?.parentId;
+    const parentId = domoObject?.parent?.id;
     if (!parentId) {
       onStatusUpdate?.('Error', 'Could not determine parent ID.', 'danger');
       return;

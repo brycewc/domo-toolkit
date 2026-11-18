@@ -72,7 +72,7 @@ export function SwapAccountView({ instance = null, liveContext = null, onBackToD
       const context = data.currentContext ? DomoContext.fromJSON(data.currentContext) : null;
       const domoObject = context?.domoObject;
       const details = domoObject?.metadata?.details;
-      const resolvedStreamId = details?.streamId ?? domoObject?.metadata?.parent?.details?.id ?? null;
+      const resolvedStreamId = details?.streamId ?? domoObject?.parent?.metadata?.details?.id ?? null;
       const accountIds = getAccountIdsForDomoObject(domoObject);
       if (!context || !resolvedStreamId || accountIds.length === 0) {
         onStatusUpdate?.('Error', 'This dataset has no stream account to swap.', 'danger');

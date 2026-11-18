@@ -5,7 +5,8 @@ import { useStatusBar } from '@/hooks/useStatusBar';
 import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
-import { updateAlertTriggerVersions } from '@/services/alerts';
+import { DomoObject } from '@/models/DomoObject';
+import { alertObjectMetadata, updateAlertTriggerVersions } from '@/services/alerts';
 import { getWorkflowModelName, getWorkflowTriggers, getWorkflowVersions } from '@/services/workflows';
 import { compareSemver } from '@/utils/semver';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -72,7 +73,9 @@ export function UpdateTriggerVersionsView({
           muted: onTarget,
           originalId: t.alertId,
           typeId: 'ALERT',
-          url: currentContext ? `${currentContext.domoObject?.baseUrl || ''}/alerts/${t.alertId}` : undefined
+          url: currentContext
+            ? new DomoObject('ALERT', t.alertId, currentContext.domoObject?.baseUrl || '', alertObjectMetadata(t)).url
+            : undefined
         });
       }),
     [currentContext, targetVersion, triggers]
@@ -189,7 +192,8 @@ export function UpdateTriggerVersionsView({
           alertId: t.entityId,
           currentVersion: t.modelVersion,
           name: t.name,
-          resourceId: t.metadata?.resourceId ?? null
+          resourceId: t.metadata?.resourceId ?? null,
+          resourceType: t.metadata?.resourceType ?? null
         }));
       if (alertTriggers.length === 0) {
         onStatusUpdate?.('No Alert Triggers', `**${name}** has no alert triggers to update.`, 'warning', 3000);

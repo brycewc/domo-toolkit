@@ -82,7 +82,7 @@ export async function shareObjectsWithSelf({ objects, tabId = null, userId }) {
 
       case 'DATA_APP_VIEW':
       case 'WORKSHEET_VIEW': {
-        const parentId = object.metadata?.parent?.id;
+        const parentId = object.parent?.id;
         if (!parentId) {
           fail(object, 'Parent app ID not found, cannot share app page');
           break;
@@ -211,7 +211,7 @@ async function shareForType({ object, tabId, userId }) {
 
     case 'DATA_APP_VIEW':
     case 'WORKSHEET_VIEW': {
-      const parentId = object.metadata?.parent?.id;
+      const parentId = object.parent?.id;
       if (!parentId) {
         throw new Error('Parent app ID not found, cannot share app page');
       }
@@ -246,7 +246,7 @@ async function shareForType({ object, tabId, userId }) {
 
     // A task holds no permissions of its own; access to one comes from its queue.
     case 'HOPPER_TASK': {
-      const queueId = object.parentId || object.metadata?.details?.queueId;
+      const queueId = object.parent?.id || object.metadata?.details?.queueId;
       if (!queueId) {
         throw new Error("Could not find the task's queue, so there is nothing to share");
       }

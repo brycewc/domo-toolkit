@@ -11,6 +11,7 @@ import { useViewReady } from '@/hooks/useViewReady';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoContext } from '@/models/DomoContext';
 import { DomoObject } from '@/models/DomoObject';
+import { alertObjectMetadata } from '@/services/alerts';
 import { uploadDataFile } from '@/services/files';
 import { sendEmail } from '@/services/messages';
 import {
@@ -1415,10 +1416,12 @@ function buildLeafItems(typeKey, owned, origin, { jobsByApplication, tasksByProj
     let url = null;
     if (domoTypeId) {
       try {
-        const metadata = item.certifiedType
-          ? { context: { certifiedType: item.certifiedType }, name: item.name }
-          : { name: item.name };
-        domoObject = new DomoObject(domoTypeId, item.id, origin, metadata, null, item.queueId || item.parentId || null);
+        let metadata = { name: item.name };
+        if (item.certifiedType) metadata = { context: { certifiedType: item.certifiedType }, name: item.name };
+        if (domoTypeId === 'ALERT') metadata = alertObjectMetadata(item);
+        domoObject = new DomoObject(domoTypeId, item.id, origin, metadata, null, {
+          id: item.queueId || item.parentId
+        });
         url = domoObject.url;
         // An unresolved {metadata.…} placeholder is returned literally rather
         // than thrown, so the catch below can't see it.
@@ -1476,7 +1479,7 @@ function buildProjectsAndTasksItems(owned, tasksByProject, origin) {
     let url = null;
     if (origin) {
       try {
-        url = new DomoObject('PROJECT_TASK', task.id, origin, { name: task.name }, null, task.projectId ?? null).url;
+        url = new DomoObject('PROJECT_TASK', task.id, origin, { name: task.name }, null, { id: task.projectId }).url;
       } catch {
         url = null;
       }
@@ -1564,7 +1567,7 @@ function buildTransferLogRows({ fromUserId, fromUserName, results, toUserId, toU
 function domoObjectRowFields(typeId, id, origin, { name, parentId } = {}) {
   if (!typeId || !origin) return { domoObject: null, url: null };
   try {
-    const domoObject = new DomoObject(typeId, id, origin, name ? { name } : {}, null, parentId ?? null);
+    const domoObject = new DomoObject(typeId, id, origin, name ? { name } : {}, null, { id: parentId });
     if (domoObject.url?.includes('{')) return { domoObject: null, url: null };
     return { domoObject, url: domoObject.url };
   } catch {

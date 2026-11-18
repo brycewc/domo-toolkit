@@ -175,7 +175,7 @@ export function GenerateSchemaView({ instance = null, liveContext = null, onBack
   const handleApplyAndSync = async () => {
     if (!validation.isValid || !currentContext) return;
     const collectionId = currentContext.domoObject.id;
-    const datastoreId = currentContext.domoObject.parentId;
+    const datastoreId = currentContext.domoObject.parent?.id;
     const tabId = currentContext.tabId;
     const payload = buildSchemaPayload();
 

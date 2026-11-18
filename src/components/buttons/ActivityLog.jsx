@@ -45,7 +45,10 @@ export function ActivityLog({ currentContext, onStatusUpdate }) {
   const hasChildPages = ['DATA_APP_VIEW', 'PAGE', 'WORKSHEET_VIEW'].includes(typeId);
   const hasParent = COMBINED_PARENT_LOG_TYPES.includes(typeId);
   const usesParentLog = PARENT_ONLY_LOG_TYPES.includes(typeId);
-  const parentTypeId = hasParent || usesParentLog ? getObjectType(typeId)?.parents?.[0] : null;
+  const parentTypeIds = getObjectType(typeId)?.parentTypeIds ?? [];
+  const knownParentTypeId =
+    currentContext?.domoObject?.parent?.typeId ?? (parentTypeIds.length === 1 ? parentTypeIds[0] : null);
+  const parentTypeId = hasParent || usesParentLog ? knownParentTypeId : null;
   const parentTypeName = parentTypeId ? getObjectType(parentTypeId)?.name : null;
 
   // getCardsForObject only knows how to read cards off an object that contains

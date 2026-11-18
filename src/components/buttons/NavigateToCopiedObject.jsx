@@ -121,7 +121,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
       if (typeConfig.requiresParentForApi()) {
         try {
           const obj = new DomoObject(typeConfig.id, objectId, baseUrl);
-          params.parentId = await obj.getParent(false, null, currentContext?.tabId);
+          params.parentId = (await obj.getParent({ tabId: currentContext?.tabId }))?.id ?? null;
         } catch {
           return null;
         }
@@ -404,7 +404,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
 
 function buildDomoMetadata(typeId, metadata) {
   // Carry through every field fetchObjectDetailsInPage resolved (name, created,
-  // parentId, and any future `api.paths` entry), mirroring the page-detection
+  // and any future `api.paths` entry), mirroring the page-detection
   // path's whole-object assign in background.js. Spreading instead of an explicit
   // allowlist means a new declared path flows here automatically.
   const domoMetadata = { ...metadata };

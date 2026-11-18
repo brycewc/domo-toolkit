@@ -66,7 +66,7 @@ export function DeleteObject({ currentContext, isDisabled, onStatusUpdate }) {
     if (CODE_ENGINE_TYPES.includes(typeId)) {
       // A version's own response carries no owner, so ownership comes off the
       // package the delete actually targets.
-      const packageOwner = currentContext?.domoObject?.metadata?.parent?.details?.owner;
+      const packageOwner = currentContext?.domoObject?.parent?.metadata?.details?.owner;
       const ownsPackage = isOwner || (packageOwner != null && String(packageOwner) === String(currentContext?.user?.id));
       return !ownsPackage && !userRights.includes('codeengine.package.admin');
     }

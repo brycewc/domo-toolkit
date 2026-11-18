@@ -1,3 +1,4 @@
+import { DomoObject } from '@/models/DomoObject';
 import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
 import { DEPENDENCY_FETCH_CONCURRENCY } from '@/utils/constants';
 import { executeInPage } from '@/utils/executeInPage';
@@ -12,7 +13,7 @@ import { executeInPage } from '@/utils/executeInPage';
  * its own `Type 12345` label instead of showing a blank row.
  * @param {Object} params
  * @param {string} params.baseUrl - The instance base URL, for building links
- * @param {Array<{id: string, parentId?: string, typeId: string}>} params.refs - References to resolve
+ * @param {Array<{id: string, parent?: {id: string, typeId?: string}, typeId: string}>} params.refs - References to resolve
  * @param {number} [params.tabId] - Tab to run the lookups in
  * @returns {Promise<Map<string, {name: string|null, url: string|null}>>} Keyed by `summaryKey`
  */
@@ -45,12 +46,12 @@ export function summaryKey({ id, typeId }) {
 async function readName({ baseUrl, objectType, ref, tabId }) {
   if (!objectType.hasApiConfig()) return null;
   const requiresParent = !!objectType.requiresParentForApi();
-  if (requiresParent && !ref.parentId) return null;
+  if (requiresParent && !ref.parent?.id) return null;
   const params = {
     apiConfig: objectType.api,
     baseUrl,
     objectId: ref.id,
-    parentId: ref.parentId ?? null,
+    parentId: ref.parent?.id ?? null,
     requiresParent,
     throwOnError: false,
     typeId: objectType.id
@@ -64,16 +65,13 @@ async function readName({ baseUrl, objectType, ref, tabId }) {
   }
 }
 
-async function readUrl({ baseUrl, objectType, ref }) {
+// A missing parent yields no link rather than a lookup of its own, since the reference carries the parent
+// when it has one.
+function readUrl({ baseUrl, objectType, ref }) {
   if (!baseUrl || !objectType.hasUrl()) return null;
-  if (objectType.requiresParentForUrl() && !ref.parentId) return null;
   try {
-    // No tabId: a missing parent should yield no link rather than a lookup of
-    // its own, since the reference already carries the parent when it has one.
-    const url = await objectType.buildObjectUrl(baseUrl, ref.id, ref.parentId ?? null);
-    // A type whose path interpolates metadata we never fetched leaves its
-    // placeholder behind, which is a broken link rather than a usable one.
-    return url.includes('{') ? null : url;
+    const url = new DomoObject(objectType.id, ref.id, baseUrl, {}, null, ref.parent ?? null).url;
+    return url && !url.includes('{') ? url : null;
   } catch {
     return null;
   }

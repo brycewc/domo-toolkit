@@ -10,7 +10,7 @@ import { executeInPage } from '@/utils/executeInPage';
  * singular `accountId` on the datasource response otherwise.
  *
  * Resolution order for DATA_SOURCE:
- *   1. `metadata.parent.details.accounts[].accountId` (new, multi-account)
+ *   1. `parent.metadata.details.accounts[].accountId` (new, multi-account)
  *   2. `metadata.details.accountId` (legacy, single-account)
  *
  * For STREAM we read `metadata.details.accounts` directly.
@@ -30,7 +30,7 @@ export function getAccountIdsForDomoObject(domoObject) {
     return accounts.map((a) => a?.accountId).filter((id) => id != null);
   }
   if (domoObject.typeId === 'DATA_SOURCE') {
-    const accounts = domoObject.metadata?.parent?.details?.accounts;
+    const accounts = domoObject.parent?.metadata?.details?.accounts;
     if (Array.isArray(accounts) && accounts.length > 0) {
       return accounts.map((a) => a?.accountId).filter((id) => id != null);
     }
@@ -209,7 +209,7 @@ export async function getOwnedAccounts(ownerId, tabId = null, ownerType = 'USER'
 /**
  * Detect the legacy "one account per dataset" structure: a DATA_SOURCE whose
  * account is the singular scalar `metadata.details.accountId` rather than the
- * newer `metadata.parent.details.accounts` array.
+ * newer `parent.metadata.details.accounts` array.
  *
  * Mirrors the legacy branch of `getAccountIdsForDomoObject` and must stay in
  * sync with it. Returns false for STREAM objects and for any dataset already on
@@ -220,7 +220,7 @@ export async function getOwnedAccounts(ownerId, tabId = null, ownerType = 'USER'
  */
 export function isLegacyAccountStructure(domoObject) {
   if (domoObject?.typeId !== 'DATA_SOURCE') return false;
-  const accounts = domoObject.metadata?.parent?.details?.accounts;
+  const accounts = domoObject.parent?.metadata?.details?.accounts;
   if (Array.isArray(accounts) && accounts.length > 0) return false;
   return domoObject.metadata?.details?.accountId != null;
 }

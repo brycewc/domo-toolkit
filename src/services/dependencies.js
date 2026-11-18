@@ -8,7 +8,7 @@ import { formatTimestamp } from '@/utils/general';
 import { compareSemver } from '@/utils/semver';
 import { collectDefinitionReferences } from '@/utils/workflowReferences';
 
-import { getCardAlerts, getDownstreamAlertsForDatasets, getRowPdpPolicies } from './alerts';
+import { alertObjectMetadata, getCardAlerts, getDownstreamAlertsForDatasets, getRowPdpPolicies } from './alerts';
 import { getAppInstanceCollections, getCollectionConnectedApps } from './appDb';
 import { getTemplateApprovalCount } from './approvals';
 import { getBeastModeUsageForObject } from './beastModes';
@@ -47,7 +47,7 @@ function buildAlertItems({ annotationByCardId = new Map(), cardAlerts = [], data
       id: alert.id,
       label: alert.name || `Alert ${alert.id}`,
       typeId: 'ALERT',
-      url: `${origin}/alerts/${alert.id}`
+      url: new DomoObject('ALERT', alert.id, origin, alertObjectMetadata(alert)).url
     });
   }
   return items;
@@ -187,7 +187,8 @@ function buildCardEmbedsGroup({ cards, embeds, onlyHereCardIds }) {
 
 function buildCardPageGroups(pages, origin) {
   const byTitle = (a, b) => (a.name || '').localeCompare(b.name || '');
-  const urlFor = (typeId, id, parentId = null) => new DomoObject(typeId, id, origin, {}, null, parentId).url;
+  const urlFor = (typeId, id, parentId = null) =>
+    new DomoObject(typeId, id, origin, {}, null, parentId ? { id: parentId } : null).url;
   const pageItem = (page, typeId) => ({
     id: page.id,
     label: page.name,
@@ -453,14 +454,14 @@ function dataflowInputsAnnotation(deletableCount) {
  * so for `WORKSHEET_VIEW` the siblings group will be empty (which is correct,
  * since worksheets are typically single-page).
  */
-async function fetchAppPageDependencies({ id, metadata, origin, parentId, typeId }, tabId) {
+async function fetchAppPageDependencies({ id, origin, parent, parentId, typeId }, tabId) {
   const groups = [];
   let appSummary = null;
   const pageTitleById = new Map();
 
   const appEmbedsPromise =
     parentId && typeId === 'DATA_APP_VIEW'
-      ? getAppEmbeds({ appId: parentId, appName: metadata?.parent?.name ?? null, fallbackToOwnEmbed: true, tabId }).catch(
+      ? getAppEmbeds({ appId: parentId, appName: parent?.metadata?.name ?? null, fallbackToOwnEmbed: true, tabId }).catch(
           () => []
         )
       : Promise.resolve([]);
@@ -1610,11 +1611,11 @@ const FETCHERS = {
     groups.push(buildCardEmbedsGroup({ cards, embeds: cardEmbeds, onlyHereCardIds }));
     return { groups, onlyHereCardIds };
   },
-  REPORT_SCHEDULE: async ({ metadata, origin }, tabId) => {
+  REPORT_SCHEDULE: async ({ metadata, origin, parent }, tabId) => {
     const details = metadata?.details ?? null;
     if (!details || details.reportView === true) return [];
 
-    const resource = scheduledReportResource(details, metadata?.parent?.details);
+    const resource = scheduledReportResource(details, parent?.metadata?.details);
     const recipients = details.schedule?.additionalRecipients || [];
     const idsOfType = (type) => recipients.filter((r) => r.type === type).map((r) => r.value);
     const userIds = idsOfType('USER');
@@ -1955,7 +1956,8 @@ export async function getDependenciesForDelete({ featureSwitches = null, object,
       id: object.id,
       metadata: object.metadata,
       origin,
-      parentId: object.parentId,
+      parent: object.parent ?? null,
+      parentId: object.parent?.id ?? null,
       typeId: object.typeId
     },
     tabId

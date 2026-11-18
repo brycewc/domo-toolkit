@@ -72,24 +72,7 @@ export class DomoContext {
    */
   toJSON() {
     return {
-      domoObject: this.domoObject
-        ? {
-            baseUrl: this.domoObject.baseUrl,
-            id: this.domoObject.id,
-            metadata: this.domoObject.metadata,
-            objectType: {
-              id: this.domoObject.objectType.id,
-              name: this.domoObject.objectType.name,
-              parents: this.domoObject.objectType.parents,
-              urlPath: this.domoObject.objectType.urlPath
-            },
-            originalUrl: this.domoObject.originalUrl,
-            parentId: this.domoObject.parentId,
-            typeId: this.domoObject.typeId,
-            typeName: this.domoObject.typeName,
-            url: this.domoObject.url
-          }
-        : null,
+      domoObject: this.domoObject?.toJSON() ?? null,
       featureSwitches: this.featureSwitches || null,
       instance: this.instance,
       isDomoPage: this.isDomoPage,
@@ -132,27 +115,29 @@ export class DomoContext {
    */
   toStorageJSON() {
     const json = this.toJSON();
-    const metadata = json.domoObject?.metadata;
-    if (metadata && typeof metadata === 'object') {
-      const slimMetadata = {
-        created: metadata.created,
-        details: metadata.details,
-        isOwner: metadata.isOwner,
-        name: metadata.name,
-        parent: metadata.parent,
-        parentId: metadata.parentId,
-        permission: metadata.permission
-      };
-      const details = slimMetadata.details;
-      if (details && typeof details === 'object' && Object.prototype.hasOwnProperty.call(details, 'properties')) {
-        const { properties: _omitProperties, ...slimDetails } = details;
-        slimMetadata.details = slimDetails;
-      }
-      json.domoObject.metadata = slimMetadata;
+    for (let object = json.domoObject; object; object = object.parent) {
+      object.metadata = slimStorageMetadata(object.metadata);
     }
     json.user = null;
     json.userGroups = null;
     json.featureSwitches = null;
     return json;
   }
+}
+
+function slimStorageMetadata(metadata) {
+  if (!metadata || typeof metadata !== 'object') return metadata;
+  const slimMetadata = {
+    created: metadata.created,
+    details: metadata.details,
+    isOwner: metadata.isOwner,
+    name: metadata.name,
+    permission: metadata.permission
+  };
+  const details = slimMetadata.details;
+  if (details && typeof details === 'object' && Object.prototype.hasOwnProperty.call(details, 'properties')) {
+    const { properties: _omitProperties, ...slimDetails } = details;
+    slimMetadata.details = slimDetails;
+  }
+  return slimMetadata;
 }

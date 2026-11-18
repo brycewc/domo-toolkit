@@ -41,7 +41,10 @@ export async function cancelStreamExecution({ streamId, tabId }) {
       const limit = 100;
       const [firstExecution] = await fetchJson(`/api/data/v1/streams/${streamId}/executions?limit=1&offset=0`, 'executions');
       const offset = Math.max(0, latestExecutionId - (firstExecution?.executionId ?? latestExecutionId) - limit + 1);
-      const recent = await fetchJson(`/api/data/v1/streams/${streamId}/executions?limit=${limit}&offset=${offset}`, 'executions');
+      const recent = await fetchJson(
+        `/api/data/v1/streams/${streamId}/executions?limit=${limit}&offset=${offset}`,
+        'executions'
+      );
 
       const byId = new Map(recent.map((execution) => [execution.executionId, execution]));
       if (stream.currentExecution) byId.set(stream.currentExecution.executionId, stream.currentExecution);
@@ -890,6 +893,26 @@ export async function getProviders() {
  * @param {number} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<Object>} The stream definition
  */
+export async function getSingleSourceDatasetId(datasetId, tabId = null) {
+  return executeInPage(
+    async (datasetId) => {
+      const response = await fetch(
+        `/api/data/v1/lineage/DATA_SOURCE/${datasetId}?maxDepth=1&requestEntities=DATA_SOURCE&traverseUp=true&traverseDown=false`
+      );
+      if (!response.ok) {
+        const error = new Error(`Failed to fetch lineage for DataSet ${datasetId}: HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+      const lineage = await response.json();
+      const sources = (lineage[`DATA_SOURCE${datasetId}`]?.parents || []).filter((node) => node.type === 'DATA_SOURCE');
+      return sources.length === 1 ? String(sources[0].id) : null;
+    },
+    [datasetId],
+    tabId
+  );
+}
+
 export async function getStreamDefinition({ streamId, tabId }) {
   return executeInPage(
     async (streamId) => {

@@ -88,18 +88,17 @@ export function GetPagesView({
 
       // For card pages, always use the object's own ID (not parent).
       // parentId would be a dataflow/stream ID for DATA_SOURCE, which is wrong for card lookups.
-      const objectId = sidepanelType === 'getCardPages' ? domoObject.id : domoObject.parentId || domoObject.id;
+      const objectId = sidepanelType === 'getCardPages' ? domoObject.id : domoObject.parent?.id || domoObject.id;
       const objectName =
         sidepanelType === 'getCardPages'
-          ? domoObject.metadata?.name || domoObject.metadata?.parent?.name || `${domoObject.typeName} ${objectId}`
-          : domoObject.metadata?.parent?.name || domoObject.metadata?.name || `${domoObject.typeName} ${objectId}`;
+          ? domoObject.metadata?.name || domoObject.parent?.metadata?.name || `${domoObject.typeName} ${objectId}`
+          : domoObject.parent?.metadata?.name || domoObject.metadata?.name || `${domoObject.typeName} ${objectId}`;
       const instance = context.instance;
       const origin = context.origin;
       const embedsEnabled = sidepanelType === 'getCardPages' && canReadEmbeds(context);
 
       // Get appId for DATA_APP_VIEW types (stored as parentId in domoObject)
-      const appId =
-        objectType === 'DATA_APP_VIEW' ? domoObject.parentId || domoObject?.metadata?.parent?.id || domoObject.id : null;
+      const appId = objectType === 'DATA_APP_VIEW' ? domoObject.parent?.id || domoObject?.parent?.id || domoObject.id : null;
 
       // Set label early so the loading spinner shows the right text
       setPageTypeLabel(
@@ -326,7 +325,7 @@ export function GetPagesView({
     const context = DomoContext.fromJSON(data.currentContext);
     const childTypeId = context.domoObject.typeId;
     const parentTypeId = childTypeId === 'WORKSHEET_VIEW' ? 'WORKSHEET' : 'DATA_APP';
-    const parentId = data.parentId || context.domoObject.parentId;
+    const parentId = data.parentId || context.domoObject.parent?.id;
     const instance = context.instance;
     const origin = context.origin;
     const parentLabel = parentTypeId === 'WORKSHEET' ? 'worksheet' : 'app';
@@ -568,7 +567,7 @@ export function GetPagesView({
 
     // Determine the typeId for pages based on the parent object type
     const pageTypeId = objectType === 'DATA_APP_VIEW' ? 'DATA_APP_VIEW' : 'PAGE';
-    const parentId = objectType === 'DATA_APP_VIEW' ? objectId : null;
+    const childParent = (page) => ({ id: pageTypeId === 'DATA_APP_VIEW' ? objectId : page.pageId });
 
     // Build items array - just the child pages
     const childItems = sortedPages?.map((page) => {
@@ -586,13 +585,13 @@ export function GetPagesView({
                   origin,
                   { name: childPage.pageTitle },
                   null,
-                  parentId
+                  childParent(page)
                 );
                 return DataListItem.fromDomoObject(domoObject);
               })
           : undefined;
 
-      const domoObject = new DomoObject(pageTypeId, page.pageId, origin, { name: page.pageTitle }, null, parentId);
+      const domoObject = new DomoObject(pageTypeId, page.pageId, origin, { name: page.pageTitle }, null, { id: objectId });
       return DataListItem.fromDomoObject(domoObject, {
         children: nestedChildren,
         // Hide the badge entirely when a child page has no nested pages (a bare
@@ -1135,7 +1134,9 @@ function transformGroupedPagesData(
 
         const pageChildren = sortedPages.map((page) => {
           const cardChildren = buildCardChildren(page.pageId, cardsByPage, origin, 'DATA_APP_VIEW', appId);
-          const domoObject = new DomoObject('DATA_APP_VIEW', page.pageId, origin, { name: page.pageTitle }, null, appId);
+          const domoObject = new DomoObject('DATA_APP_VIEW', page.pageId, origin, { name: page.pageTitle }, null, {
+            id: appId
+          });
           return DataListItem.fromDomoObject(domoObject, {
             children: cardChildren,
             count: cardChildren?.length,
@@ -1212,14 +1213,9 @@ function transformGroupedPagesData(
 
         const pageChildren = sortedPages.map((page) => {
           const cardChildren = buildCardChildren(page.pageId, cardsByPage, origin, 'REPORT_BUILDER_PAGE', reportId);
-          const domoObject = new DomoObject(
-            'REPORT_BUILDER_PAGE',
-            page.pageId,
-            origin,
-            { name: page.pageTitle },
-            null,
-            reportId
-          );
+          const domoObject = new DomoObject('REPORT_BUILDER_PAGE', page.pageId, origin, { name: page.pageTitle }, null, {
+            id: reportId
+          });
           return DataListItem.fromDomoObject(domoObject, {
             children: cardChildren,
             count: cardChildren?.length,
@@ -1269,7 +1265,9 @@ function transformGroupedPagesData(
 
         const pageChildren = sortedPages.map((page) => {
           const cardChildren = buildCardChildren(page.pageId, cardsByPage, origin, 'WORKSHEET_VIEW', appId);
-          const domoObject = new DomoObject('WORKSHEET_VIEW', page.pageId, origin, { name: page.pageTitle }, null, appId);
+          const domoObject = new DomoObject('WORKSHEET_VIEW', page.pageId, origin, { name: page.pageTitle }, null, {
+            id: appId
+          });
           return DataListItem.fromDomoObject(domoObject, {
             children: cardChildren,
             count: cardChildren?.length,

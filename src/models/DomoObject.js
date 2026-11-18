@@ -1,9 +1,11 @@
 import { getDrillParentCardId } from '@/services/cards';
+import { getDataflowForOutputDataset } from '@/services/dataflows';
+import { getSingleSourceDatasetId } from '@/services/datasets';
 import { getGovernanceToolkitJobApplicationId } from '@/services/governanceToolkit';
-import { getAppStudioPageParent } from '@/services/pages';
+import { getAppStudioPageParent, getPageParentPageId } from '@/services/pages';
 import { executeInPage } from '@/utils/executeInPage';
 
-import { DomoObjectType, getObjectType } from './DomoObjectType';
+import { fetchObjectDetailsInPage, getObjectType } from './DomoObjectType';
 
 /**
  * DomoObject class represents an instance of a Domo object
@@ -31,51 +33,22 @@ export class DomoObject {
    * @param {string} baseUrl - The base URL (e.g., https://instance.domo.com)
    * @param {Object} [metadata] - Optional metadata about the object
    * @param {string} [originalUrl] - Optional original URL for parent extraction
-   * @param {string} [parentId] - Optional parent ID if already known
+   * @param {DomoObject|{id: string, typeId?: string, metadata?: Object, parent?: Object}} [parent] - The parent,
+   *   if already known. `typeId` may be left out for a type with a single parent type.
    */
-  constructor(type, id, baseUrl, metadata = {}, originalUrl = null, parentId = null) {
+  constructor(type, id, baseUrl, metadata = {}, originalUrl = null, parent = null) {
     this.id = id;
     this.baseUrl = baseUrl;
     this.metadata = metadata;
-    this.originalUrl = originalUrl; // Store for parent extraction
-    this.parentId = parentId; // Store parent ID if already known
+    this.originalUrl = originalUrl;
     this.objectType = getObjectType(type);
 
     if (!this.objectType) {
       throw new Error(`Unknown object type: ${type}`);
     }
 
-    // Build and cache the URL
-    if (!this.objectType.hasUrl()) {
-      // For types without URLs, we can't navigate
-      this.url = null;
-    } else if (this.requiresParentForUrl()) {
-      // For types requiring a parent, build URL if we have the parent ID
-      if (parentId) {
-        let builtUrl = `${baseUrl}${this.objectType.urlPath.replace('{parent}', parentId).replace('{id}', id)}`;
-        builtUrl = this.objectType.resolveSlugPlaceholder(builtUrl, id, parentId);
-        // Resolve {metadata.dot.path} placeholders from this object's metadata
-        builtUrl = DomoObjectType.resolveMetadataPlaceholders(builtUrl, this.metadata);
-        // Resolve extra URL placeholders (e.g. {version}) from the original URL
-        if (builtUrl.includes('{') && originalUrl) {
-          const extraParams = this.objectType.extractUrlParams(originalUrl);
-          for (const [key, value] of Object.entries(extraParams)) {
-            if (value) builtUrl = builtUrl.replace(`{${key}}`, value);
-          }
-        }
-        this.url = builtUrl.includes('{') ? (originalUrl ?? null) : builtUrl;
-      } else {
-        // Don't build URL yet (it's async)
-        this.url = null;
-      }
-    } else {
-      // For simple types, build URL synchronously
-      let builtUrl = `${baseUrl}${this.objectType.urlPath.replace('{id}', id)}`;
-      builtUrl = this.objectType.resolveSlugPlaceholder(builtUrl, id, null);
-      builtUrl = DomoObjectType.resolveMetadataPlaceholders(builtUrl, this.metadata);
-      // Fall back to originalUrl if any metadata placeholders remain unresolved
-      this.url = builtUrl.includes('{') ? (originalUrl ?? null) : builtUrl;
-    }
+    this.parent = this.toParentObject(parent ?? this.objectType.resolveParentFromData(this));
+    this.url = this.buildSyncUrl();
   }
 
   /**
@@ -86,22 +59,34 @@ export class DomoObject {
   static fromJSON(data) {
     if (!data) return null;
 
-    // Create instance using the objectType.id, including originalUrl and parentId
     const instance = new DomoObject(
-      data.objectType.id,
+      data.objectType?.id ?? data.typeId,
       data.id,
       data.baseUrl,
       data.metadata || {},
       data.originalUrl || null,
-      data.parentId || null
+      data.parent ? DomoObject.fromJSON(data.parent) : null
     );
 
-    // Restore the URL if it was already built
     if (data.url !== undefined) {
       instance.url = data.url;
     }
 
     return instance;
+  }
+
+  // Falls back to `originalUrl` when a placeholder stays unfilled.
+  buildSyncUrl() {
+    if (!this.objectType.hasUrl()) return null;
+    if (this.requiresParentForUrl() && !this.parent) return null;
+
+    let builtUrl = this.objectType.buildObjectUrl(this.baseUrl, this.id, this.parent, this.metadata);
+    if (builtUrl.includes('{') && this.originalUrl) {
+      for (const [key, value] of Object.entries(this.objectType.extractUrlParams(this.originalUrl))) {
+        if (value) builtUrl = builtUrl.replace(`{${key}}`, value);
+      }
+    }
+    return builtUrl.includes('{') ? (this.originalUrl ?? null) : builtUrl;
   }
 
   /**
@@ -111,146 +96,47 @@ export class DomoObject {
    * @returns {Promise<string>} The full URL
    */
   async buildUrl(baseUrl, tabId = null) {
-    if (this.requiresParentForUrl()) {
-      const parentId = await this.getParent(false, null, tabId);
-      return this.objectType.buildObjectUrl(baseUrl, this.id, parentId, tabId, this.metadata);
+    const parent = this.requiresParentForUrl() ? await this.getParent({ tabId }) : this.parent;
+    if (this.requiresParentForUrl() && !parent) {
+      throw new Error(`Parent is required for ${this.typeId} ${this.id} and could not be resolved`);
     }
-    return this.objectType.buildObjectUrl(baseUrl, this.id, null, tabId, this.metadata);
+    return this.objectType.buildObjectUrl(baseUrl, this.id, parent, this.metadata);
   }
 
-  /**
-   * Get the parent ID for this object and enrich metadata with parent details
-   * @param {boolean} [inPageContext=false] - Whether already in page context (skip executeInPage)
-   * @param {string} [url=null] - Optional URL to extract parent ID from (overrides this.originalUrl)
-   * @param {number} [tabId=null] - Optional Chrome tab ID for executing in-page lookups
-   * @returns {Promise<string>} The parent ID
-   * @throws {Error} If the parent cannot be fetched or is not supported
-   */
-  async getParent(inPageContext = false, url = null, tabId = null) {
-    let parentId;
+  // Tries the URL, then this object's own data (loading its details if missing), then the parent fetcher.
+  async getParent({ tabId = null, url = null } = {}) {
+    if (this.parent) return this.parent;
+    if (!this.objectType.parent) return null;
 
-    // First check if we already have the parent ID stored
-    if (this.parentId) {
-      parentId = this.parentId;
-    } else {
-      // Try to extract parent ID from URL if available
-      const urlToUse = url || this.originalUrl;
-      if (urlToUse) {
-        parentId = this.objectType.extractParentId(urlToUse);
+    let resolved = this.objectType.extractParent(url || this.originalUrl) || this.objectType.resolveParentFromData(this);
+
+    if (!resolved && !this.metadata?.details && this.objectType.hasApiConfig() && !this.objectType.requiresParentForApi()) {
+      const metadata = await executeInPage(
+        fetchObjectDetailsInPage,
+        [{ apiConfig: this.objectType.api, objectId: this.id, throwOnError: false, typeId: this.typeId }],
+        tabId
+      );
+      if (metadata?.details) {
+        this.metadata = { ...this.metadata, ...metadata };
+        resolved = this.objectType.resolveParentFromData(this);
       }
+    }
 
-      // Fall back to API lookup if URL extraction didn't work
-      if (!parentId) {
-        switch (this.objectType.id) {
-          case 'DATA_APP_VIEW':
-            parentId = await getAppStudioPageParent(this.id, inPageContext, tabId);
-            break;
-          case 'DRILL_VIEW':
-            parentId = await getDrillParentCardId(this.id, inPageContext, tabId);
-            break;
-          case 'EXECUTOR_JOB':
-            parentId = await getGovernanceToolkitJobApplicationId(this.id, inPageContext, tabId);
-            break;
-          default:
-            throw new Error(`Parent lookup not supported for type: ${this.objectType.id}`);
+    if (!resolved) {
+      for (const entry of this.objectType.resolveCandidateParentTypes(this)) {
+        const fetcher = entry.fetcher ? PARENT_FETCHERS[entry.fetcher] : null;
+        if (!fetcher) continue;
+        const id = await fetcher(this, tabId);
+        if (id != null && id !== '') {
+          resolved = { id: String(id), typeId: entry.typeId };
+          break;
         }
       }
     }
 
-    // Fetch parent details and store in metadata
-    if (parentId && this.objectType.parents && this.objectType.parents.length > 0) {
-      const parentTypeId = this.objectType.parents[0]; // Use first parent type
-      const parentType = getObjectType(parentTypeId);
-      const parentTypeName = parentType ? parentType.name : parentTypeId;
-
-      if (parentType && parentType.api) {
-        try {
-          // Fetch parent details using its API configuration
-          const { bodyTemplate = null, endpoint, method = 'GET', nameTemplate = null, paths = {} } = parentType.api;
-
-          const fetchParentDetails = async (
-            endpoint,
-            method = 'GET',
-            paths,
-            nameTemplate,
-            bodyTemplate,
-            parentId,
-            parentTypeId,
-            parentTypeName
-          ) => {
-            const url = `/api${endpoint}`.replace('{id}', parentId);
-            const options = {
-              method
-            };
-
-            if (method !== 'GET' && bodyTemplate) {
-              options.body = JSON.stringify(bodyTemplate).replace(/{id}/g, parentId);
-              options.headers = {
-                'Content-Type': 'application/json'
-              };
-            }
-
-            const response = await fetch(url, options);
-
-            if (!response.ok) {
-              const error = new Error(`HTTP ${response.status}`);
-              error.status = response.status;
-              throw error;
-            }
-
-            const data = await response.json();
-
-            const resolvePath = (path) => (path.match(/[^.[\]]+/g) || []).reduce((current, prop) => current?.[prop], data);
-            // Mirrors fetchObjectDetailsInPage: a declared path may be an array of candidates, and
-            // the first non-empty one wins, so a type whose name field is optional resolves the same
-            // way whether it is the current object or somebody's parent.
-            const resolveField = (path) =>
-              Array.isArray(path) ? path.map(resolvePath).find((value) => value != null && value !== '') : resolvePath(path);
-            const details = paths.details ? resolveField(paths.details) : data;
-            const name = nameTemplate
-              ? nameTemplate.replace(/{([^}]+)}/g, (_, path) => (path === 'id' ? parentId : (resolvePath(path) ?? '')))
-              : resolveField(paths.name);
-
-            return {
-              created: paths.created ? resolvePath(paths.created) : undefined,
-              details: details,
-              id: parentId,
-              name: name,
-              objectType: {
-                id: parentTypeId,
-                name: parentTypeName
-              }
-            };
-          };
-
-          // If already in page context, execute directly; otherwise use executeInPage
-          const parentDetails = inPageContext
-            ? await fetchParentDetails(
-                endpoint,
-                method,
-                paths,
-                nameTemplate,
-                bodyTemplate,
-                parentId,
-                parentTypeId,
-                parentTypeName
-              )
-            : await executeInPage(
-                fetchParentDetails,
-                [endpoint, method, paths, nameTemplate, bodyTemplate, parentId, parentTypeId, parentTypeName],
-                tabId
-              );
-
-          // Store parent details in metadata
-          this.metadata.parent = parentDetails;
-        } catch (error) {
-          console.error('[getParent] Error fetching parent details:', error);
-          // Still return the parentId even if we can't fetch details
-        }
-      }
-    }
-
-    return parentId;
+    this.parent = this.toParentObject(resolved);
+    if (this.parent && !this.url) this.url = this.buildSyncUrl();
+    return this.parent;
   }
 
   /**
@@ -267,6 +153,29 @@ export class DomoObject {
    */
   isValidObjectId() {
     return this.objectType.isValidObjectId(this.id);
+  }
+
+  async loadMetadata(tabId = null) {
+    if (!this.objectType.hasApiConfig()) return null;
+    const requiresParent = this.objectType.requiresParentForApi();
+    const parent = requiresParent ? await this.getParent({ tabId }) : this.parent;
+    const metadata = await executeInPage(
+      fetchObjectDetailsInPage,
+      [
+        {
+          apiConfig: this.objectType.api,
+          objectId: this.id,
+          parentId: parent?.id ?? null,
+          requiresParent,
+          throwOnError: false,
+          typeId: this.typeId
+        }
+      ],
+      tabId
+    );
+    if (!metadata?.details) return null;
+    this.metadata = { ...this.metadata, ...metadata };
+    return metadata;
   }
 
   /**
@@ -313,15 +222,35 @@ export class DomoObject {
       metadata: this.metadata,
       objectType: {
         id: this.objectType.id,
-        name: this.objectType.name,
-        parents: this.objectType.parents,
-        urlPath: this.objectType.urlPath
+        name: this.objectType.name
       },
       originalUrl: this.originalUrl,
-      parentId: this.parentId,
+      parent: this.parent?.toJSON() ?? null,
       typeId: this.objectType.id,
       typeName: this.objectType.name,
       url: this.url
     };
   }
+
+  toParentObject(parent) {
+    if (!parent) return null;
+    if (parent instanceof DomoObject) return parent;
+    if (parent.id == null || parent.id === '') return null;
+    const typeIds = this.objectType.parentTypeIds;
+    const typeId = parent.typeId ?? (typeIds.length === 1 ? typeIds[0] : null);
+    if (!typeId || !getObjectType(typeId)) {
+      console.warn(`[DomoObject] Dropped a parent of unknown type for ${this.typeId} ${this.id}`);
+      return null;
+    }
+    return new DomoObject(typeId, String(parent.id), this.baseUrl, parent.metadata || {}, null, parent.parent ?? null);
+  }
 }
+
+const PARENT_FETCHERS = {
+  appStudioPageParent: (domoObject, tabId) => getAppStudioPageParent(domoObject.id, false, tabId),
+  dataflowForOutput: (domoObject, tabId) => getDataflowForOutputDataset(domoObject.id, tabId),
+  drillParentCard: (domoObject, tabId) => getDrillParentCardId(domoObject.id, false, tabId),
+  governanceToolkitApplication: (domoObject, tabId) => getGovernanceToolkitJobApplicationId(domoObject.id, false, tabId),
+  pageParentPage: (domoObject, tabId) => getPageParentPageId(domoObject.id, tabId),
+  singleSourceDataset: (domoObject, tabId) => getSingleSourceDatasetId(domoObject.id, tabId)
+};

@@ -88,7 +88,7 @@ export function GetCollectionsView({
         appId: data.appId || null,
         objectId,
         objectName: data.appId
-          ? domoObject.metadata?.parent?.name || `App ${data.appId}`
+          ? domoObject.parent?.metadata?.name || `App ${data.appId}`
           : domoObject.metadata?.name || `${objectType} ${objectId}`,
         objectType,
         scope
@@ -317,7 +317,7 @@ async function fetchCollectionItems({ appId, domoObject, origin, scope, tabId })
     }
 
     case 'datastore': {
-      const datastoreId = domoObject.parentId || details?.datastoreId;
+      const datastoreId = domoObject.parent?.id || details?.datastoreId;
       if (!datastoreId) return [];
       const collections = await getAppInstanceCollections({ appInstanceId: datastoreId, tabId });
       return collections.map((c) => {
@@ -359,7 +359,7 @@ async function fetchCollectionItems({ appId, domoObject, origin, scope, tabId })
         cards: appCardsOf(pageCards),
         origin,
         tabId,
-        urlFor: (card) => appCardUrl({ cardId: card.id, objectId, objectType, origin, parentId: domoObject.parentId })
+        urlFor: (card) => appCardUrl({ cardId: card.id, objectId, objectType, origin, parentId: domoObject.parent?.id })
       });
     }
 

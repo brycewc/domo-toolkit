@@ -406,7 +406,7 @@ async function buildPageDatasetGroups({ objectType = 'PAGE', origin, pageCards, 
 async function buildParentScope({ context, origin, parentId, tabId }) {
   const childTypeId = context.domoObject.typeId;
   const parentType = childTypeId === 'WORKSHEET_VIEW' ? 'WORKSHEET' : 'DATA_APP';
-  const resolvedParentId = parentId || context.domoObject.parentId;
+  const resolvedParentId = parentId || context.domoObject.parent?.id;
   if (!resolvedParentId) throw new Error('Could not determine parent ID.');
 
   const { parentName, viewGroups } = await getCardsForParent({ parentId: resolvedParentId, tabId });

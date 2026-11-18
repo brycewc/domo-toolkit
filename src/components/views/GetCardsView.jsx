@@ -91,7 +91,7 @@ export function GetCardsView({
         return;
       }
 
-      const parentId = domoObject.parentId || null;
+      const parentId = domoObject.parent?.id || null;
 
       // Extract layout references from metadata for refresh support
       const { formRefs, queueWidgetRefs, workflowModelRefs, workflowWidgetRefs } = extractPageContentIds(
@@ -248,7 +248,7 @@ export function GetCardsView({
     const context = DomoContext.fromJSON(data.currentContext);
     const childTypeId = context.domoObject.typeId;
     const parentTypeId = childTypeId === 'WORKSHEET_VIEW' ? 'WORKSHEET' : 'DATA_APP';
-    const parentId = data.parentId || context.domoObject.parentId;
+    const parentId = data.parentId || context.domoObject.parent?.id;
     const instance = context.instance;
     const origin = context.origin;
 
@@ -449,7 +449,7 @@ const APP_PAGE_CONTENT_GROUPS = [
 function transformBeastModeItems({ cards, orphanDrills }, origin) {
   const drillItem = (drill, parentId) =>
     DataListItem.fromDomoObject(
-      new DomoObject('DRILL_VIEW', drill.id, origin, { name: drill.name || `Drill ${drill.id}` }, null, parentId)
+      new DomoObject('DRILL_VIEW', drill.id, origin, { name: drill.name || `Drill ${drill.id}` }, null, { id: parentId })
     );
 
   const cardItems = cards.map((card) => {

@@ -16,6 +16,6 @@ export function scopeFromContext(context) {
   const domoObject = context?.domoObject;
   const kind = KIND_BY_TYPE[domoObject?.typeId];
   if (!kind || domoObject.id == null) return null;
-  const appId = domoObject.parentId != null ? String(domoObject.parentId) : undefined;
+  const appId = domoObject.parent?.id != null ? String(domoObject.parent?.id) : undefined;
   return { appId, id: String(domoObject.id), kind };
 }

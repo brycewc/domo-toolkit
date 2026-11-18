@@ -24,7 +24,7 @@ export function BeastModeCardsModal({ beastModeName, cards, origin, total }) {
         .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }))
         .map((card) =>
           DataListItem.fromDomoObject(
-            new DomoObject(card.typeId || 'CARD', card.id, origin, { name: card.name }, null, card.parentId || null),
+            new DomoObject(card.typeId || 'CARD', card.id, origin, { name: card.name }, null, { id: card.parentId }),
             { label: card.name }
           )
         ),

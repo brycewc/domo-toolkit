@@ -118,7 +118,7 @@ const NAVIGATE_DESCRIPTORS = {
     // A version has no page of its own, so both cases land on the package's page.
     resolveUrl: (currentContext) => {
       const domoObject = currentContext.domoObject;
-      const packageId = domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION' ? domoObject.parentId : domoObject?.id;
+      const packageId = domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION' ? domoObject.parent?.id : domoObject?.id;
       return packageId ? `${currentContext.origin}/codeengine/${packageId}` : null;
     },
     tooltip: "Open this Code Engine package's page in a new tab"

@@ -175,7 +175,7 @@ const deletersByType = {
     holdToConfirm: ({ deps }) => hasGroupItems(deps, 'pageCardEmbeds'),
     onDemandChecks: [cardWorkspacesCheck()],
     primaryLabel: 'Delete Page and All Cards',
-    run: ({ context }) => runPageDelete({ context, parentAppId: context.domoObject.parentId }),
+    run: ({ context }) => runPageDelete({ context, parentAppId: context.domoObject.parent?.id }),
     typeName: 'Page'
   },
   DATA_SOURCE: {
@@ -374,7 +374,7 @@ const deletersByType = {
           let result;
           try {
             result = await voidTaskCenterTask({
-              queueId: context.domoObject.parentId,
+              queueId: context.domoObject.parent?.id,
               tabId: context.tabId,
               taskId: context.domoObject.id,
               userId: context.user?.id
@@ -419,7 +419,7 @@ const deletersByType = {
     primaryLabel: 'Void Task',
     run: async ({ context }) => {
       const result = await voidTaskCenterTask({
-        queueId: context.domoObject.parentId,
+        queueId: context.domoObject.parent?.id,
         tabId: context.tabId,
         taskId: context.domoObject.id,
         userId: context.user?.id
@@ -438,16 +438,16 @@ const deletersByType = {
   MAGNUM_COLLECTION: {
     cascadeButtons: [
       {
-        available: ({ context }) => !!context.domoObject?.parentId,
+        available: ({ context }) => !!context.domoObject?.parent?.id,
         buildContext: ({ context, deps }) => {
-          const datastoreId = context.domoObject.parentId;
+          const datastoreId = context.domoObject.parent?.id;
           // Sibling collections come from the dependency check; +1 counts this
           // collection, which the cascade also removes.
           const siblings = (deps?.groups || []).find((g) => g.key === 'siblingCollections')?.items || [];
           return {
             collectionCount: siblings.length + 1,
             datastoreId,
-            datastoreName: context.domoObject.metadata?.parent?.name || `Datastore ${datastoreId}`
+            datastoreName: context.domoObject.parent?.metadata?.name || `Datastore ${datastoreId}`
           };
         },
         confirmText: ({ collectionCount, datastoreId, datastoreName }) =>
@@ -456,7 +456,7 @@ const deletersByType = {
         loadingMessage: ({ datastoreName }) => `Deleting **${datastoreName}** and all its collections…`,
         run: async ({ context, deps }) => {
           const result = await deleteDatastoreAndAllCollections({
-            datastoreId: context.domoObject.parentId,
+            datastoreId: context.domoObject.parent?.id,
             tabId: context.tabId
           });
           if (!result.success) {
@@ -649,7 +649,7 @@ const deletersByType = {
     holdToConfirm: ({ deps }) => hasGroupItems(deps, 'pageCardEmbeds'),
     onDemandChecks: [cardWorkspacesCheck()],
     primaryLabel: 'Delete Worksheet Page and All Cards',
-    run: ({ context }) => runPageDelete({ context, parentAppId: context.domoObject.parentId }),
+    run: ({ context }) => runPageDelete({ context, parentAppId: context.domoObject.parent?.id }),
     typeName: 'Worksheet Page'
   }
 };
@@ -697,7 +697,7 @@ const onlyHereCardsCascade = {
       cardScope: 'onlyHere',
       context,
       keepCardIds: deps?.workspaceCardIds,
-      parentAppId: context.domoObject.parentId
+      parentAppId: context.domoObject.parent?.id
     }),
   successMessage: ({ pageName }, result) =>
     result.cardsDeleted === 0
@@ -1353,16 +1353,16 @@ export function DeleteObjectView({
 function buildAppCascade({ cardScope }) {
   const isOnlyHere = cardScope === 'onlyHere';
   return {
-    available: ({ context }) => !!context.domoObject?.parentId,
+    available: ({ context }) => !!context.domoObject?.parent?.id,
     buildContext: ({ context, deps }) => {
       const appLabel = context.domoObject?.typeId === 'WORKSHEET_VIEW' ? 'Worksheet' : 'App';
       return {
         appLabel,
-        appName: context.domoObject.metadata?.parent?.name || `${appLabel} ${context.domoObject.parentId}`,
+        appName: context.domoObject.parent?.metadata?.name || `${appLabel} ${context.domoObject.parent?.id}`,
         appOnlyCount: deps?.appOnlyCardCount ?? null,
         cardCount: deps?.appSummary?.cardCount ?? null,
         pageCount: deps?.appSummary?.pageCount ?? null,
-        parentId: context.domoObject.parentId
+        parentId: context.domoObject.parent?.id
       };
     },
     confirmText: ({ appLabel, appName, appOnlyCount, cardCount, pageCount, parentId }) => {
@@ -1392,7 +1392,7 @@ function buildAppCascade({ cardScope }) {
         ? `Deleting **${appName}** and the cards that only live in it…`
         : `Deleting **${appName}** and all its cards…`,
     run: async ({ context, deps }) => {
-      const appId = context.domoObject.parentId;
+      const appId = context.domoObject.parent?.id;
       const result = await deleteAppAndAllContent({
         appId,
         cardIds: deps?.appSummary?.cardIds ?? null,
@@ -1456,7 +1456,7 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
             // a child carrying a parentId passes it to its DomoObject.
             domoObject:
               baseUrl && child.typeId
-                ? new DomoObject(child.typeId, child.id, baseUrl, {}, null, child.parentId ?? null)
+                ? new DomoObject(child.typeId, child.id, baseUrl, {}, null, { id: child.parentId })
                 : null,
             id: child.id,
             label: child.label,
@@ -1472,7 +1472,7 @@ function buildDependencyItems(groups, idPrefix, baseUrl) {
         count: item.count,
         countLabel: item.countLabel,
         domoObject:
-          baseUrl && item.typeId ? new DomoObject(item.typeId, item.id, baseUrl, {}, null, item.parentId ?? null) : null,
+          baseUrl && item.typeId ? new DomoObject(item.typeId, item.id, baseUrl, {}, null, { id: item.parentId }) : null,
         id: item.id,
         label: item.label,
         muted: item.muted ?? false,
@@ -2078,12 +2078,10 @@ function resolveSuffix(config, context) {
  */
 function retargetVersionToPackage(context) {
   const domoObject = context?.domoObject;
-  if (domoObject?.typeId !== 'CODEENGINE_PACKAGE_VERSION' || !domoObject.parentId) return;
-  const parent = domoObject.metadata?.parent;
-  context.domoObject = new DomoObject('CODEENGINE_PACKAGE', domoObject.parentId, domoObject.baseUrl, {
-    details: parent?.details ?? {},
-    name: parent?.name || `Package ${domoObject.parentId}`
-  });
+  const parent = domoObject?.parent;
+  if (domoObject?.typeId !== 'CODEENGINE_PACKAGE_VERSION' || !parent) return;
+  parent.metadata = { details: {}, ...parent.metadata, name: parent.metadata?.name || `Package ${parent.id}` };
+  context.domoObject = parent;
 }
 
 async function runPageDelete({ cardScope = 'all', context, keepCardIds = [], parentAppId = null }) {
@@ -2182,7 +2180,11 @@ function scheduledReportNotice(details) {
     return { description: `It is turned off and does not send. ${lastSend}`, status: 'accent', title: 'Report Is Disabled' };
   }
   if (recipientCount === 0) {
-    return { description: `It has no recipients, so nothing is delivered. ${lastSend}`, status: 'accent', title: 'Report Is Active' };
+    return {
+      description: `It has no recipients, so nothing is delivered. ${lastSend}`,
+      status: 'accent',
+      title: 'Report Is Active'
+    };
   }
   const nextSendAt = formatTimestamp(schedule.nextRunDate, { seconds: false });
   const people = `**${recipientCount} ${recipientCount === 1 ? 'person' : 'people'}**`;

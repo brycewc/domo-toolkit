@@ -102,12 +102,12 @@ export function UpdateWorkflowActionVersionsView({
       const isCEVersion = context.domoObject?.typeId === 'CODEENGINE_PACKAGE_VERSION';
       const workflowModelId = isCEVersion
         ? context.domoObject.metadata?.context?.workflowModelId
-        : context.domoObject.parentId;
+        : context.domoObject.parent?.id;
 
       // Name the workflow in the header. A workflow version already carries its
       // parent workflow's name from detection; a code engine version only knows
       // the workflow's id, so look up the model to name it.
-      let wfName = isCEVersion ? null : context.domoObject.metadata?.parent?.name || null;
+      let wfName = isCEVersion ? null : context.domoObject.parent?.metadata?.name || null;
       if (!wfName && workflowModelId) {
         wfName = await getWorkflowModelName(workflowModelId, context.tabId);
       }
@@ -430,7 +430,7 @@ export function UpdateWorkflowActionVersionsView({
     const isCEVersion = currentContext.domoObject.typeId === 'CODEENGINE_PACKAGE_VERSION';
     const modelId = isCEVersion
       ? currentContext.domoObject.metadata?.context?.workflowModelId
-      : currentContext.domoObject.parentId;
+      : currentContext.domoObject.parent?.id;
     const versionNumber = isCEVersion
       ? currentContext.domoObject.metadata?.context?.workflowVersionNumber
       : currentContext.domoObject.id;

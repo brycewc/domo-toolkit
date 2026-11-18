@@ -22,7 +22,8 @@ export function buildActivityLogAction({ contexts = [], domoObject, onStatusUpda
   const instance = instanceKeyFromUrl(domoObject.baseUrl);
   const userRights = contexts.find((context) => instance && context?.instance === instance && context.user)?.user?.metadata
     ?.USER_RIGHTS;
-  const parentTypeName = getObjectType(getObjectType(domoObject.typeId)?.parents?.[0])?.name;
+  const parentTypeIds = getObjectType(domoObject.typeId)?.parentTypeIds ?? [];
+  const parentTypeName = parentTypeIds.length === 1 ? getObjectType(parentTypeIds[0])?.name : null;
   const disabledReason = !target
     ? `Could not determine the parent ${parentTypeName ?? 'object'}`
     : userRights && !userRights.includes('audit')

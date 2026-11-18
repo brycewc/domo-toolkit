@@ -5,6 +5,7 @@ import { DataList } from '@/components/views/DataList';
 import { DataListItem } from '@/models/DataListItem';
 import { DomoObject } from '@/models/DomoObject';
 import { getObjectType } from '@/models/DomoObjectType';
+import { alertObjectMetadata } from '@/services/alerts';
 import IconInfoCircle from '@icons/info-circle.svg?react';
 import IconX from '@icons/x.svg?react';
 
@@ -209,7 +210,7 @@ function buildColumnUsageTree(items, cardsById, origin) {
 function buildDrillViewUrl(item, origin) {
   if (!origin || item.parentId == null) return null;
   try {
-    return new DomoObject('DRILL_VIEW', item.id, origin, { name: item.name }, null, item.parentId).url;
+    return new DomoObject('DRILL_VIEW', item.id, origin, { name: item.name }, null, { id: item.parentId }).url;
   } catch {
     return null;
   }
@@ -221,7 +222,8 @@ function buildObjectUrl(typeKey, item, origin) {
   const domoTypeId = TYPE_KEY_TO_DOMO_TYPE[typeKey];
   if (!domoTypeId || !origin) return null;
   try {
-    return new DomoObject(domoTypeId, item.id, origin, { name: item.name }).url;
+    const metadata = typeKey === 'alerts' ? alertObjectMetadata(item) : { name: item.name };
+    return new DomoObject(domoTypeId, item.id, origin, metadata).url;
   } catch {
     return null;
   }

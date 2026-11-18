@@ -73,7 +73,7 @@ export function GeneratePackageDefinitionFromJSDocView({
         return;
       }
 
-      const packageId = context.domoObject.parentId || context.domoObject.id;
+      const packageId = context.domoObject.parent?.id || context.domoObject.id;
       const tabId = context.tabId;
 
       if (!packageId) {
@@ -243,7 +243,7 @@ export function GeneratePackageDefinitionFromJSDocView({
 
   const handleSync = async () => {
     if (!parsed || cannotSync) return;
-    const packageId = currentContext.domoObject.parentId || currentContext.domoObject.id;
+    const packageId = currentContext.domoObject.parent?.id || currentContext.domoObject.id;
     const tabId = currentContext.tabId;
 
     setIsSubmitting(true);

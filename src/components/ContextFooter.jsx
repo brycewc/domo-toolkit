@@ -6,6 +6,7 @@ import { Alert } from '@/components/Alert';
 import { useConnectorVersion } from '@/hooks/useConnectorVersion';
 import { useGroupLookup } from '@/hooks/useGroupLookup';
 import { useUserLookup } from '@/hooks/useUserLookup';
+import { DomoObject } from '@/models/DomoObject';
 import { fetchObjectDetailsInPage, getObjectType, matchesCondition } from '@/models/DomoObjectType';
 import { getAccountsForProvider } from '@/services/accounts';
 import { getAlertActions } from '@/services/alerts';
@@ -15,12 +16,7 @@ import { getCardDefinition, getNotebookCardText } from '@/services/cards';
 import { getCodeEngineUsage } from '@/services/codeEngine';
 import { getStreamsForConnector } from '@/services/connectors';
 import { getDesignCards, getDesignInstances } from '@/services/customApps';
-import {
-  getDatasetColumns,
-  getDatasetDefinition,
-  getDatasetDetailsForList,
-  getDatasetsForPage
-} from '@/services/datasets';
+import { getDatasetColumns, getDatasetDefinition, getDatasetDetailsForList, getDatasetsForPage } from '@/services/datasets';
 import {
   getJupyterWorkspaceAccounts,
   getJupyterWorkspaceDatasets,
@@ -217,7 +213,7 @@ export function ContextFooter({
             related.fieldSource === 'context'
               ? domoObject.metadata?.context
               : related.fieldSource === 'parent'
-                ? domoObject.metadata?.parent?.details
+                ? domoObject.parent?.metadata?.details
                 : domoObject.metadata?.details;
           const arrayData = related.field ? arrayBase?.[related.field] : undefined;
 
@@ -275,39 +271,35 @@ export function ContextFooter({
         }
 
         if (related.source === 'parent') {
-          const parent = domoObject.metadata?.parent;
-          if (parent && parent.objectType?.id === related.typeId) {
+          const parent = domoObject.parent;
+          if (parent?.id && parent.typeId) {
             result.push({
               id: related.source,
               isCurrentObject: false,
-              label: related.label,
+              label: related.label || parent.typeName || getObjectType(parent.typeId)?.name,
               objectId: parent.id,
-              preloaded: parent.details,
-              typeId: related.typeId
+              parentId: parent.parent?.id ?? null,
+              parentTypeId: parent.parent?.typeId ?? null,
+              preloaded: parent.metadata?.details,
+              typeId: parent.typeId
             });
           }
           continue;
         }
 
-        let relatedId;
-        let resolvedTypeId = related.typeId;
-        if (related.source === 'parentId') {
-          relatedId = domoObject.parentId;
-        } else {
-          const fieldBase =
-            related.fieldSource === 'context'
-              ? domoObject.metadata?.context
-              : related.fieldSource === 'parent'
-                ? domoObject.metadata?.parent?.details
-                : domoObject.metadata?.details;
-          relatedId = related.field.split('.').reduce((obj, key) => obj?.[key], fieldBase);
-          // Dynamic type: resolve the related object's type from a sibling field rather than a
-          // fixed typeId (e.g. a CONTAINER_VIEW's resourceType says whether resourceId points at a
-          // PAGE, CARD, DATA_APP, etc.). Read from the same base as the id.
-          if (related.typeField) {
-            resolvedTypeId = related.typeField.split('.').reduce((obj, key) => obj?.[key], fieldBase);
-          }
-        }
+        const fieldBase =
+          related.fieldSource === 'context'
+            ? domoObject.metadata?.context
+            : related.fieldSource === 'parent'
+              ? domoObject.parent?.metadata?.details
+              : domoObject.metadata?.details;
+        const relatedId = related.field.split('.').reduce((obj, key) => obj?.[key], fieldBase);
+        // Dynamic type: resolve the related object's type from a sibling field rather than a
+        // fixed typeId (e.g. a CONTAINER_VIEW's resourceType says whether resourceId points at a
+        // PAGE, CARD, DATA_APP, etc.). Read from the same base as the id.
+        const resolvedTypeId = related.typeField
+          ? related.typeField.split('.').reduce((obj, key) => obj?.[key], fieldBase)
+          : related.typeId;
 
         if (relatedId && resolvedTypeId) {
           result.push({
@@ -335,7 +327,7 @@ export function ContextFooter({
   }, [
     currentContext?.domoObject?.id,
     currentContext?.domoObject?.typeId,
-    currentContext?.domoObject?.parentId,
+    currentContext?.domoObject?.parent?.id,
     currentContext?.domoObject?.metadata,
     currentContext?.featureSwitches,
     developerMode
@@ -448,7 +440,7 @@ export function ContextFooter({
           objectId,
           // The current object's own parent, so a fetcher for a child type can ask
           // on its parent's behalf without the relatedData entry configuring it.
-          objectParentId: currentContext?.domoObject?.parentId ?? null,
+          objectParentId: currentContext?.domoObject?.parent?.id ?? null,
           tabId: chromeTabId,
           userRights: currentContext?.user?.metadata?.USER_RIGHTS || []
         });
@@ -584,6 +576,7 @@ export function ContextFooter({
         baseUrl,
         objectId: activeTab.objectId,
         parentId: activeTab.parentId,
+        parentTypeId: activeTab.parentTypeId,
         typeId: activeTab.typeId
       });
       return (
@@ -817,14 +810,12 @@ export function ContextFooter({
   );
 }
 
-function buildSimpleUrl(baseUrl, typeId, objectId, parentId) {
+function buildSimpleUrl(baseUrl, typeId, objectId, parentId, parentTypeId = null) {
   const type = getObjectType(typeId);
   if (!type?.hasUrl()) return null;
-  let path = type.urlPath.replace('{id}', objectId);
-  if (parentId) path = path.replace('{parent}', parentId);
-  path = type.resolveSlugPlaceholder(path, objectId, parentId);
-  if (path.includes('{')) return null;
-  return `${baseUrl}${path}`;
+  const parent = parentId ? { id: parentId, typeId: parentTypeId ?? undefined } : null;
+  const url = new DomoObject(typeId, objectId, baseUrl, {}, null, parent).url;
+  return url && !url.includes('{') ? url : null;
 }
 
 function getFreshRelatedEntry(chromeTabId, objectId, key) {
@@ -842,7 +833,7 @@ function getFreshRelatedEntry(chromeTabId, objectId, key) {
 
 function injectUrls(
   src,
-  { baseUrl, isArray, itemIdField, itemParentField, itemTypeField, itemTypeId, objectId, parentId, typeId }
+  { baseUrl, isArray, itemIdField, itemParentField, itemTypeField, itemTypeId, objectId, parentId, parentTypeId, typeId }
 ) {
   if (!src || !baseUrl) return src;
 
@@ -862,7 +853,7 @@ function injectUrls(
   }
 
   if (typeof src === 'object' && !Array.isArray(src) && typeId && objectId) {
-    const url = buildSimpleUrl(baseUrl, typeId, objectId, parentId);
+    const url = buildSimpleUrl(baseUrl, typeId, objectId, parentId, parentTypeId);
     return url ? { url, ...src } : src;
   }
 
@@ -1006,7 +997,7 @@ function readFreshRelatedCache(chromeTabId, objectId) {
  */
 function resolveRelatedParentId(related, domoObject) {
   if (related.parentSource) {
-    if (related.parentSource === 'parentId') return domoObject.parentId;
+    if (related.parentSource === 'parent') return domoObject.parent?.id;
     if (related.parentSource === 'objectId') return domoObject.id;
     const parentBase = related.parentFieldSource === 'context' ? domoObject.metadata?.context : domoObject.metadata?.details;
     return related.parentSource.split('.').reduce((obj, key) => obj?.[key], parentBase);
@@ -1015,12 +1006,11 @@ function resolveRelatedParentId(related, domoObject) {
   // Auto-resolve: infer from type hierarchy
   const relatedType = getObjectType(related.typeId || related.itemTypeId);
   if (relatedType?.requiresParentForApi()) {
-    if (relatedType.parents?.includes(domoObject.typeId)) {
+    if (relatedType.parentTypeIds.includes(domoObject.typeId)) {
       return domoObject.id;
     }
-    const currentTypeModel = getObjectType(domoObject.typeId);
-    if (relatedType.parents?.some((p) => currentTypeModel?.parents?.includes(p))) {
-      return domoObject.parentId;
+    if (domoObject.parent && relatedType.parentTypeIds.includes(domoObject.parent.typeId)) {
+      return domoObject.parent?.id;
     }
   }
 

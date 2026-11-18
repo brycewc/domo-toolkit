@@ -13,6 +13,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
   const actions = new Set();
   const typeId = currentContext?.domoObject?.typeId;
   const metadata = currentContext?.domoObject?.metadata;
+  const parentDetails = currentContext?.domoObject?.parent?.metadata?.details;
   const details = metadata?.details;
   const url = currentContext?.url;
   const userRights = currentContext?.user?.metadata?.USER_RIGHTS || [];
@@ -72,15 +73,9 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
 
   if (
     (isDataset ||
-      [
-        'DATA_APP',
-        'DATA_APP_VIEW',
-        'DATAFLOW_TYPE',
-        'PAGE',
-        'WORKFLOW_MODEL',
-        'WORKSHEET',
-        'WORKSHEET_VIEW'
-      ].includes(typeId)) &&
+      ['DATA_APP', 'DATA_APP_VIEW', 'DATAFLOW_TYPE', 'PAGE', 'WORKFLOW_MODEL', 'WORKSHEET', 'WORKSHEET_VIEW'].includes(
+        typeId
+      )) &&
     !(typeId === 'PAGE' && Number(currentContext?.domoObject?.id) < 0)
   ) {
     actions.add('getWorkspaces');
@@ -107,10 +102,10 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
     if (metadata?.isOwner || userRights.includes('content.admin')) {
       actions.add('deleteUnusedBeastModes');
     }
-    if (details?.streamId && metadata?.parent?.details?.currentExecutionState === 'ACTIVE') {
+    if (details?.streamId && parentDetails?.currentExecutionState === 'ACTIVE') {
       actions.add('cancelStreamExecution');
     }
-    if (details?.streamId && metadata?.parent?.details?.scheduleState !== 'MANUAL' && !isDerivedDatasetType(details)) {
+    if (details?.streamId && parentDetails?.scheduleState !== 'MANUAL' && !isDerivedDatasetType(details)) {
       actions.add('setStreamToManual');
     }
     if (userRights.includes('account.admin') && getAccountIdsForDomoObject(currentContext.domoObject).length > 0) {
@@ -149,7 +144,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
 
   if (typeId === 'APPROVAL' && details?.status === 'PENDING') {
     const pendingApprover = details?.pendingApprover;
-    const templateOwnerId = metadata?.parent?.details?.owner?.id;
+    const templateOwnerId = parentDetails?.owner?.id;
     const currentUserId = currentContext?.user?.id;
     const isTemplateOwner =
       templateOwnerId != null && currentUserId != null && String(templateOwnerId) === String(currentUserId);
@@ -192,7 +187,7 @@ export function getAvailableActions(currentContext, isSupportActive = isSupportU
   if (
     ['CODEENGINE_PACKAGE', 'CODEENGINE_PACKAGE_VERSION'].includes(typeId) &&
     !metadata?.context?.workflowModelId &&
-    (metadata?.details?.language || metadata?.parent?.details?.language || 'JAVASCRIPT').toUpperCase() !== 'PYTHON'
+    (metadata?.details?.language || parentDetails?.language || 'JAVASCRIPT').toUpperCase() !== 'PYTHON'
   ) {
     actions.add('generate');
     // Routing key for the Generate Definition from JSDoc view's reload action

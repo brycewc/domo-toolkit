@@ -75,7 +75,7 @@ export function GetWorkspacesView({
 
       const entityType = workspaceEntityTypeFor(objectType);
       const isParentScoped = PARENT_SCOPED_TYPES.includes(objectType);
-      const entityId = isParentScoped ? domoObject.parentId : domoObject.id;
+      const entityId = isParentScoped ? domoObject.parent?.id : domoObject.id;
 
       if (!entityType || entityId == null) {
         setError(
@@ -94,7 +94,7 @@ export function GetWorkspacesView({
         : (domoObject.typeName || 'object').toLowerCase();
 
       const objectName = isParentScoped
-        ? domoObject.metadata?.parent?.name || `${subjectLabel} ${entityId}`
+        ? domoObject.parent?.metadata?.name || `${subjectLabel} ${entityId}`
         : domoObject.metadata?.name || `${objectType} ${entityId}`;
 
       setViewData({

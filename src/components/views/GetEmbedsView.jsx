@@ -64,12 +64,12 @@ export function GetEmbedsView({
       const context = DomoContext.fromJSON(data.currentContext);
       const domoObject = context.domoObject;
       const isAppView = domoObject.typeId === 'DATA_APP_VIEW';
-      const appId = isAppView ? domoObject.parentId || domoObject.metadata?.parent?.id : null;
+      const appId = isAppView ? domoObject.parent?.id || domoObject.parent?.id : null;
       if (isAppView && !appId) {
         setError('Could not determine the App Studio App for this page.');
         return;
       }
-      const appName = domoObject.metadata?.parent?.name ?? null;
+      const appName = domoObject.parent?.metadata?.name ?? null;
 
       setViewData({
         context,

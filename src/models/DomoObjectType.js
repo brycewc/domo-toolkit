@@ -1,5 +1,5 @@
-import { DomoObject } from '@/models/DomoObject';
 import { getAccountIdsForDomoObject } from '@/services/accounts';
+import { beastModeSaveTarget, datasetIdFromBeastModeLinks } from '@/utils/beastModeLinks';
 import { isDataModelType, isDatasetTypeId, isDatasetViewType, isFusionType } from '@/utils/datasetTypes';
 import {
   GOVERNANCE_TOOLKIT_APPLICATION_ID_BY_SLUG,
@@ -11,6 +11,10 @@ import {
  * ObjectType class represents a Domo object id with its configuration
  */
 export class DomoObjectType {
+  get parentTypeIds() {
+    return this.parent?.types.map((entry) => entry.typeId) ?? [];
+  }
+
   /**
    * @param {string} id - The internal type identifier
    * @param {string} name - The human-readable type name
@@ -26,12 +30,12 @@ export class DomoObjectType {
    * @param {Array<Object>} [options.copyConfigs] - Additional copy actions for the long-press dropdown
    *   Each entry: { label: string, source: string|Function, primary?: boolean, when?: string|Object|Function }
    *   - label: display label (e.g., 'Package ID')
-   *   - source: dot-path on DomoObject to resolve the copy value (e.g., 'parentId', 'metadata.details.streamId'),
+   *   - source: dot-path on DomoObject to resolve the copy value (e.g., 'parent.id', 'metadata.details.streamId'),
    *     or a function (domoObject) => value that derives the copy value — return null/undefined to hide the entry.
    *   - primary: if true, overrides the default copy action; original object ID moves to dropdown
    *   - when: visibility condition (see `matchesCondition`) — omit to show when source is truthy
    * @param {Object} [options.extractConfig] - Configuration for extracting ID from URL. A `valueMap` on the
-   *   config (or on its `parentExtract`) translates the extracted segment through a lookup table, yielding null
+   *   config (or on a parent's `extract`) translates the extracted segment through a lookup table, yielding null
    *   when the segment is absent from it — for a URL carrying a slug where the extension needs the mapped ID.
    * @param {string|string[]} [options.featureSwitch] - Instance feature switch this type requires. An array is met
    *   when any one is on; a `!` prefix means the switch must be off. Checked via `isTypeFeatureEnabled()` in
@@ -40,7 +44,19 @@ export class DomoObjectType {
    * @param {Object} [options.icon] - Icon config for this object type
    *   { component: string, rotation?: number } where component is a key in the ObjectTypeIcon registry
    * @param {RegExp} [options.idPattern] - Regular expression to validate IDs for this type
-   * @param {Array<string>} [options.parents] - Array of parent object type IDs this object can have
+   * @param {string|Object} [options.parent] - The one object this object lives on. A bare type ID for a fixed
+   *   parent type, `{ typeId, id, extract, fetcher }` for a fixed one with a source, or `{ type, types, ... }`.
+   *   `types` maps each possible parent type ID to `{ match, id, extract, fetcher, urlPath }`, any of which
+   *   overrides the shared field of the same name.
+   *   - `id`: dot-path on the DomoObject, or `(domoObject) => value`, where a value may also be
+   *     `{ id, parent }` to hand over the parent's own parent. An array tries each in order.
+   *   - `extract`: reads the parent ID from the URL, in `extractConfig` form.
+   *   - `fetcher`: a key in DomoObject's `PARENT_FETCHERS`, for a parent only an API call can find.
+   *   - `type` + `match`: the dot-path naming the parent's type, and the value each type answers to. A
+   *     `match` may instead be a `matchesCondition` condition. Without `type`, every type whose `match`
+   *     passes, or that has none, is a candidate. Keep candidates exclusive: these keys sort
+   *     alphabetically, so declaration order can't settle a tie.
+   *   - `urlPath`: this type's URL when its parent is of that type, taking precedence over `urlPath`.
    * @param {string} [options.redirectsToType] - When this type has no UI of its own, navigating to it redirects
    *   to an object of this target type instead (e.g. STREAM → DATA_SOURCE). Setting this lets the UI advertise
    *   the type as URL-navigating even though it has no `urlPath` itself. The actual ID resolution from the
@@ -90,7 +106,7 @@ export class DomoObjectType {
     this.featureSwitch = options.featureSwitch ?? null;
     this.icon = options.icon ?? null;
     this.idPattern = options.idPattern ?? null;
-    this.parents = options.parents ?? null;
+    this.parent = normalizeParentConfig(options.parent);
     this.redirectsToType = options.redirectsToType ?? null;
     this.relatedData = options.relatedData ?? null;
     this.urlPath = options.urlPath ?? null;
@@ -113,57 +129,35 @@ export class DomoObjectType {
   }
 
   /**
-   * Build the full URL for this object
+   * Build the full URL for this object, its parent already resolved
    * @param {string} baseUrl - The base URL (e.g., https://instance.domo.com)
    * @param {string} id - The object ID
-   * @param {string} [parentId] - Optional parent ID for types that require it
-   * @param {number} [tabId] - Optional Chrome tab ID for executing in-page lookups
+   * @param {{id: string, typeId: string}|null} parent - The parent, for types whose URL needs one
    * @param {Object} [metadata] - Optional metadata object for resolving {metadata.dot.path} placeholders
-   * @returns {string|Promise<string>} The full URL (may be async if parent lookup is needed)
+   * @returns {string} The full URL, with any placeholder it could not fill left in place
    */
-  async buildObjectUrl(baseUrl, id, parentId, tabId, metadata) {
-    if (!this.hasUrl()) {
+  buildObjectUrl(baseUrl, id, parent, metadata) {
+    const path = this.resolveUrlPath(parent?.typeId);
+    if (!path) {
       throw new Error(`Object type ${this.id} does not have a navigable URL`);
     }
 
-    let url = this.urlPath.replace('{id}', id);
-
-    // Covers a type whose parent feeds {slug} rather than a literal {parent}
-    if (this.requiresParentForUrl()) {
-      if (!parentId) {
-        // If we have a tabId and this type supports parent lookup, try to get it
-        if (tabId) {
-          const domoObject = new DomoObject(this.id, id, baseUrl);
-          try {
-            parentId = await domoObject.getParent(false, null, tabId);
-          } catch (error) {
-            throw new Error(`Parent ID is required for ${this.id} and could not be fetched: ${error.message}`, {
-              cause: error
-            });
-          }
-        } else {
-          throw new Error(`Parent ID is required for ${this.id}`);
-        }
-      }
-      url = url.replace('{parent}', parentId);
-    }
-
-    url = this.resolveSlugPlaceholder(url, id, parentId);
+    let url = path.replace('{id}', id);
+    if (parent?.id != null) url = url.replace('{parent}', parent.id);
+    url = this.resolveSlugPlaceholder(url, id, parent?.id);
     url = DomoObjectType.resolveMetadataPlaceholders(url, metadata);
 
     return `${baseUrl}${url}`;
   }
 
   /**
-   * Whether this type's parent ID can be resolved from just an object ID,
-   * without an originating URL or a pre-stored parentId. When true, both
-   * `buildObjectUrl` (URL flow) and `fetchObjectMetadata` callers (API flow)
-   * can fill in the parent placeholder lazily, so a parent-requiring type is
-   * still navigable from just a clipboard ID.
+   * Whether this type's parent can be found from just an object ID, without an originating URL or a
+   * parent handed in, so a parent-requiring type stays reachable from a clipboard ID.
    * @returns {boolean}
    */
   canResolveParentFromIdAlone() {
-    return PARENT_RESOLVABLE_FROM_ID.has(this.id);
+    if (!this.parent) return false;
+    return this.parent.types.some((entry) => entry.fetcher || (entry.id && this.api));
   }
 
   /**
@@ -183,12 +177,17 @@ export class DomoObjectType {
   }
 
   /**
-   * Extract the parent ID from a URL for this object type
+   * Extract the parent from a URL for this object type
    * @param {string} url - The URL to extract from
-   * @returns {string|null} The extracted parent ID or null if not found/configured
+   * @returns {{id: string, typeId: string}|null} The extracted parent, or null if not found/configured
    */
-  extractParentId(url) {
-    return extractUrlPart(url, this.extractConfig?.parentExtract);
+  extractParent(url) {
+    if (!url || !this.parent) return null;
+    for (const entry of this.parent.types) {
+      const id = entry.extract ? extractUrlPart(url, entry.extract) : null;
+      if (id) return { id, typeId: entry.typeId };
+    }
+    return null;
   }
 
   /**
@@ -231,7 +230,7 @@ export class DomoObjectType {
    * @returns {boolean} Whether the object type has a URL path
    */
   hasUrl() {
-    return this.urlPath !== null && this.urlPath !== undefined;
+    return !!this.urlPath || !!this.parent?.types.some((entry) => entry.urlPath);
   }
 
   /**
@@ -261,7 +260,39 @@ export class DomoObjectType {
    * @returns {boolean} Whether a parent ID is required for URL construction
    */
   requiresParentForUrl() {
-    return !!this.urlPath && (this.urlPath.includes('{parent}') || this.urlSlugs?.source === 'parent');
+    const paths = [this.urlPath, ...(this.parent?.types.map((entry) => entry.urlPath) ?? [])].filter(Boolean);
+    if (paths.length === 0) return false;
+    return !this.urlPath || paths.some((path) => path.includes('{parent}')) || this.urlSlugs?.source === 'parent';
+  }
+
+  /**
+   * The parent type entries that can apply to an object, in the order to try them
+   * @param {Object} domoObject - The DomoObject whose parent is wanted
+   * @returns {Array<Object>} Normalized parent type entries
+   */
+  resolveCandidateParentTypes(domoObject) {
+    if (!this.parent) return [];
+    const discriminator = this.parent.type ? resolveParentSource(this.parent.type, domoObject) : undefined;
+    return this.parent.types.filter((entry) => {
+      if (entry.match === undefined) return !this.parent.type;
+      if (typeof entry.match === 'string') return discriminator != null && String(discriminator) === entry.match;
+      return matchesCondition(entry.match, domoObject);
+    });
+  }
+
+  /**
+   * The parent an object's own data names, without any API call
+   * @param {Object} domoObject - The DomoObject whose parent is wanted
+   * @returns {{id: string, parent?: Object, typeId: string}|null}
+   */
+  resolveParentFromData(domoObject) {
+    for (const entry of this.resolveCandidateParentTypes(domoObject)) {
+      const value = resolveParentSource(entry.id, domoObject);
+      if (value == null || value === '') continue;
+      if (typeof value === 'object') return { ...value, id: String(value.id), typeId: entry.typeId };
+      return { id: String(value), typeId: entry.typeId };
+    }
+    return null;
   }
 
   /**
@@ -276,6 +307,10 @@ export class DomoObjectType {
     const key = this.urlSlugs.source === 'parent' ? parentId : id;
     const slug = key == null ? null : this.urlSlugs.map[key];
     return slug ? url.replace('{slug}', slug) : url;
+  }
+
+  resolveUrlPath(parentTypeId) {
+    return this.parent?.types.find((entry) => entry.typeId === parentTypeId)?.urlPath ?? this.urlPath;
   }
 }
 
@@ -386,8 +421,15 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'alerts' },
     icon: { component: 'RingingBell' },
     idPattern: /^\d+$/,
-    relatedData: [{ fetcher: 'alertActions', field: 'actions', isArray: true, label: 'Actions' }],
-    urlPath: '/alerts/{id}'
+    parent: {
+      id: 'metadata.details.resourceId',
+      type: 'metadata.details.resourceType',
+      types: {
+        CARD: { match: 'CARD', urlPath: '/kpis/details/{parent}/alerts/{id}' },
+        DATA_SOURCE: { match: 'DATASET', urlPath: '/datasources/{parent}/details/alerts/{id}' }
+      }
+    },
+    relatedData: [{ source: 'parent' }, { fetcher: 'alertActions', field: 'actions', isArray: true, label: 'Actions' }]
   }),
   APP: new DomoObjectType('APP', 'Custom App Design (Brick)', {
     api: {
@@ -404,11 +446,11 @@ export const ObjectTypeRegistry = {
     urlPath: '/assetlibrary/{id}/overview'
   }),
   APP_INSTANCE: new DomoObjectType('APP_INSTANCE', 'Custom App', {
-    api: { endpoint: '/apps/v1/instances/{id}', paths: { created: 'createdDate', parentId: 'designId' } },
+    api: { endpoint: '/apps/v1/instances/{id}', paths: { created: 'createdDate' } },
     icon: { component: 'Code' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['RYUU_APP'],
-    relatedData: [{ label: 'App Design', source: 'parentId', typeId: 'RYUU_APP' }]
+    parent: { id: 'metadata.details.designId', typeId: 'RYUU_APP' },
+    relatedData: [{ label: 'App Design', source: 'parent' }]
     // No urlPath: an instance has no standalone page; it's reached as a related object from a card.
   }),
   APPROVAL: new DomoObjectType('APPROVAL', 'Approval', {
@@ -426,17 +468,16 @@ export const ObjectTypeRegistry = {
         details: 'data.request',
         // A request's own title is optional and comes back as an empty string when unset; Domo's
         // Approval Center shows the template's title in that case, so fall back the same way.
-        name: ['data.request.title', 'data.request.templateTitle'],
-        parentId: 'data.request.templateID'
+        name: ['data.request.title', 'data.request.templateTitle']
       }
     },
-    copyConfigs: [{ label: 'Approval Template ID', source: 'parentId' }],
+    copyConfigs: [{ label: 'Approval Template ID', source: 'parent.id' }],
     extractConfig: { keyword: 'request-details' },
     featureSwitch: 'approvalcenter',
     icon: { component: 'ApprovalCenter' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['TEMPLATE'],
-    relatedData: [{ label: 'Approval Template', source: 'parentId', typeId: 'TEMPLATE' }],
+    parent: { id: 'metadata.details.templateID', typeId: 'TEMPLATE' },
+    relatedData: [{ source: 'parent' }],
     urlPath: '/approval/request-details/{id}'
   }),
   AUTHORITY: new DomoObjectType('AUTHORITY', 'Grant', { idPattern: /.*/ }),
@@ -445,32 +486,40 @@ export const ObjectTypeRegistry = {
       endpoint: '/query/v1/functions/template/{id}?hidden=true',
       paths: { name: 'name' }
     },
-    // Each source is written during enrichment (see background.js) only for the
-    // case it applies to, so the two Card ID entries are mutually exclusive: a
-    // drill-saved Beast Mode copies the card that drill hangs off.
     copyConfigs: [
-      { label: 'DataSet ID', source: 'parentId' },
-      { label: 'Card ID', source: 'metadata.context.savedOnCardId' },
-      { label: 'Card ID', source: 'metadata.context.savedOnDrillCardId' },
-      { label: 'Drill ID', source: 'metadata.context.savedOnDrillId' }
+      { label: 'DataSet ID', source: 'metadata.context.datasetId' },
+      { label: 'Card ID', source: 'parent.id', when: { field: 'parent.typeId', matches: 'CARD' } },
+      { label: 'Card ID', source: 'parent.parent.id', when: { field: 'parent.typeId', matches: 'DRILL_VIEW' } },
+      { label: 'Drill ID', source: 'parent.id', when: { field: 'parent.typeId', matches: 'DRILL_VIEW' } }
     ],
     extractConfig: { keyword: 'id' },
     icon: { component: 'Function' },
     idPattern: /^\d+$/,
-    parents: ['DATA_SOURCE', 'CARD'],
-    // Each entry is gated on an id `background.js` writes only for the case it
-    // applies to, so where the Beast Mode is saved decides which tabs appear.
+    // A Beast Mode saved to a card or drill can only ever live there, so that is its parent, even though it
+    // still reads its dataset.
+    parent: {
+      types: {
+        CARD: {
+          id: ({ metadata }) => {
+            const target = beastModeSaveTarget(metadata?.details?.links);
+            return target?.typeId === 'CARD' ? target.id : null;
+          }
+        },
+        DATA_SOURCE: {
+          id: ({ metadata }) => datasetIdFromBeastModeLinks(metadata?.details?.links),
+          match: ({ metadata }) => !beastModeSaveTarget(metadata?.details?.links)
+        },
+        DRILL_VIEW: {
+          id: ({ metadata }) => {
+            const target = beastModeSaveTarget(metadata?.details?.links);
+            return target?.typeId === 'DRILL_VIEW' ? { id: target.id, parent: { id: target.parentId } } : null;
+          }
+        }
+      }
+    },
     relatedData: [
-      { label: 'DataSet', source: 'parentId', typeId: 'DATA_SOURCE' },
-      { field: 'savedOnCardId', fieldSource: 'context', label: 'Card', typeId: 'CARD' },
-      {
-        field: 'savedOnDrillId',
-        fieldSource: 'context',
-        label: 'Drill Path',
-        parentFieldSource: 'context',
-        parentSource: 'savedOnDrillCardId',
-        typeId: 'DRILL_VIEW'
-      },
+      { source: 'parent' },
+      { field: 'datasetId', fieldSource: 'context', label: 'DataSet', typeId: 'DATA_SOURCE' },
       {
         fetcher: 'beastModeCards',
         field: 'usageCardIds',
@@ -498,8 +547,23 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'details' },
     icon: { component: 'Card' },
     idPattern: /^\d+$/,
-    parents: ['DATA_SOURCE', 'APP'],
+    // An app card reads several datasets through its instance, and a notebook card can embed several, so
+    // only an ordinary card has a dataset parent.
+    parent: {
+      types: {
+        APP_INSTANCE: {
+          id: 'metadata.details.domoapp.id',
+          match: { field: 'metadata.details.type', matches: 'domoapp' }
+        },
+        DATA_SOURCE: {
+          id: 'metadata.details.datasources.0.dataSourceId',
+          match: ({ metadata }) =>
+            !['domoapp', 'Text'].includes(metadata?.details?.type) && metadata?.details?.datasources?.length === 1
+        }
+      }
+    },
     relatedData: [
+      { source: 'parent' },
       {
         fetcher: 'cardDefinition',
         label: 'Definition',
@@ -566,19 +630,18 @@ export const ObjectTypeRegistry = {
       paths: {
         created: 'data.certification.request.createdTime',
         details: 'data.certification',
-        name: 'data.certification.request.entityTitle',
-        parentId: 'data.certification.approval.templateID'
+        name: 'data.certification.request.entityTitle'
       }
     },
-    copyConfigs: [{ label: 'Certification Process ID', source: 'parentId' }],
+    copyConfigs: [{ label: 'Certification Process ID', source: 'parent.id' }],
     extractConfig: { keyword: 'request-details' },
     featureSwitch: 'certified-content',
     icon: { component: 'Certified' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['CERTIFICATION_PROCESS'],
+    parent: { id: 'metadata.details.approval.templateID', typeId: 'CERTIFICATION_PROCESS' },
     relatedData: [
       { field: 'request.entityId', label: 'Certified Object', typeField: 'request.entityType' },
-      { label: 'Certification Process', source: 'parentId', typeId: 'CERTIFICATION_PROCESS' }
+      { source: 'parent' }
     ],
     urlPath: '/certification-center/request-details/{id}'
   }),
@@ -661,7 +724,7 @@ export const ObjectTypeRegistry = {
       paths: { name: 'version' }
     },
     copyConfigs: [
-      { label: 'Package ID', primary: true, source: 'parentId' },
+      { label: 'Package ID', primary: true, source: 'parent.id' },
       { label: 'Version Number', source: 'id' },
       // Shown only when this CE version is viewed from inside a workflow (the
       // workflow back-references are absent on the standalone /codeengine page).
@@ -670,10 +733,10 @@ export const ObjectTypeRegistry = {
     ],
     icon: { component: 'Package' },
     idPattern: /^[0-9]+\.[0-9]+\.[0-9]+$/,
-    parents: ['CODEENGINE_PACKAGE'],
+    parent: 'CODEENGINE_PACKAGE',
     relatedData: [
       { label: 'Package Version', source: 'self' },
-      { label: 'Code Engine', source: 'parentId', typeId: 'CODEENGINE_PACKAGE' },
+      { label: 'Code Engine', source: 'parent' },
       {
         field: 'workflowVersionNumber',
         fieldSource: 'context',
@@ -756,16 +819,21 @@ export const ObjectTypeRegistry = {
   CONTAINER_VIEW: new DomoObjectType('CONTAINER_VIEW', 'Container View', {
     api: {
       endpoint: '/content/v2/views/{id}',
-      paths: { created: 'created', name: 'name', parentId: 'resourceId' }
+      paths: { created: 'created', name: 'name' }
     },
     icon: { component: 'Document' },
     idPattern: /^\d+$/,
-    // The parent's concrete type is dynamic: resourceType names which of these the
-    // view sits on, and resourceId holds its id. Because it isn't a single fixed
-    // type, the generic getParent() (which uses parents[0]) can't enrich it; the
-    // parent resource is surfaced via the typeField relatedData entry instead.
-    parents: ['CARD', 'DATA_APP', 'PAGE', 'REPORT_BUILDER_VIEW'],
-    relatedData: [{ field: 'resourceId', label: 'Resource', typeField: 'resourceType' }]
+    parent: {
+      id: 'metadata.details.resourceId',
+      type: 'metadata.details.resourceType',
+      types: {
+        CARD: { match: 'CARD' },
+        DATA_APP: { match: 'DATA_APP' },
+        PAGE: { match: 'PAGE' },
+        REPORT_BUILDER_VIEW: { match: 'REPORT_BUILDER_VIEW' }
+      }
+    },
+    relatedData: [{ label: 'Resource', source: 'parent' }]
   }),
   CUSTOMER: new DomoObjectType('CUSTOMER', 'Customer', { idPattern: /.*/ }),
   CUSTOMER_LANDING_ENTITY: new DomoObjectType('CUSTOMER_LANDING_ENTITY', 'Customer Landing Entity', { idPattern: /.*/ }),
@@ -804,17 +872,14 @@ export const ObjectTypeRegistry = {
       fallback: { endpoint: '/content/v1/pages/{id}/access', paths: { name: 'pageName' } },
       paths: { created: 'page.created', name: 'title' }
     },
-    copyConfigs: [{ label: 'App ID', source: 'parentId' }],
-    extractConfig: {
-      keyword: 'pages',
-      parentExtract: { keyword: 'app-studio', offset: 1 }
-    },
+    copyConfigs: [{ label: 'App ID', source: 'parent.id' }],
+    extractConfig: { keyword: 'pages' },
     featureSwitch: 'data-app',
     icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
-    parents: ['DATA_APP'],
+    parent: { extract: { keyword: 'app-studio', offset: 1 }, fetcher: 'appStudioPageParent', typeId: 'DATA_APP' },
     relatedData: [
-      { label: 'Studio App', source: 'parent', typeId: 'DATA_APP' },
+      { source: 'parent' },
       {
         field: 'content',
         fieldSource: 'context',
@@ -888,7 +953,7 @@ export const ObjectTypeRegistry = {
       paths: { created: 'created', name: 'name' }
     },
     copyConfigs: [
-      // Accounts live on the stream (`metadata.parent.details.accounts`) now
+      // Accounts live on the stream (`parent.metadata.details.accounts`) now
       // that the singular `accountId` field has been removed from the
       // datasource response. Only show this entry when the stream pulls
       // from exactly one account — multi-account is rare and a single Copy
@@ -901,19 +966,23 @@ export const ObjectTypeRegistry = {
           return ids.length === 1 ? ids[0] : null;
         }
       },
-      {
-        label: 'DataFlow ID',
-        source: 'parentId',
-        when: { field: 'metadata.details.type', matches: 'dataflow' }
-      },
+      { label: 'DataFlow ID', source: 'parent.id', when: { field: 'parent.typeId', matches: 'DATAFLOW_TYPE' } },
       { label: 'Stream ID', source: 'metadata.details.streamId' }
     ],
     extractConfig: { keyword: 'datasources' },
     icon: { component: 'Database' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['DATAFLOW_TYPE', 'DATA_SOURCE', 'STREAM'],
+    parent: {
+      types: {
+        DATAFLOW_TYPE: { fetcher: 'dataflowForOutput', match: { field: 'metadata.details.type', matches: 'dataflow' } },
+        STREAM: {
+          id: 'metadata.details.streamId',
+          match: { field: 'metadata.details.type', notMatches: 'dataflow' }
+        }
+      }
+    },
     relatedData: [
-      { label: 'Stream', source: 'parent', typeId: 'STREAM' },
+      { source: 'parent' },
       // Preferred: multi-account list from the stream definition.
       {
         field: 'accounts',
@@ -925,7 +994,6 @@ export const ObjectTypeRegistry = {
       },
       // Fallback: legacy singular accountId on the datasource response.
       { field: 'accountId', label: 'Account', typeId: 'ACCOUNT' },
-      { label: 'DataFlow', source: 'parent', typeId: 'DATAFLOW_TYPE' },
       // No `field` to seed it: the tab has to appear before the lookup runs,
       // because finding no workspace is itself the answer it reports.
       {
@@ -978,19 +1046,12 @@ export const ObjectTypeRegistry = {
       nameFormat: 'timestamp',
       paths: { name: 'beginTime' }
     },
-    copyConfigs: [{ label: 'DataFlow ID', source: 'parentId' }],
-    extractConfig: {
-      keyword: 'details',
-      offset: 1,
-      parentExtract: { keyword: 'dataflows', offset: 1 }
-    },
+    copyConfigs: [{ label: 'DataFlow ID', source: 'parent.id' }],
+    extractConfig: { keyword: 'details', offset: 1 },
     icon: { component: 'Play' },
     idPattern: /^\d+$/,
-    parents: ['DATAFLOW_TYPE'],
-    relatedData: [
-      { label: 'Execution', source: 'self' },
-      { label: 'DataFlow', source: 'parentId', typeId: 'DATAFLOW_TYPE' }
-    ],
+    parent: { extract: { keyword: 'dataflows', offset: 1 }, typeId: 'DATAFLOW_TYPE' },
+    relatedData: [{ label: 'Execution', source: 'self' }, { source: 'parent' }],
     urlPath: '/datacenter/dataflows/{parent}/details/{id}'
   }),
   DEPLOYMENT: new DomoObjectType('DEPLOYMENT', 'Repository Deployment', {
@@ -1009,7 +1070,7 @@ export const ObjectTypeRegistry = {
       },
       {
         label: 'Card ID',
-        source: 'parentId'
+        source: 'parent.id'
       },
       {
         label: 'DataSet ID',
@@ -1017,15 +1078,12 @@ export const ObjectTypeRegistry = {
         when: { field: 'metadata.details.datasources', length: 1 }
       }
     ],
-    extractConfig: {
-      keyword: 'drillviewid',
-      parentExtract: { keyword: 'cardid', offset: 1 }
-    },
+    extractConfig: { keyword: 'drillviewid' },
     icon: { component: 'Drill' },
     idPattern: /^\d+$/,
-    parents: ['CARD'],
+    parent: { extract: { keyword: 'cardid', offset: 1 }, fetcher: 'drillParentCard', typeId: 'CARD' },
     relatedData: [
-      { label: 'Parent Card', source: 'parentId', typeId: 'CARD' },
+      { label: 'Parent Card', source: 'parent' },
       {
         field: 'datasources',
         isArray: true,
@@ -1060,15 +1118,28 @@ export const ObjectTypeRegistry = {
     api: { endpoint: '/forms/v2/{id}', paths: { name: 'name' } },
     icon: { component: 'CardNotebook' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['WORKFLOW_MODEL'],
-    relatedData: [{ label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }]
+    // A workflow form's domainId is "<modelId> - <version>".
+    parent: {
+      type: 'metadata.details.domainType',
+      types: {
+        DATA_APP: { id: 'metadata.details.domainId', match: 'APP_STUDIO_APP' },
+        WORKFLOW_MODEL_VERSION: {
+          id: ({ metadata }) => {
+            const [modelId, version] = String(metadata?.details?.domainId ?? '').split(' - ');
+            return modelId && version ? { id: version, parent: { id: modelId } } : null;
+          },
+          match: 'WORKFLOW'
+        }
+      }
+    },
+    relatedData: [{ source: 'parent' }]
   }),
   ENIGMA_FORM_INSTANCE: new DomoObjectType('ENIGMA_FORM_INSTANCE', 'Form Instance', {
     api: { endpoint: '/forms/v1/instances/{id}', paths: { name: 'revision' } },
     icon: { component: 'CardNotebook' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['ENIGMA_FORM'],
-    relatedData: [{ label: 'Form', source: 'parentId', typeId: 'ENIGMA_FORM' }]
+    parent: { id: 'metadata.details.formId', typeId: 'ENIGMA_FORM' },
+    relatedData: [{ source: 'parent' }]
   }),
   EXECUTOR_APPLICATION: new DomoObjectType('EXECUTOR_APPLICATION', 'Governance Toolkit Application', {
     api: { endpoint: '/executor/v1/applications/{id}', paths: { name: 'name' } },
@@ -1085,21 +1156,18 @@ export const ObjectTypeRegistry = {
     },
     // Domo publishes no deep link to a job, so the extension's own param is what
     // carries it; the background drives the toolkit UI to open it on arrival.
-    extractConfig: {
-      keyword: GOVERNANCE_TOOLKIT_JOB_PARAM,
-      parentExtract: { keyword: 'governance-toolkit', valueMap: GOVERNANCE_TOOLKIT_APPLICATION_ID_BY_SLUG }
-    },
+    extractConfig: { keyword: GOVERNANCE_TOOLKIT_JOB_PARAM },
     featureSwitch: ['executor-pipeline', 'governance-toolkit-ui'],
     icon: { component: 'Toolbox' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['EXECUTOR_APPLICATION'],
+    parent: {
+      extract: { keyword: 'governance-toolkit', valueMap: GOVERNANCE_TOOLKIT_APPLICATION_ID_BY_SLUG },
+      fetcher: 'governanceToolkitApplication',
+      typeId: 'EXECUTOR_APPLICATION'
+    },
     relatedData: [
       { label: 'Job', source: 'self' },
-      {
-        label: 'Application',
-        source: 'parentId',
-        typeId: 'EXECUTOR_APPLICATION'
-      },
+      { label: 'Application', source: 'parent' },
       {
         field: 'executionPayload.configDatasetId',
         label: 'Config DataSet',
@@ -1126,8 +1194,8 @@ export const ObjectTypeRegistry = {
     },
     icon: { component: 'Document' },
     idPattern: /^\d+$/,
-    parents: ['FILE'],
-    relatedData: [{ label: 'Document', source: 'parentId', typeId: 'FILE' }]
+    parent: 'FILE',
+    relatedData: [{ source: 'parent' }]
   }),
   FILESET: new DomoObjectType('FILESET', 'Document Collection', {
     api: { endpoint: '/files/v1/filesets/{id}', paths: { name: 'name' } },
@@ -1147,11 +1215,8 @@ export const ObjectTypeRegistry = {
     },
     icon: { component: 'Document' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['FILESET'],
-    relatedData: [
-      { label: 'Document', source: 'self' },
-      { label: 'Document Collection', source: 'parentId', typeId: 'FILESET' }
-    ]
+    parent: 'FILESET',
+    relatedData: [{ label: 'Document', source: 'self' }, { source: 'parent' }]
   }),
   GOAL: new DomoObjectType('GOAL', 'Goal', {
     aliases: ['OBJECTIVE'],
@@ -1172,9 +1237,11 @@ export const ObjectTypeRegistry = {
     idPattern: /^\d+$/
   }),
   GOAL_TAG: new DomoObjectType('GOAL_TAG', 'Goal Tag', {
+    api: { endpoint: '/social/v1/objectives/tags?all=true', filterByIdField: 'id', paths: { name: 'name' } },
     icon: { component: 'Tag' },
     idPattern: /^\d+$/,
-    parents: ['TAG_CATEGORY']
+    parent: { id: 'metadata.details.category.id', typeId: 'TAG_CATEGORY' },
+    relatedData: [{ source: 'parent' }]
   }),
   GROUP: new DomoObjectType('GROUP', 'Group', {
     api: { endpoint: '/content/v2/groups/{id}', paths: { created: 'created', name: 'name' } },
@@ -1224,20 +1291,17 @@ export const ObjectTypeRegistry = {
       endpoint: '/queues/v1/{parent}/tasks/{id}?render=true',
       paths: { created: 'createdOn', name: 'displayEntity.name' }
     },
-    extractConfig: {
-      keyword: 'id',
-      parentExtract: { keyword: 'queueId', offset: 1 }
-    },
+    extractConfig: { keyword: 'id' },
     featureSwitch: 'hopper',
     icon: { component: 'FormatListChecks' },
     // Task IDs are case-sensitive, business-defined references (e.g.
     // "15AUG25_TS551E") or system UUIDs, never plain integers, so accept any
     // alphanumeric string with underscores or hyphens rather than a UUID shape.
     idPattern: /^[A-Za-z0-9_-]+$/,
-    parents: ['HOPPER_QUEUE'],
+    parent: { extract: { keyword: 'queueId', offset: 1 }, typeId: 'HOPPER_QUEUE' },
     relatedData: [
       { label: 'Task', source: 'self' },
-      { label: 'Queue', source: 'parentId', typeId: 'HOPPER_QUEUE' }
+      { label: 'Queue', source: 'parent' }
     ],
     urlPath: '/queues/tasks?queueId={parent}&id={id}&openTaskDrawer=true'
   }),
@@ -1253,8 +1317,8 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'key-results' },
     icon: { component: 'Goals' },
     idPattern: /^\d+$/,
-    parents: ['GOAL'],
-    relatedData: [{ label: 'Goal', source: 'parentId', typeId: 'GOAL' }],
+    parent: { id: 'metadata.details.objectiveId', typeId: 'GOAL' },
+    relatedData: [{ source: 'parent' }],
     urlPath: '/goals/key-results/{id}'
   }),
   LANDING_ENTITY: new DomoObjectType('LANDING_ENTITY', 'Landing Entity', {
@@ -1264,16 +1328,16 @@ export const ObjectTypeRegistry = {
   MAGNUM_COLLECTION: new DomoObjectType('MAGNUM_COLLECTION', 'AppDB Collection', {
     api: {
       endpoint: '/datastores/v1/collections/{id}',
-      paths: { name: 'name', parentId: 'datastoreId' }
+      paths: { name: 'name' }
     },
     extractConfig: { keyword: 'appDb' },
     icon: { component: 'DataCollection' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['MAGNUM_DATASTORE'],
+    parent: { id: 'metadata.details.datastoreId', typeId: 'MAGNUM_DATASTORE' },
     relatedData: [
       { label: 'Collection', source: 'self' },
       { field: 'datasourceId', label: 'DataSet', typeId: 'DATA_SOURCE' },
-      { label: 'DataStore', source: 'parentId', typeId: 'MAGNUM_DATASTORE' }
+      { label: 'DataStore', source: 'parent' }
     ],
     urlPath: '/appDb/{id}/permissions'
   }),
@@ -1305,8 +1369,9 @@ export const ObjectTypeRegistry = {
     extractConfig: { keyword: 'page' },
     icon: { component: 'PagesBars' },
     idPattern: /^-?\d+$/,
-    parents: ['PAGE'],
+    parent: { fetcher: 'pageParentPage', typeId: 'PAGE' },
     relatedData: [
+      { label: 'Parent Page', source: 'parent' },
       {
         field: 'content',
         fieldSource: 'context',
@@ -1325,9 +1390,12 @@ export const ObjectTypeRegistry = {
     urlPath: '/page/{id}'
   }),
   PAGE_COLLECTION: new DomoObjectType('PAGE_COLLECTION', 'Page Collection', {
+    // A collection is stored as a page row, so the page endpoint returns it.
+    api: { endpoint: '/content/v1/pages/{id}', paths: { name: 'title' } },
     icon: { component: 'Pages' },
     idPattern: /^\d+$/,
-    parents: ['PAGE']
+    parent: { id: 'metadata.details.parentPageId', typeId: 'PAGE' },
+    relatedData: [{ source: 'parent' }]
   }),
   PROJECT: new DomoObjectType('PROJECT', 'Project', {
     api: { endpoint: '/content/v1/projects/{id}', paths: { created: 'created', name: 'projectName' } },
@@ -1338,13 +1406,11 @@ export const ObjectTypeRegistry = {
     urlPath: '/project/{id}'
   }),
   PROJECT_LIST: new DomoObjectType('PROJECT_LIST', 'Project List', {
-    api: {
-      endpoint: '/content/v1/projects/{parent}/lists/{id}',
-      paths: { name: 'name' }
-    },
+    api: { endpoint: '/content/mobile/v1/projects/lists?ids={id}', filterByIdField: 'id', paths: { name: 'name' } },
     icon: { component: 'ListBulleted' },
     idPattern: /^\d+$/,
-    parents: ['PROJECT']
+    parent: { id: 'metadata.details.projectId', typeId: 'PROJECT' },
+    relatedData: [{ source: 'parent' }]
   }),
   PROJECT_TASK: new DomoObjectType('PROJECT_TASK', 'Task', {
     api: { endpoint: '/content/v1/tasks/{id}', paths: { name: 'taskName' } },
@@ -1352,13 +1418,15 @@ export const ObjectTypeRegistry = {
     featureSwitch: '!no-projects-tasks',
     icon: { component: 'Project' },
     idPattern: /^\d+$/,
-    parents: ['PROJECT', 'PROJECT_LIST'],
+    parent: { id: 'metadata.details.projectId', typeId: 'PROJECT' },
+    relatedData: [{ source: 'parent' }],
     urlPath: '/project?taskId={id}'
   }),
   PROJECT_TASK_ATTACHMENT: new DomoObjectType('PROJECT_TASK_ATTACHMENT', 'Task Attachment', {
     icon: { component: 'Document' },
     idPattern: /^\d+$/,
-    parents: ['PROJECT_TASK']
+    // No endpoint goes from an attachment to its task, so only a caller listing a task's attachments knows it.
+    parent: 'PROJECT_TASK'
   }),
   PROXY_USER: new DomoObjectType('PROXY_USER', 'Proxy User', {
     idPattern: /.*/
@@ -1413,9 +1481,9 @@ export const ObjectTypeRegistry = {
     // No urlPath: Domo has no working report URL. Its ?report= param on an
     // app-studio URL reaches a modal that keys its layout off an in-page
     // singleton, so a cold link renders a blank report. Navigate via the app.
-    parents: ['DATA_APP'],
+    parent: { id: 'metadata.context.dataAppId', typeId: 'DATA_APP' },
     relatedData: [
-      { field: 'dataAppId', fieldSource: 'context', label: 'Studio App', typeId: 'DATA_APP' },
+      { source: 'parent' },
       { field: 'reportPageId', fieldSource: 'context', label: 'Report Page', typeId: 'REPORT_BUILDER_PAGE' },
       {
         fetcher: 'reportSchedules',
@@ -1434,9 +1502,9 @@ export const ObjectTypeRegistry = {
     featureSwitch: 'report-builder',
     icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
-    parents: ['REPORT_BUILDER'],
+    parent: { id: 'metadata.context.reportId', typeId: 'REPORT_BUILDER' },
     relatedData: [
-      { field: 'reportId', fieldSource: 'context', label: 'Report', typeId: 'REPORT_BUILDER' },
+      { label: 'Report', source: 'parent' },
       { field: 'dataAppId', fieldSource: 'context', label: 'Studio App', typeId: 'DATA_APP' },
       {
         field: 'content',
@@ -1455,7 +1523,8 @@ export const ObjectTypeRegistry = {
     featureSwitch: 'report-builder',
     icon: { component: 'Document' },
     idPattern: /^\d+$/,
-    parents: ['REPORT_BUILDER'],
+    parent: { id: 'metadata.context.reportId', typeId: 'REPORT_BUILDER' },
+    relatedData: [{ label: 'Report', source: 'parent' }],
     // A delivery target, not a page. Shares an id space with REPORT_SCHEDULE (both
     // key off report_schedule.report_id), hence the same URL.
     urlPath: '/scheduled-reports/history/{id}'
@@ -1463,16 +1532,14 @@ export const ObjectTypeRegistry = {
   REPORT_SCHEDULE: new DomoObjectType('REPORT_SCHEDULE', 'Scheduled Report', {
     api: {
       endpoint: '/content/v1/reportschedules/{id}',
-      paths: { created: 'schedule.startDate', name: 'title', parentId: 'viewId' }
+      paths: { created: 'schedule.startDate', name: 'title' }
     },
     featureSwitch: 'scheduled-reports',
     icon: { component: 'Calendar' },
     idPattern: /^\d+$/,
-    // Single, fixed parent type, so getParent() enriches metadata.parent with the
-    // CONTAINER_VIEW details, which the View tab shows and the Resource tab reads.
-    parents: ['CONTAINER_VIEW'],
+    parent: { id: 'metadata.details.viewId', typeId: 'CONTAINER_VIEW' },
     relatedData: [
-      { label: 'View', source: 'parent', typeId: 'CONTAINER_VIEW' },
+      { label: 'View', source: 'parent' },
       { field: 'resourceId', fieldSource: 'parent', label: 'Resource', typeField: 'resourceType' },
       // Only present when the schedule belongs to a Report Builder report, which
       // is also the only case the enrichment spends a request on.
@@ -1525,8 +1592,9 @@ export const ObjectTypeRegistry = {
     },
     icon: { component: 'Database' },
     idPattern: /^\d+$/,
-    parents: ['DATA_SOURCE'],
-    redirectsToType: 'DATA_SOURCE'
+    parent: { id: 'metadata.details.dataSource.id', typeId: 'DATA_SOURCE' },
+    redirectsToType: 'DATA_SOURCE',
+    relatedData: [{ source: 'parent' }]
   }),
   SUBSCRIPTION: new DomoObjectType('SUBSCRIPTION', 'Subscription', {
     featureSwitch: ['publish-everywhere', 'publish-everywhere-v2'],
@@ -1534,6 +1602,7 @@ export const ObjectTypeRegistry = {
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   TAG_CATEGORY: new DomoObjectType('TAG_CATEGORY', 'Goal Tag Category', {
+    api: { endpoint: '/social/v1/objectives/tags/categories?all=true', filterByIdField: 'id', paths: { name: 'name' } },
     icon: { component: 'Tag' },
     idPattern: /^\d+$/
   }),
@@ -1607,15 +1676,19 @@ export const ObjectTypeRegistry = {
     urlPath: '/datacenter/beastmode?id={id}'
   }),
   VARIABLE_CONTROL: new DomoObjectType('VARIABLE_CONTROL', 'Variable Control', {
+    api: { endpoint: '/content/v1/variable/controls?ids={id}', filterByIdField: 'id', paths: { name: 'name' } },
     idPattern: /^\d+$/,
-    parents: ['VARIABLE']
+    parent: { id: 'metadata.details.function.id', typeId: 'VARIABLE' },
+    relatedData: [{ source: 'parent' }]
   }),
   VECTOR_INDEX: new DomoObjectType('VECTOR_INDEX', 'Vector Index', {
     icon: { component: 'Vector' },
     idPattern: /.*/
   }),
   VIEW: new DomoObjectType('VIEW', 'View', {
-    ...derivedDatasetConfig(),
+    // A view built on one dataset lives on it; one joining several has no single parent. A view's own
+    // stream only carries its definition, so it never counts as the parent.
+    ...derivedDatasetConfig({ fetcher: 'singleSourceDataset', typeId: 'DATA_SOURCE' }),
     activityLogTypes: ['DATA_SOURCE', 'VIEW'],
     extractConfig: { keyword: 'datasources' },
     icon: { component: 'TableSelect' }
@@ -1629,13 +1702,13 @@ export const ObjectTypeRegistry = {
   WAREHOUSE_ACCOUNT: new DomoObjectType('WAREHOUSE_ACCOUNT', 'Cloud Integration', {
     api: {
       endpoint: '/query/v1/byos/accounts/{id}',
-      paths: { created: 'properties.friendlyName.created', name: 'friendlyName', parentId: 'serviceAccountId' }
+      paths: { created: 'properties.friendlyName.created', name: 'friendlyName' }
     },
     extractConfig: { keyword: 'cloud-integrations' },
     icon: { component: 'DataWarehouse' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['ACCOUNT'],
-    relatedData: [{ label: 'Account', source: 'parentId', typeId: 'ACCOUNT' }],
+    parent: { id: 'metadata.details.serviceAccountId', typeId: 'ACCOUNT' },
+    relatedData: [{ source: 'parent' }],
     urlPath: '/cloud-integrations/{id}/settings'
   }),
   WORKBENCH_AGENT: new DomoObjectType('WORKBENCH_AGENT', 'On Premise Agent', {
@@ -1658,25 +1731,24 @@ export const ObjectTypeRegistry = {
       nameFormat: 'timestamp',
       paths: { name: ['startedAt', 'createdAt'] }
     },
-    copyConfigs: [{ label: 'Workflow ID', source: 'parentId' }],
+    copyConfigs: [{ label: 'Workflow ID', source: 'parent.id' }],
     extractConfig: {
       keyword: 'instances',
       offset: 3,
-      parentExtract: { keyword: 'instances', offset: 1 },
       urlParamExtracts: { version: { keyword: 'instances', offset: 2 } }
     },
     icon: { component: 'Play' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['WORKFLOW_MODEL'],
+    parent: { extract: { keyword: 'instances', offset: 1 }, typeId: 'WORKFLOW_MODEL' },
     relatedData: [
       { label: 'Execution', source: 'self' },
       {
         field: 'modelVersion',
         label: 'Version',
-        parentSource: 'parentId',
+        parentSource: 'parent',
         typeId: 'WORKFLOW_MODEL_VERSION'
       },
-      { label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
+      { source: 'parent' }
     ],
     urlPath: '/workflows/instances/{parent}/{version}/{id}'
   }),
@@ -1714,32 +1786,22 @@ export const ObjectTypeRegistry = {
       paths: { name: 'version' }
     },
     copyConfigs: [
-      { label: 'Workflow ID', primary: true, source: 'parentId' },
+      { label: 'Workflow ID', primary: true, source: 'parent.id' },
       { label: 'Version Number', source: 'id' }
     ],
-    extractConfig: {
-      keyword: 'workflows',
-      offset: 3,
-      parentExtract: { keyword: 'workflows', offset: 2 }
-    },
+    extractConfig: { keyword: 'workflows', offset: 3 },
     icon: { component: 'Workflow' },
     idPattern: /^[0-9]+\.[0-9]+\.[0-9]+$/,
-    parents: ['WORKFLOW_MODEL'],
-    relatedData: [
-      { label: 'Version', source: 'self' },
-      { label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
-    ],
+    parent: { extract: { keyword: 'workflows', offset: 2 }, typeId: 'WORKFLOW_MODEL' },
+    relatedData: [{ label: 'Version', source: 'self' }, { source: 'parent' }],
     urlPath: '/workflows/models/{parent}/{id}?_wfv=view'
   }),
   WORKFLOW_TRIGGER: new DomoObjectType('WORKFLOW_TRIGGER', 'Workflow Trigger', {
     api: { endpoint: '/workflow/v2/triggers/{id}', paths: { name: 'name' } },
     icon: { component: 'Clock' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['WORKFLOW_MODEL'],
-    relatedData: [
-      { label: 'Trigger', source: 'self' },
-      { label: 'Workflow', source: 'parentId', typeId: 'WORKFLOW_MODEL' }
-    ],
+    parent: 'WORKFLOW_MODEL',
+    relatedData: [{ label: 'Trigger', source: 'self' }, { source: 'parent' }],
     urlPath: '/workflows/triggers/{parent}'
   }),
   WORKSHEET: new DomoObjectType('WORKSHEET', 'Worksheet', {
@@ -1757,17 +1819,14 @@ export const ObjectTypeRegistry = {
       fallback: { endpoint: '/content/v1/pages/{id}/access', paths: { name: 'pageName' } },
       paths: { created: 'page.created', name: 'title' }
     },
-    copyConfigs: [{ label: 'Worksheet ID', source: 'parentId' }],
-    extractConfig: {
-      keyword: 'pages',
-      parentExtract: { keyword: 'app-studio', offset: 1 }
-    },
+    copyConfigs: [{ label: 'Worksheet ID', source: 'parent.id' }],
+    extractConfig: { keyword: 'pages' },
     featureSwitch: 'app-studio-worksheets',
     icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
-    parents: ['WORKSHEET'],
+    parent: { extract: { keyword: 'app-studio', offset: 1 }, typeId: 'WORKSHEET' },
     relatedData: [
-      { label: 'Worksheet', source: 'parentId', typeId: 'WORKSHEET' },
+      { source: 'parent' },
       {
         fetcher: 'datasetsForPage',
         isArray: true,
@@ -1936,9 +1995,7 @@ export async function fetchObjectDetailsInPage(params) {
         }
         if (ms === null) return String(objectId);
         const date = new Date(ms);
-        return isNaN(date.getTime())
-          ? String(objectId)
-          : `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+        return isNaN(date.getTime()) ? String(objectId) : `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
       };
       const rawName = nameTemplate
         ? nameTemplate.replace(/{([^}]+)}/g, (_, path) => (path === 'id' ? objectId : (resolvePath(path) ?? '')))
@@ -2048,6 +2105,17 @@ const ALIAS_LOOKUP = (() => {
 })();
 
 /**
+ * Get a DomoObjectType by its type ID, falling back to alias lookup.
+ * Aliases let renamed types (e.g. OBJECTIVE → GOAL) keep working without
+ * duplicating their config; both IDs resolve to the same canonical instance.
+ * @param {string} type - The type ID or alias
+ * @returns {DomoObjectType|null} The canonical DomoObjectType instance, or null if not found
+ */
+export function getObjectType(type) {
+  return ObjectTypeRegistry[type] || ALIAS_LOOKUP[type] || null;
+}
+
+/**
  * The registry config every derived dataset (view, data fusion, data model) shares.
  * All three are datasets carrying their own definition, so they sit on the dataset
  * endpoint and the dataset detail URL, and differ only in label, icon and how they
@@ -2055,7 +2123,7 @@ const ALIAS_LOOKUP = (() => {
  * them without invalidating an already-built URL.
  * @returns {Object} Options for the `DomoObjectType` constructor
  */
-function derivedDatasetConfig() {
+function derivedDatasetConfig(parent = { id: 'metadata.details.streamId', typeId: 'STREAM' }) {
   return {
     api: {
       endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
@@ -2063,9 +2131,9 @@ function derivedDatasetConfig() {
     },
     copyConfigs: [{ label: 'Stream ID', source: 'metadata.details.streamId' }],
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    parents: ['DATA_SOURCE', 'STREAM'],
+    parent,
     relatedData: [
-      { label: 'Stream', source: 'parent', typeId: 'STREAM' },
+      { source: 'parent' },
       { fetcher: 'datasetDefinition', label: 'Definition' },
       { field: 'approvalTemplateId', fieldSource: 'context', label: 'Approval Template', typeId: 'TEMPLATE' },
       { fetcher: 'datasetColumns', isArray: true, label: 'Columns' }
@@ -2107,18 +2175,29 @@ function extractUrlPart(url, config) {
   return value;
 }
 
-/** Types with a resolver in `DomoObject.getParent`'s switch. Keep in sync with it. */
-const PARENT_RESOLVABLE_FROM_ID = new Set(['DATA_APP_VIEW', 'DRILL_VIEW', 'EXECUTOR_JOB']);
+// Each type entry inherits the shared fields it doesn't override.
+function normalizeParentConfig(config) {
+  if (!config) return null;
+  if (typeof config === 'string') return { type: null, types: [{ typeId: config }] };
+  if (config.typeId) return { type: null, types: [{ ...config }] };
+  const { type = null, types, ...shared } = config;
+  return {
+    type,
+    types: Object.entries(types).map(([typeId, entry]) => ({ ...shared, ...entry, typeId }))
+  };
+}
 
-/**
- * Get a DomoObjectType by its type ID, falling back to alias lookup.
- * Aliases let renamed types (e.g. OBJECTIVE → GOAL) keep working without
- * duplicating their config; both IDs resolve to the same canonical instance.
- * @param {string} type - The type ID or alias
- * @returns {DomoObjectType|null} The canonical DomoObjectType instance, or null if not found
- */
-export function getObjectType(type) {
-  return ObjectTypeRegistry[type] || ALIAS_LOOKUP[type] || null;
+function resolveParentSource(source, domoObject) {
+  if (source == null) return null;
+  if (Array.isArray(source)) {
+    for (const candidate of source) {
+      const value = resolveParentSource(candidate, domoObject);
+      if (value != null && value !== '') return value;
+    }
+    return null;
+  }
+  if (typeof source === 'function') return source(domoObject) ?? null;
+  return source.split('.').reduce((current, key) => current?.[key], domoObject) ?? null;
 }
 
 const IRREGULAR_PLURAL_TYPE_NAMES = {

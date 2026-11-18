@@ -1,4 +1,5 @@
 import { DomoObject } from '@/models/DomoObject';
+import { alertObjectMetadata } from '@/services/alerts';
 
 // Sentinel for the "drop column" remap choice: remove the column's references
 // from the content that uses it (badge_table cards/drills, alert rules, and the
@@ -26,7 +27,8 @@ export function buildObjectUrl(typeKey, item, origin) {
     // card id every other field of the row is keyed by.
     const objectId = typeKey === 'apps' ? item.designId : item.id;
     if (!objectId) return null;
-    return new DomoObject(domoTypeId, objectId, origin, { name: item.name }).url;
+    const metadata = typeKey === 'alerts' ? alertObjectMetadata(item) : { name: item.name };
+    return new DomoObject(domoTypeId, objectId, origin, metadata).url;
   } catch {
     return null;
   }

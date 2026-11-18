@@ -7,7 +7,6 @@ import {
   refineTypeFromMetadata,
   resolvePrimaryCopy
 } from '@/models/DomoObjectType';
-import { getDataflowForOutputDataset } from '@/services/dataflows';
 import { runEnrichments } from '@/services/enrichments';
 import { getFeatureSwitches } from '@/services/features';
 import { openGovernanceToolkitJob } from '@/services/governanceToolkit';
@@ -24,7 +23,6 @@ import { createCoalescedTask } from '@/utils/coalesce';
 import { DOMO_MATCH_PATTERNS, EXCLUDED_HOSTNAMES, INTERNAL_MATCH_PATTERNS, SECTION_TITLES } from '@/utils/constants';
 import { copyToClipboard } from '@/utils/copyToClipboard';
 import { detectCurrentObject, isDomoUrl } from '@/utils/currentObject';
-import { isDatasetTypeId } from '@/utils/datasetTypes';
 import { executeInPage } from '@/utils/executeInPage';
 import { removeInternalFaviconRules, seedInternalFaviconRules } from '@/utils/faviconRules';
 import { pathnameOf } from '@/utils/general';
@@ -658,7 +656,7 @@ function broadcastTabContext(tabId, contextData) {
 
 function buildAllowedTitlePrefixes(domoObject) {
   const template = domoObject.objectType?.api?.displayName;
-  const parentName = domoObject.metadata?.parent?.name;
+  const parentName = domoObject.parent?.metadata?.name;
   if (!template || !parentName || !template.includes('{name}')) {
     return [];
   }
@@ -676,8 +674,8 @@ function buildAllowedTitlePrefixes(domoObject) {
 
 function buildAllowedTitles(domoObject) {
   const allowed = [];
-  if (domoObject.metadata?.parent?.name) {
-    const parentName = domoObject.metadata.parent.name;
+  if (domoObject.parent?.metadata?.name) {
+    const parentName = domoObject.parent.metadata.name;
     allowed.push(`${parentName} - Domo`);
     allowed.push(parentName);
   }
@@ -840,6 +838,10 @@ async function persistToSession() {
       .slice(0, MAX_CACHED_TABS)
       .map(([tabId, context]) => {
         let entry = context?.toStorageJSON?.() || context;
+        const parent = entry?.domoObject?.parent;
+        if (parent?.metadata?.details && JSON.stringify(entry).length > MAX_BACKUP_ENTRY_CHARS) {
+          entry.domoObject.parent = { ...parent, metadata: { ...parent.metadata, details: null } };
+        }
         if (entry?.domoObject?.metadata?.details && JSON.stringify(entry).length > MAX_BACKUP_ENTRY_CHARS) {
           entry = {
             ...entry,
@@ -1703,18 +1705,14 @@ async function detectAndStoreContext(tabId) {
       }
     }
 
-    // Extract parent ID from URL, detection result, or resolveContext
-    let parentId =
-      typeModel.extractParentId(detected.url) || detected.parentId || detected.resolveContext?.filesetId || null;
-
-    // Create DomoObject with original URL and parent ID for immediate URL building
+    const detectedParentId = detected.parentId || detected.resolveContext?.filesetId || null;
     const domoObject = new DomoObject(
       detected.typeId,
       objectId,
       detected.baseUrl,
-      {}, // metadata will be enriched below
-      detected.url, // pass original URL for parent extraction
-      parentId // pass parent ID if extracted from URL
+      {},
+      detected.url,
+      typeModel.extractParent(detected.url) ?? (detectedParentId ? { id: detectedParentId } : null)
     );
 
     // Redirect off Domo's broken "must be viewed within its app" page to the in-app
@@ -1743,12 +1741,19 @@ async function detectAndStoreContext(tabId) {
           }
         : typeModel.api;
 
+    if (typeModel.requiresParentForApi() && !domoObject.parent) {
+      await domoObject.getParent({ tabId, url: detected.url }).catch((error) => {
+        console.warn(`[Background] Could not resolve the parent of ${typeModel.id} ${objectId}:`, error.message);
+      });
+      if (isStale()) return null;
+    }
+
     // Prepare parameters for page-safe enrichment function
     const params = {
       apiConfig,
       baseUrl: detected.baseUrl,
       objectId,
-      parentId: parentId || null,
+      parentId: domoObject.parent?.id ?? null,
       requiresParent: typeModel.requiresParentForApi(),
       throwOnError: true,
       typeId: typeModel.id
@@ -1761,12 +1766,6 @@ async function detectAndStoreContext(tabId) {
         return null;
       })) || {};
     if (isStale()) return null;
-
-    // Set parentId from API response if not already extracted from URL
-    if (!parentId && enrichedMetadata.parentId) {
-      parentId = enrichedMetadata.parentId;
-      domoObject.parentId = parentId;
-    }
 
     domoObject.metadata = enrichedMetadata;
     domoObject.metadata.context = {};
@@ -1786,19 +1785,8 @@ async function detectAndStoreContext(tabId) {
     // Current Context tab.
     if (detected.typeId === 'BEAST_MODE_FORMULA') {
       const links = enrichedMetadata.details?.links;
-      if (!parentId) {
-        const datasetId = datasetIdFromBeastModeLinks(links);
-        if (datasetId) {
-          parentId = datasetId;
-          domoObject.parentId = datasetId;
-        }
-      }
-      const savedOn = beastModeSaveTarget(links);
-      if (savedOn?.typeId === 'CARD') {
-        domoObject.metadata.context.savedOnCardId = savedOn.id;
-      } else if (savedOn?.typeId === 'DRILL_VIEW') {
-        domoObject.metadata.context.savedOnDrillId = savedOn.id;
-        domoObject.metadata.context.savedOnDrillCardId = savedOn.parentId;
+      if (beastModeSaveTarget(links)) {
+        domoObject.metadata.context.datasetId = datasetIdFromBeastModeLinks(links);
       } else {
         domoObject.metadata.context.usageCardIds = rootCardIdsFor(parseBeastModeLinks(links));
       }
@@ -1836,41 +1824,17 @@ async function detectAndStoreContext(tabId) {
     const currentUserGroups = context.userGroups;
     domoObject.metadata.isOwner = computeIsOwner(typeModel.id, enrichedMetadata.details, currentUser?.id, currentUserGroups);
 
-    // DATA_SOURCE: resolve DATAFLOW_TYPE parent via reverse-lookup API
-    if (!parentId && typeModel.id === 'DATA_SOURCE' && enrichedMetadata.details?.type?.toLowerCase() === 'dataflow') {
-      try {
-        const dataflowId = await getDataflowForOutputDataset(objectId, tabId);
-        if (isStale()) return null;
-        parentId = dataflowId;
-        domoObject.parentId = dataflowId;
-      } catch (error) {
-        if (isStale()) return null;
-        console.warn(`[Background] Could not resolve DataFlow parent for DATA_SOURCE ${objectId}:`, error.message);
-      }
-    }
-
-    // Any dataset flavor: set streamId as parentId for non-DataFlow datasets
-    const isStreamParent =
-      isDatasetTypeId(typeModel.id) &&
-      !parentId &&
-      enrichedMetadata.details?.streamId &&
-      enrichedMetadata.details?.type?.toLowerCase() !== 'dataflow';
-
-    if (isStreamParent) {
-      parentId = String(enrichedMetadata.details.streamId);
-      domoObject.parentId = parentId;
-    }
-
-    // For objects with parents, enrich metadata with parent details
-    // (skip for stream parents; those are enriched async below)
-    if (parentId && typeModel.parents && typeModel.parents.length > 0 && !isStreamParent) {
-      try {
-        await domoObject.getParent(false, detected.url, tabId);
-        if (isStale()) return null;
-      } catch (error) {
-        if (isStale()) return null;
-        console.warn(`[Background] Could not enrich parent metadata for ${typeModel.id} ${objectId}:`, error);
-      }
+    // Only a title built from the parent's name waits on its details; the rest load in the enrichments.
+    const parent = await domoObject.getParent({ tabId, url: detected.url }).catch((error) => {
+      console.warn(`[Background] Could not resolve the parent of ${typeModel.id} ${objectId}:`, error.message);
+      return null;
+    });
+    if (isStale()) return null;
+    if (parent && typeModel.api?.displayName?.includes('{parent.name}')) {
+      await parent.loadMetadata(tabId).catch((error) => {
+        console.warn(`[Background] Could not load the parent of ${typeModel.id} ${objectId}:`, error.message);
+      });
+      if (isStale()) return null;
     }
 
     // Compose a tab-title display name from template if configured. This is kept
@@ -1879,9 +1843,9 @@ async function detectAndStoreContext(tabId) {
     // api.nameFromDisplayName opt out of that split: their own name is
     // meaningless alone (a version is just "1.2.3"), so the parent-qualified
     // form becomes the object's name everywhere, not only in the tab title.
-    if (typeModel.api?.displayName && domoObject.metadata?.parent?.name) {
+    if (typeModel.api?.displayName && domoObject.parent?.metadata?.name) {
       const displayName = typeModel.api.displayName
-        .replace('{parent.name}', domoObject.metadata.parent.name)
+        .replace('{parent.name}', domoObject.parent.metadata.name)
         .replace('{name}', domoObject.metadata.name || '')
         .replace('{id}', objectId);
       domoObject.metadata.titleName = displayName;

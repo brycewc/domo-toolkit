@@ -86,7 +86,7 @@ export function GetUsageView({
       const origin = context.origin;
 
       const isVersion = objectType === 'CODEENGINE_PACKAGE_VERSION';
-      const packageId = isVersion ? domoObject.parentId : domoObject.id;
+      const packageId = isVersion ? domoObject.parent?.id : domoObject.id;
 
       if (!packageId) {
         setError('Could not determine the Code Engine package for this object.');
@@ -95,7 +95,7 @@ export function GetUsageView({
       }
 
       const packageName =
-        (isVersion ? domoObject.metadata?.parent?.name : domoObject.metadata?.name) || `Package ${packageId}`;
+        (isVersion ? domoObject.parent?.metadata?.name : domoObject.metadata?.name) || `Package ${packageId}`;
 
       setViewData({
         currentVersion: isVersion ? domoObject.id : null,

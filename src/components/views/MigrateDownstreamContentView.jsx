@@ -233,14 +233,13 @@ export function MigrateDownstreamContentView({
         context && !isDatasetTypeId(context.domoObject?.typeId) ? data.scopeFrom || scopeFromContext(context) : null;
       if (launchScope) {
         const metadata = context.domoObject?.metadata;
+        const parentName = context.domoObject?.parent?.metadata?.name;
         const isWholeApp = launchScope.kind === 'app' || launchScope.kind === 'worksheet';
         setScopeFrom(launchScope);
-        const name =
-          (isWholeApp ? metadata?.parent?.name : metadata?.name) ||
-          `${SCOPE_KIND_NOUNS[launchScope.kind]} ${launchScope.id}`;
+        const name = (isWholeApp ? parentName : metadata?.name) || `${SCOPE_KIND_NOUNS[launchScope.kind]} ${launchScope.id}`;
         setLaunchName(name);
         setLaunchScopeLabel(
-          formatLocationName({ kind: launchScope.kind, name, parentName: isWholeApp ? null : metadata?.parent?.name })
+          formatLocationName({ kind: launchScope.kind, name, parentName: isWholeApp ? null : parentName })
         );
         setOrigin(context.domoObject?.baseUrl || context.origin || '');
         setTabId(context.tabId);
@@ -2936,7 +2935,7 @@ function buildCardItems(items, origin, sharedCardLocations = new Map()) {
 function buildDrillViewUrl(item, origin) {
   if (!origin || item.parentId == null) return null;
   try {
-    return new DomoObject('DRILL_VIEW', item.id, origin, { name: item.name }, null, item.parentId).url;
+    return new DomoObject('DRILL_VIEW', item.id, origin, { name: item.name }, null, { id: item.parentId }).url;
   } catch {
     return null;
   }

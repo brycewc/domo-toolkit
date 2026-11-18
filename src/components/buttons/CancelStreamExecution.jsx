@@ -8,7 +8,7 @@ export function CancelStreamExecution({ currentContext, isDisabled }) {
   const { showPromiseStatus } = useStatusBar();
 
   const handlePress = () => {
-    const stream = currentContext?.domoObject?.metadata?.parent?.details;
+    const stream = currentContext?.domoObject?.parent?.metadata?.details;
     const streamId = stream?.id;
     if (!streamId) return;
 

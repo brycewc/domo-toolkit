@@ -616,7 +616,10 @@ export async function scanContentForColumns({ cardAlertsByCardId = null, originI
   const addRef = (typeKey, item, columnName, extra = null) => {
     if (!columnName || typeof columnName !== 'string') return;
     if (!byColumn.has(columnName)) byColumn.set(columnName, []);
-    byColumn.get(columnName).push({ ...(extra || {}), id: item.id, name: item.name || String(item.id), type: typeKey });
+    const resource = typeKey === 'alerts' ? { resourceId: item.resourceId, resourceType: item.resourceType } : {};
+    byColumn
+      .get(columnName)
+      .push({ ...(extra || {}), ...resource, id: item.id, name: item.name || String(item.id), type: typeKey });
   };
 
   const fetchAndScan = async (typeKey, item) => {

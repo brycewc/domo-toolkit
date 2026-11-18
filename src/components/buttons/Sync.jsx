@@ -22,15 +22,18 @@ export function Sync({ currentContext, isDisabled }) {
       const templateName = currentContext.domoObject.metadata?.name || 'this approval template';
       // The mutation reports only success, so the reload is what refreshes the
       // cached details with the new dataset's ID.
-      showPromiseStatus(createTemplateDataset({ tabId, templateId }).then(() => chrome.tabs.reload(tabId)), {
-        error: (err) => `Failed to create the dataset for **${templateName}**: ${err.message}`,
-        loading: `Creating the dataset for **${templateName}**...`,
-        success: () => `Created the dataset for **${templateName}**`
-      });
+      showPromiseStatus(
+        createTemplateDataset({ tabId, templateId }).then(() => chrome.tabs.reload(tabId)),
+        {
+          error: (err) => `Failed to create the dataset for **${templateName}**: ${err.message}`,
+          loading: `Creating the dataset for **${templateName}**...`,
+          success: () => `Created the dataset for **${templateName}**`
+        }
+      );
       return;
     }
 
-    const datastoreId = currentContext?.domoObject?.parentId;
+    const datastoreId = currentContext?.domoObject?.parent?.id;
     if (!datastoreId) return;
     const collectionName = currentContext.domoObject.metadata?.name || `Collection ${currentContext.domoObject.id}`;
     showPromiseStatus(syncAppDbDatastore({ datastoreId, tabId: currentContext.tabId }), {

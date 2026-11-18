@@ -541,6 +541,23 @@ export async function getOwnedPages(ownerId, tabId = null, ownerType = 'USER') {
  * @returns {Promise<{cardsByPage: Object, orphanedCards: Array<{id: string|number, name: string}>, pages: Array<Object>}>}
  * @throws {Error} If the fetch fails
  */
+export async function getPageParentPageId(pageId, tabId = null) {
+  return executeInPage(
+    async (pageId) => {
+      const response = await fetch(`/api/content/v1/pages/${pageId}`);
+      if (!response.ok) {
+        const error = new Error(`Failed to fetch page ${pageId}: HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+      const page = await response.json();
+      return page.parentPageId ? String(page.parentPageId) : null;
+    },
+    [pageId],
+    tabId
+  );
+}
+
 export async function getPagesForCards(cardIds, tabId = null) {
   const cards = await fetchCardPlacements(cardIds, tabId);
 

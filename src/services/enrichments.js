@@ -1,7 +1,6 @@
-import { fetchObjectDetailsInPage, getObjectType } from '@/models/DomoObjectType';
+import { getAllObjectTypes } from '@/models/DomoObjectType';
 import { certifiedContentUrlSegment } from '@/utils/certifiedContent';
 import { DATASET_TYPE_IDS } from '@/utils/datasetTypes';
-import { executeInPage } from '@/utils/executeInPage';
 
 import { getAppDbCollectionPermission } from './appDb';
 import { extractPageContentIds, getFormsForPage, getQueuesForPage, getWorkflowsForPage } from './appStudio';
@@ -22,6 +21,8 @@ import { getVersionDefinition, getWorkflowPermission } from './workflows';
  * @typedef {Object} EnrichmentDescriptor
  * @property {string} id - Unique identifier for logging
  * @property {string[]} types - Object type IDs this enrichment applies to
+ * @property {'parent'} [storeOn] - Store on the object's parent rather than under its metadata, with
+ *   `storePath` relative to the parent DomoObject. Skipped when the object has no parent.
  * @property {string|Object} storePath - Where to store under metadata:
  *   String: 'context.cards' stores the result directly at that path.
  *   Object: { 'context.cardPages': 'pages', ... } maps result keys to destination paths.
@@ -43,41 +44,18 @@ const ENRICHMENTS = [
     types: ['ACCOUNT']
   },
 
-  // Stream parent for non-DataFlow DATA_SOURCE
   {
     fallback: undefined,
-    fetch: async ({ enrichedMetadata, tabId }) => {
-      const streamId = enrichedMetadata.details?.streamId;
-      const isDataflow = enrichedMetadata.details?.type?.toLowerCase() === 'dataflow';
-      if (!streamId || isDataflow) return undefined;
-
-      const streamType = getObjectType('STREAM');
-      const streamMetadata = await executeInPage(
-        fetchObjectDetailsInPage,
-        [
-          {
-            apiConfig: streamType.api,
-            objectId: String(streamId),
-            typeId: 'STREAM'
-          }
-        ],
-        tabId
-      );
-      if (!streamMetadata?.details) return undefined;
-
-      const name = streamType.api.nameTemplate.replace(/{([^}]+)}/g, (_, path) =>
-        path === 'id' ? String(streamId) : (path.split('.').reduce((o, k) => o?.[k], streamMetadata.details) ?? '')
-      );
-      return {
-        details: streamMetadata.details,
-        id: String(streamId),
-        name,
-        objectType: { id: 'STREAM', name: 'Stream' }
-      };
+    fetch: async ({ domoObject, tabId }) => {
+      if (!domoObject.parent || domoObject.parent.metadata?.details) return undefined;
+      return (await domoObject.parent.loadMetadata(tabId)) ?? undefined;
     },
-    id: 'stream-parent',
-    storePath: 'parent',
-    types: DATASET_TYPE_IDS
+    id: 'parent-details',
+    storeOn: 'parent',
+    storePath: 'metadata',
+    types: getAllObjectTypes()
+      .filter((type) => type.parent)
+      .map((type) => type.id)
   },
 
   // Child pages for PAGE (fast pre-check then full fetch)
@@ -105,7 +83,7 @@ const ENRICHMENTS = [
   {
     fallback: [],
     fetch: ({ domoObject, objectId, tabId, typeId }) => {
-      const appId = typeId === 'DATA_APP_VIEW' && domoObject.parentId ? parseInt(domoObject.parentId) : null;
+      const appId = typeId === 'DATA_APP_VIEW' && domoObject.parent ? parseInt(domoObject.parent.id) : null;
       return getChildPages({
         appId,
         pageId: parseInt(objectId),
@@ -197,7 +175,7 @@ const ENRICHMENTS = [
       getReportAppContext({
         details: enrichedMetadata.details,
         objectId,
-        parentId: domoObject.parentId,
+        parentId: domoObject.parent?.id ?? null,
         tabId,
         typeId
       }),
@@ -225,7 +203,7 @@ const ENRICHMENTS = [
   // Workflow version definition
   {
     fetch: ({ domoObject, objectId, tabId }) => {
-      const modelId = domoObject.parentId;
+      const modelId = domoObject.parent?.id;
       if (!modelId) return undefined;
       return getVersionDefinition(modelId, objectId, tabId);
     },
@@ -382,7 +360,14 @@ export function runEnrichments(ctx) {
       currentContext.domoObject.metadata.context = {};
     }
 
-    storeResult(currentContext.domoObject.metadata, enrichment.storePath, result);
+    const target = enrichment.storeOn === 'parent' ? currentContext.domoObject.parent : currentContext.domoObject.metadata;
+    if (!target) return;
+    storeResult(target, enrichment.storePath, result);
+    // A parent named only by enrichment data (a report's app, a report page's report) resolves once it lands.
+    if (!currentContext.domoObject.parent) {
+      const domoObject = currentContext.domoObject;
+      domoObject.parent = domoObject.toParentObject(domoObject.objectType.resolveParentFromData(domoObject));
+    }
     setTabContext(tabId, currentContext);
 
     if (enrichment.contentGroup) {

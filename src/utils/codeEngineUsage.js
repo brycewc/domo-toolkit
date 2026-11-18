@@ -194,7 +194,9 @@ function buildWorkflowRows({ activeByModel, activeOnly, origin, ownerNames, usag
       .map((version) => ({ isActive: activeVersions ? activeVersions.has(String(version)) : null, version }))
       .filter(({ isActive }) => !activeOnly || isActive !== false)
       .map(({ isActive, version }) => {
-        const versionObject = new DomoObject('WORKFLOW_MODEL_VERSION', version, origin, { name: version }, null, modelId);
+        const versionObject = new DomoObject('WORKFLOW_MODEL_VERSION', version, origin, { name: version }, null, {
+          id: modelId
+        });
         return new DataListItem({
           chip: isActive === null ? null : isActive ? ACTIVE_CHIP : INACTIVE_CHIP,
           domoObject: versionObject,

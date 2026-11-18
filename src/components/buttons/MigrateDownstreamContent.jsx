@@ -22,7 +22,7 @@ export function MigrateDownstreamContent({ currentContext, onStatusUpdate }) {
   const longPressDisabled = !domoObject?.id || dropdownItems.length === 0;
 
   const handleAction = async (kind) => {
-    const appId = domoObject?.parentId;
+    const appId = domoObject?.parent?.id;
     if (!appId) {
       onStatusUpdate?.('Error', 'Could not determine parent app ID.', 'danger');
       return;
