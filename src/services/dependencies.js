@@ -8,7 +8,7 @@ import { formatTimestamp } from '@/utils/general';
 import { compareSemver } from '@/utils/semver';
 import { collectDefinitionReferences } from '@/utils/workflowReferences';
 
-import { getDownstreamAlertsForDatasets, getRowPdpPolicies } from './alerts';
+import { getCardAlerts, getDownstreamAlertsForDatasets, getRowPdpPolicies } from './alerts';
 import { getAppInstanceCollections, getCollectionConnectedApps } from './appDb';
 import { getTemplateApprovalCount } from './approvals';
 import { getBeastModeUsageForObject } from './beastModes';
@@ -35,6 +35,23 @@ import { getTaskCenterQueueName } from './taskCenter';
 import { fetchUserDisplayNames } from './users';
 import { getVersionDefinition, getWorkflowExecution, getWorkflowModelName, getWorkflowVersions } from './workflows';
 import { getWorkspacesForEntity } from './workspaces';
+
+function buildAlertItems({ annotationByCardId = new Map(), cardAlerts = [], datasetAlerts = [], origin }) {
+  const items = [];
+  const seenIds = new Set();
+  for (const alert of [...datasetAlerts, ...cardAlerts]) {
+    if (seenIds.has(String(alert.id))) continue;
+    seenIds.add(String(alert.id));
+    items.push({
+      annotation: annotationByCardId.get(String(alert.resourceId)) ?? null,
+      id: alert.id,
+      label: alert.name || `Alert ${alert.id}`,
+      typeId: 'ALERT',
+      url: `${origin}/alerts/${alert.id}`
+    });
+  }
+  return items;
+}
 
 function buildAppCardEmbedsGroup({ appSummary, embeds, pageTitleById }) {
   const placementByCardId = new Map();
@@ -232,6 +249,27 @@ function buildCardPageGroups(pages, origin) {
       type: 'WORKSHEET_VIEW'
     })
   ];
+}
+
+// Every kind of card is deleted the same way, custom app cards included, so
+// they form one list. A drill is part of the card it drills from rather than
+// a dependency of its own, so drills are left out entirely.
+function buildDatasetCardItems(rawCards, datasetId, origin) {
+  const cardItems = [];
+  const seenCardIds = new Set();
+  for (const card of Array.isArray(rawCards) ? rawCards : []) {
+    if (String(card?.datasourceId) !== String(datasetId)) continue;
+    const cardId = card.id || card.kpiId || (typeof card.urn === 'string' ? parseInt(card.urn.split(':').pop(), 10) : null);
+    if (!Number.isFinite(cardId) || seenCardIds.has(String(cardId))) continue;
+    seenCardIds.add(String(cardId));
+    cardItems.push({
+      id: cardId,
+      label: card.title || card.name || `Card ${cardId}`,
+      typeId: 'CARD',
+      url: `${origin}/kpis/details/${cardId}`
+    });
+  }
+  return cardItems;
 }
 
 /**
@@ -744,7 +782,8 @@ const FETCHERS = {
       ? cardDatasetIds
       : (await getCardDatasets({ cardId, tabId })).map((ds) => ds.dataSourceId);
 
-    const [beastModes, embeds] = await Promise.all([
+    const [alerts, beastModes, embeds] = await Promise.all([
+      getCardAlerts([cardId], tabId).catch(() => []),
       getBeastModesSavedOnCard({
         cardId,
         datasetIds: [...datasetIds, ...drills.flatMap((drill) => drill.datasetIds)].filter(Boolean),
@@ -756,6 +795,13 @@ const FETCHERS = {
 
     const drillName = (drillId) => drillNameById.get(drillId) || drillId;
     const groups = [
+      {
+        blocking: false,
+        deleted: true,
+        items: buildAlertItems({ cardAlerts: alerts, origin }),
+        key: 'cardAlerts',
+        label: 'Alerts'
+      },
       {
         blocking: false,
         deleted: true,
@@ -1000,8 +1046,19 @@ const FETCHERS = {
   // itself rejects. Everything else either goes with the dataset or survives it
   // and breaks, which is listed rather than gated.
   DATA_SOURCE: async ({ id, origin }, tabId) => {
-    const [rawCards, alerts, functions, pdpPolicies, downstream, lineage, ownImpacts] = await Promise.all([
-      getDownstreamCardsRaw(id, tabId).catch(() => []),
+    const cardItemsPromise = getDownstreamCardsRaw(id, tabId)
+      .catch(() => [])
+      .then((rawCards) => buildDatasetCardItems(rawCards, id, origin));
+    const [cardItems, cardAlerts, alerts, functions, pdpPolicies, downstream, lineage, ownImpacts] = await Promise.all([
+      cardItemsPromise,
+      cardItemsPromise
+        .then((items) =>
+          getCardAlerts(
+            items.map((card) => card.id),
+            tabId
+          )
+        )
+        .catch(() => []),
       getDownstreamAlertsForDatasets([id], tabId).catch(() => []),
       getDatasetFunctions(id, tabId).catch(() => []),
       getRowPdpPolicies(id, tabId).catch(() => []),
@@ -1039,24 +1096,12 @@ const FETCHERS = {
     // anyone set PDP up, so counting it would report a policy on every delete.
     const realPdpCount = pdpPolicies.filter((policy) => policy?.type !== 'open').length;
 
-    // Every kind of card is deleted the same way, custom app cards included, so
-    // they form one list. A drill is part of the card it drills from rather than
-    // a dependency of its own, so drills are left out entirely.
-    const cardItems = [];
-    const seenCardIds = new Set();
-    for (const card of Array.isArray(rawCards) ? rawCards : []) {
-      if (String(card?.datasourceId) !== String(id)) continue;
-      const cardId =
-        card.id || card.kpiId || (typeof card.urn === 'string' ? parseInt(card.urn.split(':').pop(), 10) : null);
-      if (!Number.isFinite(cardId) || seenCardIds.has(String(cardId))) continue;
-      seenCardIds.add(String(cardId));
-      cardItems.push({
-        id: cardId,
-        label: card.title || card.name || `Card ${cardId}`,
-        typeId: 'CARD',
-        url: `${origin}/kpis/details/${cardId}`
-      });
-    }
+    const alertItems = buildAlertItems({
+      annotationByCardId: new Map(cardItems.map((card) => [String(card.id), `On the card ${card.label}`])),
+      cardAlerts,
+      datasetAlerts: alerts,
+      origin
+    });
 
     const buildGroups = (viewImpacts) => {
       const groups = [
@@ -1069,12 +1114,7 @@ const FETCHERS = {
         {
           blocking: false,
           deleted: true,
-          items: alerts.map((a) => ({
-            id: a.id,
-            label: a.name || `Alert ${a.id}`,
-            typeId: 'ALERT',
-            url: `${origin}/alerts/${a.id}`
-          })),
+          items: alertItems,
           label: 'Alerts'
         },
         {
@@ -1168,22 +1208,32 @@ const FETCHERS = {
     // views built on the outputs are fetched alongside: Domo blocks deleting a
     // dataset a view sits on, so they must block this delete rather than cascade.
     const loopFreeIds = [...recursiveOutputIds, ...inputs.map((i) => String(i.dataSourceId))];
-    const [cards, alerts, functions, downstream, inputDetails, outputImpacts, loopFreeImpacts] = await Promise.all([
-      getCardsForObject({
-        metadata,
-        objectId: id,
-        objectType: 'DATAFLOW_TYPE',
-        tabId
-      }),
-      getDownstreamAlertsForDatasets(outputIds, tabId),
-      getDatasetFunctionsForDatasets(outputIds, tabId).catch(() => []),
-      getDownstreamViewsForDatasets(outputIds, tabId),
-      inputs.length > 0 ? getDatasetDetailsForList({ datasets: inputs, tabId }).catch(() => []) : Promise.resolve([]),
-      getDatasetImpactBreakdowns({ datasetIds: outputIds.map(String), tabId }).catch(() => ({})),
-      getDatasetImpactsExcludingDataflow({ datasetIds: loopFreeIds, excludeDataflowId: id, tabId }).catch(() =>
-        Object.fromEntries(loopFreeIds.map((datasetId) => [datasetId, null]))
-      )
-    ]);
+    const cardsPromise = getCardsForObject({
+      metadata,
+      objectId: id,
+      objectType: 'DATAFLOW_TYPE',
+      tabId
+    });
+    const [cards, cardAlerts, alerts, functions, downstream, inputDetails, outputImpacts, loopFreeImpacts] =
+      await Promise.all([
+        cardsPromise,
+        cardsPromise
+          .then((outputCards) =>
+            getCardAlerts(
+              outputCards.map((card) => card.id),
+              tabId
+            )
+          )
+          .catch(() => []),
+        getDownstreamAlertsForDatasets(outputIds, tabId),
+        getDatasetFunctionsForDatasets(outputIds, tabId).catch(() => []),
+        getDownstreamViewsForDatasets(outputIds, tabId),
+        inputs.length > 0 ? getDatasetDetailsForList({ datasets: inputs, tabId }).catch(() => []) : Promise.resolve([]),
+        getDatasetImpactBreakdowns({ datasetIds: outputIds.map(String), tabId }).catch(() => ({})),
+        getDatasetImpactsExcludingDataflow({ datasetIds: loopFreeIds, excludeDataflowId: id, tabId }).catch(() =>
+          Object.fromEntries(loopFreeIds.map((datasetId) => [datasetId, null]))
+        )
+      ]);
     const outputNameById = new Map(outputs.map((o) => [String(o.dataSourceId), o.dataSourceName || String(o.dataSourceId)]));
 
     // Only connector-backed inputs are listed. A dataflow output, view, or fusion
@@ -1236,12 +1286,12 @@ const FETCHERS = {
         {
           blocking: false,
           deleted: true,
-          items: alerts.map((a) => ({
-            id: a.id,
-            label: a.name || `Alert ${a.id}`,
-            typeId: 'ALERT',
-            url: `${origin}/alerts/${a.id}`
-          })),
+          items: buildAlertItems({
+            annotationByCardId: new Map(cards.map((c) => [String(c.id), `On the card ${c.title || `Card ${c.id}`}`])),
+            cardAlerts,
+            datasetAlerts: alerts,
+            origin
+          }),
           label: 'Alerts'
         },
         {
@@ -1573,9 +1623,7 @@ const FETCHERS = {
     const [userNames, groupNames, summaries] = await Promise.all([
       userIds.length ? fetchUserDisplayNames(userIds, tabId).catch(() => ({})) : {},
       groupIds.length ? fetchGroupDisplayNames(groupIds, tabId).catch(() => ({})) : {},
-      resource
-        ? resolveObjectSummaries({ baseUrl: origin, refs: [resource], tabId }).catch(() => new Map())
-        : new Map()
+      resource ? resolveObjectSummaries({ baseUrl: origin, refs: [resource], tabId }).catch(() => new Map()) : new Map()
     ]);
 
     const groups = [];

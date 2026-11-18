@@ -16,6 +16,7 @@
 - The No Dependencies Found message on a delete no longer sits inside the collapsible Warnings section.
 - Get Card Pages on a card now lists the workspaces it has been added to, replacing the card's Get Workspaces button.
 - Deleting a card now lists the workspaces it has been added to.
+- Deleting a card now lists its alerts.
 - Get Card Pages on other objects, and deleting a page, now offer a Check Workspaces option for the cards involved, including on the toast when no pages are found.
 - Once workspaces are checked, cards in a workspace no longer count as orphaned or as cards that only live here.
 - Hovering over a cut-off notification now shows its full text.
@@ -23,5 +24,6 @@
 ## Bug Fixes
 
 - Sandbox Repositories now load their details, so their names show instead of IDs.
+- Deleting a dataset or dataflow now lists the alerts on its cards, not just the alerts on the dataset/output datasets.
 
 - Deleting a dataset or dataflow now requires a hold when a Jupyter Workspace uses a dataset the delete removes.
