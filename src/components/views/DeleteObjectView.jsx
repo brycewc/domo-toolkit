@@ -62,6 +62,9 @@ import { DataList } from './DataList';
  * `statusNotice({ context })` returns `{ description, status, title }` or null: an
  * alert on the object's own state, shown first under Warnings without waiting on deps.
  *
+ * A `primaryUnavailableNotice({ context, deps })` result hides the primary button and
+ * `requiresPrimary` cascades, and promotes the last cascade to primary.
+ *
  * `onDemandChecks` declares lookups too expensive to run on open, each offered as
  * a prompt with a button instead. An entry needs a `key`, the `buttonLabel`,
  * `promptTitle` and `promptDescription` for the prompt, a `run({ context, deps })`
@@ -175,6 +178,7 @@ const deletersByType = {
     holdToConfirm: ({ deps }) => hasGroupItems(deps, 'pageCardEmbeds'),
     onDemandChecks: [cardWorkspacesCheck()],
     primaryLabel: 'Delete Page and All Cards',
+    primaryUnavailableNotice: onlyAppPageNotice,
     run: ({ context }) => runPageDelete({ context, parentAppId: context.domoObject.parent?.id }),
     typeName: 'Page'
   },
@@ -649,6 +653,7 @@ const deletersByType = {
     holdToConfirm: ({ deps }) => hasGroupItems(deps, 'pageCardEmbeds'),
     onDemandChecks: [cardWorkspacesCheck()],
     primaryLabel: 'Delete Worksheet Page and All Cards',
+    primaryUnavailableNotice: onlyAppPageNotice,
     run: ({ context }) => runPageDelete({ context, parentAppId: context.domoObject.parent?.id }),
     typeName: 'Worksheet Page'
   }
@@ -692,6 +697,7 @@ const onlyHereCardsCascade = {
   isBlocked: ({ blocked }) => blocked,
   label: () => 'Delete Page and Cards that Only Live Here',
   loadingMessage: ({ pageName }) => `Deleting **${pageName}** and cards that only live here…`,
+  requiresPrimary: true,
   run: ({ context, deps }) =>
     runPageDelete({
       cardScope: 'onlyHere',
@@ -971,7 +977,10 @@ export function DeleteObjectView({
     typeof config.primaryLabel === 'function' ? config.primaryLabel({ outputCount }) : config.primaryLabel;
   const actionIcon = config.actionIcon ?? <IconTrash />;
 
-  const availableCascades = (config.cascadeButtons || []).filter((c) => c.available({ context: currentContext, deps }));
+  const primaryNotice = config.primaryUnavailableNotice?.({ context: currentContext, deps }) ?? null;
+  const availableCascades = (config.cascadeButtons || []).filter(
+    (c) => c.available({ context: currentContext, deps }) && !(primaryNotice && c.requiresPrimary)
+  );
   const primaryUnavailableReason = unavailableReason({
     blocked: isBlocked,
     blockedReason: () => deps?.blockingReason,
@@ -1087,6 +1096,17 @@ export function DeleteObjectView({
       </Alert.Content>
     </Alert>
   ) : null;
+  const primaryNoticeAlert = primaryNotice ? (
+    <Alert className='w-full' status='accent' variant='transparent'>
+      <Alert.Content>
+        <Alert.Title className='flex items-center gap-1'>
+          <AlertStatusIcon />
+          {primaryNotice.title}
+        </Alert.Title>
+        <Alert.Description>{parseMarkdownBold(primaryNotice.description)}</Alert.Description>
+      </Alert.Content>
+    </Alert>
+  ) : null;
   const statusNotice = config.statusNotice?.({ context: currentContext }) ?? null;
   const statusAlert = statusNotice ? (
     <Alert className='w-full' status={statusNotice.status} variant='transparent'>
@@ -1123,7 +1143,12 @@ export function DeleteObjectView({
     !!deps?.supported &&
     (deps.totalCount === 0 || (!!deps.clearNote && !(isBlocked && deps.blockingReason)));
   const depNotice = isLoadingDeps || isAllClear ? null : dependencyBanner;
-  const noticeCount = (statusAlert ? 1 : 0) + (caveatAlert ? 1 : 0) + checkNotices.length + (depNotice ? 1 : 0);
+  const noticeCount =
+    (primaryNoticeAlert ? 1 : 0) +
+    (statusAlert ? 1 : 0) +
+    (caveatAlert ? 1 : 0) +
+    checkNotices.length +
+    (depNotice ? 1 : 0);
   // The caveat is a standing note for the type, so it sits above the dependency
   // banner, which comes and goes as the check runs. The other way round, the
   // caveat slides down and back up as the spinner is replaced. An opt-in check's
@@ -1157,6 +1182,7 @@ export function DeleteObjectView({
                   {/* `pb-1` rides inside the collapsing panel, so the gap above the
                       separator disappears with the rest of the content when closed. */}
                   <div className='flex flex-col gap-2 pb-2'>
+                    {primaryNoticeAlert}
                     {statusAlert}
                     {caveatAlert}
                     {checkNotices}
@@ -1203,6 +1229,7 @@ export function DeleteObjectView({
             {availableCascades.map((cascade, idx) => {
               const ctx = cascade.buildContext({ context: currentContext, deps, selection: selectedInputIds });
               const cascadeLabel = cascade.label(ctx);
+              const cascadeVariant = primaryNotice && idx === availableCascades.length - 1 ? 'danger' : 'danger-soft';
               const reason = unavailableReason({
                 blocked: cascade.isBlocked?.(ctx) ?? false,
                 blockedReason: () => cascade.blockedReason(ctx),
@@ -1216,7 +1243,7 @@ export function DeleteObjectView({
               if (reason) {
                 return (
                   <DisabledTooltip content={reason} key={idx}>
-                    <Button fullWidth variant='danger-soft'>
+                    <Button fullWidth variant={cascadeVariant}>
                       {actionIcon}
                       {cascadeLabel}
                     </Button>
@@ -1228,7 +1255,7 @@ export function DeleteObjectView({
                   <Button
                     fullWidth
                     isDisabled={isDeleting}
-                    variant='danger-soft'
+                    variant={cascadeVariant}
                     onPress={() =>
                       setPendingAction({
                         cascade,
@@ -1244,7 +1271,7 @@ export function DeleteObjectView({
                 </Tooltip>
               );
             })}
-            {primaryUnavailableReason ? (
+            {primaryNotice ? null : primaryUnavailableReason ? (
               <DisabledTooltip content={primaryUnavailableReason}>
                 <Button fullWidth variant='danger'>
                   {actionIcon}
@@ -1896,6 +1923,17 @@ function jupyterWorkspacesCheck({ datasetsFor, groupLabel }) {
  * @param {{error: string|null, status: string}} [params.result] - Its state, absent until first run
  * @returns {JSX.Element|null}
  */
+function onlyAppPageNotice({ context, deps }) {
+  const domoObject = context.domoObject;
+  const pageCount = domoObject?.parent?.metadata?.details?.views?.length ?? deps?.appSummary?.pageCount;
+  if (pageCount !== 1) return null;
+  const appLabel = domoObject.typeId === 'WORKSHEET_VIEW' ? 'worksheet' : 'app';
+  return {
+    description: `This is the only page in the ${appLabel}, so it can't be deleted on its own. Delete the ${appLabel} instead.`,
+    title: 'Page Delete Unavailable'
+  };
+}
+
 function renderCheckBanner({ check, isWaitingForDeps, onRun, result }) {
   if (result?.status === 'loaded') return null;
 

@@ -8,6 +8,7 @@
 - Deleting a scheduled report now shows whether it is active, disabled, or expired.
 - Deleting an active scheduled report with recipients now requires a hold.
 - Report Builder deliveries no longer support Delete.
+- Deleting the only page in an App Studio app or worksheet now offers only the app delete options, with a note that the page can't be deleted on its own.
 - Sandbox Repositories now support Delete, listing their content and the instances they are shared with.
 
 ## UI Improvements
