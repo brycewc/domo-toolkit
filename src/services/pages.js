@@ -346,35 +346,56 @@ export async function getChildPages({ appId = null, includeGrandchildren = false
   // Execute fetch in page context to use authenticated session
   const result = await executeInPage(
     async (pageId, pageType, appId, includeGrandchildren) => {
-      let childPages = [];
-      if (pageType === 'PAGE') {
-        // Build request body
-        const body = {
-          ascending: true,
-          orderBy: 'lastModified'
-        };
+      // adminsummary rejects a limit above 100 with a 400.
+      const PAGE_SIZE = 100;
 
-        body.includeParentPageIdsClause = true;
-        body.parentPageIds = [pageId];
+      async function postAdminSummary(parentPageIds, skip) {
+        const request = () =>
+          fetch(`/api/content/v1/pages/adminsummary?limit=${PAGE_SIZE}&skip=${skip}`, {
+            body: JSON.stringify({
+              ascending: true,
+              includeParentPageIdsClause: true,
+              // pageId is not an accepted orderBy; siblings tie here and the server breaks ties by pageId.
+              orderBy: 'parentPageTitle',
+              parentPageIds
+            }),
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            },
+            method: 'POST'
+          });
 
-        // Make API call to fetch pages with relative URL
-        const response = await fetch('/api/content/v1/pages/adminsummary?limit=100&skip=0', {
-          body: JSON.stringify(body),
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          method: 'POST'
-        });
-
+        let response = await request();
+        if (response.status === 429) {
+          const retryAfterSeconds = Number(response.headers.get('Retry-After')) || 1;
+          await new Promise((resolve) => setTimeout(resolve, retryAfterSeconds * 1000));
+          response = await request();
+        }
         if (!response.ok) {
           const error = new Error(`Failed to fetch pages (HTTP ${response.status})`);
           error.status = response.status;
           throw error;
         }
+        return response.json();
+      }
 
-        const adminSummaryResponse = await response.json();
-        childPages = adminSummaryResponse.pageAdminSummaries || [];
+      async function fetchAllChildren(parentPageIds) {
+        const pages = [];
+        let totalPageCount = Infinity;
+        while (pages.length < totalPageCount) {
+          const data = await postAdminSummary(parentPageIds, pages.length);
+          const batch = data.pageAdminSummaries || [];
+          pages.push(...batch);
+          if (typeof data.totalPageCount === 'number') totalPageCount = data.totalPageCount;
+          if (batch.length < PAGE_SIZE) break;
+        }
+        return pages;
+      }
+
+      let childPages = [];
+      if (pageType === 'PAGE') {
+        childPages = await fetchAllChildren([pageId]);
 
         // If includeGrandchildren is true, fetch grandchildren for each child page.
         // The adminsummary endpoint silently returns zero results when
@@ -391,27 +412,12 @@ export async function getChildPages({ appId = null, includeGrandchildren = false
 
           const grandchildResults = await Promise.all(
             batches.map(async (parentPageIds) => {
-              const grandchildrenResponse = await fetch('/api/content/v1/pages/adminsummary?limit=100&skip=0', {
-                body: JSON.stringify({
-                  ascending: true,
-                  includeParentPageIdsClause: true,
-                  orderBy: 'lastModified',
-                  parentPageIds
-                }),
-                headers: {
-                  'Accept': 'application/json',
-                  'Content-Type': 'application/json'
-                },
-                method: 'POST'
-              });
-
-              if (!grandchildrenResponse.ok) {
-                console.warn(`Failed to fetch grandchildren pages (HTTP ${grandchildrenResponse.status})`);
+              try {
+                return await fetchAllChildren(parentPageIds);
+              } catch (error) {
+                console.warn(`Failed to fetch grandchildren pages (${error.message})`);
                 return [];
               }
-
-              const grandchildrenData = await grandchildrenResponse.json();
-              return grandchildrenData.pageAdminSummaries || [];
             })
           );
 
@@ -583,8 +589,8 @@ export async function getPagesForCards(cardIds, tabId = null) {
 }
 
 /**
- * Get all child and grandchild page IDs for a page using the fast subpages endpoint.
- * Returns a flat array of integer page IDs. Only works for PAGE type.
+ * Get the direct child page IDs for a page using the fast subpages endpoint.
+ * Returns a flat array of integer page IDs, without grandchildren. Only works for PAGE type.
  * @param {Object} params
  * @param {number} params.pageId - The page ID
  * @param {number} [params.tabId] - Optional Chrome tab ID
