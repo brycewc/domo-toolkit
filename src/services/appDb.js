@@ -115,40 +115,29 @@ export async function getAppInstanceCollections({ appInstanceId, tabId = null })
  * List the Custom Apps connected to an AppDB collection. Domo grants each
  * connected app a permission on the collection, so the collection's permission
  * record names the app instance IDs (under `RYUU_APP`); those IDs are resolved
- * to their cards (title + card ID) via the domoapps card endpoint. Instance IDs
- * that no longer resolve to a card (a deleted app that left a stale permission
- * entry) drop out, matching Domo's own "Apps Connected" panel. Best-effort:
- * returns [] on any failure.
+ * to their cards (title + card ID). Instance IDs that no longer resolve to a
+ * card (a deleted app that left a stale permission entry) drop out, matching
+ * Domo's own "Apps Connected" panel. Best-effort: returns [] on any failure.
  * @param {Object} params
  * @param {string} params.collectionId - The AppDB collection ID
  * @param {number|null} [params.tabId] - Optional Chrome tab ID
  * @returns {Promise<Array<{cardId: number, instanceId: string, title: string}>>}
  */
 export async function getCollectionConnectedApps({ collectionId, tabId = null }) {
-  return executeInPage(
+  const instanceIds = await executeInPage(
     async (collectionId) => {
       const permResponse = await fetch(`/api/datastores/v1/collections/${collectionId}/permission`);
       if (!permResponse.ok) return [];
       const permission = await permResponse.json();
-      const instanceIds = (permission?.RYUU_APP || []).map((entry) => entry.id).filter(Boolean);
-      if (instanceIds.length === 0) return [];
-      // Resolve the instance IDs to real app cards. The response is keyed by
-      // instance ID and only includes apps that still exist, so a stale
-      // permission entry for a deleted app is naturally excluded.
-      const cardResponse = await fetch('/domoapps/apps/v2/card', {
-        body: JSON.stringify(instanceIds),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST'
-      });
-      if (!cardResponse.ok) return [];
-      const cards = await cardResponse.json();
-      return Object.values(cards || {})
-        .filter((card) => card && card.id)
-        .map((card) => ({ cardId: card.id, instanceId: card.domoapp?.id || card.urn, title: card.title || `App ${card.id}` }));
+      return (permission?.RYUU_APP || []).map((entry) => entry.id).filter(Boolean);
     },
     [collectionId],
     tabId
   ).catch(() => []);
+  const cards = await getAppCardsByInstanceIds(instanceIds, tabId);
+  return [...new Set(instanceIds)]
+    .filter((instanceId) => cards[instanceId])
+    .map((instanceId) => ({ cardId: cards[instanceId].id, instanceId, title: cards[instanceId].title }));
 }
 
 /**
@@ -202,32 +191,17 @@ export async function getCollectionsByIds({ entries, tabId = null }) {
           }
         })
       );
-
-      const datastoreIds = [...new Set(collections.map((c) => c.datastoreId).filter(Boolean))];
-      const ownerCards = {};
-      if (datastoreIds.length > 0) {
-        try {
-          const response = await fetch('/domoapps/apps/v2/card', {
-            body: JSON.stringify(datastoreIds),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST'
-          });
-          if (response.ok) {
-            for (const [instanceId, card] of Object.entries((await response.json()) || {})) {
-              if (card?.id) ownerCards[instanceId] = { id: card.id, title: card.title || `App ${card.id}` };
-            }
-          }
-        } catch {
-          // Owner cards only label the rows; the collections still list without them.
-        }
-      }
-
-      return collections.map((c) => ({ ...c, ownerCard: (c.datastoreId && ownerCards[c.datastoreId]) || null }));
+      return collections;
     },
     [unique],
     tabId
   );
-  return Array.isArray(result) ? result : [];
+  if (!Array.isArray(result)) return [];
+  const ownerCards = await getAppCardsByInstanceIds(
+    result.map((c) => c.datastoreId),
+    tabId
+  );
+  return result.map((c) => ({ ...c, ownerCard: (c.datastoreId && ownerCards[c.datastoreId]) || null }));
 }
 
 /**
@@ -520,6 +494,61 @@ export async function updateAppDbCollectionSchema({ collectionId, columns, tabId
   );
 }
 
+/**
+ * Map app instance IDs to the card each is placed on, through each instance's design.
+ * IDs with no live instance or card are left out. Best-effort: returns {} on failure.
+ * @param {string[]} instanceIds
+ * @param {number|null} [tabId]
+ * @returns {Promise<Record<string, {id: number, title: string}>>}
+ */
+async function getAppCardsByInstanceIds(instanceIds, tabId = null) {
+  const ids = [...new Set((instanceIds || []).filter(Boolean).map(String))];
+  if (ids.length === 0) return {};
+  const cards = await executeInPage(
+    async (ids) => {
+      const readJson = async (url) => {
+        try {
+          const response = await fetch(url);
+          return response.ok ? await response.json() : null;
+        } catch {
+          return null;
+        }
+      };
+      const mapLimit = async (list, fn) => {
+        const out = new Array(list.length);
+        let next = 0;
+        await Promise.all(
+          Array.from({ length: Math.min(6, list.length) }, async () => {
+            while (next < list.length) {
+              const index = next++;
+              out[index] = await fn(list[index]);
+            }
+          })
+        );
+        return out;
+      };
+
+      const instances = await mapLimit(ids, (id) => readJson(`/api/apps/v1/instances/${id}`));
+      const designIds = [...new Set(instances.map((instance) => instance?.designId).filter(Boolean))];
+      const designs = await mapLimit(designIds, (id) => readJson(`/api/apps/v1/designs/${id}?parts=cards`));
+      const wanted = new Set(ids);
+      const byInstance = {};
+      for (const design of designs) {
+        for (const card of design?.referencingCards || []) {
+          const instanceId = card?.domoapp?.id;
+          if (card?.id && wanted.has(instanceId) && !byInstance[instanceId]) {
+            byInstance[instanceId] = { id: card.id, title: card.title || `App ${card.id}` };
+          }
+        }
+      }
+      return byInstance;
+    },
+    [ids],
+    tabId
+  ).catch(() => ({}));
+  return cards || {};
+}
+
 // Mirrors ryuu's resolveCollectionsMapping: context mapping, then manifest entries with an id
 // for aliases the context lacks, then the own datastore. Only the first two can borrow.
 async function resolveCollections({ designId = null, instanceIds = [], tabId = null }) {
@@ -634,38 +663,13 @@ async function resolveCollections({ designId = null, instanceIds = [], tabId = n
         }
       }
 
-      const borrowedDatastoreIds = [
-        ...new Set(
-          resolved.flatMap(({ byId, instance }) =>
-            [...byId.values()].map((c) => c.datastoreId).filter((dsId) => dsId && dsId !== instance.id)
-          )
-        )
-      ];
-      const ownerCards = {};
-      if (borrowedDatastoreIds.length > 0) {
-        try {
-          const response = await fetch('/domoapps/apps/v2/card', {
-            body: JSON.stringify(borrowedDatastoreIds),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST'
-          });
-          if (response.ok) {
-            for (const [instanceId, card] of Object.entries((await response.json()) || {})) {
-              if (card?.id) ownerCards[instanceId] = { id: card.id, title: card.title || `App ${card.id}` };
-            }
-          }
-        } catch {
-          // Owner cards only label borrowed rows; the collections still list without them.
-        }
-      }
-
       return {
         instances: resolved.map(({ byId, instance }) => ({
           card: cardByInstance[instance.id] || null,
-          collections: [...byId.values()].map((c) => {
-            const borrowed = !!c.datastoreId && c.datastoreId !== instance.id;
-            return { ...c, borrowed, ownerCard: borrowed ? ownerCards[c.datastoreId] || null : null };
-          }),
+          collections: [...byId.values()].map((c) => ({
+            ...c,
+            borrowed: !!c.datastoreId && c.datastoreId !== instance.id
+          })),
           instanceId: instance.id
         })),
         ok: true
@@ -675,5 +679,15 @@ async function resolveCollections({ designId = null, instanceIds = [], tabId = n
     tabId
   );
   if (!result?.ok) throw new Error(result?.error || 'Failed to load AppDB collections');
-  return result.instances;
+  const ownerCards = await getAppCardsByInstanceIds(
+    result.instances.flatMap(({ collections }) => collections.filter((c) => c.borrowed).map((c) => c.datastoreId)),
+    tabId
+  );
+  return result.instances.map((instance) => ({
+    ...instance,
+    collections: instance.collections.map((c) => ({
+      ...c,
+      ownerCard: c.borrowed ? ownerCards[c.datastoreId] || null : null
+    }))
+  }));
 }
