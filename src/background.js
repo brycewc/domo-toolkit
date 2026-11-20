@@ -40,25 +40,22 @@ const SECTION_KEYS_LONGEST_FIRST = Object.keys(SECTION_TITLES).sort((a, b) => b.
 /**
  * Compute whether the current user is an owner of the detected object.
  * Handles pre-computed booleans, plain IDs, typed objects, and arrays.
- * @param {string} typeId - The object type ID
- * @param {Object} details - The enriched metadata details
+ * @param {DomoObject} domoObject - The detected object, with its details (and its parent's, for an app or worksheet page) loaded
  * @param {number|string} userId - The current user's ID
  * @param {string[]} userGroups - Group IDs the user belongs to
  * @returns {boolean|null} true/false if determinable, null if unknown
  */
-function computeIsOwner(typeId, details, userId, userGroups) {
-  if (!userId) return null;
+function computeIsOwner(domoObject, userId, userGroups) {
+  if (!userId || !domoObject) return null;
 
-  // Types where the API pre-computes isOwner
-  if (typeId === 'PAGE' || typeId === 'DATA_APP_VIEW') {
-    return details?.page?.isOwner ?? null;
-  }
+  const { typeId } = domoObject;
+  // App and worksheet pages have no owner of their own; the parent's owners own every page in it.
+  const ownedByParent = typeId === 'DATA_APP_VIEW' || typeId === 'WORKSHEET_VIEW';
+  const details = ownedByParent ? domoObject.parent?.metadata?.details : domoObject.metadata?.details;
 
-  // Approval templates: owner is { id } on the details object
-  if (typeId === 'TEMPLATE') {
-    const ownerId = details?.owner?.id;
-    if (ownerId == null) return null;
-    return String(userId) === String(ownerId);
+  // The stacks response mirrors the parent's ownership onto the page, so it stands in when the parent didn't load.
+  if (typeId === 'PAGE' || (ownedByParent && !details)) {
+    return domoObject.metadata?.details?.page?.isOwner ?? null;
   }
 
   // Approval templates: owner is { id } on the details object
@@ -93,7 +90,7 @@ function computeIsOwner(typeId, details, userId, userGroups) {
   }
 
   // Remaining types: owner can be typed object, array, or plain ID
-  const owner = typeId === 'CARD' ? details?.owners : details?.owner;
+  const owner = ownedByParent || ['CARD', 'DATA_APP', 'WORKSHEET'].includes(typeId) ? details?.owners : details?.owner;
   if (owner == null) return null;
 
   // Multiple owners (array)
@@ -346,12 +343,7 @@ function applyInstanceUser(context, { featureSwitches, user, userGroups }) {
   // The switches can land after the user resolved without them (see applyFeatureSwitches).
   context.featureSwitches = featureSwitches ?? instanceUserCache.get(context.instance)?.featureSwitches ?? null;
   if (context.domoObject?.metadata?.details) {
-    context.domoObject.metadata.isOwner = computeIsOwner(
-      context.domoObject.typeId,
-      context.domoObject.metadata.details,
-      user?.id,
-      userGroups
-    );
+    context.domoObject.metadata.isOwner = computeIsOwner(context.domoObject, user?.id, userGroups);
   }
 }
 
@@ -1819,11 +1811,6 @@ async function detectAndStoreContext(tabId) {
       domoObject.metadata.context.appId = detected.appId;
     }
 
-    // Compute isOwner if user and groups are already available
-    const currentUser = context.user;
-    const currentUserGroups = context.userGroups;
-    domoObject.metadata.isOwner = computeIsOwner(typeModel.id, enrichedMetadata.details, currentUser?.id, currentUserGroups);
-
     // Only a title built from the parent's name waits on its details; the rest load in the enrichments.
     const parent = await domoObject.getParent({ tabId, url: detected.url }).catch((error) => {
       console.warn(`[Background] Could not resolve the parent of ${typeModel.id} ${objectId}:`, error.message);
@@ -1836,6 +1823,9 @@ async function detectAndStoreContext(tabId) {
       });
       if (isStale()) return null;
     }
+
+    // Runs after the parent loads, since an app or worksheet page's ownership comes from its parent.
+    domoObject.metadata.isOwner = computeIsOwner(domoObject, context.user?.id, context.userGroups);
 
     // Compose a tab-title display name from template if configured. This is kept
     // separate from metadata.name so the context footer shows the object's own

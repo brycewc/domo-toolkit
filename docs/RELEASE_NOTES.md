@@ -28,6 +28,7 @@
 
 - Sandbox Repositories now load their details, so their names show instead of IDs.
 - Deleting a dataset or dataflow now lists the alerts on its cards, not just the alerts on the dataset/output datasets.
+- A worksheet's owners can now delete its pages without needing the Content Admin grant.
 - Get Child Pages now lists every subpage of pages with more than 100 of them.
 - Get App Cards and Get Worksheet Cards no longer silently leave out a page that failed to load, and flag it in the list instead.
 - Get Card Pages and Get Beast Modes for a whole app or worksheet now warn when a page's cards could not be loaded.
