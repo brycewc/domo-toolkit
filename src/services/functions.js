@@ -287,7 +287,7 @@ export async function getBeastModeReferenceGraph(beastModes, tabId = null) {
   const list = (beastModes || []).filter((bm) => bm?.id != null);
   if (list.length === 0) return graph;
   const localIds = new Set(list.map((bm) => String(bm.id)));
-  const templates = await hydrateFunctionTemplates(list, tabId);
+  const { templates } = await hydrateFunctionTemplates(list, tabId);
 
   for (const source of list) {
     const sourceId = String(source.id);
@@ -538,13 +538,22 @@ export async function getFunctionTemplate(functionId, tabId = null) {
       const response = await fetch(`/api/query/v1/functions/template/${functionId}?hidden=true`, {
         credentials: 'include'
       });
-      if (!response.ok) return { error: `HTTP ${response.status}`, ok: false };
+      if (!response.ok) {
+        return {
+          error: `HTTP ${response.status}`,
+          ok: false,
+          retryAfter: response.headers.get('Retry-After'),
+          status: response.status
+        };
+      }
       return { ok: true, template: await response.json() };
     },
     [functionId],
     tabId
   );
-  if (!result?.ok || !result.template) throw new Error(result?.error || 'The Beast Mode definition could not be read');
+  if (!result?.ok || !result.template) {
+    throw httpError(result?.error || 'The Beast Mode definition could not be read', result);
+  }
   return result.template;
 }
 
@@ -575,14 +584,14 @@ export async function getNestingBeastModeIds(beastModes, tabId = null) {
   const nesting = new Set();
   const list = (beastModes || []).filter((bm) => bm?.id != null);
   if (list.length === 0) return nesting;
-  const templates = await hydrateFunctionTemplates(list, tabId);
+  const { templates } = await hydrateFunctionTemplates(list, tabId);
   const depsById = new Map();
   for (const [id, template] of templates) {
     const deps = (template?.functionTemplateDependencies || []).map(String).filter((dep) => dep !== id);
     if (deps.length > 0) depsById.set(id, deps);
   }
   if (depsById.size === 0) return nesting;
-  const depTemplates = await hydrateFunctionTemplates(
+  const { templates: depTemplates } = await hydrateFunctionTemplates(
     [...new Set([...depsById.values()].flat())].map((id) => ({ id })),
     tabId
   );
@@ -649,14 +658,16 @@ export async function getOwnedFunctions(userId, tabId = null) {
  * Bounded concurrency mirrors the column scan: every fetch goes through
  * `executeInPage` (and so through chrome.scripting), so letting all N run at once
  * stalls the messaging bridge for everything else using it. One that fails to
- * load is left out of the map rather than failing the batch, so callers treat a
- * missing template as "nothing to contribute".
+ * load is left out of `templates` rather than failing the batch, and its error
+ * goes in `failures`, so a caller can tell a failed read from one never asked for.
  *
  * @param {Array<{id: any}>} beastModes
  * @param {number|null} tabId
- * @returns {Promise<Map<string, Object>>}
+ * @returns {Promise<{failures: Map<string, Error>, templates: Map<string, Object>}>}
+ *   Each failure keeps the read's `status` and `retryAfter` when the request got a response.
  */
 export async function hydrateFunctionTemplates(beastModes, tabId) {
+  const failures = new Map();
   const templates = new Map();
   const queue = [...beastModes];
   const CONCURRENCY = 5;
@@ -666,13 +677,13 @@ export async function hydrateFunctionTemplates(beastModes, tabId) {
       if (!bm) return;
       try {
         templates.set(String(bm.id), await getFunctionTemplate(bm.id, tabId));
-      } catch {
-        // Skip: this Beast Mode contributes nothing. Non-fatal.
+      } catch (error) {
+        failures.set(String(bm.id), error);
       }
     }
   });
   await Promise.allSettled(workers);
-  return templates;
+  return { failures, templates };
 }
 
 /**
@@ -729,7 +740,8 @@ export async function transferFunctions(functions, fromUserId, toUserId, tabId =
  * @param {Object} params
  * @param {Array<Object>} params.functions - Update entries.
  * @param {number|null} [params.tabId]
- * @returns {Promise<void>} Resolves when the batch is written; throws otherwise.
+ * @returns {Promise<void>} Resolves when the batch is written; throws otherwise, with
+ *   `status` and `retryAfter` on the error when Domo rejected the request.
  */
 export async function updateDatasetFunctions({ functions, tabId = null }) {
   const result = await executeInPage(
@@ -746,12 +758,24 @@ export async function updateDatasetFunctions({ functions, tabId = null }) {
       });
       if (!response.ok) {
         const text = await response.text().catch(() => '');
-        return { error: `HTTP ${response.status}: ${text}`.trim(), ok: false };
+        return {
+          error: `HTTP ${response.status}: ${text}`.trim(),
+          ok: false,
+          retryAfter: response.headers.get('Retry-After'),
+          status: response.status
+        };
       }
       return { ok: true };
     },
     [functions],
     tabId
   );
-  if (!result?.ok) throw new Error(result?.error || 'The Beast Modes could not be updated');
+  if (!result?.ok) throw httpError(result?.error || 'The Beast Modes could not be updated', result);
+}
+
+function httpError(message, result) {
+  const error = new Error(message);
+  if (result?.retryAfter != null) error.retryAfter = result.retryAfter;
+  if (result?.status != null) error.status = result.status;
+  return error;
 }

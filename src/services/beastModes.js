@@ -47,7 +47,7 @@ export async function getBeastModeNestingParents({ id, metadata, tabId = null })
   const { nestedByIds } = parseBeastModeLinks(links);
   if (nestedByIds.length === 0) return [];
 
-  const templates = await hydrateFunctionTemplates(
+  const { templates } = await hydrateFunctionTemplates(
     nestedByIds.map((templateId) => ({ id: templateId })),
     tabId
   );
@@ -90,7 +90,7 @@ export async function getBeastModeRelatives({ id, metadata, tabId = null }) {
     (dep) => dep !== String(id)
   );
 
-  const templates = await hydrateFunctionTemplates(
+  const { templates } = await hydrateFunctionTemplates(
     [...new Set([...nestedByIds, ...nestsIds])].map((templateId) => ({ id: templateId })),
     tabId
   );
@@ -130,7 +130,7 @@ export async function getBeastModeUsage({ links, tabId = null }) {
   // a widely reused one can have many parents, so those go through the pooled
   // hydrate; one that won't load keeps its id and still counts as usage.
   const lookupIds = [...new Set([...cardIds, ...drillRefs.flatMap((d) => [d.id, d.parentId].filter(Boolean))])];
-  const [cardTitleById, parentTemplates] = await Promise.all([
+  const [cardTitleById, { templates: parentTemplates }] = await Promise.all([
     fetchCardTitles(lookupIds, tabId),
     hydrateFunctionTemplates(
       nestedByIds.map((id) => ({ id })),

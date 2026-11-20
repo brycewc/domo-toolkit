@@ -228,6 +228,7 @@ async function runInPage(source, args) {
       __dtk: 'error',
       message: String(error?.message ?? error),
       name: error?.name,
+      retryAfter: error?.retryAfter,
       status: error?.status
     };
   }
@@ -236,6 +237,7 @@ async function runInPage(source, args) {
 function toError(envelope) {
   const error = new Error(envelope.message || 'Script execution failed');
   if (envelope.name) error.name = envelope.name;
+  if (envelope.retryAfter != null) error.retryAfter = envelope.retryAfter;
   if (envelope.status != null) error.status = envelope.status;
   return error;
 }
