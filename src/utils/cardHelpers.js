@@ -2,6 +2,14 @@
  * Shared utilities for components that work with cards, forms, workflows, and queues
  */
 
+/** Names the `getCardsForParent` views that failed, or counts them past three; null when none did. */
+export function describeFailedViews(viewGroups, { bold = false } = {}) {
+  const names = viewGroups.filter((vg) => vg.error).map((vg) => (bold ? `**${vg.viewName}**` : vg.viewName));
+  if (names.length === 0) return null;
+  if (names.length > 3) return `${names.length} pages`;
+  return new Intl.ListFormat('en', { type: 'conjunction' }).format(names);
+}
+
 /**
  * Wait for cards, forms, workflows, and queues to be loaded in the context.
  * The background service worker populates these asynchronously after
@@ -26,8 +34,7 @@ export async function waitForCards(currentContext, maxAttempts = 50) {
   // 3. [...]: Has items
 
   const isSet = (v) => v !== undefined && v !== null;
-  const allResolved = () =>
-    isSet(cards) && (!hasPageContent || (isSet(forms) && isSet(queues) && isSet(workflows)));
+  const allResolved = () => isSet(cards) && (!hasPageContent || (isSet(forms) && isSet(queues) && isSet(workflows)));
 
   if (!allResolved()) {
     let attempts = 0;

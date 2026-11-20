@@ -11,7 +11,7 @@ import { getCardsForObject, getCardsForParent, getOwnedCards } from '@/services/
 import { getCardEmbeds, toEmbedRow } from '@/services/embeds';
 import { getChildPages, getPagesForCards } from '@/services/pages';
 import { getWorkspacesForCards } from '@/services/workspaces';
-import { waitForCards } from '@/utils/cardHelpers';
+import { describeFailedViews, waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { soleExpandedGroupIds, withCanonicalGroups } from '@/utils/dataListGroups';
 import { waitForChildPages } from '@/utils/pageHelpers';
@@ -338,10 +338,9 @@ export function GetPagesView({
     setPageTypeLabel('Card Pages');
 
     const tabId = await getValidTabForInstance(instance);
-    const { parentName, viewGroups } = await getCardsForParent({
-      parentId,
-      tabId
-    });
+    const { parentName, viewGroups } = await getCardsForParent({ cardsOnly: true, parentId, tabId });
+    const failedViews = describeFailedViews(viewGroups, { bold: true });
+    const failedSentence = failedViews ? `Could not load the cards on ${failedViews}.` : '';
 
     // Aggregate and dedupe card IDs across all views.
     const cardIdSet = new Set();
@@ -354,6 +353,10 @@ export function GetPagesView({
     const cardById = new Map(viewGroups.flatMap((vg) => vg.cards).map((card) => [card.id, card]));
 
     if (cardIds.length === 0) {
+      if (failedViews) {
+        setError(`Could not load the cards on ${describeFailedViews(viewGroups)}.`);
+        return;
+      }
       onStatusUpdate?.('No Cards Found', `No cards found across any view on this ${parentLabel}.`, 'warning', 3000);
       onBackToDefault?.();
       return;
@@ -391,7 +394,12 @@ export function GetPagesView({
     if (childPages.length === 0 && !embedResult?.embeds?.length && !hasWorkspaces(workspaceResult)) {
       if (!mountedRef.current) return;
       reportNoCardPages(
-        `Cards on this ${parentLabel} are not used on any other ${workspaceResult ? 'pages or workspaces' : 'pages'}.`,
+        [
+          `Cards on this ${parentLabel} are not used on any other ${workspaceResult ? 'pages or workspaces' : 'pages'}.`,
+          failedSentence
+        ]
+          .filter(Boolean)
+          .join(' '),
         workspaceResult,
         { currentContext: context, parentId, scope: 'parent', type: 'getCardPages' }
       );
@@ -417,6 +425,13 @@ export function GetPagesView({
       instance,
       workspaceResult
     });
+    if (failedSentence) {
+      onStatusUpdate?.(
+        'Some Pages Not Loaded',
+        `${failedSentence} Other pages their cards are on are not listed.`,
+        'warning'
+      );
+    }
   };
 
   const showGroupedPages = ({ args, cards, instance, workspaceResult }) => {

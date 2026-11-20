@@ -457,7 +457,11 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
  * DATA_APP or WORKSHEET, grouped by view. Both types share the same backend
  * endpoint, so the parent type doesn't need to be passed in.
  *
+ * A view whose reads failed keeps whatever did load and names the rest in
+ * `error`; a view that loaded with nothing on it is dropped.
+ *
  * @param {Object} params
+ * @param {boolean} [params.cardsOnly=false] - Read only each view's cards, skipping its forms, workflows, and queues
  * @param {string} params.parentId - The DATA_APP or WORKSHEET ID
  * @param {number|null} [params.tabId=null] - Target tab
  * @returns {Promise<{
@@ -465,14 +469,15 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
  *   viewGroups: Array<{
  *     viewId: string,
  *     viewName: string,
+ *     error: string|null,
  *     cards: Array,
- *     forms: Array,
- *     queues: Array,
- *     workflows: Array
+ *     forms?: Array,
+ *     queues?: Array,
+ *     workflows?: Array
  *   }>
- * }>}
+ * }>} The forms, queues, and workflows lists are absent with `cardsOnly`
  */
-export async function getCardsForParent({ parentId, tabId = null }) {
+export async function getCardsForParent({ cardsOnly = false, parentId, tabId = null }) {
   // 1. Fetch the parent app/worksheet to get its name and view list.
   const parentData = await executeInPage(
     async (parentId) => {
@@ -496,44 +501,49 @@ export async function getCardsForParent({ parentId, tabId = null }) {
   );
 
   // 2. For each view, fetch details + cards in parallel, then the forms,
-  //    workflows, and queues its layout references. Per-view errors are
-  //    isolated so one failing view doesn't take down the whole result.
+  //    workflows, and queues its layout references.
   const viewGroups = await Promise.all(
     parentData.views.map(async ({ viewId, viewName }) => {
-      try {
-        const [details, cards] = await Promise.all([
-          fetchViewDetails(viewId, tabId),
-          getCardsForObject({
-            objectId: viewId,
-            objectType: 'DATA_APP_VIEW',
-            tabId
-          }).catch(() => [])
-        ]);
+      const failedReads = new Set();
+      const settle = (promise, reads, fallback) =>
+        promise.catch((error) => {
+          console.warn(`Could not read the ${reads.join(', ')} on view ${viewId}:`, error);
+          reads.forEach((read) => failedReads.add(read));
+          return fallback;
+        });
 
-        const { formRefs, queueWidgetRefs, workflowModelRefs, workflowWidgetRefs } = extractPageContentIds(details);
+      const cardsRead = settle(getCardsForObject({ objectId: viewId, objectType: 'DATA_APP_VIEW', tabId }), ['cards'], []);
 
-        const [forms, queues, workflows] = await Promise.all([
-          formRefs.length > 0 ? getFormsForPage({ formRefs, tabId }).catch(() => []) : Promise.resolve([]),
-          queueWidgetRefs.length > 0 ? getQueuesForPage({ queueWidgetRefs, tabId }).catch(() => []) : Promise.resolve([]),
-          workflowModelRefs.length > 0 || workflowWidgetRefs.length > 0
-            ? getWorkflowsForPage({ tabId, workflowModelRefs, workflowWidgetRefs }).catch(() => [])
-            : Promise.resolve([])
-        ]);
-
-        return { cards, forms, queues, viewId, viewName, workflows };
-      } catch (error) {
-        console.warn(`Error fetching content for view ${viewId}:`, error);
-        return { cards: [], forms: [], queues: [], viewId, viewName, workflows: [] };
+      if (cardsOnly) {
+        const cards = await cardsRead;
+        return { cards, error: describeFailedViewReads(failedReads), viewId, viewName };
       }
+
+      const [details, cards] = await Promise.all([
+        settle(fetchViewDetails(viewId, tabId), ['forms', 'workflows', 'queues'], null),
+        cardsRead
+      ]);
+
+      const { formRefs, queueWidgetRefs, workflowModelRefs, workflowWidgetRefs } = extractPageContentIds(details);
+
+      const [forms, queues, workflows] = await Promise.all([
+        formRefs.length > 0 ? settle(getFormsForPage({ formRefs, tabId }), ['forms'], []) : [],
+        queueWidgetRefs.length > 0 ? settle(getQueuesForPage({ queueWidgetRefs, tabId }), ['queues'], []) : [],
+        workflowModelRefs.length > 0 || workflowWidgetRefs.length > 0
+          ? settle(getWorkflowsForPage({ tabId, workflowModelRefs, workflowWidgetRefs }), ['workflows'], [])
+          : []
+      ]);
+
+      return { cards, error: describeFailedViewReads(failedReads), forms, queues, viewId, viewName, workflows };
     })
   );
 
-  // 3. Drop views that ended up with no content -- keeps the grouped list clean.
-  const nonEmpty = viewGroups.filter(
-    (vg) => vg.cards.length > 0 || vg.forms.length > 0 || vg.queues.length > 0 || vg.workflows.length > 0
+  // 3. Drop views that loaded with nothing on them, but keep a failed one so it is reported.
+  const listed = viewGroups.filter(
+    (vg) => vg.error || [vg.cards, vg.forms, vg.queues, vg.workflows].some((list) => list?.length > 0)
   );
 
-  return { parentName: parentData.name, viewGroups: nonEmpty };
+  return { parentName: parentData.name, viewGroups: listed };
 }
 
 export async function getDrillParentCardId(drillViewId, inPageContext = false, tabId = null) {
@@ -952,22 +962,24 @@ export async function updateCardOwners({ addOwners = [], cardIds, removeOwners =
   return { errors, failed, succeeded };
 }
 
-/**
- * Fetch the bare stacks details for a view so we can read pageLayoutV4 and
- * derive form/queue widget IDs. Returns null on failure rather than throwing.
- */
+function describeFailedViewReads(failedReads) {
+  if (failedReads.size === 0) return null;
+  const reads = ['cards', 'forms', 'workflows', 'queues'].filter((read) => failedReads.has(read));
+  return `Could not load this page's ${new Intl.ListFormat('en', { type: 'conjunction' }).format(reads)}.`;
+}
+
 async function fetchViewDetails(viewId, tabId) {
-  try {
-    return await executeInPage(
-      async (viewId) => {
-        const response = await fetch(`/api/content/v3/stacks/${viewId}`);
-        if (!response.ok) return null;
-        return response.json();
-      },
-      [viewId],
-      tabId
-    );
-  } catch {
-    return null;
-  }
+  return executeInPage(
+    async (viewId) => {
+      const response = await fetch(`/api/content/v3/stacks/${viewId}`);
+      if (!response.ok) {
+        const error = new Error(`Failed to fetch view ${viewId}. HTTP status: ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+      return response.json();
+    },
+    [viewId],
+    tabId
+  );
 }

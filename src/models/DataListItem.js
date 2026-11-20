@@ -185,17 +185,21 @@ export class DataListItem {
    * Create a DataListItem from a DomoObject
    * @param {DomoObject} domoObject - The DomoObject to create an item from
    * @param {Object} [options] - Additional options
+   * @param {string} [options.annotation] - Optional note explaining the row (see the constructor)
    * @param {string} [options.label] - Override the label (defaults to domoObject.metadata.name)
    * @param {DataListItem[]} [options.children] - Optional children
+   * @param {{color?: string, label: string}} [options.chip] - Optional status chip (see the constructor)
    * @param {number} [options.count] - Optional count override
    * @param {string} [options.countLabel] - Optional label for count display (e.g., 'cards')
    * @returns {DataListItem}
    */
   static fromDomoObject(domoObject, options = {}) {
-    const { children, count, countLabel, label } = options;
+    const { annotation, children, chip, count, countLabel, label } = options;
 
     return new DataListItem({
+      annotation,
       children,
+      chip,
       count: count !== undefined ? count : children?.length,
       countLabel,
       domoObject,

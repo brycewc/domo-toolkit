@@ -11,7 +11,7 @@ import { extractPageContentIds, getFormsForPage, getQueuesForPage, getWorkflowsF
 import { getBeastModeUsageForObject } from '@/services/beastModes';
 import { getCardsForObject, getCardsForParent } from '@/services/cards';
 import { DRILL_ONLY_NOTE, groupBeastModeUsageByCard } from '@/utils/beastModeLinks';
-import { waitForCards } from '@/utils/cardHelpers';
+import { describeFailedViews, waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { soleExpandedGroupIds, withCanonicalGroups } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -267,8 +267,11 @@ export function GetCardsView({
     const totalForms = viewGroups.reduce((s, v) => s + v.forms.length, 0);
     const totalQueues = viewGroups.reduce((s, v) => s + v.queues.length, 0);
     const totalWorkflows = viewGroups.reduce((s, v) => s + v.workflows.length, 0);
+    const failedViewCount = viewGroups.filter((vg) => vg.error).length;
+    const parentLabel = parentTypeId === 'WORKSHEET' ? 'worksheet' : 'app';
 
     setViewData({
+      failedViewCount,
       instance,
       isParentScope: true,
       objectId: parentId,
@@ -286,8 +289,12 @@ export function GetCardsView({
       workflows: totalWorkflows
     });
 
+    if (failedViewCount > 0 && totalCards + totalForms + totalQueues + totalWorkflows === 0) {
+      setError(`Could not load ${describeFailedViews(viewGroups)} on this ${parentLabel}.`);
+      return;
+    }
+
     if (viewGroups.length === 0) {
-      const parentLabel = parentTypeId === 'WORKSHEET' ? 'worksheet' : 'app';
       onStatusUpdate?.(
         'No Items Found',
         `No cards, forms, workflows, or queues found across any view on this ${parentLabel}.`,
@@ -330,7 +337,8 @@ export function GetCardsView({
       : `${itemCounts.cards} card${itemCounts.cards === 1 ? '' : 's'}`;
     if (viewData?.isParentScope && viewData?.viewCount > 0) {
       const viewLabel = viewData.viewCount === 1 ? 'page' : 'pages';
-      return `${base} across ${viewData.viewCount} ${viewLabel}`;
+      const failedNote = viewData.failedViewCount > 0 ? ` · ${viewData.failedViewCount} failed to load` : '';
+      return `${base} across ${viewData.viewCount} ${viewLabel}${failedNote}`;
     }
     if (drillCount > 0) return `${base} · ${drillCount} drill${drillCount === 1 ? '' : 's'}`;
     return base;
@@ -630,7 +638,7 @@ function transformPageItems({ cards, forms, objectId, objectType, origin, parent
  * Each view becomes a navigable parent (clicking opens the view) with its
  * cards, forms, workflows, and queues as children. Same card appearing on
  * multiple views shows up under each view -- duplication is the point.
- * @param {Array<{viewId: string, viewName: string, cards: Array, forms: Array, queues: Array, workflows: Array}>} viewGroups
+ * @param {Array<{viewId: string, viewName: string, error: string|null, cards: Array, forms: Array, queues: Array, workflows: Array}>} viewGroups
  * @param {string} origin - The base URL origin
  * @param {string|number} parentId - Parent DATA_APP or WORKSHEET ID (for view URLs)
  * @param {'DATA_APP_VIEW'|'WORKSHEET_VIEW'} childTypeId - Type of each view
@@ -655,7 +663,9 @@ function transformParentScopeItems(viewGroups, origin, parentId, childTypeId) {
       viewDomoObject.url = `${origin}/app-studio/${parentId}/pages/${vg.viewId}`;
 
       return DataListItem.fromDomoObject(viewDomoObject, {
+        annotation: vg.error,
         children: allChildren,
+        chip: vg.error ? { color: 'danger', label: 'Failed to load' } : null,
         count: allChildren.length,
         countLabel: allChildren.length === 1 ? 'item' : 'items'
       });

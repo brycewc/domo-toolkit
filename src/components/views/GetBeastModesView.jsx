@@ -10,6 +10,7 @@ import { DomoObject } from '@/models/DomoObject';
 import { getBeastModeRelatives, getDatasetBeastModesWithUsage } from '@/services/beastModes';
 import { getCardDatasets, getCardsForObject, getCardsForParent } from '@/services/cards';
 import { getDatasetsForPage } from '@/services/datasets';
+import { describeFailedViews } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { soleExpandedGroupIds, withCanonicalGroups } from '@/utils/dataListGroups';
 import { isDatasetTypeId } from '@/utils/datasetTypes';
@@ -87,9 +88,11 @@ export function GetBeastModesView({
       let transformedItems = [];
       let objectName = domoObject.metadata?.name || `${objectType} ${objectId}`;
       let displayType = objectType;
+      let failedViewGroups = [];
 
       if (data.scope === 'parent') {
         const result = await buildParentScope({ context, origin, parentId: data.parentId, tabId });
+        failedViewGroups = result.failedViewGroups;
         transformedItems = result.items;
         objectName = result.parentName;
         displayType = result.parentType;
@@ -112,6 +115,10 @@ export function GetBeastModesView({
       setViewData({ displayType, instance, objectId, objectName, origin, total });
 
       if (total === 0) {
+        if (failedViewGroups.length > 0) {
+          setError(`Could not load the cards on ${describeFailedViews(failedViewGroups)}.`);
+          return;
+        }
         onStatusUpdate?.('No Beast Modes Found', emptyMessage(objectType, data.scope), 'warning', 3000);
         onBackToDefault?.();
         return;
@@ -119,6 +126,13 @@ export function GetBeastModesView({
 
       setError(null);
       setItems(transformedItems);
+      if (failedViewGroups.length > 0) {
+        onStatusUpdate?.(
+          'Some Pages Not Loaded',
+          `Could not load the cards on ${describeFailedViews(failedViewGroups, { bold: true })}. Their Beast Modes are not listed.`,
+          'warning'
+        );
+      }
     } catch (err) {
       console.error('Error loading Beast Modes:', err);
       setError(err.message || 'Failed to load Beast Modes');
@@ -409,19 +423,22 @@ async function buildParentScope({ context, origin, parentId, tabId }) {
   const resolvedParentId = parentId || context.domoObject.parent?.id;
   if (!resolvedParentId) throw new Error('Could not determine parent ID.');
 
-  const { parentName, viewGroups } = await getCardsForParent({ parentId: resolvedParentId, tabId });
+  const { parentName, viewGroups } = await getCardsForParent({ cardsOnly: true, parentId: resolvedParentId, tabId });
+  const failedViewGroups = viewGroups.filter((vg) => vg.error);
 
   const pages = await Promise.all(
-    viewGroups.map(async (vg) => {
-      const datasetGroups = await buildPageDatasetGroups({
-        objectType: childTypeId,
-        origin,
-        pageCards: vg.cards,
-        pageId: vg.viewId,
-        tabId
-      });
-      return { datasetGroups, viewId: vg.viewId, viewName: vg.viewName };
-    })
+    viewGroups
+      .filter((vg) => !vg.error)
+      .map(async (vg) => {
+        const datasetGroups = await buildPageDatasetGroups({
+          objectType: childTypeId,
+          origin,
+          pageCards: vg.cards,
+          pageId: vg.viewId,
+          tabId
+        });
+        return { datasetGroups, viewId: vg.viewId, viewName: vg.viewName };
+      })
   );
 
   const items = pages
@@ -438,7 +455,7 @@ async function buildParentScope({ context, origin, parentId, tabId }) {
       });
     });
 
-  return { items, parentName, parentType };
+  return { failedViewGroups, items, parentName, parentType };
 }
 
 /**
