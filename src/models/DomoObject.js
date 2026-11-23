@@ -97,7 +97,7 @@ export class DomoObject {
    */
   async buildUrl(baseUrl, tabId = null) {
     const parent = this.requiresParentForUrl() ? await this.getParent({ tabId }) : this.parent;
-    if (this.requiresParentForUrl() && !parent) {
+    if (this.requiresParentForUrl() && !parent && !this.objectType.hasParentlessUrl()) {
       throw new Error(`Parent is required for ${this.typeId} ${this.id} and could not be resolved`);
     }
     return this.objectType.buildObjectUrl(baseUrl, this.id, parent, this.metadata);

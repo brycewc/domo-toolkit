@@ -225,6 +225,11 @@ export class DomoObjectType {
     return this.api !== null && this.api !== undefined;
   }
 
+  /** Whether this type has a URL to fall back to when its parent cannot be resolved */
+  hasParentlessUrl() {
+    return !!this.urlPath && !this.urlPath.includes('{parent}') && this.urlSlugs?.source !== 'parent';
+  }
+
   /**
    * Check if this object type has a navigable URL
    * @returns {boolean} Whether the object type has a URL path
@@ -429,7 +434,8 @@ export const ObjectTypeRegistry = {
         DATA_SOURCE: { match: 'DATASET', urlPath: '/datasources/{parent}/details/alerts/{id}' }
       }
     },
-    relatedData: [{ source: 'parent' }, { fetcher: 'alertActions', field: 'actions', isArray: true, label: 'Actions' }]
+    relatedData: [{ source: 'parent' }, { fetcher: 'alertActions', field: 'actions', isArray: true, label: 'Actions' }],
+    urlPath: '/alerts/{id}'
   }),
   APP: new DomoObjectType('APP', 'Custom App Design (Brick)', {
     api: {

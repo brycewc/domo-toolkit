@@ -63,7 +63,7 @@ export function NavigateToCopiedObject({ currentContext, onStatusUpdate }) {
         // URL types must not require one in the URL, sidepanel-only types must
         // not require one in the API endpoint. Without this, manual picks
         // would route to an empty ObjectDetailsView with no metadata fetched.
-        return type.hasUrl() ? !type.requiresParentForUrl() : !type.requiresParentForApi();
+        return type.hasUrl() ? !type.requiresParentForUrl() || type.hasParentlessUrl() : !type.requiresParentForApi();
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   }, []);
