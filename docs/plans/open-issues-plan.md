@@ -4,75 +4,83 @@ published: false
 
 # Open Issues: Design, UX, and Implementation Plans
 
-Status: **proposed**, written 2026-11-20 against branch `2.0.0`. This doc plans every open GitHub issue: [#9](https://github.com/brycewc/domo-toolkit/issues/9), [#8](https://github.com/brycewc/domo-toolkit/issues/8), [#6](https://github.com/brycewc/domo-toolkit/issues/6), [#80](https://github.com/brycewc/domo-toolkit/issues/80), [#43](https://github.com/brycewc/domo-toolkit/issues/43), [#10](https://github.com/brycewc/domo-toolkit/issues/10).
+Status: **decided**. Written 2026-11-20 against branch `2.0.0`; every open decision was settled by the maintainer on 2026-11-23, and each plan below has been revised to match. This doc plans every open GitHub issue: [#9](https://github.com/brycewc/domo-toolkit/issues/9), [#8](https://github.com/brycewc/domo-toolkit/issues/8), [#6](https://github.com/brycewc/domo-toolkit/issues/6), [#80](https://github.com/brycewc/domo-toolkit/issues/80), [#43](https://github.com/brycewc/domo-toolkit/issues/43), [#10](https://github.com/brycewc/domo-toolkit/issues/10).
 
 Each plan went through three passes: an investigator that read the code, the Domo API spec and Domo's own frontend bundles, and checked behavior against domo.domo.com; an independent critic that re-ran the checks and attacked the draft; and a reviser that settled every critique point. A final reconciliation pass merged the shared card infrastructure for #8 and #9 (and the batch helper #6 and #8 both need) into one design.
 
 API claims in the plans carry one of these tags: **VERIFIED-LIVE** (called on domo.domo.com and the response inspected), **VERIFIED-CODE** (already used the same way in `src/`), **SPEC-ONLY** (from the OpenAPI spec, not exercised), or **INFERRED**.
 
-Everything that could be settled by investigation was settled, and is recorded in each plan's **Design decisions made** subsection. What remains in [Decisions for you](#decisions-for-you) are product, UX, and scope calls that are yours to make.
+Everything that could be settled by investigation was settled, and is recorded in each plan's **Design decisions made** subsection. The product, UX, and scope calls that were left to the maintainer are recorded in [Decisions](#decisions), each with its outcome.
 
 ## At a glance
 
-| Issue                                                                                                                       | Effort | Decisions | Recommendation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| --------------------------------------------------------------------------------------------------------------------------- | ------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [#9](https://github.com/brycewc/domo-toolkit/issues/9) Bulk Rename Cards                                                    | M      | 4         | Build a separate side panel Rename Cards view (find and replace with optional regex, add prefix, add suffix, live before/after preview, in-view undo) for pages, App Studio pages and apps, worksheets, Report Builder pages, datasets, and dataflows. It sends one PUT per card to /api/content/v1/cards/{id}/title, with a payload rule that keeps dynamic text intact, and shares a card loader and one new DataList prop with #8. Medium effort.                                                           |
-| [#8](https://github.com/brycewc/domo-toolkit/issues/8) Bulk Select Delete Cards on Dashboard                                | L      | 3         | Build a "Delete Cards" side panel view for pages, App Studio pages, and worksheet pages that bulk deletes the selected cards (or removes them from the page), showing for each card where else it lives, its alerts, embeds and drills, on the card loader and list wrapper it shares with #9 (see Shared infrastructure); size L.                                                                                                                                                                             |
-| [#6](https://github.com/brycewc/domo-toolkit/issues/6) Find and Replace Columns in Beast Modes Bulk                         | L      | 8         | Build a new side panel view, Replace Columns in Beast Modes, launched from datasets and Beast Modes. It finds every dataset and card Beast Mode that references a column (on picked datasets or across the instance) with a paged search that filters inside the page, then rewrites those references in bulk through the existing column rewriter and a minimal batchWithFallback built to the beta 1.2 spec. The three shipped Beast Mode save paths stay untouched. Effort is L.                            |
-| [#80](https://github.com/brycewc/domo-toolkit/issues/80) Update Code Engine Functions in a Custom App to the Latest Version | L      | 4         | Build a beta side panel view called "Update Code Engine Versions". It opens from an app card (one instance) or its app design (every carded instance), moves each card's own Code Engine pins to a chosen released version (latest by default), and checks each card's wiring against the target contract. It saves with the same three-step save Domo's editor uses. Effort is L: card scope first, design scope second, with the separate swapAppColumns fix landing beforehand.                             |
-| [#43](https://github.com/brycewc/domo-toolkit/issues/43) Move a Page                                                        | M      | 7         | Build a Move Page side panel view for dashboard pages. It moves a page and its subpages under a new parent or to the top level through Domo's own bulk move endpoint, checks the depth rules first, and previews who gains and loses access on the page and on every ancestor. Effort is medium: service functions, one picker adapter with two sources, one view, one button, a small EntityPicker Retry, and paginated child-page loading. Reordering, App Studio moves and Business-in-a-Box pages are cut. |
-| [#10](https://github.com/brycewc/domo-toolkit/issues/10) Pin Preconfigured Set of Features to Left Nav for a New Instance   | L      | 6         | Build a Nav Pins options tab that captures the portable part of your left nav from one instance and, the first time the extension sees a new instance whose nav is still at Domo's defaults, converges that instance's personal pins to it (in place, with Undo); large: a pure pin utility, a nav service, background first-visit logic with seeding, an options tab, and a toast hook.                                                                                                                       |
+| Issue                                                                                                                       | Effort | Decisions | Plan                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------- | ------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [#9](https://github.com/brycewc/domo-toolkit/issues/9) Bulk Rename Cards                                                    | M      | 4         | Build a separate side panel Rename Cards view (find and replace with optional regex, add prefix, add suffix, live before/after preview, in-view undo) for pages, App Studio pages and apps, worksheets, Report Builder pages, datasets, and dataflows. Every run is confirmed with a 3 s hold. It sends one PUT per card to /api/content/v1/cards/{id}/title, with a payload rule that keeps dynamic text intact, and shares a card loader and one new DataList prop with #8. Titles only; descriptions are a quick follow-up. Medium effort.                                                                                                                                               |
+| [#8](https://github.com/brycewc/domo-toolkit/issues/8) Bulk Select Delete Cards on Dashboard                                | M      | 3         | Build a "Remove Cards" side panel view for pages, App Studio pages, and worksheet pages that removes the selected cards from the page in bulk. Nothing is deleted. Only cards that also live somewhere else (another page, app page, report page, or a system page) can be selected, so no card is ever left on no page, and every run is confirmed with a 3 s hold. It runs on the card loader and list wrapper it shares with #9 (see Shared infrastructure). Medium effort.                                                                                                                                                                                                              |
+| [#6](https://github.com/brycewc/domo-toolkit/issues/6) Find and Replace Columns in Beast Modes Bulk                         | L      | 8         | Build a new Beta side panel view, Replace Columns in Beast Modes, launched from datasets and Beast Modes. It finds every non-archived dataset and card Beast Mode that references a column (on picked datasets or across the instance) with a paged search that filters inside the page, then rewrites those references in bulk through the existing column rewriter. It waits for beta phases 1.2, 1.3 and 1.6 and is built on them directly: 1.2's batchWithFallback and withRetry for the save, 1.3's change journal as the run's only record (no in-view Undo), and 1.6's useRunLock. Remap Columns and Migrate Beast Mode Usage get the same rights gate. Effort is L.                 |
+| [#80](https://github.com/brycewc/domo-toolkit/issues/80) Update Code Engine Functions in a Custom App to the Latest Version | L      | 4         | Build a beta side panel view called "Update Code Engine Versions". It opens from an app card (one instance) or its app design (every carded instance), moves each card's own Code Engine pins to a chosen released version (latest by default), and reports each card's wiring against the target contract without changing it. Inherited pins are shown read-only, and a run that touches more than one card is confirmed with a hold. Effort is L: card scope first, design scope second; the package-side entry is a follow-up.                                                                                                                                                          |
+| [#43](https://github.com/brycewc/domo-toolkit/issues/43) Move a Page                                                        | L      | 7         | Build a Move Page side panel view for dashboard pages, for content admins and anyone with content.page.edit who owns the page or finds it unlocked. It moves a page and its subpages under a new parent or to the top level through Domo's own bulk move endpoint, checks the depth rules first, previews who gains and loses access on the page and on every ancestor, makes the user pick an access option, and holds whenever access changes. After the move, an opt-in checklist can remove chosen users and groups from the old parent and old top page. Effort is L because of that cleanup path. Reordering, App Studio moves, multi-page moves and Business-in-a-Box pages are cut. |
+| [#10](https://github.com/brycewc/domo-toolkit/issues/10) Pin Preconfigured Set of Features to Left Nav for a New Instance   | L      | 6         | Build a Nav Pins options tab that captures the portable part of your left nav from one instance into one of several named presets. Nothing is applied automatically: the first time you open the side panel or popup on an instance new to this browser whose nav is still at Domo's defaults, a toast offers to apply a preset in one click. Apply Now in options can Replace your pins or Add Missing ones, both with Undo. Large: a pure pin utility, a nav service, background seeding and apply handlers, an options tab, and an offer hook.                                                                                                                                           |
 
-Cross-issue decisions: 4. Suggested order of work and what each issue builds for the others: see [Landing order](#landing-order).
+Cross-issue decisions: 4. Order of work and what each issue builds for the others: see [Landing order](#landing-order).
 
 **Pre-existing bugs found along the way** are listed in [Pre-existing bugs found by the plans](#pre-existing-bugs-found-by-the-plans). The most serious is `swapAppColumns` (`src/services/proCodeApps.js:179-180`, shipped in v1.9.0): it reads `packageMapping` and `workflowMapping` from the top level of `GET /domoapps/apps/v2/{instanceId}`, but Domo returns them only under `context`, so Remap Columns and Migrate Content save both as `[]` (inherit the design) on every pro-code card they touch. Re-confirmed live on instance `80ec5d16-2494-4dc5-85c8-521ade4e15af`: top-level keys carry no `packageMapping`, while `context.packageMapping` holds 10 pins and `context.workflowMapping` holds 1 binding.
 
-## Decisions for you
+## Decisions
 
-IDs are `D<issue>.<n>`, plus `DX.<n>` for decisions that span issues. Each lists the options, a recommendation, and what changes in the implementation depending on the answer.
+IDs are `D<issue>.<n>`, plus `DX.<n>` for decisions that span issues. The maintainer settled all 36 on 2026-11-23. Each entry opens with the **Decision** and what it changes in the plan; the options, the planning recommendation, and its reasoning follow for the record. Where the decision differs from the recommendation, the plan sections follow the decision.
 
 ### Cross-issue (#6, #8, #9, #80)
 
 #### DX.1. How should the bulk card actions be organized: separate Delete Cards and Rename Cards views, or one view with modes?
+
+**Decision:** Option 1, two views, each with its own button, both on the shared `CardBatchList`. Since #8 became remove-only (DX.2, D8.1), the two views are Remove Cards (#8) and Rename Cards (#9).
 
 1. Two views, Delete Cards (#8) and Rename Cards (#9), each with its own action button, both on the shared CardBatchList (as both plans are now written)
 2. One Bulk Edit Cards view with Delete, Remove from Page, and Rename modes behind one button
 3. Selection modes added to the existing Get Cards view, with Delete, Remove, and Rename in its footer
 4. Delete Selected Cards inside the page's existing Delete view, with Rename Cards as its own view
 
-**Recommendation:** Two views. Delete is a hold-to-confirm-then-close flow scoped to pages, while Rename is a stay-open, multi-pass flow with a transform panel, a live preview, and a wider set of sources. The shared loader, list wrapper, and DataList prop give the reuse without coupling their state, and Get Cards stays a read-only view with no destructive actions.
+**Planning recommendation:** Two views. Delete is a hold-to-confirm-then-close flow scoped to pages, while Rename is a stay-open, multi-pass flow with a transform panel, a live preview, and a wider set of sources. The shared loader, list wrapper, and DataList prop give the reuse without coupling their state, and Get Cards stays a read-only view with no destructive actions.
 
 **Why it matters:** It sets how many action buttons appear in the page card block (two, or one), whether one view has to juggle three modes with different sources, selection defaults (none selected for delete, all editable for rename), and stay-open rules, and whether GetCardsView or DeleteObjectView gets retrofitted. The shared pieces (getCardsForContext, CardBatchList, renderItemDetail) are the same under every option.
 
 #### DX.2. Which source contexts should each card tool support?
+
+**Decision:** Option 1, with one change: #8 does not delete cards at all. It removes them from the page. So the #8 view is **Remove Cards**, on pages, App Studio pages, and worksheet pages. Report Builder pages drop out of #8, since they were included for Delete only and remove there is unverified. Rename Cards keeps the full set (those three plus Report Builder pages, datasets, dataflows, and app or worksheet parent scope). Neither tool appears on Beast Modes.
 
 1. Different sets: Delete Cards on pages, App Studio pages, and worksheet pages, plus Report Builder pages in Delete mode only; Rename Cards on those plus datasets, dataflows, and app or worksheet parent scope; neither on Beast Modes
 2. The same full set for both: Delete Cards also on datasets, dataflows, and parent scope, with Remove from Page only on single-page contexts
 3. The same page-only set for both in v1: Rename Cards drops datasets, dataflows, and parent scope
 4. Option 1, plus Rename Cards on Beast Modes (every card that uses the Beast Mode)
 
-**Recommendation:** Option 1. Renaming a dataset's or an app's cards is the duplicate-cleanup case the rename issue names, while deleting every card built on a dataset is a much larger, cross-page blast radius than the dashboard cleanup the delete issue asks for, and Remove only has meaning on a single page. Report Builder pages get Delete only, because bulk delete is page-independent and getCardsForObject already loads them, while remove there is unverified. Beast Mode contexts have no shared naming context for a rename.
+**Planning recommendation:** Option 1. Renaming a dataset's or an app's cards is the duplicate-cleanup case the rename issue names, while deleting every card built on a dataset is a much larger, cross-page blast radius than the dashboard cleanup the delete issue asks for, and Remove only has meaning on a single page. Report Builder pages get Delete only, because bulk delete is page-independent and getCardsForObject already loads them, while remove there is unverified. Beast Mode contexts have no shared naming context for a rename.
 
 **Why it matters:** The shared getCardsForContext supports every source, so the answer is a gate change in availableActions.js (deleteCards inside the page card block versus its own block, plus the renameCards block), plus README and release-note wording. Under option 2, DeleteCardsView also needs parent-scope groups and a hydrate (the dataset source has no locked field), and its placement lookups would run across many pages. Under options 1 and 2, the Remove toggle hides on report pages.
 
 #### DX.3. Who should see the new card write tools (Delete Cards, Rename Cards), given that Manage Card Locks and Manage Card Owners are content.admin only?
+
+**Decision:** Option 1. Both Remove Cards and Rename Cards show for `content.admin` or `content.card.edit`, the group Domo's Admin > Cards lets run `remove_from_pages`. Rename keeps its per-row `canManageCard` check. Remove has no card-level check, because a card's lock governs edits to the card, not its placements; locked pages still limit Remove to owners and content admins (see #8 Design). Manage Card Locks and Manage Card Owners keep their `content.admin` gate.
 
 1. content.admin or content.card.edit for both (Domo's canManageCards, the people who can reach Admin > Cards bulk actions), with per-row canManageCard checks
 2. content.admin only for both, matching Manage Card Locks and Manage Card Owners
 3. Rename on content.admin or content.card.edit, Delete on content.admin only
 4. Option 1 now, and widen Manage Card Locks and Manage Card Owners to the same gate as a follow-up
 
-**Recommendation:** Option 1. It matches who Domo already lets do this in Admin > Cards and in its own card menu (canManageKpi). The shared canManageCard helper disables rows the user can't manage, so a wider button gate does not produce lists of failures. #6 recommends the same right for Replace Columns in Beast Modes, so all three new write tools would match.
+**Planning recommendation:** Option 1. It matches who Domo already lets do this in Admin > Cards and in its own card menu (canManageKpi). The shared canManageCard helper disables rows the user can't manage, so a wider button gate does not produce lists of failures. #6 recommends the same right for Replace Columns in Beast Modes, so all three new write tools would match.
 
 **Why it matters:** It sets two availableActions.js gates. For #8, it decides whether the fast adminsummary placement path is the normal case (adminsummary likely refuses users without either right, leaving the 30-second per-card fallback). It also decides whether the page card block ends up with mixed gates, since Locks and Owners stay content.admin only unless option 4 is chosen, which would need its own release note.
 
 #### DX.4. Should the new multi-item write tools record their runs in the beta 1.3 change journal once it lands, even though 1.3 calls journaling non-Beta features a later per-feature decision?
 
+**Decision:** Option 3. No new tool journals until 1.3 has shipped for Transfer Ownership and Duplicate User, and each one is revisited on its own afterward. #9 keeps its in-view Undo, #8 keeps no record, #80 and #43 keep their in-memory results. **#6 is the one exception**, already settled by D6.1 and D6.6: it is built after 1.3 lands and uses the journal as its only change record, so its per-feature decision is yes. The hook points (`onSend`/`onSettled`, the pool's `onSettled`, Move Back) stay documented for the later revisit.
+
 1. Yes for every new multi-item write tool: Delete Cards (#8), Rename Cards (#9), Replace Columns in Beast Modes (#6), Update Code Engine Versions (#80), and Move Page's Move Back (#43)
 2. Only the tools that ship as Beta (#6 and #80 are planned as Beta)
 3. None until 1.3 has shipped for Transfer Ownership and Duplicate User; revisit per feature afterward
 
-**Recommendation:** Option 1. Each of these tools already holds before and after values in memory, and the hook points are uniform (batchWithFallback's onSend and onSettled, promisePool's onSettled, one entry for a page move), so the cost is a few lines per view. A permanent bulk card delete is the case where a durable record of what was deleted matters most.
+**Planning recommendation:** Option 1. Each of these tools already holds before and after values in memory, and the hook points are uniform (batchWithFallback's onSend and onSettled, promisePool's onSettled, one entry for a page move), so the cost is a few lines per view. A permanent bulk card delete is the case where a durable record of what was deleted matters most.
 
 **Why it matters:** It decides whether #8 keeps each deleted card's ID, title, and placements for the record, whether #9's and #6's in-view Undo banners ('Undo lasts until you leave this view') can go once 1.3 lands, and whether 1.3's Recent Runs page needs feature labels and Excel row mappers for five more features.
 
@@ -80,42 +88,50 @@ IDs are `D<issue>.<n>`, plus `DX.<n>` for decisions that span issues. Each lists
 
 #### D9.1. Should v1 include per-row inline title editing?
 
+**Decision:** Option 1. No inline editing. `renderItemDetail` renders a read-only diff, and single-card edits stay in Domo's Edit Title modal.
+
 1. No: find and replace, prefix, suffix, and unselecting rows only; single-card edits stay in Domo's Edit Title modal
 2. Yes: a pencil on each row opens an input (disabled on titles with dynamic text)
 3. A per-row 'Override' field in an expandable row body
 
-**Recommendation:** Option 1 for v1. It is the part closest to re-skinning Domo's own Edit Title modal, and it would be disabled on titles with dynamic text anyway.
+**Planning recommendation:** Option 1 for v1. It is the part closest to re-skinning Domo's own Edit Title modal, and it would be disabled on titles with dynamic text anyway.
 
 **Why it matters:** With option 1, renderItemDetail only renders a read-only diff. The shared renderItemDetail slot is already specified to sit outside the row's press handling (so #6 can put an expandable formula there), so options 2 or 3 no longer need DataList work. They still need an overrides map in the view state, override-wins-over-transform logic in the preview, and per-row validation of the typed title.
 
 #### D9.2. Should v1 also rename card descriptions, or only titles?
 
+**Decision:** Option 3. Titles in v1, descriptions as a quick follow-up. v1 echoes `dynamicDescription` back unchanged; the follow-up is sketched in #9's Implementation plan.
+
 1. Titles only (dynamicDescription is always echoed back unchanged)
 2. Add an 'Apply to: Title / Description' toggle using the same engine and endpoint
 3. Titles in v1, descriptions as a quick follow-up
 
-**Recommendation:** Titles only in v1. The engine, payload builder, and endpoint are field-agnostic, so adding descriptions later is small.
+**Planning recommendation:** Titles only in v1. The engine, payload builder, and endpoint are field-agnostic, so adding descriptions later is small.
 
 **Why it matters:** The issue asks only for titles, and CLAUDE.md says to confirm before broadening scope. Descriptions add a second diff line per row, a mode control in the panel, and pill handling on descriptions with dynamic text. The PUT already carries descriptions, so the API side costs nothing either way.
 
 #### D9.3. Should a phase 2 add renaming across unrelated pages and datasets, and if so, how should cards be chosen?
+
+**Decision:** Option 1. Rename Cards stays scoped to the current object or App Studio app. The instance-wide title search phase is dropped from the plan, along with its adminsummary source and context-free entry point.
 
 1. No, keep it scoped to the current object or App Studio app
 2. Instance-wide 'find cards by title' source over adminsummary title search, for content admins only, opened from the options page
 3. An 'Add Cards From...' picker inside the view that merges more pages or datasets into the working set
 4. Both of the last two
 
-**Recommendation:** Ship v1 context-scoped, then add the instance-wide title search for content admins. adminsummary already does server-side title search (8,255 'Duplicate of' cards on domo.domo.com), which matches the real cross-object need.
+**Planning recommendation:** Ship v1 context-scoped, then add the instance-wide title search for content admins. adminsummary already does server-side title search (8,255 'Duplicate of' cards on domo.domo.com), which matches the real cross-object need.
 
 **Why it matters:** It decides whether the view needs a context-free entry point (an options page tab or a side panel launcher with no object), a paginated search source (adminsummary caps at 100 per page and 429s under load), and content.admin gating separate from the per-object button. It also sets the blast radius, which feeds the confirmation question.
 
 #### D9.4. How strong should the confirmation be before renaming?
 
+**Decision:** Option 2, with a 3 second hold. Every rename run goes through `HoldToConfirmButton` at the new `HOLD_DURATION_BULK` (3000), which Remove Cards (#8) shares. No threshold logic. Undo and Retry Failed stay plain presses, since they only reverse or replay a run that was already held for.
+
 1. Plain 'Rename N Cards' button, relying on the full preview, in-view Undo, and the audit log
 2. HoldToConfirmButton for every run
 3. Plain button, switching to HoldToConfirmButton above a threshold (for example 50 cards), in parent scope, or for the instance-wide source
 
-**Recommendation:** Plain button for object scope. Use a hold above 50 cards, which covers most parent-scope runs, and always for a phase 2 instance-wide source.
+**Planning recommendation:** Plain button for object scope. Use a hold above 50 cards, which covers most parent-scope runs, and always for a phase 2 instance-wide source.
 
 **Why it matters:** Renames are reversible and fully previewed, so a hold mostly adds friction to the common 15-card cleanup. But a mistyped regex across hundreds of cards in an App Studio app is tedious to audit, and the in-view undo disappears if the panel closes. The answer changes the footer component, its copy, and whether threshold logic exists.
 
@@ -123,31 +139,37 @@ IDs are `D<issue>.<n>`, plus `DX.<n>` for decisions that span issues. Each lists
 
 #### D8.1. Should Remove from Page ship in #8?
 
+**Decision:** Option 3, and with DX.2 it is the only action #8 ships. A card is selectable only when it also lives somewhere other than this page, so a run never leaves a card on no page. There is no Delete mode, no mode toggle, and none of the delete-only lookups (alerts, embeds, drills, workspaces).
+
 1. Yes, both Delete and Remove from Page in one view
 2. Delete only now, Remove later if asked for
 3. Remove only for cards that also live on another page (never leaving a card on no page)
 
-**Recommendation:** Ship both, as planned, if you see the batch remove plus the 'left on no page' warning as worth it. Otherwise Delete only. Domo's page editor already removes cards in place one at a time, so Remove is the weaker half of the scope case.
+**Planning recommendation:** Ship both, as planned, if you see the batch remove plus the 'left on no page' warning as worth it. Otherwise Delete only. Domo's page editor already removes cards in place one at a time, so Remove is the weaker half of the scope case.
 
 **Why it matters:** Remove adds removeCardsFromPage, getPageEditState, the mode toggle with selection pruning, its own quick select, a second confirm with its own copy, and the page-permission checks. Dropping it removes roughly a third of the view. The shared pieces (getCardsForContext, CardBatchList, batchWithFallback) are unaffected either way.
 
 #### D8.2. In Delete mode, do system pages (Shared, Favorites, Overview) count as 'living elsewhere' for Only Live Here?
 
+**Decision:** Option 1, applied to Remove's eligibility rule. Shared, Favorites, and Overview count as other locations, matching `cardIdsOnlyOnPages`, which stays unchanged. A card on this page and on Shared is therefore removable; its detail line and the confirm name the system placement so the user sees where it will remain.
+
 1. Count all of them, as the page delete's 'Cards that Only Live Here' does today
 2. Count Shared and Favorites (other people lose the card) but not Overview
 3. Count none of them
 
-**Recommendation:** Count all of them for now, so 'only lives here' means the same thing across the extension, and name each system placement in the row detail line and confirm so the user sees why a card was left out. If you want a different rule, change cardIdsOnlyOnPages in pages.js at the same time.
+**Planning recommendation:** Count all of them for now, so 'only lives here' means the same thing across the extension, and name each system placement in the row detail line and confirm so the user sees why a card was left out. If you want a different rule, change cardIdsOnlyOnPages in pages.js at the same time.
 
 **Why it matters:** On a real 52-card page this flips 31 cards in or out of the quick select. If the answer is not 'all', the shared page delete logic should change too, or the two features will disagree about the same card.
 
 #### D8.3. How strong should the confirmations be?
 
+**Decision:** No delete, so only Remove needs a confirmation, and it is always a 3 second hold (`HOLD_DURATION_BULK`), whatever the selection. The confirm no longer waits on alert or embed lookups, only on the placements it already needs.
+
 1. Match single card delete exactly: 5 s hold only when a selected card has embeds, otherwise a click
 2. Always hold for bulk Delete (5 s when embeds exist or a lookup failed, 2.5 s otherwise); Remove is a click unless it leaves cards on no page (2.5 s)
 3. Always a 5 s hold for Delete and for Remove
 
-**Recommendation:** Always hold for bulk Delete with the two tiers (HOLD_DURATION_FULL and HOLD_DURATION_SHORT), and Remove a click unless it leaves cards on no page. A bulk delete has no undo and multiplies the reach of one press. The single-card rule (hold only for embeds) was set for one card at a time.
+**Planning recommendation:** Always hold for bulk Delete with the two tiers (HOLD_DURATION_FULL and HOLD_DURATION_SHORT), and Remove a click unless it leaves cards on no page. A bulk delete has no undo and multiplies the reach of one press. The single-card rule (hold only for embeds) was set for one card at a time.
 
 **Why it matters:** It decides the holdDuration function in DeleteCardsView, and whether the dialog's confirm must wait on the embeds lookup (it always waits on placements for the copy either way). Rename Cards asks its own confirmation question, since a reversible rename may reasonably get a lighter answer.
 
@@ -155,81 +177,103 @@ IDs are `D<issue>.<n>`, plus `DX.<n>` for decisions that span issues. Each lists
 
 #### D6.1. Should #6 wait for beta phases 1.2 (batchWithFallback and withRetry), 1.3 (change journal) and 1.6 (useRunLock), or ship first with stand-ins?
 
+**Decision:** Option 3. #6 starts after 1.2, 1.3 and 1.6 have all landed and is built on them directly. It builds no `batchWithFallback`, no interim `buildReloadAction` lock, and no in-session Undo or Change Log; the save uses 1.2's `batchWithFallback` and `withRetry`, the run is recorded through `createRunJournal`, and the view calls `useRunLock`.
+
 1. Ship first: build a minimal batchWithFallback to the 1.2 spec, keep Undo and Change Log in-session, and use the reloadAction-based interim lock; adopt each phase as it lands
 2. Wait for 1.2 step 6 only, and ship with in-session Undo and the interim lock
 3. Wait for 1.2, 1.3 and 1.6 all to land, and build #6 on them directly
 
-**Recommendation:** Option 1. The stand-ins are built to the planned signatures (batchWithFallback, createRunJournal, useRunLock), so adopting each phase is a small swap, and none of the three shipped save paths is touched.
+**Planning recommendation:** Option 1. The stand-ins are built to the planned signatures (batchWithFallback, createRunJournal, useRunLock), so adopting each phase is a small swap, and none of the three shipped save paths is touched.
 
 **Why it matters:** Option 1 adds src/utils/batchWithFallback.js in #6 and a later one-line useRunLock call. Option 2 delays #6 behind the 1.2 retry work. Option 3 removes the in-session Undo and Change Log code entirely, since the journal provides both, but blocks #6 on three plans that have not started.
 
 #### D6.2. How should Beast Modes on data models be handled?
 
+**Decision:** Option 1. Data model Beast Modes are listed disabled with a Data model chip, and data model datasets get no button.
+
 1. Exclude in v1: list them disabled with a Data model chip, and give data model datasets no button
 2. Include with table-qualified matching: Find picks a table plus a column from /schema/indexed, and the rewrite touches only refs qualified with that table
 3. Include with unqualified matching and a warning chip
 
-**Recommendation:** Option 1. Only 40 of 94,338 expressions on domo.domo.com are qualified, 38 of them on three data models. Their schemas/latest returns no columns, so target checks need a different read.
+**Planning recommendation:** Option 1. Only 40 of 94,338 expressions on domo.domo.com are qualified, 38 of them on three data models. Their schemas/latest returns no columns, so target checks need a different read.
 
 **Why it matters:** Option 2 adds a table picker to Find, a QUALIFIED_REF_RE-based rewrite (extending rewriteScopedExpressionString), and a /schema/indexed read for validation. Option 3 would rewrite the same column name on every table of the model, and any table alias that equals the Find text.
 
 #### D6.3. How should locked (but editable), certified and certification-requested Beast Modes be treated by default?
 
+**Decision:** Option 2, as planned. They start unselected as an opt-in, and the confirm becomes a hold whenever certified or certification-requested rows are included.
+
 1. Select them like any other editable Beast Mode
 2. Show them unselected as an opt-in, with a hold to confirm whenever certified or certification-requested rows are included
 3. Exclude certified and certification-requested Beast Modes entirely, with locked ones opt-in
 
-**Recommendation:** Option 2. Any edit sets EXPIRED (tried three ways live), which drops a certification or cancels an open request. Locked rows follow DeleteUnusedBeastModesView's convention.
+**Planning recommendation:** Option 2. Any edit sets EXPIRED (tried three ways live), which drops a certification or cancels an open request. Locked rows follow DeleteUnusedBeastModesView's convention.
 
 **Why it matters:** This sets the initial selection logic and whether the confirm step is an AlertDialog or a HoldToConfirmButton. Option 3 removes both certification chips and the hold path. On domo.domo.com, 11,989 Beast Modes have an open request.
 
 #### D6.4. Which rights should gate the button, given that Remap Columns and Migrate Beast Mode Usage have none?
 
+**Decision:** Option 2. Replace Columns in Beast Modes, Remap Columns, and Migrate Beast Mode Usage are all gated on `content.card.edit` or `content.admin`. Gating the two shipped buttons is its own commit with a UI/UX Changes release note, since users without either right stop seeing them.
+
 1. Gate this button on content.card.edit or content.admin, and leave the two siblings as they are
 2. Gate all three Beast Mode write tools on the same content.card.edit or content.admin check
 3. No gate on any of them; rely on per-row editability and server errors
 
-**Recommendation:** Option 1 now, with option 2 as a follow-up. content.card.edit is the authority Domo names for Beast Mode edits, and the new tool can scan the whole instance, so showing it to someone who can edit nothing is costly.
+**Planning recommendation:** Option 1 now, with option 2 as a follow-up. content.card.edit is the authority Domo names for Beast Mode edits, and the new tool can scan the whole instance, so showing it to someone who can edit nothing is costly.
 
 **Why it matters:** It is one line in availableActions.js for #6, but option 2 also changes who sees two shipped buttons, which would need a release note.
 
 #### D6.5. Should archived Beast Modes that reference the column be editable?
 
+**Decision:** Conditional on whether an archived Beast Mode can still be in use: if not, ignore them; if so, include them as an opt-out group. **Checked live: they are not in use, so option 3 applies.** The scan adds the `notarchived` filter, and the archived count, banner, and "only archived matches" toast are dropped. Evidence (VERIFIED-LIVE on domo.domo.com, 2026-11-23, read-only):
+
+- The instance has 24 archived Beast Modes (`filters: [{ field: 'archived' }]`, the same count with or without `notvariable`). Every one has `activeLinks: {}` and every link `active: false`, although 23 of the 24 still carry a link that resolves (`valid: 'VALID'`).
+- 23 of them are card Beast Modes on cards `2045783621` and `1191823748`, both of which still exist. Neither card's `kpi/definition` lists any of the 23 in `formulas`, and no subscription references their `legacyId`s, so the cards no longer use them.
+- No Beast Mode nests any of the 24. The `templateDependencies` search filter takes `{ field: 'templateDependencies', value: '<id>' }` (confirmed: `551580` returns its known parent `551602`), and it returned 0 for each archived ID.
+
+Archiving looks like what happens to a Beast Mode once nothing uses it, so editing one would change no content. A restore would bring back the old reference, which is now an accepted gap. The sample is one instance's 24, so "archived means unused" is observed rather than proven server-side.
+
 1. Count and list them read-only (v1 as planned)
 2. Include them as an opt-in group, unselected by default
 3. Ignore them completely, with the notarchived filter and no count
 
-**Recommendation:** Option 1. The count tells someone retiring a column that a restore would bring the old reference back, without editing content nobody uses. Saving an archived template was not tested.
+**Planning recommendation:** Option 1. The count tells someone retiring a column that a restore would bring the old reference back, without editing content nobody uses. Saving an archived template was not tested.
 
 **Why it matters:** Option 2 needs a scratch probe that an archived template accepts a bulk update, plus an Archived group in Review. Option 3 saves one banner but hides a real risk for the retire-a-column workflow.
 
 #### D6.6. Should the results screen offer an in-session Undo, or only a downloadable change log?
 
+**Decision:** Option 3. Neither is built in the view. Because #6 waits for 1.3 (D6.1), the journal is the change log from day one: each run appears in Recent Runs with JSON and Excel downloads (#6 adds a feature label and an Excel row mapper there). There is no Undo; reverting means editing each Beast Mode, using the journal's `before` expressions. `revertColumnReplacement`, the Undo confirm, and the in-session log array are dropped.
+
 1. Undo Changes plus Download Change Log
 2. Download Change Log only
 3. Neither until the change journal (beta 1.3) lands
 
-**Recommendation:** Option 1. The before expressions are already in hand, the revert reuses the same fresh-read and batch path, and the 1.3 journal plans no Restore action, so this would be the only rollback.
+**Planning recommendation:** Option 1. The before expressions are already in hand, the revert reuses the same fresh-read and batch path, and the 1.3 journal plans no Restore action, so this would be the only rollback.
 
 **Why it matters:** Option 1 adds revertColumnReplacement, an Undo confirm and a progress state. Option 3 leaves users with no recovery path in v1 apart from editing each Beast Mode by hand.
 
 #### D6.7. Should this be a standalone action, or a mode inside Remap Columns?
 
+**Decision:** Option 3. A standalone view and button, plus a link from Remap Columns' "Nothing to Remap" toast.
+
 1. New standalone view and button next to Remap Columns
 2. A 'Replace a column' mode inside Remap Columns (dataset only, but also covers cards and dataflows)
 3. Standalone view, plus a link from Remap Columns' 'Nothing to Remap' toast
 
-**Recommendation:** Option 3. The standalone view is needed to span datasets and the instance. A link from the bail toast catches users who reach for the wrong tool.
+**Planning recommendation:** Option 3. The standalone view is needed to span datasets and the instance. A link from the bail toast catches users who reach for the wrong tool.
 
 **Why it matters:** Option 2 reworks RemapColumnsView's orphan-based detection and drops the cross-dataset scope. Option 3 also touches the toast at RemapColumnsView.jsx:421.
 
 #### D6.8. Should the tool stay Beast Modes only, or also cover other content that references the column across datasets?
 
+**Decision:** Option 1. Beast Modes only.
+
 1. Beast Modes only (the issue as written)
 2. Beast Modes, plus a read-only list of cards, dataflows and views that reference the column, each linking to Remap Columns on its dataset
 3. Also rewrite card column references (chart bindings, filters, sorts) across datasets through the existing card rewrite
 
-**Recommendation:** Option 1 for v1, with option 2 as a follow-up. Option 3 turns this into a cross-dataset Remap Columns with a much larger scan and write surface.
+**Planning recommendation:** Option 1 for v1, with option 2 as a follow-up. Option 3 turns this into a cross-dataset Remap Columns with a much larger scan and write surface.
 
 **Why it matters:** Option 2 adds per-dataset downstream scans to the review. Option 3 roughly doubles the work and moves the effort to XL, since it brings in the card rewrite executor and its drop and reshape rules.
 
@@ -237,41 +281,49 @@ IDs are `D<issue>.<n>`, plus `DX.<n>` for decisions that span issues. Each lists
 
 #### D80.1. For a function a card inherits from the app design (no pin of its own), should Update write an explicit pin onto the card?
 
+**Decision:** Option 1. Inherited functions are shown read-only with the design's version and a note to update the design. The write stays a pure version change on existing entries.
+
 1. Show it read-only with the design's version and a note to update the design
 2. Let the user opt in per row (never preselected); selecting it writes the design's entry with the target version onto the card
 3. Pin it automatically whenever that card is updated
 
-**Recommendation:** Show it read-only. Only 16 of the 360 behind pins on domo.domo.com are inherited. Writing one turns that function from following the design into pinned, so later design publishes stop reaching it. Domo also strips parameter names when it merges design entries, so it is unclear whether a copied design entry runs correctly without a runtime test.
+**Planning recommendation:** Show it read-only. Only 16 of the 360 behind pins on domo.domo.com are inherited. Writing one turns that function from following the design into pinned, so later design publishes stop reaching it. Domo also strips parameter names when it merges design entries, so it is unclear whether a copied design entry runs correctly without a runtime test.
 
 **Why it matters:** Read-only keeps the write as a pure version change on existing entries. Opt-in or automatic pinning makes the write service append design-derived entries (deciding whether to keep the manifest's parameter names), adds an 'inherited' selection path, and needs its own runtime check that a materialized pin executes.
 
 #### D80.2. Should the first version also open from a Code Engine package (update every app card that uses this package)?
 
+**Decision:** Option 1. App side only (card and design) now; the package-side entry from Get Usage is a follow-up.
+
 1. App side only now (card and design), package side as a follow-up
 2. Ship card, design and package entry points together
 3. Package side only, from Get Usage
 
-**Recommendation:** App side only now. The services take a packageId scope later. The package side reaches far more cards (DOMO DataSets alone has hundreds of instances), so it deserves its own confirmation and testing pass.
+**Planning recommendation:** App side only now. The services take a packageId scope later. The package side reaches far more cards (DOMO DataSets alone has hundreds of instances), so it deserves its own confirmation and testing pass.
 
 **Why it matters:** The package side adds a third load scope fed by the usage endpoints, a row action in GetUsageView, cross-design batching, and a larger blast radius that likely needs a stronger confirmation. It moves the work further into L.
 
 #### D80.3. How strong should the confirmation be when one run updates several cards from an app design?
 
+**Decision:** Option 2. The footer is a `HoldToConfirmButton` (the default `HOLD_DURATION_FULL`) when the selection spans more than one card, and a plain Update Versions button for a single card.
+
 1. Plain Update Versions button everywhere, matching Update Action Versions
 2. HoldToConfirmButton when the run touches more than one card
 3. HoldToConfirmButton for every run
 
-**Recommendation:** HoldToConfirmButton when more than one card is selected, and a plain button for a single card. A multi-card run changes live behavior on other people's cards at once, while a single card matches the Update Action Versions precedent and can be reverted by re-running with the old version.
+**Planning recommendation:** HoldToConfirmButton when more than one card is selected, and a plain button for a single card. A multi-card run changes live behavior on other people's cards at once, while a single card matches the Update Action Versions precedent and can be reverted by re-running with the old version.
 
 **Why it matters:** It decides whether the footer swaps between Button and HoldToConfirmButton based on the selected card count, and the label copy for each.
 
 #### D80.4. When a card's wiring doesn't match its target version, should the view offer to re-sync the wiring, or only report it?
 
+**Decision:** Option 1. Report only, with chips and reasons. Rewiring stays in Domo's editor, and the write changes `version` alone.
+
 1. Report only (chips and reasons), leave rewiring to Domo's editor
 2. Offer an opt-in Fix Wiring that drops parameters for removed inputs and renames the output binding to the contract's name
 3. Offer Fix Wiring plus filling new inputs by matching parameter aliases to input names
 
-**Recommendation:** Report only for the first version. Re-syncing changes what the app's code receives (removed parameters, renamed outputs), the app code can't be inspected, and 62 of 549 own bindings are already miswired today, so silent fixes could change working-by-accident behavior.
+**Planning recommendation:** Report only for the first version. Re-syncing changes what the app's code receives (removed parameters, renamed outputs), the app code can't be inspected, and 62 of 549 own bindings are already miswired today, so silent fixes could change working-by-accident behavior.
 
 **Why it matters:** Report only keeps the write to `version` alone. A re-sync adds a second edit path to the write service (parameter and output rewrites, nested children), new review copy, and a broader verification pass, roughly doubling the write-side testing.
 
@@ -279,72 +331,86 @@ IDs are `D<issue>.<n>`, plus `DX.<n>` for decisions that span issues. Each lists
 
 #### D43.1. Should Move Page also cover moving an App Studio page to another App Studio App (or a dashboard into an app), by chaining Domo's App Studio import with a delete of the source?
 
+**Decision:** Option 1. Dashboard pages only; App Studio moves stay with Domo's import.
+
 1. No: reparent dashboard pages only
 2. Add a later "Move to App" phase: import with the original cards referenced, then delete the source page
 3. Include "Move to App" in the first version
 
-**Recommendation:** No for now. Domo's import already does the copy, and deleting the source is one more easy step. A chained version creates new IDs, breaks links, and loses shares, subscriptions and scheduled reports, and each of those needs its own warning.
+**Planning recommendation:** No for now. Domo's import already does the copy, and deleting the source is one more easy step. A chained version creates new IDs, breaks links, and loses shares, subscriptions and scheduled reports, and each of those needs its own warning.
 
 **Why it matters:** Including it adds a second service path (PUT /content/v1/dataapps/{appId}/views/import with its progress events, then a view delete), DATA_APP_VIEW and WORKSHEET_VIEW gating, and a much larger risk section and UX for what gets lost. That roughly doubles the effort, to L.
 
 #### D43.2. Who should see the Move Page button?
 
+**Decision:** Option 2 plus content admins. The button shows for `content.admin`, or for `content.page.edit` when the user owns the page or the page is unlocked (Domo's `canMakeChanges`). Because the server rule for non-owners is unverified, the 403 copy matters more, and the non-admin test now covers a non-owner on an unlocked page.
+
 1. Content admins, plus owners who hold content.page.edit (mirrors Domo's canUpdateOwnership)
 2. Anyone Domo's own picker treats as able to change the page: content.page.edit and (page unlocked or owner)
 3. content.admin only
 
-**Recommendation:** Content admins plus owners with content.page.edit. Domo's admin Move turned out not to check ownership at all, so the server rule is unknown. Owners are the group most likely to succeed and least likely to cause surprise.
+**Planning recommendation:** Content admins plus owners with content.page.edit. Domo's admin Move turned out not to check ownership at all, so the server rule is unknown. Owners are the group most likely to succeed and least likely to cause surprise.
 
 **Why it matters:** It changes the getAvailableActions condition and how often the 403 copy appears. The second option would show the button on many unlocked pages the user doesn't own, so a server rule that requires ownership would make the button fail often. Only a non-admin token can settle the server rule.
 
 #### D43.3. When should the submit control require a hold instead of a plain press?
+
+**Decision:** Option 1. Hold whenever the preview shows anyone gaining or losing access on the page or any ancestor, or when a needed access list failed to load.
 
 1. Whenever the preview shows anyone gaining or losing access on the page or any ancestor (or a needed list failed to load)
 2. Only when someone loses access (the draft's rule)
 3. Always hold, for every move
 4. Never hold
 
-**Recommendation:** Hold whenever anyone gains or loses access anywhere. Widening a parent and its top page is the main risk, and it is verified, so a rule that holds only on losses would leave the riskiest Keep moves at one press. Moves are rare, so the extra friction costs little.
+**Planning recommendation:** Hold whenever anyone gains or loses access anywhere. Widening a parent and its top page is the main risk, and it is verified, so a rule that holds only on losses would leave the riskiest Keep moves at one press. Moves are rare, so the extra friction costs little.
 
 **Why it matters:** It decides whether the control comes from previewAccess's gains plus ancestorGains plus losses, or from losses alone. In practice the first option holds almost every move under a parent, and the second leaves Keep and Combine at one press.
 
 #### D43.4. Should the toolkit offer to clean up the access the moved page leaves behind on its old parent and old top page?
 
+**Decision:** Option 2. After a move, the result screen offers an opt-in checklist (nothing preselected) of users and groups to remove from the old parent and old top page, sent through `DELETE /api/content/v1/share/bulk/page/{user|group}/{id}?resourceIds=` behind its own hold. The revoke endpoint gets a scratch probe before any UI work, and the effort moves from M to L.
+
 1. Inform only: name every old ancestor on the result screen
 2. Offer an opt-in checklist that removes chosen users and groups from the old ancestors, using DELETE /api/content/v1/share/bulk/page/{user|group}/{id}?resourceIds=, behind its own hold
 3. Neither inform nor clean up
 
-**Recommendation:** Inform only in v1. The access list can't tell a deliberate share on the parent from one propagated by the moved page, so even a curated checklist can revoke something on purpose. The revoke endpoint is also unexercised.
+**Planning recommendation:** Inform only in v1. The access list can't tell a deliberate share on the parent from one propagated by the moved page, so even a curated checklist can revoke something on purpose. The revoke endpoint is also unexercised.
 
 **Why it matters:** The checklist adds a second write path, a revoke service, a confirmation screen, and a live probe of the revoke endpoint. That moves the effort toward L and adds a way for the feature to remove access.
 
 #### D43.5. Should pages inside Business-in-a-Box folders (negative parentPageId, 20 on this instance) be movable?
 
+**Decision:** Option 1. Blocked in v1 with an inline note.
+
 1. Block them in v1 with an inline note (current plan)
 2. Allow moving them out to a real parent or the top level, but never back in, with Move Back hidden
 3. Support them fully, including Move Back into the folder
 
-**Recommendation:** Block them in v1. Whether bulk move accepts or clears a negative parent couldn't be tested without moving pre-existing content, and adminsummary reports wrong titles for them.
+**Planning recommendation:** Block them in v1. Whether bulk move accepts or clears a negative parent couldn't be tested without moving pre-existing content, and adminsummary reports wrong titles for them.
 
 **Why it matters:** Allowing them requires a maintainer-approved probe on a real BIB page, breadcrumb code that reads folder names from the nav tree instead of adminsummary, and special handling for Move Back.
 
 #### D43.6. Which access option should be preselected when the view opens?
 
+**Decision:** Option 2. No default. The access `RadioGroup` starts empty and submit stays disabled until an option is chosen.
+
 1. Preselect "Keep its current access" (ORIGINAL)
 2. No default: force an explicit choice, as Domo's dialog does
 3. Preselect "Combine both" (MERGE)
 
-**Recommendation:** No default. Keep never removes anyone from the page, but it is also the option that widens the new parent and top page. Forcing a choice makes the user read the ancestor lines once.
+**Planning recommendation:** No default. Keep never removes anyone from the page, but it is also the option that widens the new parent and top page. Forcing a choice makes the user read the ancestor lines once.
 
 **Why it matters:** It sets the initial mode state and whether submit starts disabled, and decides how many moves widen parent access without the user reading the preview.
 
 #### D43.7. Should the first version also move several pages at once (for example, selected rows in Get Child Pages)?
 
+**Decision:** Option 1. One page per run, with no multi-select follow-up planned.
+
 1. One page per run
 2. Also add a "Move Selected" action to the Get Child Pages list
 3. One page now, with multi-select planned as a follow-up
 
-**Recommendation:** One page now, with multi-select as a follow-up. Batches fail as a whole, and per-page access previews don't combine cleanly across several sources and their ancestors.
+**Planning recommendation:** One page now, with multi-select as a follow-up. Batches fail as a whole, and per-page access previews don't combine cleanly across several sources and their ancestors.
 
 **Why it matters:** Multi-select needs a DataList row action, per-page depth checks against the shared destination, a combined preview, and a rule for a batch where one page is blocked (split it or refuse).
 
@@ -352,96 +418,109 @@ IDs are `D<issue>.<n>`, plus `DX.<n>` for decisions that span issues. Each lists
 
 #### D10.1. What should qualify an instance for the automatic apply, beyond not being already known to this browser?
 
+**Decision:** Option 3. Never automatic. The first time the side panel or popup opens on an instance that is new to this browser and whose nav is untouched, a toast offers a one-click apply that sends `APPLY_NAV_PRESET`. The background pin mutation on detection, the PIN badge, the `applying` resume logic, and the auto switch are all dropped. Seeding of known instances stays, so the offer never appears on instances this browser already used.
+
 1. Untouched nav only: your personal pins there are Domo's defaults, or none
 2. Untouched nav AND your account on that instance was created recently (for example within 30 days, from the user record's detail.created)
 3. Never automatic: show a one-click Apply offer in the side panel and popup the first time instead
 
-**Recommendation:** Untouched nav AND a recent account. Both signals are cheap, and the account-age check catches the case where an old instance's nav still happens to be the defaults while matching the issue's 'first time you login' wording most literally.
+**Planning recommendation:** Untouched nav AND a recent account. Both signals are cheap, and the account-age check catches the case where an old instance's nav still happens to be the defaults while matching the issue's 'first time you login' wording most literally.
 
 **Why it matters:** Option 2 adds one GET /api/content/v3/users/{id}?includeDetails=true to getNavPinEligibility plus a threshold constant. Option 3 removes the background mutation, the badge, and the resume logic, and replaces them with a prompt toast that calls APPLY_NAV_PRESET.
 
 #### D10.2. When you run Apply Now on an instance where you already customized your nav, should it replace your pins or keep them?
 
+**Decision:** Option 3. Apply Now offers both **Replace** (converge, a hold when the nav is customized) and **Add Missing** (append the preset pins that are missing, no deletes, no reorder). Both keep a snapshot for Undo. The first-visit offer uses Replace, since that nav is still Domo's defaults.
+
 1. Replace: remove your personal pins and converge to the preset (hold to confirm, with Undo)
 2. Add Missing: keep your pins and append any preset pins that are missing
 3. Offer both buttons, Replace and Add Missing
 
-**Recommendation:** Offer both. Replace is what the issue describes for new instances, but on an established instance keeping instance-specific pins (apps, cards, workspaces) is often what you want.
+**Planning recommendation:** Offer both. Replace is what the issue describes for new instances, but on an established instance keeping instance-specific pins (apps, cards, workspaces) is often what you want.
 
 **Why it matters:** Add Missing needs a mode flag in applyNavPins that skips step 5 (deletes) and the reorder, a second button, and its own copy. Replace-only keeps one code path.
 
 #### D10.3. When the user has an unlocked Navigation View assigned (admin pins shown, personalization allowed), what should the automatic apply do?
 
+**Decision:** Option 2, for every apply now that none is automatic. With an unlocked view, the preset is applied as personal pins after the view's pins, skipping any preset pin the view already shows. A locked view still blocks apply and suppresses the offer.
+
 1. Skip it like a locked view and log it, leaving Apply Now available
 2. Apply the preset as personal pins after the view's pins, skipping any preset pin the view already shows
 3. Apply only when the view has no pins
 
-**Recommendation:** Apply after the view's pins, skipping duplicates. The view pins stay untouched either way, and the user still gets their own set.
+**Planning recommendation:** Apply after the view's pins, skipping duplicates. The view pins stay untouched either way, and the user still gets their own set.
 
 **Why it matters:** It sets one branch in maybeApplyNavPreset's eligibility step and whether the 'already in your nav from a Navigation View' copy appears on automatic runs or only on manual ones.
 
 #### D10.4. Should automatic apply be on by default once a preset exists, and should the switch follow you across browsers?
 
+**Decision:** Not applicable, since there is no automatic apply (D10.1). There is no `navPinPresetAuto` switch. Presets sync through `chrome.storage.sync`; the offer state and logs stay per device in `chrome.storage.local`.
+
 1. On by default and synced (the preset and switch both in chrome.storage.sync, with first-run seeding on each device)
 2. Off by default, and the switch is per device (chrome.storage.local)
 3. Synced preset, with a per-device switch that defaults on
 
-**Recommendation:** On by default and synced. First-run seeding marks every instance a new browser already has cookies or tabs for as known, and the untouched check backs that up, so a synced switch is safe.
+**Planning recommendation:** On by default and synced. First-run seeding marks every instance a new browser already has cookies or tabs for as known, and the untouched check backs that up, so a synced switch is safe.
 
 **Why it matters:** It decides which storage area holds navPinPresetAuto, whether the options switch needs a 'this device only' note, and whether seeding has to run on first device run or only when the switch is turned on.
 
 #### D10.5. Where should the Nav Pins settings live in the options page?
 
+**Decision:** Option 1. A new Nav Pins tab after Per-Instance Settings.
+
 1. A new 'Nav Pins' tab after Per-Instance Settings
 2. A section at the top of the existing Per-Instance Settings tab
 3. A section in the General Settings tab
 
-**Recommendation:** A new 'Nav Pins' tab. The preset is global with its own activity list and immediate actions, while Per-Instance Settings is built around per-instance dataset configs and General Settings saves through a form.
+**Planning recommendation:** A new 'Nav Pins' tab. The preset is global with its own activity list and immediate actions, while Per-Instance Settings is built around per-instance dataset configs and General Settings saves through a form.
 
 **Why it matters:** It decides whether the plan adds a Tabs.Tab and Tabs.Panel in src/options/App.jsx with a standalone component, or reshapes PerInstanceSettings.jsx or GeneralSettings.jsx around actions that do not fit their save model.
 
 #### D10.6. Should one preset cover every instance, or should you be able to keep several (for example 'Customer' and 'Internal rig')?
 
+**Decision:** Option 2 without the default marker, since there is no automatic apply. You can keep several named presets, each its own sync item under the 8 KB cap. Capture, Apply Now, and the first-visit offer each name the preset they use: with one preset the offer applies it directly, and with several it opens the Nav Pins tab with that instance preselected so you pick one.
+
 1. One preset for all instances
 2. Several named presets, one marked as the default for automatic apply
 3. One preset plus a list of instance patterns (such as rigs) that are never auto-applied
 
-**Recommendation:** One preset. It matches the issue, fits in a single sync item, and Apply Now plus the activity list already handle exceptions.
+**Planning recommendation:** One preset. It matches the issue, fits in a single sync item, and Apply Now plus the activity list already handle exceptions.
 
 **Why it matters:** Named presets change the storage shape (an array, with the 8 KB sync cap per preset item), add a picker to Capture and Apply, and need a default selector. An exclusion list adds a pattern check in maybeApplyNavPreset and a small editor.
 
 ## Shared infrastructure across issues
 
-This section settles the pieces that #8 (Bulk Select Delete Cards on Dashboard) and #9 (Bulk Rename Cards) were meant to share, plus the overlaps found across all six plans (#6, #8, #9, #10, #43, #80). It is based on the plans and on the code they reference (`DataList.jsx`, `GetCardsView.jsx`, `ManageCardLocksView.jsx`, `DeleteObjectView.jsx`, `src/services/cards.js`, `src/utils/cardHelpers.js`, `src/hooks/*`, `src/utils/executeInPage.js`, and the beta-phase plans).
+This section settles the pieces that #8 (Bulk Select Delete Cards on Dashboard, now the remove-only Remove Cards view) and #9 (Bulk Rename Cards) were meant to share, plus the overlaps found across all six plans (#6, #8, #9, #10, #43, #80). It is based on the plans and on the code they reference (`DataList.jsx`, `GetCardsView.jsx`, `ManageCardLocksView.jsx`, `DeleteObjectView.jsx`, `src/services/cards.js`, `src/utils/cardHelpers.js`, `src/hooks/*`, `src/utils/executeInPage.js`, and the beta-phase plans).
 
 ### What is shared, and who builds it
 
-| Piece                                                                                | File                                     | Built by                            | Adopted by                                                                                                               |
-| ------------------------------------------------------------------------------------ | ---------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `getCardsForContext`, plus `cardsOnly` and `parts` options on `getCardsForParent`    | `src/services/cards.js`                  | #9                                  | #8                                                                                                                       |
-| `cardUrlOnPage`, `canManageCard`                                                     | `src/utils/cardHelpers.js`               | #9                                  | #8; `GetCardsView` adopts `cardUrlOnPage` in the same commit                                                             |
-| `renderItemDetail` prop (the only DataList extension)                                | `src/components/views/DataList.jsx`      | #9                                  | #8 (row detail line), #6 (expandable before and after formula)                                                           |
-| `CardBatchList` (the only card list wrapper)                                         | `src/components/views/CardBatchList.jsx` | #9                                  | #8                                                                                                                       |
-| `promisePool`, to beta 1.2 step 2's signature                                        | `src/utils/promisePool.js`               | #9                                  | #80                                                                                                                      |
-| `retryAfter` on the `executeInPage` error envelope (the envelope half of 1.2 step 1) | `src/utils/executeInPage.js`             | #9                                  | #8's placement fast path, then 1.2                                                                                       |
-| `batchWithFallback`, to 1.2 section 6 as amended below                               | `src/utils/batchWithFallback.js`         | whichever of #6 and #8 starts first | the other one                                                                                                            |
-| `HOLD_DURATION_FULL` (5000) and `HOLD_DURATION_SHORT` (2500)                         | `src/utils/constants.js`                 | #8                                  | `HoldToConfirmButton`'s default and `DeleteObjectView`, so every hold in #6, #10, #43 and #80 picks them up with no edit |
-| `cardHostUrlForTab` (moved from `DeleteObjectView.jsx`)                              | `src/utils/cardHelpers.js`               | #8                                  | `DeleteObjectView`                                                                                                       |
-| `computeIsOwner` covers `WORKSHEET_VIEW`                                             | `src/background.js`                      | #8, as its own bug-fix commit       | every worksheet page gate                                                                                                |
-| A shared card-batch hook                                                             | none                                     | not built (see below)               |                                                                                                                          |
+| Piece                                                                                      | File                                     | Built by                                         | Adopted by                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `getCardsForContext`, plus `cardsOnly` and `parts` options on `getCardsForParent`          | `src/services/cards.js`                  | #9                                               | #8                                                                                                                                                                                                     |
+| `cardUrlOnPage`, `canManageCard`                                                           | `src/utils/cardHelpers.js`               | #9                                               | #8 adopts `cardUrlOnPage` (Remove has no card-level check); `GetCardsView` adopts `cardUrlOnPage` in the same commit                                                                                   |
+| `renderItemDetail` prop (the only DataList extension)                                      | `src/components/views/DataList.jsx`      | #9                                               | #8 (row detail line), #6 (expandable before and after formula)                                                                                                                                         |
+| `CardBatchList` (the only card list wrapper)                                               | `src/components/views/CardBatchList.jsx` | #9                                               | #8                                                                                                                                                                                                     |
+| `promisePool`, to beta 1.2 step 2's signature                                              | `src/utils/promisePool.js`               | #9                                               | #80                                                                                                                                                                                                    |
+| `retryAfter` on the `executeInPage` error envelope (the envelope half of 1.2 step 1)       | `src/utils/executeInPage.js`             | already landed (pre-existing bug 5)              | #8's placement fast path, then 1.2                                                                                                                                                                     |
+| `batchWithFallback`, to 1.2 section 6 as amended below                                     | `src/utils/batchWithFallback.js`         | #8 if it starts before 1.2 step 6, otherwise 1.2 | #6 (after 1.2), 1.2's caller retrofit                                                                                                                                                                  |
+| `HOLD_DURATION_FULL` (5000), `HOLD_DURATION_SHORT` (2500), and `HOLD_DURATION_BULK` (3000) | `src/utils/constants.js`                 | #9 (the first feature to hold)                   | `HoldToConfirmButton`'s default (`FULL`) and `DeleteObjectView` (`FULL`, `SHORT`); `BULK` for every Rename Cards and Remove Cards run; every hold in #6, #10, #43 and #80 picks up `FULL` with no edit |
+| `computeIsOwner` covers `WORKSHEET_VIEW`                                                   | `src/background.js`                      | done, as its own bug-fix commit                  | every worksheet page gate, including Remove Cards' page check                                                                                                                                          |
+| A shared card-batch hook                                                                   | none                                     | not built (see below)                            |                                                                                                                                                                                                        |
 
-`src/hooks/useCardBatch.js` (#8's proposal), `renderItemTrailing` (#8's hand-off to #9), and #9's view-local apply pool are all dropped.
+`src/hooks/useCardBatch.js` (#8's proposal), `renderItemTrailing` (#8's hand-off to #9), #9's view-local apply pool, and `cardHostUrlForTab` (only needed to redirect a tab off a deleted card) are all dropped.
 
 ### Landing order
 
 1. **#9, commit A: shared card plumbing.** `cardUrlOnPage` and `canManageCard` (with `GetCardsView.transformCardsToItems` switched to `cardUrlOnPage`), the `getCardsForParent` options, `getCardsForContext`, DataList `renderItemDetail`, and `CardBatchList`. No user-visible change, so no release note.
-2. **#9, commit B: executors.** `src/utils/promisePool.js` and the envelope `retryAfter` field. Record both in `docs/plans/beta-phase-1-2-retries-concurrency.md` (amendments below). Moving `ActivityLogTable.jsx`'s local `promisePool` stays with 1.2, as #80 also proposes.
+2. **#9, commit B: executors and holds.** `src/utils/promisePool.js`, recorded in `docs/plans/beta-phase-1-2-retries-concurrency.md` (amendments below), plus the three hold constants in `src/utils/constants.js` with `HoldToConfirmButton.jsx` and `DeleteObjectView.jsx` switched to them (no behavior change). Moving `ActivityLogTable.jsx`'s local `promisePool` stays with 1.2, as #80 also proposes. The envelope `retryAfter` field has already landed.
 3. **#9 feature commits.**
-4. **`batchWithFallback` in its own commit**, by whichever of #6 and #8 starts first, together with the 1.2 doc amendment. The signature is fixed here, so the order between #6 and #8 no longer matters.
-5. **#8:** first the `computeIsOwner` fix as its own commit (it is a shipped bug, see below). Then the hold constants and `cardHostUrlForTab`, then the feature, adopting everything from commit A.
-6. **#80** imports `promisePool` from step 2. If #80 lands before #9, it builds `promisePool` to the 1.2 step 2 signature, not the `promisePool(taskFns, concurrency)` form #80's plan proposes.
+4. **#8:** `batchWithFallback` in its own commit with the 1.2 doc amendment, unless 1.2 step 6 has landed it first. Then the feature, adopting everything from commits A and B. The `computeIsOwner` fix it once depended on is done.
+5. **#80** imports `promisePool` from step 2. If #80 lands before #9, it builds `promisePool` to the 1.2 step 2 signature, not the `promisePool(taskFns, concurrency)` form #80's plan proposes.
+6. **#6** starts only once beta 1.2, 1.3 and 1.6 have all landed (D6.1), and builds on `batchWithFallback`, `withRetry`, `createRunJournal` and `useRunLock` directly. The rights-gate change for Remap Columns and Migrate Beast Mode Usage (D6.4) is its own commit and can land any time.
 
-**Why #9 goes first.** It is the smaller issue (M against L). It is also the harder consumer of the shared list: grouped parent scope, one card under several views, row order pinned across renames, and live per-row status at concurrency 4. Shaping `CardBatchList` and `getCardsForContext` against that case first means #8 adopts them with no rework. And #9 does not need `batchWithFallback`, so the #6/#8 overlap cannot hold it up. If the maintainer would rather ship #8 first, #8 builds commit A exactly as specified here (it needs all of it except `promisePool` and the envelope field), and #9 adopts it and builds commit B.
+#43 and #10 share nothing with this order and can land whenever.
+
+**Why #9 goes first.** It is the smaller and the harder consumer of the shared list: grouped parent scope, one card under several views, row order pinned across renames, and live per-row status at concurrency 4. Shaping `CardBatchList` and `getCardsForContext` against that case first means #8 adopts them with no rework. And #9 does not need `batchWithFallback`, so the batch helper cannot hold it up. If the maintainer would rather ship #8 first, #8 builds commit A exactly as specified here (it needs all of it except `promisePool` and `canManageCard`) plus the hold constants, and #9 adopts them.
 
 ### Card loading: `getCardsForContext`
 
@@ -470,10 +549,10 @@ It goes between `getCardsByIds` and `getCardsForObject` (exports stay alphabetic
 - **Errors:** an object-scope source failure throws, with `status`. In parent scope, only a failed app read throws.
 - **`getCardsForParent` options:** `cardsOnly` already exists (pre-existing bug 4): it skips `fetchViewDetails` and the forms, queues, and workflows reads and returns `{ cards: [], error, viewId, viewName }` for a failed view. #9 adds `parts = null`, passed to each view's card read.
 
-| Consumer        | `parts`                              | `hydrateParts`                                                                                                                   | Scope            |
-| --------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| #8 Delete Cards | `'datasources,owners,drillPathURNs'` | `null` (stacks already carries every row field, `access` included)                                                               | object           |
-| #9 Rename Cards | `null`                               | `'metadata,owners'` (the dataset source has no `locked` or `metadata`, and the payload rule needs `metadata.dynamicDescription`) | object or parent |
+| Consumer        | `parts`         | `hydrateParts`                                                                                                                   | Scope            |
+| --------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| #8 Remove Cards | `'datasources'` | `null` (stacks already carries every row field, `access` included)                                                               | object           |
+| #9 Rename Cards | `null`          | `'metadata,owners'` (the dataset source has no `locked` or `metadata`, and the payload rule needs `metadata.dynamicDescription`) | object or parent |
 
 Follow-up, in neither issue: `GetCardsView`, `ManageCardLocksView` and `ManageCardOwnersView` can move onto this loader later. Manage Card Locks already works around the dataset source's missing `locked` (VERIFIED-CODE).
 
@@ -484,7 +563,7 @@ Follow-up, in neither issue: `GetCardsView`, `ManageCardLocksView` and `ManageCa
 - DataList never renders `item.metadata`, although `DataListItem` documents it as display text.
 - `annotation` is only an info icon plus hover text (VERIFIED-CODE, `DataList.jsx` around line 1450).
 
-So #8's "Opportunities. Also on Q3 Review and 1 more, 1 alert, 2 drills" needs the same slot as #9's before and after diff. #6's review rows (an expandable before and after formula under each Beast Mode) fit the same slot, so DataList gains one prop instead of three. A trailing editor slot was only for per-row inline editing, which #9 recommends against for v1. If the maintainer chooses it anyway, the detail slot hosts the input.
+So #8's "Opportunities. Also on Q3 Review and 1 more" needs the same slot as #9's before and after diff. #6's review rows (an expandable before and after formula under each Beast Mode) fit the same slot, so DataList gains one prop instead of three. A trailing editor slot was only for per-row inline editing, which is out of #9 (D9.1).
 
 The prop's contract:
 
@@ -503,7 +582,7 @@ The prop's contract:
 | `selectedCardIds`, `onSelectedCardIdsChange`                                                           | Selection keyed by card ID.                                                                                                                                                                                            |
 | `isSelectable(card)`, `unselectableReason(card)`                                                       | Mapped to DataList's `isSelectable` and `getUnselectableTooltip`.                                                                                                                                                      |
 | `rowStatus: Map<cardId, { status: 'queued' \| 'running' \| 'done' \| 'failed' \| 'skipped', error? }>` | Per-card run state, owned by the view.                                                                                                                                                                                 |
-| `statusLabels: { done, failed, running }`                                                              | Verb-specific tooltip text, for example `Deleting...` / `Deleted` / `Failed`.                                                                                                                                          |
+| `statusLabels: { done, failed, running }`                                                              | Verb-specific tooltip text, for example `Removing...` / `Removed` / `Failed`.                                                                                                                                          |
 | `renderDetail(card)`                                                                                   | Passed to `renderItemDetail`.                                                                                                                                                                                          |
 | `chipFor(card)`, `mutedFor(card)`                                                                      | Map to the item's `chip` and `muted` fields.                                                                                                                                                                           |
 | `isRunning`                                                                                            | Makes selection read-only and drops `reload` and `refresh` from the header actions (the interim run lock, see below).                                                                                                  |
@@ -528,7 +607,7 @@ What it does internally:
 `useCardBatch` is not built. It was meant to own loading, selection, per-row status, and a `runBatch` around `batchWithFallback`, and that shape fits only #8:
 
 - **The executors differ.** #8 writes through all-or-nothing bulk endpoints in serial chunks of 50 with per-item fallback. #9 has no bulk title endpoint (the only `cards/bulk*` routes are delete, duplicate, lock, and pages, VERIFIED-LIVE in #9). Its natural executor is one PUT per card in a pool of 4 with retries, preceded by a fresh re-read that skips changed or deleted cards. A `runBatch` that wraps `batchWithFallback` would force #9 into serial chunks of 1. A hook loose enough for both executors is just a `Map` in `useState`.
-- **The selection rules differ.** #8's selectability depends on its Delete / Remove mode and on async decorations. #9's depends on a live preview and on per-row validity, and it carries an undo stack. Neither belongs in a shared hook.
+- **The selection rules differ.** #8's selectability depends on an async placement lookup per card. #9's depends on a live preview and on per-row validity, and it carries an undo stack. Neither belongs in a shared hook.
 - **Loading is one service call.** Every view already does the `getSidepanelData` type check, `useViewReady`, and `mountedRef` in the same way. Wrapping `getCardsForContext` in a hook would hide the per-view type check and save a few lines.
 - **What is actually shared** already has a home. Source resolution lives in `getCardsForContext`. Row IDs, selection mapping, pinned order, and the status badges live in `CardBatchList`. The run machinery lives in `batchWithFallback` and `promisePool`. The 1.6 run lock is a one-line `useRunLock` per view by design.
 
@@ -536,7 +615,7 @@ Each view keeps `selectedCardIds`, a `statusByCardId` Map in the `CardBatchList`
 
 ### Batch executors
 
-**`batchWithFallback`**, the one signature for #6 and #8. It is 1.2 section 6 plus three options and one result field:
+**`batchWithFallback`**, the one signature for #6 and #8. It is 1.2 section 6 plus three options and one result field. #8 builds it if it starts before 1.2 step 6; #6 always gets it from 1.2:
 
 ```js
 batchWithFallback(items, { canFallBack, chunkSize, onSend, onSettled, profile, sendBatch, sendOne, signal });
@@ -551,7 +630,7 @@ batchWithFallback(items, { canFallBack, chunkSize, onSend, onSettled, profile, s
 - **What the callbacks drive:**
   - #8's rows: `onSend` sets `running`, and `onSettled` sets `done` or `failed`.
   - #6's progress, "Saved 50 of 80": `doneCount` of `total`.
-  - The 1.3 journal later: `onSend` calls `run.start(keys)`, and `onSettled` calls `run.record()`.
+  - #6's 1.3 journal run: `onSend` calls `run.start(keys)`, and `onSettled` calls `run.record()`. The same hooks would serve #8 if its journal question is revisited.
   - This replaces #8's `onProgress({ items, phase, results })`, which had no hook before a request and so could not show a chunk as running or start a journal entry.
 - **`signal` is an AbortSignal**, checked before each request. Unsent items come back `{ ok: false, notSent: true, error }`. That covers #6's stop when no Domo tab for the instance is left, and an unmounted view (each view aborts its controller on unmount).
 - **`profile`** is passed to `withRetry` once `src/utils/retry.js` exists. Until then each send is called directly.
@@ -560,30 +639,24 @@ batchWithFallback(items, { canFallBack, chunkSize, onSend, onSettled, profile, s
 | Caller                                                                                | Executor                     | Chunk | Profile                                                                                 |
 | ------------------------------------------------------------------------------------- | ---------------------------- | ----- | --------------------------------------------------------------------------------------- |
 | #6 Beast Mode save (`updateDatasetFunctions`, falling back to `saveFunctionTemplate`) | `batchWithFallback`          | 50    | `RETRY_SAFE`                                                                            |
-| #8 Delete (`deleteCards`)                                                             | `batchWithFallback`          | 50    | none (1.2: deletes are not retried)                                                     |
 | #8 Remove from Page (`removeCardsFromPage`)                                           | `batchWithFallback`          | 50    | `RETRY_SAFE` (removing a card that is not on the page returns 200, VERIFIED-LIVE in #8) |
 | #9 rename (`renameCard`)                                                              | `promisePool`, concurrency 4 | none  | `RETRY_SAFE` (idempotent title PUT)                                                     |
 | #80 card writes                                                                       | `promisePool`, concurrency 3 | none  | `RETRY_REJECTED` (pro-code context POST, per 1.2's table)                               |
 
 **`promisePool`** is built by #9 to 1.2 step 2's signature, `promisePool(tasks, { concurrency = 6, onSettled })`. It returns `PromiseSettledResult[]` in input order, and `onSettled(result, index, doneCount)` drives #9's footer count. Tasks check the view's AbortSignal themselves before sending.
 
-**`withRetry` is built by none of the six.** #9 wraps each task in a small local transient-retry function. It retries 429, 502, 503, and 504 twice, waiting `Retry-After` when present (failing past 60 s, as 1.2 specifies), otherwise 1 s and then 3 s. That makes the later swap to `withRetry(fn, { profile: RETRY_SAFE })` a one-line change. #6 passes `profile` and gets retries for free once 1.2 step 3 lands. #80 keeps "no automatic retry".
+**`withRetry` is built by none of the six.** #9 wraps each task in a small local transient-retry function. It retries 429, 502, 503, and 504 twice, waiting `Retry-After` when present (failing past 60 s, as 1.2 specifies), otherwise 1 s and then 3 s. That makes the later swap to `withRetry(fn, { profile: RETRY_SAFE })` a one-line change. #6 lands after 1.2, so it passes `profile` and gets 1.2's retries from the start. #80 keeps "no automatic retry".
 
-**The envelope `retryAfter` field** is pulled forward from 1.2 step 1 into #9's commit B:
-
-- `runInPage` adds `retryAfter: error?.retryAfter`, and `toError` copies it back.
-- It is documented next to `status` in `.claude/rules/architecture.md`.
-- New page-side throws in #8 and #9 set `e.retryAfter = r.headers.get('Retry-After')`.
-- The rest of step 1 (the roughly 44 status-less sites, `updateDatasetFunctions`, `shareContent`) stays with 1.2. #6's planned `status` fix on `updateDatasetFunctions` is the one exception, because `canFallBack` needs it.
+**The envelope `retryAfter` field** has already landed (pre-existing bug 5): `runInPage` carries `retryAfter` and `toError` copies it back, documented next to `status` in `.claude/rules/architecture.md`. New page-side throws in #8 and #9 set `e.retryAfter = r.headers.get('Retry-After')`. The rest of 1.2 step 1 (the roughly 44 status-less sites, `shareContent`) stays with 1.2; `updateDatasetFunctions` already carries `status`.
 
 ### Amendments to `docs/plans/beta-phase-1-2-retries-concurrency.md`
 
 Make these in the commit that lands each piece:
 
 1. **Section 6 signature.** Add `onSend`, `onSettled`, and `signal`, and the `notSent` result field, with the firing rules above.
-2. **Section 6 callers table.** Add #6 Replace Columns in Beast Modes, #8 Delete Cards, and #8 Remove from Page, with the chunks and profiles above.
+2. **Section 6 callers table.** Add #6 Replace Columns in Beast Modes and #8 Remove from Page, with the chunks and profiles above.
 3. **Write classification table.** Add `PUT content/v1/cards/{id}/title` as `RETRY_SAFE` (idempotent, VERIFIED-LIVE in #9) and `DELETE content/v1/cards/bulk/pages` as `RETRY_SAFE` (VERIFIED-LIVE in #8).
-4. **Context and Order.** Note that `batchWithFallback` (from #6 or #8), `promisePool` (from #9), and the envelope `retryAfter` field (from #9) may land before steps 1 to 3. They call sends directly until `retry.js` exists. The `ActivityLogTable.jsx` call-site move and the step 2 loop replacements stay with 1.2.
+4. **Context and Order.** Note that `batchWithFallback` (from #8, if it starts first) and `promisePool` (from #9) may land before steps 1 to 3, and that the envelope `retryAfter` field already has. They call sends directly until `retry.js` exists. #6 waits for 1.2, 1.3 and 1.6. The `ActivityLogTable.jsx` call-site move and the step 2 loop replacements stay with 1.2.
 5. **Section 8 tests.** Add `onSend` and `onSettled` order (no `onSettled` for a chunk that falls back), `doneCount`, and abort producing `notSent`.
 
 ### Run lock, change journal, and fresh reads
@@ -592,49 +665,55 @@ Make these in the commit that lands each piece:
 
   | View                                   | Flag                                     |
   | -------------------------------------- | ---------------------------------------- |
-  | `DeleteCardsView.jsx` (#8)             | `isRunning`                              |
+  | `RemoveCardsView.jsx` (#8)             | `isRunning`                              |
   | `RenameCardsView.jsx` (#9)             | `isRunning` (`run.phase === 'applying'`) |
-  | `ReplaceBeastModeColumnsView.jsx` (#6) | scanning, applying, or undoing           |
+  | `ReplaceBeastModeColumnsView.jsx` (#6) | scanning or applying                     |
   | Update Code Engine Versions (#80)      | `isSubmitting`                           |
+  | `MovePageView.jsx` (#43)               | the access cleanup run (`isCleaning`)    |
 
-  #43's Move Page is a single bulk move request, so it falls under 1.6's single-request exception.
+  #43's move itself is a single bulk move request, so it falls under 1.6's single-request exception. Its access cleanup (D43.4) is one revoke per user or group, so that part locks.
 
-  Until 1.6 lands, the interim locks are:
-  - `CardBatchList`'s `isRunning` for #8 and #9: read-only selection, with Reload and Refresh removed.
-  - `buildReloadAction`'s `unsupportedReason` for #6.
+  Until 1.6 lands, the interim lock for #8 and #9 is `CardBatchList`'s `isRunning`: read-only selection, with Reload and Refresh removed. #6 needs no interim lock, since it lands after 1.6 and calls `useRunLock` from the start.
 
-  After a run, #8 closes the view through `onBackToDefault` once no cards are left. Guard that call with `mountedRef` until 1.6's `viewKey`-scoped close lands.
+  After a run, #8 closes the view through `onBackToDefault` once no cards are left on the page. Guard that call with `mountedRef` until 1.6's `viewKey`-scoped close lands.
 
-- **Change journal (1.3).** The hook points are uniform:
-  - `batchWithFallback`'s `onSend` and `onSettled` (#6, #8).
-  - `promisePool`'s `onSettled` (#9, #80).
-  - Move Back's single entry (#43).
+- **Change journal (1.3).** Only #6 journals (DX.4). It lands after 1.3, records each Beast Mode through `createRunJournal({ feature: 'replaceBeastModeColumns', subject })` from `batchWithFallback`'s `onSend` and `onSettled`, and adds a feature label and Excel row mapper to Recent Runs. The other tools revisit journaling one at a time after 1.3 ships for Transfer Ownership and Duplicate User. Their hook points stay the same for that revisit:
+  - `batchWithFallback`'s `onSend` and `onSettled` (#8, key `removeCards`).
+  - `promisePool`'s `onSettled` (#9 `renameCards`, #80 `updateCodeEngineVersions`).
+  - Move Back's single entry and the cleanup's per-principal revokes (#43 `movePage`).
 
-  The feature keys are `replaceBeastModeColumns`, `deleteCards`, `renameCards`, `updateCodeEngineVersions`, and `movePage`. 1.3 calls journaling non-Beta features a later per-feature decision, so whether these tools journal is a cross-issue question.
-
-- **Fresh reads (1.4 and D2).** #6 and #9 both re-read before writing, and skip changed or already-done items. #8's deletes rewrite nothing, so they need no fresh read. Its post-run refresh, which counts a card that vanished as done, plays the same role for a chunk's 404.
+- **Fresh reads (1.4 and D2).** #6 and #9 both re-read before writing, and skip changed or already-done items. #8 re-checks the selected cards' placements right before the run and skips any that now live only on this page, so the "never on no page" rule holds against edits made since loading. Its post-run refresh, which counts a card that vanished from the page as done, plays the same role for a chunk's 404.
 
 ### Permissions and confirmations
 
 - **`canManageCard({ card, userRights })`** in `src/utils/cardHelpers.js` is Domo's own `canManageKpi` rule (bundle, VERIFIED-LIVE in #9): `content.admin || card.isCurrentUserOwner === true || (content.card.edit && !card.locked)`. `isCurrentUserOwner` counts group ownership.
-  - #9 uses it for rename editability.
-  - #8 uses it for Delete-mode selectability, instead of letting every row through and failing locked non-owned cards per row.
-  - Both need `owners` in the card read: stacks `parts` for #8, `hydrateParts` for #9. The server stays authoritative either way.
-- **Button gates** for #6, #8, and #9 all recommend `content.card.edit || content.admin`, while Manage Card Locks and Manage Card Owners are `content.admin` only. Which one to use is a cross-issue question.
-- **Holds.** `HOLD_DURATION_FULL` and `HOLD_DURATION_SHORT` replace the three duplicated literals: `DEFAULT_HOLD_DURATION` in `HoldToConfirmButton.jsx`, and `FULL_HOLD_DURATION` and `SHORT_HOLD_DURATION` in `DeleteObjectView.jsx`. When each feature holds stays per issue (#8, #9, #43, and #80 each have an open question), since a permanent delete and a reversible rename deserve different answers.
+  - #9 uses it for rename editability, and needs `owners` through `hydrateParts`. The server stays authoritative.
+  - #8 does not use it. Removing a card from a page is a page edit, and a card's lock governs edits to the card itself (INFERRED, checked in #8's permission test).
+- **Button gates** (DX.3, D6.4). #6, #8, and #9 all use `content.card.edit || content.admin`, and so do the shipped Remap Columns and Migrate Beast Mode Usage buttons once D6.4's commit lands. Manage Card Locks and Manage Card Owners stay `content.admin` only.
+- **Holds.** `HOLD_DURATION_FULL` (5000) and `HOLD_DURATION_SHORT` (2500) replace the three duplicated literals: `DEFAULT_HOLD_DURATION` in `HoldToConfirmButton.jsx`, and `FULL_HOLD_DURATION` and `SHORT_HOLD_DURATION` in `DeleteObjectView.jsx`. `HOLD_DURATION_BULK` (3000) is new, for the two reversible bulk card tools. The settled rules:
+
+  | Feature                           | Hold                                                                                                                     |
+  | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+  | #9 Rename Cards                   | every run, `BULK` (D9.4)                                                                                                 |
+  | #8 Remove Cards                   | every run, `BULK` (D8.3)                                                                                                 |
+  | #6 Replace Columns in Beast Modes | `FULL` when certified or certification-requested rows are selected, otherwise a plain confirm (D6.3)                     |
+  | #80 Update Code Engine Versions   | `FULL` when the run spans more than one card, otherwise plain (D80.3)                                                    |
+  | #43 Move Page                     | `FULL` whenever access changes anywhere or a list failed to load (D43.3); the access cleanup always holds `FULL` (D43.4) |
+  | #10 Nav Pins                      | `FULL` for Replace on a customized nav; Add Missing and the first-visit offer are plain (D10.2)                          |
 
 ### Other overlaps among the six plans
 
-- **Admin summary endpoints.** #8 (card placements), #9 phase 2 (title search) and #43 (page search, `getChildPages`) all page through `adminsummary`. The plans found:
-  - `limit` above 100 returns 400 (#9).
+- **Admin summary endpoints.** #8 (card placements) and #43 (page search, `getChildPages`) both page through `adminsummary`. The plans found:
+  - `limit` above 100 returns 400 (#9's title-search probe).
   - It returns 429 under concurrent load (#8, #9).
   - `getChildPages` never paginates (#43).
 
   Rule for every new loop: page at 100 using the total count, and retry a 429 once, honoring `Retry-After`. Retry inside the injected function, where the header is readable, or extension-side once the envelope field from #9 exists.
 
-- **`src/utils/currentObject.js`.** #8 uses `redirectTabIfViewingObject` and `reloadTabIfViewingObject`, #6 calls `getValidTabForInstance` per chunk, and #10 adds `listOpenDomoInstances()` next to it. These are additive and do not conflict.
+- **`src/utils/currentObject.js`.** #8 uses `reloadTabIfViewingObject`, #6 calls `getValidTabForInstance` per chunk, and #10 adds `listOpenDomoInstances()` next to it. These are additive and do not conflict.
 - **#10 (Nav Pins)** is otherwise independent. It shares only `HoldToConfirmButton` (and through it the hold constants) and the `findStore()` pattern from `pageVariables.js`.
-- **#6's `searchFunctionsPage`** consolidates four copies of the paged Beast Mode search. #8 rejected counting card Beast Modes through that search on cost grounds (about 250 s on a 52-card page), so nothing is shared there.
+- **#43's access cleanup** adds the first share revoke service (`revokePageAccess`). Nothing else in the six plans revokes access, so it stays in `src/services/pages.js`.
+- **#6's `searchFunctionsPage`** consolidates four copies of the paged Beast Mode search. No other plan needs it, now that #8 no longer deletes cards (and so no longer weighs counting their Beast Modes).
 - **DataList consumers:**
   - #80's design scope uses DataList children (cards with rows nested under them) and needs no new prop.
   - #6's grouped review uses virtual parents, plus `renderItemDetail` for the expandable formulas. Its plan names no mechanism for those formulas today, so this is the one change #6 adopts from this section.
@@ -682,10 +761,10 @@ Each of these lands as its own commit with its own release-note check, not under
 1. Rename the cards on the current page or App Studio page in bulk. This is the core ask. **Planned.**
 2. The same for a dataset's cards ("Could also add that ability to datasets"). **Planned.** It is the same view with a different card source, and dataflows (cards on every output) come free from `getCardsForObject`.
 3. Rename across a whole App Studio app or worksheet (every view). **Planned**, through the long-press parent scope that Get Cards already has.
-4. Rename across many unrelated datasets and pages at once, from the side panel or options page ("across multiple datasets/pages"). **Deferred to phase 2**, as an open question. It is designed below as an instance-wide "find cards by title" source for the same view.
-5. Also rewrite card descriptions. **Not planned for v1** (open question). The engine and endpoint already handle descriptions, so this is a small follow-up.
+4. Rename across many unrelated datasets and pages at once, from the side panel or options page ("across multiple datasets/pages"). **Not planned** (D9.3). Rename Cards stays scoped to the current object or App Studio app; the dataset, dataflow, and app scopes cover the cleanup cases the issue names.
+5. Also rewrite card descriptions. **Quick follow-up after v1** (D9.2). The engine and endpoint already handle descriptions; see Implementation plan step 12.
 6. Also rewrite chart-level titles (axis titles, legend title). **Out of scope.** They are chart properties (`title_x`, `title_y`, `legend_title_text` in the chart-type options), not card titles, and only a full definition rewrite can change them.
-7. Per-row inline title editing. **Not planned for v1** (open question). Domo's Edit Title modal already does single-card edits well.
+7. Per-row inline title editing. **Not planned** (D9.1). Domo's Edit Title modal already does single-card edits well.
 
 ### Scope check
 
@@ -698,7 +777,7 @@ Each of these lands as its own commit with its own release-note check, not under
 
 **What is cut because Domo already does it.**
 
-- Single-card rename: Domo's Edit Title modal handles it, so there is no Rename button on a `CARD` context. Per-row inline editing is also left out of v1 for this reason (open question).
+- Single-card rename: Domo's Edit Title modal handles it, so there is no Rename button on a `CARD` context. Per-row inline editing is left out for the same reason (D9.1).
 - Chart axis and legend titles: these are not card titles and need a definition rewrite.
 
 **What already exists in this codebase that overlaps.**
@@ -714,7 +793,7 @@ Each of these lands as its own commit with its own release-note check, not under
 - `src/components/views/DataList.jsx`: selection, `selectAll`, `isSelectable`, `getUnselectableTooltip`, `getItemBadge`, per-item `chip`, `banner`, `footer`, `sortWeight`, and virtualization (rows are measured, so taller rows work). It has **no** per-row secondary line, which the before/after diff needs. `item.metadata` is documented on `DataListItem` but never rendered, and `annotation` is hover-only.
 - `src/models/DataListItem.js`: `originalId` for namespaced row IDs, and `status` / `error` / `errorDetail`. DataList only renders the error body for virtual parents (`isErrorState = item.isVirtualParent && ...`, `DataList.jsx:1006`), so leaf-row errors go through `getItemBadge`.
 - `src/activityLog/ActivityLogTable.jsx:1846` has a local `promisePool(taskFns, concurrency)`. `docs/plans/beta-phase-1-2-retries-concurrency.md` step 2 specifies the shared one.
-- #8 (Bulk Select Delete Cards on Dashboard) is built on the same card loader, card list, and DataList prop. This issue builds them first (see Shared infrastructure across issues).
+- #8 (Remove Cards) is built on the same card loader, card list, DataList prop, and hold constant. This issue builds them first (see Shared infrastructure across issues).
 
 ### API and platform findings
 
@@ -821,15 +900,15 @@ Card `1011747248` really has `owners: []`. Ownerless cards exist, and for them o
 
 **7. Certification.** Analyzer expires certification on the client: on save, if the card is `CERTIFIED` it opens the "You've edited a certified Card" modal (i18n `badges/youve-edited-a-certified-card`) and calls `setCertificationState("EXPIRED")` on the definition it saves (chunk `3666-8d3fa44fd8aaf2b7`, VERIFIED-LIVE). The draft's quoted "expires the certification" string does not exist, and that claim is dropped. The Edit Title modal sends no certification field, so a title PUT most likely leaves certification alone (INFERRED). Probing it would need a certification process, which a scratch run cannot set up safely, so it becomes a live verification step.
 
-**8. Phase 2 only: `POST /api/content/v2/cards/adminsummary?limit=&skip=`.** Body `{ cardTitleSearchText, includeCardTitleClause: true, ascending, orderBy: "cardTitle" }` (VERIFIED-LIVE). It returns `cardAdminSummaries[] { id, type, title, locked, owners[], pageHierarchy[], badgeUpdated, active }` and `totalCardCount`. **`limit` above 100 returns 400** (VERIFIED-LIVE: 100 works, 200 fails), and the endpoint 429s under concurrent load. Content admin is required (INFERRED from the endpoint family).
+**8. Not used: title search through `POST /api/content/v2/cards/adminsummary?limit=&skip=`.** Probed for the instance-wide phase that D9.3 dropped, and kept because #8 and #43 page through the same endpoint. Body `{ cardTitleSearchText, includeCardTitleClause: true, ascending, orderBy: "cardTitle" }` (VERIFIED-LIVE). It returns `cardAdminSummaries[] { id, type, title, locked, owners[], pageHierarchy[], badgeUpdated, active }` and `totalCardCount`. **`limit` above 100 returns 400** (VERIFIED-LIVE: 100 works, 200 fails), and the endpoint 429s under concurrent load.
 
 ### Design
 
-**Where it lives.** A side panel view, `RenameCardsView`, launched from a new `Rename Cards` action button in the shared `ActionButtons` grid. That grid works from both the popup and the side panel through `useLaunchView`. On an App Studio view or worksheet view, a long-press menu offers "Rename App Cards" or "Rename Worksheet Cards", which switch to parent scope, as Get Cards does. It is a separate view from #8's delete flow. Whether bulk card actions should instead be one view with modes is a cross-issue question, and this plan is written for separate views on a shared list.
+**Where it lives.** A side panel view, `RenameCardsView`, launched from a new `Rename Cards` action button in the shared `ActionButtons` grid. That grid works from both the popup and the side panel through `useLaunchView`. On an App Studio view or worksheet view, a long-press menu offers "Rename App Cards" or "Rename Worksheet Cards", which switch to parent scope, as Get Cards does. It is a separate view from #8's Remove Cards (DX.1), on the same shared list.
 
-**Contexts that enable it.** `getAvailableActions()` gets its own `renameCards` block for every dataset type (`isDatasetTypeId`), `DATA_APP_VIEW`, `DATAFLOW_TYPE`, `PAGE`, `REPORT_BUILDER_PAGE`, and `WORKSHEET_VIEW`, but only when `USER_RIGHTS` includes `content.card.edit` or `content.admin`. `BEAST_MODE_FORMULA` is excluded. The context set and the gate are both cross-issue questions shared with #8. Users who own cards but lack both rights do not get the button. Domo's role defaults rarely produce such users, and showing the button to every viewer would mostly produce lists of disabled rows.
+**Contexts that enable it.** `getAvailableActions()` gets its own `renameCards` block for every dataset type (`isDatasetTypeId`), `DATA_APP_VIEW`, `DATAFLOW_TYPE`, `PAGE`, `REPORT_BUILDER_PAGE`, and `WORKSHEET_VIEW`, but only when `USER_RIGHTS` includes `content.card.edit` or `content.admin`. `BEAST_MODE_FORMULA` is excluded. That context set and gate are DX.2 and DX.3. Users who own cards but lack both rights do not get the button. Domo's role defaults rarely produce such users, and showing the button to every viewer would mostly produce lists of disabled rows.
 
-**Per-row editability** uses the shared `canManageCard({ card, userRights })` in `src/utils/cardHelpers.js`, a port of `canManageKpi`, so it agrees with the button gate (and with #8's Delete-mode selectability):
+**Per-row editability** uses the shared `canManageCard({ card, userRights })` in `src/utils/cardHelpers.js`, a port of `canManageKpi`, so it agrees with the button gate:
 
 ```js
 export function canManageCard({ card, userRights }) {
@@ -865,7 +944,7 @@ Group owners are covered, because `isCurrentUserOwner` includes group membership
    6. Any other failure is recorded on the row, with `error.status`, and the run continues.
    7. After the run, reload the rows from Domo through the same loader. `CardBatchList` keeps each card's pinned order.
 6. **Undo** is a stack of passes held in view state: `undoStack = [{ passId, entries: [{ cardId, before: { title, dynamicTitle }, after: { title, dynamicTitle } }] }]`. "Undo Rename" pops the latest pass, re-reads those cards, skips any whose current title no longer equals `after.title` ("Changed in Domo"), and rebuilds each payload from the fresh card plus the stored `before` title text. The fresh card's `dynamicDescription` is echoed back unchanged. It uses the same pool and retry.
-7. **Run safety while applying.** The view passes `isRunning` to `CardBatchList`, which makes the selection read-only and drops Reload and Refresh from the header. The view also disables the transform panel until the run settles. The view's close button and closing the side panel cannot be blocked today: requests already in flight finish, the abort keeps the rest from starting, and `mountedRef` drops state updates. When `docs/plans/beta-phase-1-6-run-lock.md` lands, the view calls `useRunLock(isRunning, 'Rename Cards')`, and this issue adds `RenameCardsView.jsx` / `isRunning` to that plan's "Which views lock" table. When `docs/plans/beta-phase-1-3-change-journal.md` lands, and if the cross-issue journal question says yes, each pass also records a journal run (one entry per card, with `before` and `after`) from the pool's `onSettled`, so a rename can be reverted from Recent Runs after the view is gone. Until then the banner says undo lasts only as long as the view.
+7. **Run safety while applying.** The view passes `isRunning` to `CardBatchList`, which makes the selection read-only and drops Reload and Refresh from the header. The view also disables the transform panel until the run settles. The view's close button and closing the side panel cannot be blocked today: requests already in flight finish, the abort keeps the rest from starting, and `mountedRef` drops state updates. When `docs/plans/beta-phase-1-6-run-lock.md` lands, the view calls `useRunLock(isRunning, 'Rename Cards')`, and this issue adds `RenameCardsView.jsx` / `isRunning` to that plan's "Which views lock" table. Rename Cards does not journal (DX.4); the banner says undo lasts only as long as the view. Whether it should record into `docs/plans/beta-phase-1-3-change-journal.md` is revisited after 1.3 ships, and the pool's `onSettled` is the hook point if so.
 
 **New service functions** (`src/services/cards.js`, alphabetical per `sort-modules`):
 
@@ -924,13 +1003,14 @@ loadIssues: { failedViews, missingIds }
    - It renders a secondary block under the label of a leaf row at any depth, outside the disclosure trigger and any pressable element.
    - It is threaded through `childRenderProps`, compared by function identity in `arePropsEqualForRow`, and paired with a taller virtualizer `estimateSize`.
    - It is documented in the DataList JSDoc block, and the never-rendered `DataListItem.metadata` doc is fixed at the same time.
-   - #9 uses it for the before/after diff, #8 for its placements and alerts line, and #6 for its expandable formulas. Row labels stay plain strings, because `sortItemsByLabel` calls `.toString()` on them.
+   - #9 uses it for the before/after diff, #8 for its placements line, and #6 for its expandable formulas. Row labels stay plain strings, because `sortItemsByLabel` calls `.toString()` on them.
 4. **`CardBatchList`** (`src/components/views/CardBatchList.jsx`): the one selectable card list wrapper. It handles row IDs, card-ID selection mapping (diffing row sets so unchecking one instance unselects the card), pinned order, group virtual parents, select-all, status and lock badges, and the `isRunning` interim lock.
-5. **`promisePool`** (1.2 step 2 signature) and the envelope `retryAfter` field, in their own commit, recorded in the 1.2 plan. #80 adopts `promisePool`.
+5. **`promisePool`** (1.2 step 2 signature), in its own commit, recorded in the 1.2 plan. #80 adopts it.
+6. **Hold constants** `HOLD_DURATION_FULL` (5000), `HOLD_DURATION_SHORT` (2500), and the new `HOLD_DURATION_BULK` (3000) in `src/utils/constants.js`, with `HoldToConfirmButton.jsx` and `DeleteObjectView.jsx` switched to them in the same commit. #8 uses `HOLD_DURATION_BULK` too.
 
 #9 does not use `batchWithFallback`. There is no bulk title endpoint, so a per-card pool is the right executor. There is also no shared hook: #9's selection depends on the live preview, and its run includes a fresh re-read and an undo stack, so a hook built around #8's bulk chunks would not fit.
 
-Everything else #9 needs already exists in DataList: controlled selection with `selectAll`, `isSelectable`, `getUnselectableTooltip`, `getItemBadge` for per-row status, item `chip` for row states, `banner`, `footer`, `sortWeight`, and virtualization. "Only show cards that change" filters the `cards` passed to `CardBatchList`, so no filter prop is needed. If the maintainer opts into inline editing (open question), `renderItemDetail` already sits outside the row's press handling, so it can host an interactive `Input`.
+Everything else #9 needs already exists in DataList: controlled selection with `selectAll`, `isSelectable`, `getUnselectableTooltip`, `getItemBadge` for per-row status, item `chip` for row states, `banner`, `footer`, `sortWeight`, and virtualization. "Only show cards that change" filters the `cards` passed to `CardBatchList`, so no filter prop is needed.
 
 Find and replace, prefix and suffix, and the diff stay in #9's `TitleTransformPanel`, `TitleDiff`, and `cardTitles.js`. #8 has no use for them.
 
@@ -945,7 +1025,7 @@ Find and replace, prefix and suffix, and the diff stay in #9's `TitleTransformPa
 1. Open: a spinner, then the view titled `Rename Cards for <object name>`. Every editable card is selected, and the mode is Replace with an empty Find field.
 2. Type in Find (and optionally Replace), or switch to Add Prefix or Add Suffix. Each row shows its current title and, under it, the new title with the changed span highlighted.
 3. Optionally uncheck rows, or turn on "Only show cards that change".
-4. Press `Rename N Cards`. Rows tick over live, and the footer counts progress.
+4. Hold `Hold to Rename N Cards` for 3 seconds. Rows tick over live, and the footer counts progress.
 5. When done, a toast with an Undo action appears. The view stays open on the fresh titles, so another pass is possible, and the footer offers `Undo Rename`.
 
 **Key screen (side panel), object scope:**
@@ -973,13 +1053,13 @@ Find and replace, prefix and suffix, and the diff stay in #9's `TitleTransformPa
 | [ ] Domo Certifications           (No Change)  |
 | [~] Duplicate of Badge Acceptance Rate  (lock) |
 +------------------------------------------------+
-| [            Rename 15 Cards             ]     |
+| [        Hold to Rename 15 Cards         ]     |
 +------------------------------------------------+
 ```
 
 The current title (the row label) renders as usual. The detail line, through `renderItemDetail`, renders the new title, with inserted text in an accent tint and removed text struck through in a muted tint. Pills render as small inline chips labeled by `pillLabel` (with the pill's `defaultText` in the chip tooltip when it has one), in place in both lines. When a regex would swallow a pill, the detail line shows the pill chip with a danger outline at its position.
 
-**Parent scope** groups rows by view (virtual parents labeled with the view name, with group-level select). The subtext reads "**42** of **118** cards will change across **9** pages". The footer reads `Rename 42 Cards on 9 Pages`, so the size of the run is visible on the button.
+**Parent scope** groups rows by view (virtual parents labeled with the view name, with group-level select). The subtext reads "**42** of **118** cards will change across **9** pages". The footer reads `Hold to Rename 42 Cards on 9 Pages`, so the size of the run is visible on the button.
 
 **Applying and results:**
 
@@ -1000,7 +1080,7 @@ The current title (the row label) renders as usual. The detail line, through `re
 | Loading                                  | Centered `Spinner`, as in Manage Card Locks.                                                                                                                                                                                                                                                                                                                                                                                                |
 | Empty                                    | Subtext "No cards found on this object." The footer button is disabled.                                                                                                                                                                                                                                                                                                                                                                     |
 | Nothing entered                          | Subtext "**16** cards. Enter text to find, or add a prefix or suffix."                                                                                                                                                                                                                                                                                                                                                                      |
-| Preview                                  | Subtext "**15** of **16** cards will change". Footer "Rename 15 Cards" (singular "Rename 1 Card").                                                                                                                                                                                                                                                                                                                                          |
+| Preview                                  | Subtext "**15** of **16** cards will change". Footer `HoldToConfirmButton` "Hold to Rename 15 Cards" (singular "Hold to Rename 1 Card").                                                                                                                                                                                                                                                                                                    |
 | No matches                               | Subtext "No titles match." The footer is disabled.                                                                                                                                                                                                                                                                                                                                                                                          |
 | Invalid regex                            | Inline error under Find: "Invalid regular expression: {message}". Previews are cleared.                                                                                                                                                                                                                                                                                                                                                     |
 | Some views failed to load (parent scope) | Warning `Alert` in the banner: "**2** pages couldn't be loaded, so their cards aren't listed." Hovering the count lists the page names and errors.                                                                                                                                                                                                                                                                                          |
@@ -1018,7 +1098,7 @@ The current title (the row label) renders as usual. The detail line, through `re
 | Permission denied (every row 403)        | Same as full failure, with the row tooltip "You don't have permission to edit this card."                                                                                                                                                                                                                                                                                                                                                   |
 | Undo                                     | Footer "Restoring 6 of 15...". Success toast "Rename Undone" / "Restored **15** card titles.". Partial "Undo Partially Failed" / "Restored **12** card titles. **3** failed.".                                                                                                                                                                                                                                                              |
 
-**Confirmation style.** A plain primary button, not `HoldToConfirmButton`, pending the open question. Renaming is reversible (in-view Undo, plus the audit log's "previous display name"), every exact change is previewed, and nothing is deleted. In parent scope, the run size is in the button label. If a hold is chosen, it uses the shared `HOLD_DURATION_FULL` from `src/utils/constants.js` (#8) through `HoldToConfirmButton`'s default.
+**Confirmation style** (D9.4). Every run starts from a `HoldToConfirmButton` with `duration={HOLD_DURATION_BULK}` (3 s), whatever the card count or scope. The hold is short because renaming is reversible (in-view Undo, plus the audit log's "previous display name") and every exact change is previewed; it is there so a mistyped regex cannot fire on a stray click. In parent scope, the run size is in the button label. **Undo Rename** and **Retry N Failed** stay plain buttons, since they only reverse or replay a run that was already held for, and the toast's Undo action cannot hold anyway.
 
 **Quick fill.** The chip `Remove "Duplicate of" / "Copy of"` switches to Replace with regex on, Find `^(?:(?:Duplicate|Copy) of )+`, and Replace empty. It also removes stacked prefixes such as "Duplicate of Duplicate of " (dataset card `627918209`). It covers Domo's English strings only (i18n keys `duplicate-of` and `copy-of`). Localized prefixes such as "次の複製：" use plain Find.
 
@@ -1030,10 +1110,11 @@ The current title (the row label) renders as usual. The detail line, through `re
    - `src/services/cards.js`: add `cardsOnly` and `parts` to `getCardsForParent`, and add `getCardsForContext` between `getCardsByIds` and `getCardsForObject`. Nothing is lifted from `GetCardsView`: the dataflow dedupe already lives in `getCardsForObject`, and `transformParentScopeItems` stays as the Get Cards UI transform.
    - `src/components/views/DataList.jsx`: add `renderItemDetail` (leaf rows at any depth, through `childRenderProps` and both `VirtualizedItems` call sites, compared by identity in `arePropsEqualForRow`, taller `estimateSize` when set). Document it in the props JSDoc, and fix the `DataListItem.metadata` doc in `src/models/DataListItem.js`.
    - `src/components/views/CardBatchList.jsx`: the wrapper, with the props listed in Shared infrastructure across issues.
-3. **Executors, one commit.**
+3. **Executors and holds, one commit.**
    - Add `src/utils/promisePool.js` to 1.2 step 2's signature (`promisePool(tasks, { concurrency = 6, onSettled })`, settled results in input order). Leave `ActivityLogTable.jsx`'s local copy to 1.2.
    - The envelope `retryAfter` field has already landed (pre-existing bug 5), so this step needs no `executeInPage.js` change.
-   - Record both, plus the title PUT as `RETRY_SAFE`, in `docs/plans/beta-phase-1-2-retries-concurrency.md` (amendments in Shared infrastructure across issues).
+   - Record `promisePool`, plus the title PUT as `RETRY_SAFE`, in `docs/plans/beta-phase-1-2-retries-concurrency.md` (amendments in Shared infrastructure across issues).
+   - In `src/utils/constants.js`, add `HOLD_DURATION_BULK = 3000`, `HOLD_DURATION_FULL = 5000`, and `HOLD_DURATION_SHORT = 2500`. Replace `DEFAULT_HOLD_DURATION` in `HoldToConfirmButton.jsx` and `FULL_HOLD_DURATION` / `SHORT_HOLD_DURATION` in `DeleteObjectView.jsx` with them. No hold changes length.
 4. **Services** in `src/services/cards.js`: add `renameCard({ cardId, payload, tabId })` after `getPageCards` (and after #8's `removeCardsFromPage` if it exists), before `setCardsLocked`. Its JSDoc notes that leaving out `dynamicTitle` or `dynamicDescription` deletes them, and that the server derives `title` and `description` from them. It sets `error.status` and `error.retryAfter`.
 5. **Transform panel and diff.** Add `src/components/views/renameCards/TitleTransformPanel.jsx`: HeroUI `ToggleButtonGroup` for the mode, `Input`s, `ToggleButton`s for regex and match case, the quick-fill `Chip`, the scope note, and the "Only show cards that change" checkbox. Add `src/components/views/renameCards/TitleDiff.jsx`, which renders the new title with highlighted spans and pill chips.
 6. **View.** Add `src/components/views/RenameCardsView.jsx`, modeled on `ManageCardLocksView.jsx`:
@@ -1041,10 +1122,11 @@ The current title (the row label) renders as usual. The detail line, through `re
    - Loading through `getCardsForContext({ context, hydrateParts: 'metadata,owners', parentId, scope, tabId })`.
    - `useStatusBar().showStatus` with `actionProps` for Undo at a 15000 ms timeout (model: `GetPagesView.jsx:449`).
    - `CardBatchList` with `headerActions={['reload', 'refresh']}`, `isRunning`, `viewType='renameCards'`, `feature='Rename Cards for'`, `featureIcon` from `datatype-text.svg`, `renderDetail` (memoized `TitleDiff`), `chipFor` for the skip and invalid states, `isSelectable` / `unselectableReason` from `canManageCard` plus preview validity, `rowStatus` from `run.statusByCardId`, and `statusLabels` of `Renaming...` / `Renamed` / `Failed`.
+   - The footer is a `HoldToConfirmButton` (`duration={HOLD_DURATION_BULK}`) for every run; Undo Rename and Retry Failed are plain `Button`s.
    - The view owns the apply run through `promisePool` (concurrency 4) and the local transient-retry wrapper, the conflict re-read, Retry Failed, the undo stack, and an AbortController aborted on unmount.
 7. **Button.** Add `src/components/buttons/RenameCards.jsx`, modeled on `GetCards.jsx`: long-press `Dropdown` with "Rename App Cards" / "Rename Worksheet Cards", `useLongPress`, and `useLaunchView`.
 8. **Wiring.**
-   - `src/utils/availableActions.js`: a new `renameCards` block (dataset types, `DATA_APP_VIEW`, `DATAFLOW_TYPE`, `PAGE`, `REPORT_BUILDER_PAGE`, `WORKSHEET_VIEW`), behind the gate the cross-issue question settles (recommended: `content.card.edit` or `content.admin`). It cannot ride inside the `getCards` block because that block includes `BEAST_MODE_FORMULA`.
+   - `src/utils/availableActions.js`: a new `renameCards` block (dataset types, `DATA_APP_VIEW`, `DATAFLOW_TYPE`, `PAGE`, `REPORT_BUILDER_PAGE`, `WORKSHEET_VIEW`), gated on `content.card.edit` or `content.admin` (DX.3). It cannot ride inside the `getCards` block because that block includes `BEAST_MODE_FORMULA`.
    - `src/components/ActionButtons.jsx`: render `RenameCards` next to `ManageCardLocks` and `ManageCardOwners`.
    - `src/sidepanel/App.jsx`: add the `slot.type === 'renameCards'` route, with the same props as `ManageCardLocksView`.
    - `docs/plans/beta-phase-1-6-run-lock.md`: add `RenameCardsView.jsx` / `isRunning` to "Which views lock".
@@ -1053,9 +1135,14 @@ The current title (the row label) renders as usual. The detail line, through `re
 10. **Lint.** Run `npx eslint --no-warn-ignored` on every touched `.js` / `.jsx` file.
 11. **Later hooks (not blockers).**
     - When beta 1.2 step 3 lands, swap the local transient-retry wrapper for `withRetry(fn, { profile: RETRY_SAFE })`.
-    - When 1.3 lands, and if the cross-issue journal question says yes, record each pass and each undo in the change journal from the pool's `onSettled`.
     - When 1.6 lands, call `useRunLock(isRunning, 'Rename Cards')`.
-12. **Phase 2 (only if the open question says yes).** Add `searchCardsByTitle({ offset, text, tabId })` over adminsummary (pages of 100, retrying a 429 once with `Retry-After`) to `src/services/cards.js`. Add a `source: 'titleSearch'` mode to `RenameCardsView`, with a search box in place of the object header. The entry point is decided by the open question.
+    - After 1.3 ships for Transfer Ownership and Duplicate User, revisit whether Rename Cards journals (DX.4). If yes, record each pass and each undo from the pool's `onSettled`, and the in-view undo banner's lifetime caveat can go.
+12. **Follow-up: descriptions (D9.2), a separate change after v1 ships.**
+    - Add an **Apply to: Title | Description** `ToggleButtonGroup` above the mode control. The transform, preview, and validation run on the chosen field only.
+    - `toEditable` and `fromEditable` take the field. For descriptions they read `metadata.dynamicDescription` (pills behind sentinels as for titles) or the static `description` when there is none.
+    - `buildTitlePayload` becomes `buildCardTextPayload(freshCard, { field, nextEditable })`. A description edit echoes `dynamicTitle` back unchanged and edits `dynamicDescription` (keeping `displayOnCardDetails` exactly as stored), or sends `description` alone on a card with no dynamic fields. It never creates a `dynamicDescription`.
+    - Descriptions keep the 50-segment limit from Domo's modal. An empty description is allowed, since the modal's non-empty check reads the title only (INFERRED from the bundle line above). The pre-apply re-read and Undo compare the edited field.
+    - Re-run the payload survey cases from API finding 1 with a description edit before shipping.
 
 ### Edge cases and risks
 
@@ -1069,8 +1156,8 @@ The current title (the row label) renders as usual. The detail line, through `re
 - **Parent-scope duplicates.** The same card under several views toggles as one (`CardBatchList` diffs row sets, so unchecking one instance unselects every instance), is renamed once, and gets one result shown on every instance.
 - **Locked cards.** Rows are disabled unless the user is a content admin or an owner (group ownership included). A 403 is still possible where server rules differ from `canManageKpi`, and it shows per row.
 - **Concurrent edits.** The pre-apply re-read skips changed or deleted cards. Undo skips cards whose title moved again, and rebuilds payloads from a fresh read so it does not clobber a description edited in Domo meanwhile.
-- **Side panel closed mid-run.** In-flight requests finish and the rest are not sent. Reopening shows current titles, and the audit log shows what changed. The in-memory undo stack is lost on close, on another launch, or on Reload/Refresh after the run. The banner states this, and the 1.3 journal removes the limitation later.
-- **Rate limits.** One PUT per card at concurrency 4, with retries that honor `Retry-After`. adminsummary was observed returning 429 under concurrent load during this research, so phase 2 needs the same handling.
+- **Side panel closed mid-run.** In-flight requests finish and the rest are not sent. Reopening shows current titles, and the audit log shows what changed. The in-memory undo stack is lost on close, on another launch, or on Reload/Refresh after the run. The banner states this. The 1.3 journal would remove the limitation if the DX.4 revisit says yes.
+- **Rate limits.** One PUT per card at concurrency 4, with retries that honor `Retry-After`.
 - **Certified cards.** A title PUT most likely does not expire certification, because Analyzer expires it client-side and the title path sends no certification field (INFERRED). This is verified live before release. If it does expire, add a "Certified" chip and a banner note.
 - **Card types.** `kpi` and `Text` are VERIFIED-LIVE. `document`, `domoapp`, `rooster`, and `supertable` are INFERRED, since Domo's card details use the same call for every type. Verify a `domoapp` and a document card live.
 - **Private-use characters already in a title** (very unlikely): the row is marked "Can't Edit Safely".
@@ -1095,6 +1182,7 @@ The current title (the row label) renders as usual. The detail line, through `re
 - **CRXJS dev extension.** In the debug profile, build a scratch dashboard named `domo-toolkit-test-rename-...` with a few duplicated cards (one with a date-range pill, one with a dynamic description and `displayOnCardDetails: false`, one plain card with a static description, one locked). Open the side panel and run Rename Cards. Exercise:
   - Replace, regex, match case, quick fill, prefix, suffix, and the "Removes Dynamic Text" block.
   - Select-all and "Only show cards that change".
+  - The 3 s hold on the footer: releasing early starts nothing, and Undo and Retry Failed apply on a single press.
   - Apply, then Undo, then a second pass and Undo again (only the latest pass reverts).
   - Conflict skip (rename one card in Domo after loading) and "No Longer Exists" (delete one card in another tab after loading).
   - Retry Failed.
@@ -1121,8 +1209,9 @@ The current title (the row label) renders as usual. The detail line, through `re
 - **Static title computed as `convertToStaticText(...).trim()`, client-side.** This is Domo's function ported verbatim. The server trims only when deriving from `dynamicTitle`, keeps inner spaces, and stores a title-only `title` untrimmed (live). The draft's "collapses doubled spaces" inference was wrong and is dropped.
 - **Enforce 255 characters, 50 segments, and non-empty client-side.** The server silently truncates the first two and turns empty into "Title" (live), and Domo's modal enforces the 50-segment and non-empty rules itself (bundle).
 - **Pills are opaque whole objects behind private-use sentinels, and results that drop or move them are rejected.** The full pill catalog includes types carrying `dataSourceId`, `variables`, and `defaultText` (bundle), and a "Duplicate of " match spans TEXT segments on real cards.
-- **Button gate `content.card.edit || content.admin`, with per-row editability from the shared `canManageCard`.** Domo's own rule (bundle). `isCurrentUserOwner` covers group owners (live probe with scratch group `163222655`), so group owners of locked cards are correctly enabled. Users who own cards without either right are excluded on purpose, as stated in Design. #8 uses the same helper for Delete-mode selectability. The gate itself is a cross-issue question.
-- **Separate Rename Cards button and view rather than a mode in #8's view.** #8 is a delete flow (hold-to-confirm, then close) scoped to pages and App Studio pages. Rename needs a transform panel, multi-pass stay-open behavior, and dataset and dataflow sources. Sharing the loader, the list, and one DataList prop gets the reuse without coupling the two views' state. The maintainer's call on this is a cross-issue question.
+- **Button gate `content.card.edit || content.admin`, with per-row editability from the shared `canManageCard`.** Domo's own rule (bundle), and the maintainer's DX.3 answer. `isCurrentUserOwner` covers group owners (live probe with scratch group `163222655`), so group owners of locked cards are correctly enabled. Users who own cards without either right are excluded on purpose, as stated in Design.
+- **Separate Rename Cards button and view rather than a mode in #8's view** (DX.1). #8 is a remove-then-close flow scoped to pages and App Studio pages. Rename needs a transform panel, multi-pass stay-open behavior, and dataset and dataflow sources. Sharing the loader, the list, and one DataList prop gets the reuse without coupling the two views' state.
+- **A 3 s hold on every run, plain Undo and Retry** (D9.4). One shared `HOLD_DURATION_BULK` with Remove Cards, short because the change is reversible.
 - **#9 builds the shared card pieces, and #8 adopts them.** #9 is the smaller issue and the harder consumer (grouped parent scope, duplicate instances, pinned order, live per-card status), so the shared list is shaped against it first. A fixed order replaces the earlier whichever-lands-first rule, which is how the two plans diverged.
 - **Shared loader `getCardsForContext` over `getCardsForObject` and `getCardsForParent`, with an optional merged hydrate.** The dataflow dedupe already lives in `getCardsForObject` (code), so nothing is lifted from GetCardsView except the card URL rule (`cardUrlOnPage`). Merging instead of replacing keeps source-only fields #8 needs.
 - **One DataList prop, `renderItemDetail`.** #8's visible placements line and #6's expandable formulas need the same slot as this diff, so DataList gains one prop instead of three. The row filter stays in the view because DataList needs no new prop for it.
@@ -1134,10 +1223,10 @@ The current title (the row label) renders as usual. The detail line, through `re
 - **`promisePool` built to beta 1.2 step 2's signature rather than a view-local pool.** The shared helper is already specified, and #80 needs one too, so building it once to the spec avoids a third copy.
 - **Retries honor `Retry-After`, falling back to a fixed 1 s / 3 s, on 429/502/503/504.** This issue lands the envelope field that carries `Retry-After` (1.2 step 1's envelope half, three lines). The PUT is idempotent. The wrapper swaps for `withRetry` when 1.2 step 3 lands.
 - **Pre-apply re-read, dedupe, and conflict or missing skip.** `getCardsByIds` silently drops deleted cards (code), so "No Longer Exists" is reported from the re-read rather than by expecting a 404.
-- **In-memory undo stack (latest pass first), payloads rebuilt from a fresh read, with a stated lifetime, and a journal hook when 1.3 lands.** It is cheap now, honest about its limits, and the durable version is already planned infrastructure.
+- **In-memory undo stack (latest pass first), payloads rebuilt from a fresh read, with a stated lifetime.** It is cheap, honest about its limits, and the only rollback while Rename Cards does not journal (DX.4).
 - **Reload and Refresh removed while applying, through `CardBatchList`'s `isRunning`; 1.6 run lock adopted later.** Parent-scope runs are long enough that an accidental reload is plausible, and #8 gets the same interim lock from the shared list.
 - **Icon `datatype-text.svg`.** It is unused, and `pencil.svg` would collide with Update Details on dataflows (code).
-- **Card titles only; drill views, axis titles, and legend titles excluded.** Duplication does not prefix drill views (live sample of 174 roots), and axis and legend titles need a definition rewrite.
+- **Card titles only in v1; drill views, axis titles, and legend titles excluded.** Duplication does not prefix drill views (live sample of 174 roots), and axis and legend titles need a definition rewrite. Descriptions follow as a quick follow-up (D9.2).
 - **The view stays open after success.** Multi-pass edits are common (strip a prefix, then add a suffix), unlike lock/unlock, which closes.
 - **Quick-fill regex for Domo's English duplicate prefixes.** Domo's i18n has `duplicate-of` / `copy-of`, and 8,255 "Duplicate of" cards exist on domo.domo.com.
 
@@ -1150,14 +1239,16 @@ The current title (the row label) renders as usual. The detail line, through `re
 
 ### Summary
 
-**Problem.** Right now, cleaning up a dashboard or App Studio page means deleting or removing cards one at a time: open the card menu, confirm, repeat. A power user retiring half a page can't pick a set of cards in place and act on them together. Nothing warns them what each delete takes with it either: alerts, embeds, drills, or the other pages and people's Shared pages the card also shows up on.
+**Problem.** Right now, cleaning up a dashboard or App Studio page means taking cards off it one at a time: open the card menu, confirm, repeat. A power user retiring half a page can't pick a set of cards in place and act on them together, and nothing shows which of those cards would end up on no page at all.
 
 **Who benefits.** Content admins and card editors cleaning up dashboards and apps. The request came from a customer, OneMagnify. #9 (Bulk Rename Cards) is built on the same card loader and selectable card list (see Shared infrastructure across issues).
 
+**What ships** (DX.2, D8.1). The issue asks for bulk delete. The maintainer chose remove only: the view takes the selected cards off this page and deletes nothing, and it only lets you select cards that also live somewhere else, so a run never leaves a card on no page. Bulk deletion stays with Domo's Admin > Cards and the toolkit's single-card and page deletes. The feature is called **Remove Cards**.
+
 **Interpretations considered.**
 
-1. _Bulk delete selected cards on the current page._ This is the literal ask. Planned.
-2. _Bulk remove selected cards from the page without deleting them._ Domo treats these as separate actions, and "clean up a page" often means remove. Planned as a second mode of the same view. Whether it ships in #8 is an open question (see Scope check).
+1. _Bulk delete selected cards on the current page._ The literal ask. **Not planned** (DX.2).
+2. _Bulk remove selected cards from the page without deleting them._ Domo treats these as separate actions, and "clean up a page" often means remove. **Planned**, restricted to cards that live elsewhere (D8.1).
 3. _A general "cards on this page" table that shows datasets and opens cards in tabs in bulk._ This already exists. Get Cards lists the page's cards and has Open All, and Get DataSets lists the page's datasets. Not planned. The only part kept is the dataset name as row detail, because it comes free with the same request and tells apart cards with the same title.
 4. _A modal_, as the issue suggests. This project puts work views in the side panel and keeps modals for read-only drill-ins (`BeastModeCardsModal`, `OwnerCardsModal`). So this is a side panel view.
 
@@ -1170,18 +1261,16 @@ The current title (the row label) renders as usual. The detail line, through `re
   - The nav entry shows for `content.card.edit` or `content.admin`. Bulk actions are allowed when `canManageCards || every selected card isCurrentUserOwner` (admin chunk `admin-f0a6ba0eab00a3cb`).
 - **The page editor** removes cards in place, one at a time, then saves. The save calls `Page.moveDeleteCards`, which is `DELETE /api/content/v1/cards/bulk/pages?cardIds=:cardIds&destinationPageIds=:destinationPageIds` (chunk `48800-8cba4f7ec4bc66c6`). App Studio's layout save does the same with `contextType: DATA_APP` (chunk `50902-cd55aca14a489500`).
 
-**Delete is in scope.** Admin > Cards can bulk delete a page's cards, but it is not easy. You leave the page, open Admin > Cards, find the page by title in a picker (titles are often duplicated), apply the filter, select cards, pick an action, and confirm. That is about eight steps. Nothing on that path shows alerts, embeds, or drills. Domo's bulk endpoints are also all-or-nothing (verified below), so one bad card fails the whole action there. This view starts already scoped to the page and shows what goes with each card before anything is deleted. It also reports results per row when part of a batch fails.
+**Remove from Page is in scope, on the maintainer's call.** A user already on the page can remove cards in Domo's editor one at a time, and Admin > Cards can bulk remove, but only after leaving the page, finding it by title in a picker (titles are often duplicated), applying the filter, selecting cards, and picking an action: about eight steps. Neither path says which cards would be left on no page. What this view adds:
 
-**Remove from Page is weaker on scope.** A user already on the page can remove cards in Domo's editor with little friction. What this view adds for Remove:
-
-- doing many cards in one action
-- warning before a card is left on no page at all
-- Remove and Delete working from the same selection
-
-That is real but modest value, so whether Remove ships in #8 is put to the maintainer as an open question. The design below includes it, and dropping it removes one toggle, one service, and one confirm.
+- many cards in one action, starting already scoped to the page
+- where else each card lives, on its row
+- a guarantee that no card ends up on no page: only cards with another location are selectable, and placements are re-checked right before the run
+- per-row results when part of a batch fails, since Domo's bulk endpoint is all-or-nothing (verified below)
 
 **Cut:**
 
+- Bulk delete (DX.2). The alert, embed, drill, Card Beast Mode, and workspace lookups that existed only to show what a delete takes with it go with it.
 - A standalone card viewer and a dataset viewer: Get Cards and Get DataSets cover them.
 - Open Selected: Get Cards' Open All covers opening in bulk. Adding it here would also force a DataList refactor of the Open All confirm.
 - Deleting the whole page with its cards: this stays in the existing Delete view (`deletersByType.PAGE`, including "Delete Page and Cards that Only Live Here").
@@ -1189,41 +1278,33 @@ That is real but modest value, so whether Remove ships in #8 is put to the maint
 **Overlap in this codebase:**
 
 - `src/components/views/DataList.jsx`: selection mode, `selectAll`, `isSelectable`, `getUnselectableTooltip`, `getItemBadge` (leaf rows only), `banner`, `footer`, `fillHeight`, and virtualization. It renders neither `item.metadata` nor a visible annotation (an `annotation` is an info icon plus hover text, VERIFIED-CODE), so a visible second line on a row needs the shared `renderItemDetail` prop.
-- `src/components/views/ManageCardLocksView.jsx` and `ManageCardOwnersView.jsx`: the closest pattern. Each is a page-scoped card list with a mode toggle that re-derives the selection, a footer submit, and `showPromiseStatus`.
-- `src/services/cards.js`: `deleteCards` (bulk DELETE, throws with `error.status`) and `getCardsForObject` (stacks with `parts`, plus a v1 fallback on 404). Note that it returns only `page.cards` and drops the `page` object.
+- `src/components/views/ManageCardLocksView.jsx` and `ManageCardOwnersView.jsx`: the closest pattern. Each is a page-scoped card list with a footer submit and `showPromiseStatus`.
+- `src/services/cards.js`: `getCardsForObject` (stacks with `parts`, plus a v1 fallback on 404). Note that it returns only `page.cards` and drops the `page` object.
 - `src/services/pages.js`: `getCardLocations` (kind-keyed `${kind}:${id}` placements, with parent names for views and report pages), `getPagesForCards`, `getOnlyHereCardIds`, `cardIdsOnlyOnPages` (compares by ID only, not by kind), and `fetchCardPlacements` (one request per card, 50 in flight).
-- `src/services/dependencies.js`: the source of truth for what a delete takes with it. The `CARD` fetcher (around line 773) lists Alerts, Card Beast Modes, Drills, Embeds, Pages, and Workspaces. `fetchAppPageDependencies` loads page cards, only-here IDs, and card embeds in parallel. `withWorkspaceCardUsage` drops workspace cards from "only here".
-- `src/services/alerts.js` `getCardAlerts`, `src/services/embeds.js` `getCardEmbeds`, `src/services/workspaces.js` `getWorkspacesForCards` and `groupCardsByWorkspace`, `src/services/functions.js` `getBeastModesSavedOnCard`.
-- `src/hooks/useParallelFetches.js`: independent fetches with per-key loading, loaded, or error state.
-- `src/components/views/DeleteObjectView.jsx`: `AlertDialog` plus `HoldToConfirmButton` (with `isOpen` gated on `isActive`), `cardHostUrl`, the `cardWorkspacesCheck` on-demand pattern, and `FULL_HOLD_DURATION` / `SHORT_HOLD_DURATION`. These duplicate `DEFAULT_HOLD_DURATION` in `HoldToConfirmButton.jsx`.
-- `src/components/views/DeleteUnusedBeastModesView.jsx`: chunked bulk delete that falls back to per-item calls (around line 221), with a progress counter and `isActive`-gated dialog.
-- `src/utils/currentObject.js`: `redirectTabIfViewingObject` and `reloadTabIfViewingObject`.
-- `docs/plans/beta-phase-1-2-retries-concurrency.md`: specifies `src/utils/batchWithFallback.js`. It is not built yet. #6 also builds it, to the same amended signature (see Shared infrastructure across issues).
+- `src/components/views/DeleteObjectView.jsx`: `AlertDialog` plus `HoldToConfirmButton`, with `isOpen` gated on `isActive`.
+- `src/components/views/DeleteUnusedBeastModesView.jsx`: chunked bulk call that falls back to per-item calls (around line 221), with a progress counter and `isActive`-gated dialog.
+- `src/utils/currentObject.js`: `reloadTabIfViewingObject`.
+- `docs/plans/beta-phase-1-2-retries-concurrency.md`: specifies `src/utils/batchWithFallback.js`. It is not built yet. #8 builds it to the amended signature if it starts before 1.2 step 6 (see Shared infrastructure across issues).
 
 ### API and platform findings
 
 All live calls went to domo.domo.com with a token whose user has `content.admin`.
 
-| #   | Purpose                                                                            | Method and path                                                                     | Tag                                                                     |
-| --- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| 1   | Cards on a page, App Studio page, or worksheet page, with datasets, owners, drills | `GET /api/content/v3/stacks/{pageId}/cards?parts=datasources,owners,drillPathURNs`  | VERIFIED-LIVE, VERIFIED-CODE                                            |
-| 2   | Fallback when stacks 404s on a dashboard                                           | `GET /api/content/v1/pages/{pageId}/cards?parts=datasources,owners,drillPathURNs`   | VERIFIED-LIVE, VERIFIED-CODE                                            |
-| 3   | Page owner and lock state when the v1 fallback is used                             | `GET /api/content/v1/pages/{pageId}`                                                | VERIFIED-LIVE, VERIFIED-CODE                                            |
-| 4   | Where each card lives, one request per 100 cards                                   | `POST /api/content/v2/cards/adminsummary?limit=100&skip={n}`                        | VERIFIED-LIVE                                                           |
-| 5   | Where each card lives, one request per card (fallback)                             | `GET /api/content/v1/cards?urns={id}&parts=adminAllPages`                           | VERIFIED-LIVE, VERIFIED-CODE                                            |
-| 6   | Alerts on the cards                                                                | `POST /api/social/v4/alerts/ids?type=card&fields=all`                               | VERIFIED-LIVE, VERIFIED-CODE                                            |
-| 7   | Embeds of the cards                                                                | `POST /api/content/v1/cards/kpi/embed/summary?limit=50&offset={n}`                  | VERIFIED-LIVE, VERIFIED-CODE                                            |
-| 8   | Workspaces of the cards (on demand)                                                | through `getWorkspacesForCards`                                                     | VERIFIED-CODE                                                           |
-| 9   | Bulk delete                                                                        | `DELETE /api/content/v1/cards/bulk?cardIds={csv}`                                   | VERIFIED-LIVE, VERIFIED-CODE                                            |
-| 10  | Bulk remove from a page                                                            | `DELETE /api/content/v1/cards/bulk/pages?cardIds={csv}&destinationPageIds={pageId}` | VERIFIED-LIVE (not in the bundled OpenAPI spec, which has only the PUT) |
-| 11  | Authority names                                                                    | dataset `073c76f1-c846-48fd-876c-34d98d89a07b`                                      | VERIFIED-LIVE                                                           |
-| 12  | Card Beast Mode search over the page's datasets (rejected)                         | `POST /api/query/v1/functions/search`                                               | VERIFIED-LIVE                                                           |
+The numbering below is kept from the planning probes, which also covered delete. Rows 6 to 9 and 12 (alerts, embeds, workspaces, bulk delete, card Beast Mode search) informed the delete design that DX.2 dropped, and are left out.
+
+| #   | Purpose                                                            | Method and path                                                                     | Tag                                                                                 |
+| --- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 1   | Cards on a page, App Studio page, or worksheet page, with datasets | `GET /api/content/v3/stacks/{pageId}/cards?parts=datasources`                       | VERIFIED-LIVE, VERIFIED-CODE (probed with `parts=datasources,owners,drillPathURNs`) |
+| 2   | Fallback when stacks 404s on a dashboard                           | `GET /api/content/v1/pages/{pageId}/cards?parts=datasources`                        | VERIFIED-LIVE, VERIFIED-CODE (probed with the same three parts)                     |
+| 3   | Page owner and lock state when the v1 fallback is used             | `GET /api/content/v1/pages/{pageId}`                                                | VERIFIED-LIVE, VERIFIED-CODE                                                        |
+| 4   | Where each card lives, one request per 100 cards                   | `POST /api/content/v2/cards/adminsummary?limit=100&skip={n}`                        | VERIFIED-LIVE                                                                       |
+| 5   | Where each card lives, one request per card (fallback)             | `GET /api/content/v1/cards?urns={id}&parts=adminAllPages`                           | VERIFIED-LIVE, VERIFIED-CODE                                                        |
+| 10  | Bulk remove from a page                                            | `DELETE /api/content/v1/cards/bulk/pages?cardIds={csv}&destinationPageIds={pageId}` | VERIFIED-LIVE (not in the bundled OpenAPI spec, which has only the PUT)             |
+| 11  | Authority names                                                    | dataset `073c76f1-c846-48fd-876c-34d98d89a07b`                                      | VERIFIED-LIVE                                                                       |
 
 **1. Stacks cards.** One call returns everything a row needs.
 
-- **Card keys** with these parts: `active, allowTableDrill, badgeUpdated, created, creatorId, datasources, description?, drillPathURNs, id, isCurrentUserOwner, locked, metadata, ownerId, owners, title, type, urn`.
-- **No `certification` key** unless `parts=certification` is added. The plan does not rely on it.
-- **`drillPathURNs`** is accepted on stacks (verified this run). It lists every drill as `dr:{drillId}:{rootCardId}`, so drill counts cost no extra request.
+- **Card keys** with the probed parts: `active, allowTableDrill, badgeUpdated, created, creatorId, datasources, description?, drillPathURNs, id, isCurrentUserOwner, locked, metadata, ownerId, owners, title, type, urn`. The view reads `id`, `title`, `locked`, `datasources`, and `access`, so it asks for `parts=datasources` alone.
 - **The `page` object** has `isOwner`, `locked`, and `type` (`page`, `dataappview`).
 - **App Studio views** (`type: 'dav'`) also carry a per-card `access` flag. All 7 cards on view `1870561888` had `access: true`. The meaning of `false` is INFERRED.
 - **`parts=permissions`** returns 400, so there is no per-card permission mask.
@@ -1267,22 +1348,13 @@ Page `888329385` returned 52 cards in 0.86 s, with `page: { isOwner: true, locke
 - **Classic pages:** it worked on the scratch classic page (2 of 2 cards).
 - **No page kind:** `pageHierarchy` entries say nothing about the kind of page and carry no app or report ID. Page, view, and report page IDs are separate ID spaces (see the `getCardLocations` comment), so a fast-path placement can be named but not linked or typed.
 - **Rate limiting:** it returned **429** twice in a row during this run (other agents were hitting the instance at the same time), then 200 ten seconds later.
-- **Permissions:** whether it answers for a user without `content.admin` or `content.card.edit` is INFERRED. Domo only shows Admin > Cards to those grants, so other users likely get a 403.
+- **Permissions:** Domo only shows Admin > Cards to `content.admin` or `content.card.edit`, so users without either likely get a 403 (INFERRED). With DX.3's button gate, every user of this view holds one of the two, so the fast path is the normal case.
 
 **5. Per-card placements.** Same answer as #4 for page `888329385` (13 cards only here, 8 also on other real pages, 31 elsewhere only through system pages). It took **32 s at the code's 50 in flight**, against 0.47 s for #4. Report placements come back under `adminAllReportPages` (card `407736811`).
 
 **System placements.** Both sources list `-100000` (Overview), `-100002` (Shared), and `-100003` (Favorites). On page `888329385` there were 35 cards on Shared, 4 on Favorites, and 4 on Overview. Card `889676853` lists `[-100002 Shared, 386665203 Data Curiosity Team]`.
 
-The card access list (`GET /api/content/v1/share/accesslist/badge/{id}`) looked the same for `889676853` and for a page-mate that is not on Shared: 6 users, 5 with `invitorUserId`, 1 group. So a Shared placement cannot be tied to particular people from the client. The UI names it by its own title ("Shared") rather than reading meaning into it.
-
-**6 and 7.** Both returned 200 with empty results for page `386665203`'s cards (`[]` and `{"total":0,"summaries":[]}`). The shapes are the ones `getCardAlerts` and `getCardEmbeds` already parse.
-
-**9. Bulk delete.**
-
-- **All-or-nothing:** `DELETE ...bulk?cardIds={real},1` returned **404**, and the real card was **not** deleted (previous run, scratch cards).
-- **A clean batch** returned 200 with an empty body.
-- **Deleting an already deleted card** returned 404 `{"status":404,"statusReason":"Not Found"}` (this run, card `1200764577`). Reading it back with `GET /api/content/v1/cards?urns=1200764577` returned 200 `[]`.
-- **A card the user cannot delete:** whether that returns 403 or 404 is INFERRED. Testing it would need a write to someone else's card.
+The card access list (`GET /api/content/v1/share/accesslist/badge/{id}`) looked the same for `889676853` and for a page-mate that is not on Shared: 6 users, 5 with `invitorUserId`, 1 group. So a Shared placement cannot be tied to particular people from the client. The UI names it by its own title ("Shared") rather than reading meaning into it. Under D8.2 a system placement counts as "somewhere else", so a card on this page and on Shared is removable, and afterwards it lives on Shared only.
 
 **10. Bulk remove.** All verified on scratch objects.
 
@@ -1305,9 +1377,7 @@ The card access list (`GET /api/content/v1/share/accesslist/badge/{id}`) looked 
 - `content.dataapp.edit`: depends on `content.page.edit`.
 - `content.worksheet.edit`: edit worksheets.
 
-Domo's admin UI computes `canManageCards = content.card.edit || content.admin` and `canManagePages = content.page.edit || content.admin`. For a single card, Domo's client rule is `canManageKpi` (#9's bundle finding): `content.card.edit && !locked || isCurrentUserOwner || isContentAdmin`.
-
-**12. Card Beast Modes cannot be counted cheaply.** The batched search over the 31 datasets of page `888329385` returned `totalHits: 14679` at 1.7 s per 100 results, about 250 s to page through. There is no card filter on that endpoint: the bundles only use `dataset` and `owner` filters. Per-card search (`getBeastModesSavedOnCard`) costs one search per card. So the view names Card Beast Modes as going with the cards but does not count them (see decisions).
+Domo's admin UI computes `canManageCards = content.card.edit || content.admin` and `canManagePages = content.page.edit || content.admin`, and offers `remove_from_pages` to `canManageCards` (or to a selection the user owns entirely). Whether the server also requires page edit rights for a card editor is INFERRED, so the view treats the server as authoritative and checks it in testing.
 
 **Not used:**
 
@@ -1317,37 +1387,39 @@ Domo's admin UI computes `canManageCards = content.card.edit || content.admin` a
 
 ### Design
 
-**Where it lives.** A new side panel view, `DeleteCardsView`, launched by a new `DeleteCards` action button through `useLaunchView` with `type: 'deleteCards'`. It works from the popup too, because `launchView` hands off to the side panel. Whether bulk card actions should instead be one view with modes shared with Rename Cards is a cross-issue question. This plan is written for separate views on a shared list.
+**Where it lives.** A new side panel view, `RemoveCardsView`, launched by a new `RemoveCards` action button through `useLaunchView` with `type: 'removeCards'`. It works from the popup too, because `launchView` hands off to the side panel. It is its own view, separate from Rename Cards, on the shared list (DX.1).
 
-**Enabled for:** `PAGE` with ID ≥ 0 (not system pages), `DATA_APP_VIEW`, and `WORKSHEET_VIEW`. Whether `REPORT_BUILDER_PAGE` joins (Delete mode only) is part of the cross-issue question on source contexts. The gate in `getAvailableActions()` is also a cross-issue question. The recommendation is `content.admin || content.card.edit`, matching Rename Cards. It sits in the existing page card block next to `manageCardLocks`.
+**Enabled for:** `PAGE` with ID ≥ 0 (not system pages), `DATA_APP_VIEW`, and `WORKSHEET_VIEW` (DX.2). `REPORT_BUILDER_PAGE` is out: it was only proposed for Delete, and remove there is unverified. The gate in `getAvailableActions()` is `content.admin || content.card.edit` (DX.3), matching Rename Cards. It sits in the existing page card block next to `manageCardLocks`.
 
 **Shared pieces adopted from #9** (full contract in Shared infrastructure across issues). If #8 lands first, it builds them to that contract unchanged.
 
-1. **`getCardsForContext`** in `src/services/cards.js`, called as `getCardsForContext({ context, parts: 'datasources,owners,drillPathURNs', tabId })` with no `hydrateParts`. Stacks (or its v1 fallback) already carries every field a row needs, including the per-card `access` flag that a v1 re-read would not return. Cards come back with string IDs and a `loadIndex`.
-2. **`CardBatchList`** (`src/components/views/CardBatchList.jsx`). DeleteCardsView passes:
-   - `renderDetail(card)` for the row's detail line (dataset name, then placements, alerts, embeds, and drills)
-   - `chipFor(card)` returning an `App` chip on `domoapp` cards
-   - `statusLabels` of `Deleting...` / `Deleted` / `Failed` (Remove: `Removing...` / `Removed` / `Failed`)
+1. **`getCardsForContext`** in `src/services/cards.js`, called as `getCardsForContext({ context, parts: 'datasources', tabId })` with no `hydrateParts`. Stacks (or its v1 fallback) already carries every field a row needs, including the per-card `access` flag that a v1 re-read would not return. Cards come back with string IDs and a `loadIndex`.
+2. **`CardBatchList`** (`src/components/views/CardBatchList.jsx`). RemoveCardsView passes:
+   - `renderDetail(card)` for the row's detail line (dataset name, then where else the card lives)
+   - `chipFor(card)` returning "Only on This Page" for cards that can't be removed, and the skip reasons after a run
+   - `statusLabels` of `Removing...` / `Removed` / `Failed`
    - `rowStatus`, `isSelectable`, `unselectableReason`, `isRunning`, `banner`, and `footer`
 
    Each card is a leaf row: badges render only on leaf rows, and Open All would otherwise walk child rows. Locked cards show the lock badge while idle.
 
 3. **DataList `renderItemDetail`**, through `CardBatchList`. This is the only DataList change. #8's earlier `renderItemTrailing` hand-off is dropped.
-4. **`cardUrlOnPage`** (the row link to the card on this page) and **`canManageCard`** in `src/utils/cardHelpers.js`.
+4. **`cardUrlOnPage`** in `src/utils/cardHelpers.js`, for the row link to the card on this page.
+5. **`HOLD_DURATION_BULK`** (3000) from `src/utils/constants.js`.
 
-**No shared hook.** The earlier `useCardBatch` is dropped, because #9's per-card pool and preview-driven selection do not fit a `runBatch` built around bulk chunks (see Shared infrastructure across issues). DeleteCardsView owns its run state directly:
+**No shared hook.** The earlier `useCardBatch` is dropped, because #9's per-card pool and preview-driven selection do not fit a `runBatch` built around bulk chunks (see Shared infrastructure across issues). RemoveCardsView owns its run state directly:
 
 ```js
-mode: 'delete' | 'remove'
 selectedCardIds: Set<string>
-statusByCardId: Map<cardId, { error?: string, status: 'queued'|'running'|'done'|'failed' }>
+placements: { status: 'loading' | 'loaded' | 'error', error?, locationIdsByCardId, locations, progress?: { done, total } }
+pageEdit: { status: 'loading' | 'loaded' | 'error', isOwner, locked }
+statusByCardId: Map<cardId, { error?: string, reason?: string, status: 'queued'|'running'|'done'|'failed'|'skipped' }>
 progress: null | { done, total }
 isRunning: boolean
 ```
 
 **Built here** (unless already landed):
 
-1. **`src/utils/batchWithFallback.js`**, to the amended beta 1.2 section 6 signature. #6 builds the same helper, so whichever of #6 and #8 starts first builds it, and the other imports it:
+1. **`src/utils/batchWithFallback.js`**, to the amended beta 1.2 section 6 signature, if 1.2 step 6 has not landed it. #6 no longer builds it (D6.1):
    ```js
    batchWithFallback(items, { canFallBack, chunkSize, onSend, onSettled, profile, sendBatch, sendOne, signal });
    // -> [{ error, item, ok, notSent?, partial? }] in input order
@@ -1356,55 +1428,47 @@ isRunning: boolean
    - `onSend(items, { phase })` fires just before each request, and the view marks those rows `running`.
    - `onSettled(results, { doneCount, phase, total })` fires once per request whose results are final, and the view marks those rows `done` or `failed` and sets `progress`. It does not fire for a chunk that falls back.
    - `signal` comes from an AbortController the view aborts on unmount. Unsent chunks are never sent and come back `notSent`.
-   - The commit that builds it also records the amendments in `docs/plans/beta-phase-1-2-retries-concurrency.md` (signature, the Delete Cards and Remove from Page callers, and `DELETE content/v1/cards/bulk/pages` as `RETRY_SAFE`).
-2. **Hold constants** `HOLD_DURATION_FULL = 5000` and `HOLD_DURATION_SHORT = 2500` in `src/utils/constants.js`.
-3. **`cardHostUrlForTab({ origin, tabId })`** in `src/utils/cardHelpers.js`, moved from `DeleteObjectView.jsx`'s `cardHostUrl`.
+   - The commit that builds it also records the amendments in `docs/plans/beta-phase-1-2-retries-concurrency.md` (signature, the Remove from Page caller, and `DELETE content/v1/cards/bulk/pages` as `RETRY_SAFE`).
 
 **New and changed services:**
 
 - **`cards.js` `removeCardsFromPage({ cardIds, pageId, tabId })`.** Calls `DELETE /api/content/v1/cards/bulk/pages?cardIds={csv}&destinationPageIds={pageId}` (the CSV form `Page.moveDeleteCards` uses) and throws with `error.status`, like `deleteCards`. It goes before `renameCard` (#9) and `setCardsLocked` in export order.
 - **`pages.js` `getPageEditState({ details, pageId, typeId, tabId })`.** Returns `{ isOwner, locked }`. It reads `details.page` when present, otherwise falls back to `GET /api/content/v1/pages/{pageId}`.
 - **`pages.js` `getCardLocationsOnPage({ cardIds, onProgress, pageId, pageTypeId, tabId })`.** Returns the same shape as `getCardLocations` (`{ locationIdsByCardId, locations }`), with this page left out and each location carrying `system: Number(id) < 0`.
-  - **Fast path:** page through `adminsummary` filtered by `pageIds: [pageId]`, at 100 per page using `totalCardCount`. Use it only when it returns every card on the page (so never on report pages, and not on views where it misses cards). Its locations have `kind: null` (unknown), or `'system'` for negative IDs. This page is left out by ID, since the source has no kind.
+  - **Fast path:** page through `adminsummary` filtered by `pageIds: [pageId]`, at 100 per page using `totalCardCount`. Use it only when it returns every requested card on the page (it missed cards on a fresh App Studio view). Its locations have `kind: null` (unknown), or `'system'` for negative IDs. This page is left out by ID, since the source has no kind.
   - **Retry:** on a 429, wait 2 s, or `Retry-After` when present, and try once more. The retry runs inside the injected function, where the header is readable. The thrown error also sets `e.retryAfter` for the shared envelope field.
   - **Fallback:** call `getCardLocations` in chunks of 50 card IDs from the side panel, calling `onProgress(done, total)` after each chunk. This page is left out by its exact key (`${LOCATION_KIND_BY_TYPE[pageTypeId]}:${pageId}`).
+  - The same function serves the pre-run re-check, called with only the selected card IDs.
 - **`background.js` `computeIsOwner`.** Done: `WORKSHEET_VIEW` ownership now comes from the parent worksheet's `owners`, since worksheet pages have no owner of their own. The duplicated `TEMPLATE` branch is gone.
-- **`DeleteObjectView.jsx`.** Switches to `cardHostUrlForTab` and the hold constants.
 
 **Data flow** (all Domo calls go through `executeInPage` on the Domo tab, from the side panel):
 
-1. On mount, `getSidepanelData(instance)` checks `type === 'deleteCards'` and builds the `DomoContext`.
+1. On mount, `getSidepanelData(instance)` checks `type === 'removeCards'` and builds the `DomoContext`.
 2. `getCardsForContext` loads the cards, and `CardBatchList` renders as soon as they arrive. `getPageEditState` runs alongside.
-3. `DeleteCardsView` runs its decorations through `useParallelFetches`, with specs memoized on the card ID list. Each one fills in its part of the rows' detail line as it lands.
-   - `placements`: `getCardLocationsOnPage`
-   - `alerts`: `getCardAlerts(ids)`, grouped by `resourceId`
-   - `embeds`: `getCardEmbeds({ cardIds, fallbackToOwnEmbed: true })`
-
-   A failed spec leaves that decoration unknown and disables the quick select that depends on it. The actions stay available.
-
-4. Workspaces are only checked on demand, with a banner prompt as in `cardWorkspacesCheck`, through `getWorkspacesForCards` and `groupCardsByWorkspace`. Afterwards, cards in a workspace gain a `workspace` location.
-5. On confirm, the view calls `batchWithFallback` over the selected card IDs, with `chunkSize: 50` and `sendBatch` / `sendOne` closing over `deleteCards` (no `profile`, since 1.2 does not retry deletes) or `removeCardsFromPage` (`profile: RETRY_SAFE`). The `onSend` and `onSettled` callbacks move rows through `running`, `done`, and `failed`.
+3. `getCardLocationsOnPage` runs over every card ID. Rows are unselectable until it settles, and each row's detail line fills in when it does. If it fails, no row becomes selectable and the banner offers Retry, since the view cannot tell which cards would be left on no page.
+4. On confirm, the view re-checks placements for the selected cards with `getCardLocationsOnPage`. A card that now lives only on this page is not sent: its row gets `skipped` with the chip "Now Only on This Page". If the re-check fails, nothing is sent and the dialog shows the error.
+5. The view calls `batchWithFallback` over the remaining card IDs, with `chunkSize: 50`, `profile: RETRY_SAFE`, and `sendBatch` / `sendOne` closing over `removeCardsFromPage`. The `onSend` and `onSettled` callbacks move rows through `running`, `done`, and `failed`.
 6. Afterwards:
-   - The view reloads through `getCardsForContext`. A failed card that is missing from the refreshed list counts as done, whatever error it got. That covers an "already deleted" 404 without guessing at what a 404 means for a card the user can't see.
+   - The view reloads through `getCardsForContext`, then re-runs the placements lookup for what is left. A failed card that is missing from the refreshed list counts as done, whatever error it got, since it is no longer on the page.
    - Succeeded rows drop out. Failed rows stay selected with their X badge.
-   - For the Domo tab: if it is on one of the deleted or removed cards (`/kpis/details/{cardId}`), `redirectTabIfViewingObject` sends it to `cardHostUrlForTab`. Otherwise `reloadTabIfViewingObject({ ids: [pageId] })` reloads the page.
-   - The view closes when no cards are left, guarded by `mountedRef` until 1.6's view-scoped close lands.
+   - `reloadTabIfViewingObject({ ids: [pageId] })` reloads the Domo tab when it is on this page. Nothing is deleted, so no tab needs redirecting off a card.
+   - The view closes when no cards are left on the page, guarded by `mountedRef` until 1.6's view-scoped close lands. Otherwise it stays open on the cards that remain.
 
-**Selection rules.**
+**Selection rules.** A row is selectable only when all of these hold:
 
-- Rows with `access === false` are never selectable ("You don't have access to this card.").
-- **Delete mode:** a row is selectable when the shared `canManageCard({ card, userRights })` is true. That is Domo's own `canManageKpi` rule: `content.admin`, an owner (group ownership counts through `isCurrentUserOwner`), or `content.card.edit` on an unlocked card. Other rows are disabled with "This card is locked. Only its owners and content admins can delete it." The server stays authoritative, and anything it rejects shows as a per-row failure.
-- **Remove mode:** offered when `content.admin`, or the page's edit grant (`content.page.edit` for pages and App Studio pages, `content.worksheet.edit` for worksheet pages), or `isOwner`. On a locked page, only owners and `content.admin` qualify. Otherwise the toggle option is disabled with a reason. Since Admin > Cards allows `remove_from_pages` for `canManageCards`, the server may accept more than this. Anything it rejects shows as a per-row failure.
-- **Switching modes** prunes the selection to IDs that are selectable in the new mode, as ManageCardLocksView re-derives its selection.
+- `access !== false` ("You don't have access to this card.").
+- Placements have loaded, and the card has at least one other location (D8.1). Otherwise the row is disabled with the chip "Only on This Page" and the tooltip "This card isn't on any other page, so removing it would leave it on no page. Delete it or move it in Domo instead." While placements load, the tooltip reads "Checking where this card lives...".
+- The page allows it: on a locked page (`pageEdit.locked`), only `content.admin` or `isOwner` qualify, matching Domo's page lock. Otherwise every row is disabled with "This page is locked. Only its owners and content admins can change its cards." On an unlocked page the DX.3 button gate is the whole check, following Admin > Cards, which offers `remove_from_pages` to `canManageCards`. The server stays authoritative, and anything it rejects shows as a per-row failure.
 
-**What "lives elsewhere" means.** Each row knows its other locations: real pages, App Studio and worksheet pages, report pages, system pages (Shared, Favorites, Overview), and workspaces once checked.
+A card's own lock does not block removal: the lock governs edits to the card, not where it is placed (INFERRED, checked in the permission test). `canManageCard` is not used here.
 
-- **Delete mode:** the **Only Live Here** quick select picks cards with no other location. Whether system pages count is an open question. The default counts them, matching `cardIdsOnlyOnPages` today.
-- **Remove mode:** a card is "left on no page" when it has no other location that is not a system page. Shared, Favorites, and Overview are other people's personal pages, not a place the user can find or manage the card. The quick select there is **Also on Other Pages**, its inverse.
+Nothing is selected by default. **Select All** selects every selectable row; there are no quick selects, since "Also on Other Pages" is now the same set.
 
-**Concurrency.** Write chunks run serially, and so does the per-card fallback. Reads keep their existing pools: 50 in flight inside each `getCardLocations` chunk, 500-ID alert batches, and the embed summary's own chunking.
+**What "somewhere else" means** (D8.2). A card's other locations are real pages, App Studio and worksheet pages, report pages, and the system pages Shared, Favorites, and Overview. System pages count, matching `cardIdsOnlyOnPages` and the page delete's "Cards that Only Live Here", which stay unchanged. Workspaces do not count, since they are not pages, and they are not looked up.
 
-**Run safety.** While a run is active, `CardBatchList`'s `isRunning` makes the selection read-only and drops Reload and Refresh from the header. Closing the view or the panel cannot be blocked yet: in-flight chunks finish, and the abort keeps the rest from being sent. When `docs/plans/beta-phase-1-6-run-lock.md` lands, the view calls `useRunLock(isRunning, 'Delete Cards')`, and this commit adds `DeleteCardsView.jsx` / `isRunning` to that plan's "Which views lock" table. Whether Delete Cards records into the 1.3 change journal is a cross-issue question. The hook points would be `onSend` and `onSettled`.
+**Concurrency.** Write chunks run serially, and so does the per-card fallback. Placement reads keep their existing pool: 50 in flight inside each `getCardLocations` chunk.
+
+**Run safety.** While a run is active, `CardBatchList`'s `isRunning` makes the selection read-only and drops Reload and Refresh from the header. Closing the view or the panel cannot be blocked yet: in-flight chunks finish, and the abort keeps the rest from being sent. When `docs/plans/beta-phase-1-6-run-lock.md` lands, the view calls `useRunLock(isRunning, 'Remove Cards')`, and this commit adds `RemoveCardsView.jsx` / `isRunning` to that plan's "Which views lock" table. Remove Cards does not journal (DX.4); `onSend` and `onSettled` are the hook points if that is revisited after 1.3 ships.
 
 **Feature switches.** None needed. `WORKSHEET_VIEW` is already gated by `app-studio-worksheets`.
 
@@ -1412,62 +1476,54 @@ isRunning: boolean
 
 **Entry point.** In the expandable action section, after Manage Card Locks and Manage Card Owners:
 
-- Button: **Delete Cards**, with the existing `row-remove.svg` icon. The page's always-visible Delete button uses the trash icon, and a second trash icon invites deleting the page by mistake.
-- Tooltip: "Delete the cards you pick on this page, or remove them from it"
+- Button: **Remove Cards**, with the existing `row-remove.svg` icon.
+- Tooltip: "Remove the cards you pick from this page. Each one stays on its other pages"
 
 **Flow:**
 
-1. Click **Delete Cards**. The side panel opens "Delete Cards on {page name}" with a spinner ("Loading cards...").
-2. The list renders with nothing selected. Each row's detail line fills in as lookups land. While placements load, the banner shows "Checking where these cards live..." with a spinner, or "Checking where these cards live (100 / 240)..." on the per-card path.
-3. Pick a mode in the banner toggle: **Delete** | **Remove from Page**.
-4. Select cards by hand, with Select All, or with a quick select.
-5. Press the footer button. A confirm dialog summarizes what happens. Its confirm stays disabled, with "Checking what goes with these cards...", until the placements, alerts, and embeds lookups have each settled.
-6. Confirm, by hold or click depending on the tier (open question on confirmation strength).
-7. Rows show a spinner per chunk, then a check or an X. The toast resolves. Failed rows stay selected with the reason on hover, and the Domo tab is redirected or reloaded.
+1. Click **Remove Cards**. The side panel opens "Remove Cards from {page name}" with a spinner ("Loading cards...").
+2. The list renders with nothing selected and every row disabled while placements load. The banner shows "Checking where these cards live..." with a spinner, or "Checking where these cards live (100 / 240)..." on the per-card path.
+3. Rows that live somewhere else become selectable, and each detail line names where. Cards found only on this page stay disabled with an "Only on This Page" chip.
+4. Select cards by hand or with Select All.
+5. Press the footer button. A confirm dialog names where the cards will remain.
+6. Hold **Hold to Remove** for 3 seconds (D8.3). The view re-checks the selected cards' placements, then sends.
+7. Rows show a spinner per chunk, then a check or an X. The toast resolves. Failed rows stay selected with the reason on hover, and the Domo tab reloads if it is on this page.
 
-**Mockup: list (Delete mode)**
+**Mockup: list**
 
 ```
 +-------------------------------------------------------+
-| [x-row] Delete Cards on Sales Overview      [open][x] |
-|         24 cards                                      |
+| [x-row] Remove Cards from Sales Overview    [open][x] |
+|         24 cards, 17 also live elsewhere              |
 |-------------------------------------------------------|
-|  [ Delete | Remove from Page ]                        |
-|  Quick Select: [Only Live Here] [Owned by Me]         |
-|  Workspaces aren't checked automatically.             |
-|                                  [Check Workspaces]   |
-|  [-] Select all (3 / 24)                              |
+|  [-] Select all (3 / 17)                              |
 |-------------------------------------------------------|
 |  [x] Pipeline by Region                          [L]  |
-|      Opportunities. Also on Q3 Review and 1 more,     |
-|      1 alert, 2 drills                                |
+|      Opportunities. Also on Q3 Review and 1 more      |
 |  [ ] Win Rate                                         |
 |      Opportunities. Also on Shared                    |
 |  [x] Bookings QTD                                     |
-|      Bookings                                         |
-|  [/] Region Map  (no access)                          |
+|      Bookings. Also on Finance (Board Pack app)       |
+|  [/] Region Map              [Only on This Page]      |
 |      Territories                                      |
 |  ...                                                  |
 |-------------------------------------------------------|
-|  [          Delete 3 Cards          ] (danger)        |
+|  [       Remove 3 Cards from Page       ]             |
 +-------------------------------------------------------+
 ```
 
-**Mockup: Delete confirm**
+**Mockup: confirm**
 
 ```
 +--------------------------------------------------+
-| Delete 3 Cards?                                  |
+| Remove 3 Cards from Sales Overview?              |
 |                                                  |
-| This permanently deletes 3 cards, along with     |
-| their drills, card-level Beast Modes, 1 alert,   |
-| and 2 embeds.                                    |
+| Nothing is deleted. Each card stays on its other |
+| pages: Q3 Review, Finance, and 2 more.           |
 |                                                  |
-| 2 of them also appear elsewhere (Q3 Review,      |
-| Shared, and 1 more) and will disappear from      |
-| there too.                                       |
+| 1 of them will remain only on Shared.            |
 |                                                  |
-|            [Cancel]  [ Hold to Delete ]          |
+|            [Cancel]  [ Hold to Remove ]          |
 +--------------------------------------------------+
 ```
 
@@ -1476,143 +1532,135 @@ isRunning: boolean
 ```
 |  [x] (spin) Pipeline by Region                         |
 |  [x] (ok)   Bookings QTD                               |
-|  [x] (X)    Region Map  <- "Failed: You don't have permission to delete this card." |
+|  [x] (X)    Win Rate  <- "Failed: You don't have permission to remove this card from this page." |
 ```
 
 **States and copy:**
 
-| State                                           | What shows                                                                                                                                                                                                                                               |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Loading                                         | Spinner card, "Loading cards..." (after 200 ms, like Get Cards)                                                                                                                                                                                          |
-| Empty                                           | Status "No cards found on this page.", then back to default                                                                                                                                                                                              |
-| Load failure                                    | Warning Alert with the error text and a **Retry** button (GetCardsView pattern)                                                                                                                                                                          |
-| Placements failed                               | Banner: "Couldn't check where these cards live, so Only Live Here is unavailable." The quick select is disabled and the actions still work                                                                                                               |
-| Alerts or embeds failed                         | Banner: "Couldn't check these cards' alerts." / "...embeds." The confirm then says "may also have alerts" (or embeds) and uses the full hold                                                                                                             |
-| Nothing selected                                | Footer button disabled                                                                                                                                                                                                                                   |
-| No access row                                   | Disabled checkbox, tooltip "You don't have access to this card."                                                                                                                                                                                         |
-| Locked card the user can't manage (Delete mode) | Disabled checkbox, tooltip "This card is locked. Only its owners and content admins can delete it."                                                                                                                                                      |
-| Remove mode unavailable                         | Toggle option disabled, tooltip "You need edit access to this page to remove cards from it."                                                                                                                                                             |
-| Loading toast                                   | "Deleting **N** cards..." / "Removing **N** cards from **{page}**..."                                                                                                                                                                                    |
-| Success                                         | "Deleted **N** cards." / "Removed **N** cards from **{page}**." (singular "card")                                                                                                                                                                        |
-| Partial failure                                 | "Deleted **12** cards, **2** failed." / "Removed **12** cards, **2** failed." The view stays open on the failed rows                                                                                                                                     |
-| Full failure                                    | Danger toast "No cards were deleted. {reason}" / "No cards were removed. {reason}"                                                                                                                                                                       |
-| Per-row errors                                  | 403: "You don't have permission to delete this card." (remove: "...to remove this card from this page."). 404 when the card is still listed: "Domo couldn't find this card." 429 or 5xx: "Domo was busy, try again." Other: "Failed with HTTP {status}." |
+| State               | What shows                                                                                                                                                                                                          |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Loading             | Spinner card, "Loading cards..." (after 200 ms, like Get Cards)                                                                                                                                                     |
+| Empty               | Status "No cards found on this page.", then back to default                                                                                                                                                         |
+| Load failure        | Warning Alert with the error text and a **Retry** button (GetCardsView pattern)                                                                                                                                     |
+| Checking placements | Every row disabled, tooltip "Checking where this card lives..."; banner spinner with a counter on the per-card path                                                                                                 |
+| Placements failed   | Banner: "Couldn't check where these cards live, so none can be removed yet." with **Retry**. Every row stays disabled                                                                                               |
+| Nothing removable   | Subtext "None of these cards live anywhere else, so removing any would leave it on no page." Footer disabled                                                                                                        |
+| Only on this page   | Disabled checkbox, chip "Only on This Page", tooltip "This card isn't on any other page, so removing it would leave it on no page. Delete it or move it in Domo instead."                                           |
+| No access row       | Disabled checkbox, tooltip "You don't have access to this card."                                                                                                                                                    |
+| Locked page         | Every row disabled, banner "This page is locked. Only its owners and content admins can change its cards."                                                                                                          |
+| Nothing selected    | Footer button disabled                                                                                                                                                                                              |
+| Skipped at run time | Row chip "Now Only on This Page", tooltip "This card's other placements were removed after the list loaded, so it was left here." Counts toward neither removed nor failed                                          |
+| Loading toast       | "Removing **N** cards from **{page}**..."                                                                                                                                                                           |
+| Success             | "Removed **N** cards from **{page}**." (singular "card"). Appends " **K** skipped." when any were skipped                                                                                                           |
+| Partial failure     | "Removed **12** cards, **2** failed." The view stays open on the failed rows                                                                                                                                        |
+| Full failure        | Danger toast "No cards were removed. {reason}"                                                                                                                                                                      |
+| Per-row errors      | 403: "You don't have permission to remove this card from this page." 404 when the card is still listed: "Domo couldn't find this card." 429 or 5xx: "Domo was busy, try again." Other: "Failed with HTTP {status}." |
 
 **Other copy:**
 
-- **Footer:** **Delete {N} Card(s)** / **Remove {N} Card(s) from Page**
-- **Quick selects:** Delete mode **Only Live Here**, **Owned by Me**. Remove mode **Also on Other Pages**, **Owned by Me**.
-- **Detail line** (through `renderItemDetail`): the dataset name, or "N datasets", followed by a comma-separated list of "Also on {name} and {n} more", "{n} alert(s)", "{n} embed(s)", "{n} drill(s)", and "Also in a workspace". System pages are named by their own title ("Also on Shared").
-- **Delete confirm:**
-  - "This permanently deletes **N** cards, along with their drills, card-level Beast Modes, **A** alerts, and **E** embeds." Zero counts drop out of that sentence.
-  - When K > 0, add: "**K** of them also appear elsewhere ({first two names}, and {n} more) and will disappear from there too."
-  - When placements failed, add: "Couldn't check where these cards live, so some may also appear elsewhere."
-- **Remove confirm:**
-  - "Remove **N** cards from **{page}**?"
-  - When K > 0, add: "**K** of them aren't on any other page, app, or report, so they'll be left on no page. They still exist and can be found in Admin > Cards."
-  - Button: **Remove**, or **Hold to Remove** when K > 0.
+- **Footer:** `Remove {N} Card(s) from Page`, which opens the confirm.
+- **Detail line** (through `renderItemDetail`): the dataset name, or "N datasets", then "Also on {name} and {n} more". A page inside an App Studio app or worksheet adds the parent in parentheses, as `getCardLocations` already names it. System pages are named by their own title ("Also on Shared").
+- **Confirm:**
+  - Title: "Remove **N** Cards from **{page}**?"
+  - Body: "Nothing is deleted. Each card stays on its other pages: {first two names}, and {n} more."
+  - When K > 0 cards have only system placements left, add: "**K** of them will remain only on {Shared, Favorites, or Overview}."
+  - Button: `HoldToConfirmButton` **Hold to Remove**, `duration={HOLD_DURATION_BULK}`.
 
 ### Implementation plan
 
 0. **Bug fix, its own commit.** Done: `computeIsOwner` derives `WORKSHEET_VIEW` ownership from the parent worksheet's `owners`, the duplicated `TEMPLATE` branch is removed, and the Bug Fixes note is in.
-1. **Adopt the shared card pieces.** Import `getCardsForContext` (`src/services/cards.js`), `CardBatchList` (`src/components/views/CardBatchList.jsx`), and `cardUrlOnPage` / `canManageCard` (`src/utils/cardHelpers.js`). DataList's `renderItemDetail` comes through `CardBatchList`. If #9 has not landed, build them first in one commit, exactly to the contract in Shared infrastructure across issues.
+1. **Adopt the shared card pieces.** Import `getCardsForContext` (`src/services/cards.js`), `CardBatchList` (`src/components/views/CardBatchList.jsx`), `cardUrlOnPage` (`src/utils/cardHelpers.js`), and `HOLD_DURATION_BULK` (`src/utils/constants.js`). DataList's `renderItemDetail` comes through `CardBatchList`. If #9 has not landed, build them first, exactly to the contract in Shared infrastructure across issues.
 2. **Services.**
    - In `src/services/cards.js`, add `removeCardsFromPage` (alphabetical position).
    - In `src/services/pages.js`, add `getCardLocationsOnPage` and `getPageEditState`. Mark `system` on the location entries returned by `getCardLocations`.
-3. **Batch helper.** Import `src/utils/batchWithFallback.js` if #6 has landed it. Otherwise add it to the amended signature above in its own commit, and record the amendments in `docs/plans/beta-phase-1-2-retries-concurrency.md`.
-4. **Card helpers.** Move `cardHostUrl` from `DeleteObjectView.jsx` to `src/utils/cardHelpers.js` as `cardHostUrlForTab`.
-5. **Hold constants.** In `src/utils/constants.js`, add `HOLD_DURATION_FULL = 5000` and `HOLD_DURATION_SHORT = 2500`. Replace `DEFAULT_HOLD_DURATION` in `HoldToConfirmButton.jsx` and `FULL_HOLD_DURATION` / `SHORT_HOLD_DURATION` in `DeleteObjectView.jsx` with them.
-6. **View.** Add `src/components/views/DeleteCardsView.jsx`:
-   - `getSidepanelData` with a `'deleteCards'` check, `useViewReady`, and `mountedRef`
-   - loading through `getCardsForContext({ context, parts: 'datasources,owners,drillPathURNs', tabId })`
-   - the run state above (`selectedCardIds`, `statusByCardId`, `progress`, `isRunning`) and an AbortController aborted on unmount
-   - the mode `ToggleButtonGroup` (ManageCardLocksView pattern), with selection pruning on mode change
-   - quick selects, and the Check Workspaces prompt
-   - decorations through `useParallelFetches`, feeding a memoized `renderDetail`
-   - `CardBatchList` with `isSelectable` (`access` plus `canManageCard` in Delete mode, the page rule in Remove mode), `unselectableReason`, `chipFor`, `statusLabels`, `rowStatus`, and `isRunning`
+3. **Batch helper.** Import `src/utils/batchWithFallback.js` if 1.2 step 6 has landed it. Otherwise add it to the amended signature above in its own commit, and record the amendments in `docs/plans/beta-phase-1-2-retries-concurrency.md`.
+4. **View.** Add `src/components/views/RemoveCardsView.jsx`:
+   - `getSidepanelData` with a `'removeCards'` check, `useViewReady`, and `mountedRef`
+   - loading through `getCardsForContext({ context, parts: 'datasources', tabId })`, with `getPageEditState` alongside
+   - the placements lookup through `getCardLocationsOnPage`, with its progress counter and Retry, feeding a memoized `renderDetail`
+   - the run state above (`selectedCardIds`, `placements`, `pageEdit`, `statusByCardId`, `progress`, `isRunning`) and an AbortController aborted on unmount
+   - `CardBatchList` with `isSelectable` (access, another location, and the locked-page rule), `unselectableReason`, `chipFor`, `statusLabels`, `rowStatus`, and `isRunning`
    - the footer button
-   - an `AlertDialog` with `isOpen={pending && isActive}`, whose confirm is a `HoldToConfirmButton` or a danger `Button` per tier
-   - the run through `batchWithFallback` with `onSend` / `onSettled`, then the reload-and-reconcile step described in Data flow, step 6
-   - toasts through `useStatusBar().showPromiseStatus`. The promise rejects only when every card failed.
-   - the tab redirect or reload described in Data flow, step 6
-7. **Button and wiring.**
-   - Add `src/components/buttons/DeleteCards.jsx` (the ManageCardLocks pattern, `useLaunchView`, `@icons/row-remove.svg?react`).
-   - Add the `deleteCards` key in `src/utils/availableActions.js` inside the page card block, for `PAGE` (ID ≥ 0), `DATA_APP_VIEW`, and `WORKSHEET_VIEW`, behind the gate the cross-issue question settles.
+   - an `AlertDialog` with `isOpen={pending && isActive}`, whose confirm is a `HoldToConfirmButton` with `duration={HOLD_DURATION_BULK}`
+   - on confirm, the placement re-check for the selected cards, then the run through `batchWithFallback` with `onSend` / `onSettled`, then the reload-and-reconcile step described in Data flow, step 6
+   - toasts through `useStatusBar().showPromiseStatus`. The promise rejects only when every sent card failed.
+   - the tab reload described in Data flow, step 6
+5. **Button and wiring.**
+   - Add `src/components/buttons/RemoveCards.jsx` (the ManageCardLocks pattern, `useLaunchView`, `@icons/row-remove.svg?react`).
+   - Add the `removeCards` key in `src/utils/availableActions.js` inside the page card block, for `PAGE` (ID ≥ 0), `DATA_APP_VIEW`, and `WORKSHEET_VIEW`, gated on `content.admin || content.card.edit`.
    - Render it in `src/components/ActionButtons.jsx` after `ManageCardOwners`.
-   - Add a `slot.type === 'deleteCards'` case to `src/sidepanel/App.jsx`, passing `instance`, `isActive`, `liveContext`, `onBackToDefault`, and `onStatusUpdate`.
-8. **Docs.**
-   - Add a **Delete Cards** line to `docs/README.md` next to Lock Cards.
+   - Add a `slot.type === 'removeCards'` case to `src/sidepanel/App.jsx`, passing `instance`, `isActive`, `liveContext`, `onBackToDefault`, and `onStatusUpdate`.
+6. **Docs.**
+   - Add a **Remove Cards** line to `docs/README.md` next to Lock Cards.
    - Add a short mention to `store-listing/STORE_LISTING.txt` and check it stays under 10,000 characters (`.claude/rules/store-listing.md`).
-   - Add `DeleteCardsView.jsx` / `isRunning` to the "Which views lock" table in `docs/plans/beta-phase-1-6-run-lock.md`.
-   - Add the release note bullets below to `docs/RELEASE_NOTES.md`: the feature under New Features and Improvements, and the worksheet fix under Bug Fixes.
-9. **Lint.** Run `npx eslint --no-warn-ignored` on every touched file.
+   - Add `RemoveCardsView.jsx` / `isRunning` to the "Which views lock" table in `docs/plans/beta-phase-1-6-run-lock.md`.
+   - Add the release note bullet below to `docs/RELEASE_NOTES.md` under New Features and Improvements.
+7. **Lint.** Run `npx eslint --no-warn-ignored` on every touched file.
 
 ### Edge cases and risks
 
-- **System placements are common.** 31 of 52 cards on one real page were "elsewhere" only through Shared, Favorites, or Overview. How they count changes Only Live Here a lot (open question on system pages). Detail lines always name them.
-- **Placement speed depends on the fast path.** Without `adminsummary` (report pages, some views, users it refuses, or a repeated 429), the per-card path took 32 s for 52 cards. The list and actions stay usable during that time. Only the quick select, detail lines, and the confirm dialog wait, and the banner shows a counter.
-- **Fast-path placements have no kind**, so they are named but not linked. In theory a different-kind page could share this page's numeric ID and be dropped from the list. The per-card path is exact.
+- **System placements are common, and they count** (D8.2). 31 of 52 cards on one real page were elsewhere only through Shared, Favorites, or Overview, so under this rule they are all removable, and afterwards they live only there. Detail lines and the confirm always name system placements.
+- **Placements gate everything.** Rows can't be selected until the lookup settles. Without `adminsummary` (some views, users it refuses, or a repeated 429), the per-card path took 32 s for 52 cards. The list is readable meanwhile and the banner shows a counter.
+- **Placements going stale.** Someone could remove a card's other placement between load and run, which would leave it on no page. The pre-run re-check skips such cards; a window of a second or two between the re-check and the write remains, which is acceptable.
+- **Fast-path placements have no kind**, so they are named but not linked. In theory a different-kind page could share this page's numeric ID and be dropped from the list, which could only make a card look like it lives on fewer pages, never more. The per-card path is exact.
 - **Layout template leftovers on layout dashboards.** Bulk remove cleans `content` but leaves `template` slots there, the same as Domo Admin. Classic pages and App Studio views came out clean. This needs a visual check on a layout dashboard. If it leaves gaps, a follow-up could tidy the template through the layout writelock and `PUT /api/content/v4/pages/layouts/{id}`. That is out of scope unless the check fails.
 - **Concurrent edit mode.** Someone saving a stale layout in Domo's editor could put removed cards back. No warning is shown, because there is no evidence this happens.
-- **All-or-nothing endpoints.** One bad ID fails a whole chunk (verified). The per-card fallback isolates it. Cards that vanished count as done after the refresh.
-- **404 for a card the user can't access.** It is unknown whether this is 403 or 404. The refresh rule only counts a 404 as done when the card is gone from the page, so a hidden card is never reported as deleted.
-- **Custom app (`domoapp`) cards.** Deleting one removes that app instance from the page. Shown with an "App" chip.
-- **Locked cards.** Shown with a lock badge. In Delete mode, a locked card the user can't manage (`canManageCard` false) is disabled up front. The server may still refuse others, which shows as a row error.
-- **Large pages.** Chunks of 50 keep the `cardIds` query string short. `adminsummary` pages at 100, and alerts batch at 500.
-- **No undo.** Delete through these endpoints is permanent, and the copy says "permanently".
-- **Cards left on no page by Remove** still exist but are hard to find. The copy warns and points to Admin > Cards.
+- **All-or-nothing endpoint.** One bad ID fails a whole chunk (verified). The per-card fallback isolates it. Cards that vanished from the page count as done after the refresh.
+- **Locked cards and locked pages.** A card's lock is assumed not to block removal (INFERRED). A locked page limits the view to owners and content admins up front. The server may still refuse others, which shows as a row error.
+- **Server rules for card editors.** Admin > Cards offers bulk remove to `content.card.edit`, but whether the server also wants page edit rights is unverified, so 403s are reported per row with page-specific copy.
+- **Large pages.** Chunks of 50 keep the `cardIds` query string short, and `adminsummary` pages at 100.
+- **Undo.** There is none. A removed card can be put back with Domo's Add Cards, and every removed card still exists elsewhere.
 - **Panel closed mid-run.** Until 1.6 lands this cannot be blocked. In-flight chunks finish, the abort stops the rest, and reopening the view shows the current cards.
 
 ### Testing and verification
 
 - **Baseline.** `yarn dev` is usually already running (`lsof -nP -iTCP:31573 -sTCP:LISTEN`). Watch the HMR output and run ESLint on each touched file. There is no `/dev-*` route for the side panel, so use the CRXJS dev extension loaded from `dist/`.
-- **Visual.** Run `node scripts/ext-shot.js sidepanel --live` with a Domo dashboard open and Delete Cards showing. Check the toggle, quick selects, detail lines, disabled rows, footer, the confirm dialog's waiting state, and the run badges, in light and dark.
+- **Visual.** Run `node scripts/ext-shot.js sidepanel --live` with a Domo dashboard open and Remove Cards showing. Check the loading state, detail lines, the Only on This Page rows, footer, the confirm and its hold, and the run badges, in light and dark.
 - **Read-only live checks:**
-  - **Page `888329385`:** fast-path placements and detail-line counts (13 only here, 31 through system pages only).
+  - **Page `888329385`:** fast-path placements; 13 cards show Only on This Page, and the 31 elsewhere only through system pages are selectable with the system page named.
   - **Page `106095392`:** the stacks 404 fallback builds rows through `getCardsForContext`, and `getPageEditState` reads `isOwner: false`.
-  - **A worksheet page:** the button gate, and `isOwner` after the `computeIsOwner` fix. As a worksheet page owner without `content.admin`, the page's Delete button is now enabled.
-  - **Report page `1535023132`:** the per-card path is used if report pages are approved.
+  - **A worksheet page:** the button gate, and `isOwner` after the `computeIsOwner` fix.
+  - **A Report Builder page:** no Remove Cards button.
 - **Write checks, on scratch objects only:**
-  1. Create a layout dashboard, a classic page, and a scratch App Studio app. Create four cards on a dataset you own. Put one card on two of the pages.
-  2. Only Live Here picks the exclusive cards. Also on Other Pages picks the shared one.
-  3. Remove on each surface. The card leaves the page and still exists, the tab reloads, and a layout dashboard shows no blank gap (this is the template check).
-  4. Delete the rest. Check the toasts and row badges (spinner on the chunk being sent, then check or X). The shared card should be gone from its other page too.
-  5. Open one card's details in the Domo tab, delete it from the view, and confirm the tab is redirected to the page.
-  6. Delete a selected card from another tab first. The chunk 404s, the fallback runs, and the vanished card counts as deleted.
+  1. Create a layout dashboard, a classic page, and a scratch App Studio app. Create four cards on a dataset you own. Put one card on two of the pages, and leave the others on one page each.
+  2. The single-page cards show Only on This Page and can't be selected. Select All picks only the shared one.
+  3. Remove the shared card on each surface. It leaves the page and stays on its other page, the tab reloads, and a layout dashboard shows no blank gap (this is the template check).
+  4. Load the view, then remove the shared card's other placement in another tab, then hold Remove. The re-check skips it with Now Only on This Page, and nothing is sent for it.
+  5. Remove a selected card from the page in another tab first. The chunk returns 200 (removing a card not on the page is a no-op) and the refresh counts it as done.
+  6. Hold and release early: nothing is sent.
   7. Delete everything you created and confirm each object reads back as 404 or `[]`.
-- **Permissions.** On a non-production instance, sign in as a `content.card.edit` user without `content.admin`. Check the button gate, that a locked card they don't own is disabled in Delete mode, whether `adminsummary` answers (fast path or fallback), and what Remove does on a page they don't own.
-- **Regression.** Single card delete and page delete still redirect correctly after `cardHostUrl` moves. Hold durations are unchanged after the constants move. Rename Cards still works if #9 landed first (shared `CardBatchList` and `getCardsForContext` unchanged by this issue).
+- **Permissions.** On a non-production instance, sign in as a `content.card.edit` user without `content.admin` or `content.page.edit`. Check the button gate, whether `adminsummary` answers (fast path or fallback), what the server does when they remove a card from an unlocked page they don't own, whether a locked card they don't own can be removed, and that a locked page they don't own disables every row.
+- **Regression.** Hold durations elsewhere are unchanged after the constants move. Rename Cards still works if #9 landed first (shared `CardBatchList` and `getCardsForContext` unchanged by this issue).
 
 ### Design decisions made
 
+- **Remove only, no delete** (DX.2, D8.1). Bulk deletion stays with Domo's Admin > Cards and the toolkit's single-card and page deletes. Everything that existed only to describe a delete's reach (alerts, embeds, drills, Card Beast Modes, workspaces, the mode toggle, the hold tiers) is gone.
+- **Only cards with another location are selectable**, and placements are re-checked before the run (D8.1). That is how "never leave a card on no page" holds even against edits made after loading.
+- **System pages count as another location** (D8.2), matching `cardIdsOnlyOnPages`, so the toolkit has one meaning of "only lives here".
+- **Always a 3 s hold** (D8.3), shared with Rename Cards as `HOLD_DURATION_BULK`.
+- **Button gate `content.admin || content.card.edit`** (DX.3), the group Admin > Cards offers bulk remove to. Locked pages narrow it to owners and content admins; a card's own lock does not.
 - **Side panel view, not a modal.** Every action view lives there. The `*Modal.jsx` files are read-only drill-ins.
-- **One view with a Delete / Remove toggle.** Same list and selection, a different endpoint. This follows the ManageCardLocksView Lock/Unlock pattern. Whether Rename joins as a third mode is a cross-issue question.
-- **Use `DELETE /api/content/v1/cards/bulk/pages` for remove.** It is Domo's own `Page.moveDeleteCards` and Admin `remove_from_pages`, and it was verified on layout, classic, and App Studio pages.
+- **Use `DELETE /api/content/v1/cards/bulk/pages`.** It is Domo's own `Page.moveDeleteCards` and Admin `remove_from_pages`, and it was verified on layout, classic, and App Studio pages.
 - **No child rows. Placements live in the detail line.** DataList renders badges only on leaf rows, and Open All walks child rows. Fast-path placements can't be linked anyway, because they have no kind.
 - **The detail line uses the shared `renderItemDetail` prop.** DataList renders neither `item.metadata` nor a visible annotation, and #9's diff needs the same slot, so DataList gains one prop instead of two.
 - **Cut Open Selected and the per-card viewer.** Get Cards' Open All and Get DataSets already cover them.
-- **Count drills, but only name Card Beast Modes.** Drills are free through `drillPathURNs` (verified). The batched Beast Mode search hit 14,679 results, about 250 s, on a real 52-card page.
-- **No shared hook. Run state and decorations live in DeleteCardsView.** #9's executor is a per-card pool with a pre-run re-read, so a hook built around bulk chunks would not fit it. The shared loader and list carry the real reuse.
-- **Load through `getCardsForContext` with stacks `parts` and no hydrate.** Stacks returns every row field, and a v1 re-read would drop the per-card `access` flag.
-- **Placements: `adminsummary` first, per-card fallback, same shape as `getCardLocations`.** 0.47 s against 32 s at the code's real concurrency, with identical results on `888329385`. The fallback is required: it returns 0 on report pages, missed a fresh view, and can 429.
-- **After a run, a card missing from the refreshed list counts as done.** A second delete of a gone card returns 404 (verified). Whether a 404 can also mean "no access" is unknown, so the 404 alone proves nothing.
-- **Nothing selected by default.** Delete is destructive, unlike Lock, which selects all.
-- **Chunks of 50, run serially, with per-card fallback only on a 4xx other than 429.** Both endpoints are all-or-nothing (verified). This follows phase 1.2's rule about not splitting under throttling.
-- **Row progress through `batchWithFallback`'s `onSend` and `onSettled`, not an `onProgress` callback.** A chunk needs a "sending" signal to show its spinner, and the same two hooks serve #6's progress count and the 1.3 journal's `start` and `record`.
-- **Delete-mode selectability uses `canManageCard`.** It is Domo's own `canManageKpi` rule, the same one Rename Cards uses, so locked cards the user can't manage are disabled up front instead of failing per row.
-- **Confirm waits for placements, alerts, and embeds to settle.** Its copy and hold tier depend on them. When a lookup failed, it says so and takes the full hold.
-- **Remove's "left on no page" ignores system pages.** Shared, Favorites, and Overview are other users' personal pages. Remove does not touch them, and the user cannot manage the card from there.
+- **No shared hook. Run state and placements live in RemoveCardsView.** #9's executor is a per-card pool with a pre-run re-read, so a hook built around bulk chunks would not fit it. The shared loader and list carry the real reuse.
+- **Load through `getCardsForContext` with stacks `parts=datasources` and no hydrate.** Stacks returns every row field, and a v1 re-read would drop the per-card `access` flag.
+- **Placements: `adminsummary` first, per-card fallback, same shape as `getCardLocations`.** 0.47 s against 32 s at the code's real concurrency, with identical results on `888329385`. The fallback is required: it missed a fresh view, and it can 429.
+- **After a run, a card missing from the refreshed list counts as done.** Removing a card that is no longer on the page returns 200 (verified), and the refresh is the ground truth either way.
+- **Nothing selected by default.** A remove changes a page other people see, unlike Lock, which selects all.
+- **Chunks of 50, run serially, with per-card fallback only on a 4xx other than 429.** The endpoint is all-or-nothing (verified). This follows phase 1.2's rule about not splitting under throttling.
+- **Row progress through `batchWithFallback`'s `onSend` and `onSettled`, not an `onProgress` callback.** A chunk needs a "sending" signal to show its spinner, and the same two hooks serve #6's progress count and journal.
 - **`access: false` rows can't be selected.** Stacks marks them per card on App Studio views. Better to block them up front than let them fail per row.
-- **Redirect the tab off a deleted card's details, otherwise reload the page.** `reloadTabIfViewingObject` alone would reload into a dead card. Single card delete already does this redirect through `cardHostUrl`.
-- **Distinct icon (`row-remove.svg`).** The always-visible page Delete already uses the trash icon.
+- **Reload the tab when it is on this page, no redirect.** Nothing is deleted, so there is no dead card to send the tab away from, and `cardHostUrlForTab` is no longer needed.
+- **No Report Builder pages** (DX.2). They were proposed for Delete only, and remove on them is unverified.
+- **Icon `row-remove.svg`.** It reads as removing a row, and the page's Delete button keeps the trash icon.
 - **Dropped the "edit mode anywhere" warning.** The race it warned about is only inferred, and the warning would add noise to every confirm.
-- **The `computeIsOwner` fix ships on its own.** It fixes a shipped Delete gate on worksheet pages, separate from this feature.
-- **Corrected from the draft:** single card and page deletes hold (5 s) only when embeds exist, and `SHORT_HOLD_DURATION` is used only for dataset and dataflow downstream impact. Nothing scales holds by placements or alerts today, so the hold strength is posed as an open question rather than as matching existing tiers. "Report Builder deliveries no longer support Delete" refers to scheduled report deliveries, not report pages, so it is no reason to exclude report pages.
+- **The `computeIsOwner` fix ships on its own.** It fixed a shipped Delete gate on worksheet pages, separate from this feature, and is done.
 
 ### Release notes draft
 
-- Pages, App Studio pages, and worksheet pages have a new Delete Cards button that deletes the cards you select, or removes them from the page, in bulk. ([#8](https://github.com/brycewc/domo-toolkit/issues/8))
-- Owners of a worksheet page can now delete it without being a content admin. _(separate bug fix commit, no issue link; confirm worksheet pages shipped in the last release before logging)_
+- Pages, App Studio pages, and worksheet pages have a new Remove Cards button that removes the cards you select from the page in bulk, as long as each one also lives somewhere else. ([#8](https://github.com/brycewc/domo-toolkit/issues/8))
 
 ## #6: Find and Replace Columns in Beast Modes Bulk
 
@@ -1627,7 +1675,9 @@ isRunning: boolean
 1. **Replace the column reference in Beast Mode formulas, on one or many datasets or across the instance (chosen).** The user finds a column by name, optionally scoped to one or more datasets, and replaces every reference to it with another column name in the formulas of the Beast Modes that use it. Both dataset Beast Modes and card Beast Modes are covered.
 2. **Rename the column on the dataset, then repair everything.** Not planned. Domo's UI already renames columns, and Remap Columns already repairs a dataset's downstream content once a rename leaves broken references.
 3. **General text find and replace inside formulas** (function names, literals). Not planned. That is a different and riskier tool. The matcher stays token-based, so it could be added later.
-4. **Also rewrite cards, dataflows and views across many datasets.** Not planned for v1 (open question). The issue names Beast Modes, and the per-dataset cross-type rewrite already exists in Remap Columns.
+4. **Also rewrite cards, dataflows and views across many datasets.** Not planned (D6.8). The issue names Beast Modes, and the per-dataset cross-type rewrite already exists in Remap Columns.
+
+**Prerequisites** (D6.1). #6 starts once beta phases 1.2 (`batchWithFallback`, `withRetry`), 1.3 (`createRunJournal`, Recent Runs) and 1.6 (`useRunLock`) have all landed, and is built on them directly.
 
 The issue says "a sidepanel function instead of in the floating button". The floating button is the popup: `ActionButtons` renders in both `src/popup/App.jsx:74` and `src/sidepanel/App.jsx:597`. The new button therefore shows in both, and a popup press opens the side panel through `launchView` (`src/utils/sidepanel.js`, which calls `openSidepanel()` right away to keep the user gesture). The view itself lives only in the side panel, as the issue asks.
 
@@ -1729,6 +1779,8 @@ All live calls went to domo.domo.com. Tags: VERIFIED-LIVE (called and saw the re
 
 **13. Prism tokenization.** Prism's SQL grammar tokenizes `` `Region` `` as an `identifier` whose backticks are separate `punctuation` children (`node_modules/prismjs/components/prism-sql.js:18-24`, VERIFIED-CODE). So in `SqlBlock` the inner name is its own segment, while comments and strings are whole `comment`/`string` segments.
 
+**14. Archived Beast Modes are unused** (VERIFIED-LIVE, read-only, for D6.5). All 24 archived Beast Modes on domo.domo.com have `activeLinks: {}` and every link `active: false`. 23 are card Beast Modes on two cards that still exist (`2045783621`, `1191823748`), and neither card's `kpi/definition` carries them in `formulas` or references their `legacyId`s. None is nested by another Beast Mode: `{ field: 'templateDependencies', value: '<id>' }` returned 0 for each (the filter shape is confirmed by `551580` returning its parent `551602`). So the scan adds `notarchived` and ignores them.
+
 ### Design
 
 **Where it lives.** A new side panel view, `replaceBeastModeColumns`, launched by a new action button in the expandable action bar. The button renders in both the popup and the side panel, and both launch into the side panel.
@@ -1737,7 +1789,8 @@ All live calls went to domo.domo.com. Tags: VERIFIED-LIVE (called and saw the re
 
 - Every dataset type except data models, inside the existing `if (isDataset)` block after `remapColumns`, skipped when `typeId === 'DATA_MODEL'`. Scope starts as that dataset.
 - `BEAST_MODE_FORMULA`, next to `migrateBeastModeUsage`. Scope starts as the Beast Mode's dataset (`datasetIdFromBeastModeLinks`), and its referenced columns (`extractBeastModeColumnRefs`) are the first Find suggestions.
-- Rights gate: pending open question (recommendation: `content.card.edit` or `content.admin`).
+- Rights gate: `content.card.edit` or `content.admin` (D6.4). Remap Columns and Migrate Beast Mode Usage get the same gate in a separate commit, with a UI/UX Changes release note.
+- Remap Columns' "Nothing to Remap" toast gains an action that opens this view on the same dataset (D6.7), shown only when the user passes this gate.
 - No feature switch: `beast-mode-bulk-update` gates only Domo's own bulk UI, not the API.
 
 **Data flow.** Everything runs in the side panel document and reaches the page through `executeInPage`, so the page's session authenticates each request. The background only does the usual `launchView` and `getSidepanelData` handoff.
@@ -1750,9 +1803,10 @@ Side panel view
   2. enrich: dataset details (bulk: name, dataProviderType), schemas of affected datasets
              (pool 5), card titles (bulk)
   3. plan:   per match -> rewrite preview via rewriteBeastModeColumns, flags, default selection
-  4. apply:  fresh read of each selected template (pool 5), skip changed or done ones,
-             rewrite from the fresh copy, save through batchWithFallback (chunks of 50)
-  5. result: per-item outcome, change log, Undo, Find Again
+  4. apply:  open a 1.3 journal run, fresh read of each selected template (pool 5), skip
+             changed or done ones, rewrite from the fresh copy, save through 1.2's
+             batchWithFallback (chunks of 50), journal each item from onSend / onSettled
+  5. result: per-item outcome, Retry Failed, Find Again, a link to the run in Recent Runs
 ```
 
 **In-page prefilter.** The injected page function receives the lowercased Find text and keeps an expression only when `expression.toLowerCase().includes('`' + find + '`')`. This needs no imports. It is a strict superset of the exact match, because every true ref (any case, qualified or not) contains that substring. Only candidates (`id`, `expression` and the search metadata) cross the `chrome.scripting` bridge. The side panel then runs the exact check: comment- and string-aware `eachExpressionRef`, case-insensitive whole-token comparison, and data model detection. This settles the earlier contradiction: one injected call per page, with a pool of 2 pages in flight. Offsets are known once page 1 returns `totalHits`.
@@ -1769,32 +1823,30 @@ With `expressionFilter` (a lowercased needle) it also reads `template/expression
 **New service: `src/services/beastModeColumnReplace.js`**
 
 ```js
-export async function applyColumnReplacement({ column, onProgress, replacement, rows, tabId })
-// -> { changedSinceScan: [{ id }], failed: [{ error, id }], log: [{ after, before, datasetId, id, name }],
-//      skippedDone: [{ id }], succeeded: [{ id }] }
+export async function applyColumnReplacement({ column, onProgress, replacement, rows, run, tabId })
+// `run` is the 1.3 journal handle from createRunJournal; each item is planned, started and recorded
+// with { before, after } expressions.
+// -> { changedSinceScan: [{ id }], failed: [{ error, id }], skippedDone: [{ id }], succeeded: [{ id }] }
 
 export function planColumnReplacement({ column, currentUser, detailsByDatasetId, matches, replacement, schemasByDatasetId, userRights })
 // -> PlanRow[] = Match & { canEdit, certification, defaultSelected, isCardBeastMode, isDataModel,
 //                         newExpression, targetMissing, typeChange }
 
-export async function revertColumnReplacement({ log, onProgress, tabId })
-// -> same shape as applyColumnReplacement; writes `before` back where the current expression still equals `after`
-
 export async function scanBeastModesForColumn({ column, datasetIds = null, isCancelled, onProgress, tabId })
-// -> { archivedCount, degraded, matches: Match[], scanned, stoppedEarly, total }
+// -> { degraded, matches: Match[], scanned, stoppedEarly, total }
 // Match = { activeLinkCount, certificationStatus, datasetId, expression, hasQualifiedRef, id, legacyId,
 //           locked, name, owner, refCount, saveTarget, spellings: string[] }
 ```
 
 - **Matching.** `eachExpressionRef(expression, BACKTICK_REF_RE, ...)`, keeping refs where `match[1].toLowerCase() === column.toLowerCase()`. Every distinct spelling goes into `spellings`. A second pass with `QUALIFIED_REF_RE` sets `hasQualifiedRef` when a match has a second group.
 - **Rewrite.** `columnMap = Object.fromEntries(spellings.map((s) => [s, replacement]))`, then `rewriteBeastModeColumns`. Mapping each real spelling makes the exact-match rewriter case-insensitive in effect. No new rewriter.
-- **Data models excluded in v1** (pending open question): a row is `isDataModel` when `isDataModelType(details)` is true for its dataset, or when `hasQualifiedRef` is set. Such rows are listed but disabled.
+- **Data models excluded** (D6.2): a row is `isDataModel` when `isDataModelType(details)` is true for its dataset, or when `hasQualifiedRef` is set. Such rows are listed but disabled.
 - **`canEdit`.** `!locked || String(owner) === String(currentUser.id) || userRights.includes('dataset.admin')`.
 - **`certification`.** `'certified'` for `CERTIFIED`, `'requested'` for `PENDING` or `REQUESTED`, otherwise null.
 - **`targetMissing`.** `resolveColumnName(replacement, indexColumnNames(schemaNames))` is null on the row's dataset. A failed schema read gives `null` ("Couldn't check").
 - **`typeChange`.** Both columns are on the schema and their `type` differs.
 - **`defaultSelected`.** `canEdit && !isDataModel` and no warning flag (`certification`, `locked`, `targetMissing !== false`, `typeChange`). Informational chips (Card Beast Mode) do not deselect.
-- **Archived.** The scan leaves out `notarchived`, so archived matches are counted in `archivedCount` and listed read-only (pending open question).
+- **Archived.** The scan sends `notarchived` alongside `notvariable`, so archived Beast Modes are never read, counted, or listed (D6.5, API finding 14).
 
 **Changes in `src/services/functions.js`** (exports kept alphabetical per `code-style.md`):
 
@@ -1804,17 +1856,14 @@ export async function scanBeastModesForColumn({ column, datasetIds = null, isCan
 - `toBeastModeUpdateEntry(template)`: deep clone, delete `checkSum`, `created`, `lastModified`, `functionTemplateDependencies`. `remapDatasetColumns.js`'s `buildBeastModeUpdateEntry` is identical and is replaced by it. `migrateBeastModeUsage.js`'s `buildNestingUpdateEntry` starts from it. This is a pure refactor and does not touch either save path.
 - `describeBeastModeUpdateError(err)`: moved from `migrateBeastModeUsage.js`, exported, imported back there.
 
-**Batch save: `src/utils/batchWithFallback.js`**, built to the signature and semantics of `docs/plans/beta-phase-1-2-retries-concurrency.md` section 6, if 1.2 step 6 has not landed yet:
+**Batch save through 1.2's `batchWithFallback`** (`src/utils/batchWithFallback.js`, landed by 1.2 step 6 or by #8, to the amended signature in Shared infrastructure across issues). #6 builds none of it:
 
-```js
-batchWithFallback(items, { canFallBack, chunkSize, profile, sendBatch, sendOne });
-// -> [{ error, item, ok, partial? }] in input order
-```
-
+- `sendBatch` is `updateDatasetFunctions`, `sendOne` is `saveFunctionTemplate`, `chunkSize` is 50, and `profile` is `RETRY_SAFE`, since 1.2 classes Beast Mode bulk `{update}` as safe to repeat. Each send goes through 1.2's `withRetry`.
 - The default `canFallBack` falls back only on a definite 4xx other than 429. A 5xx or an exhausted 429 marks the whole chunk failed without firing single calls.
-- Chunks run serially. `profile` is accepted, and each send goes through `withRetry(fn, { profile })` once `src/utils/retry.js` (1.2 step 3) exists. Until then it calls `fn` directly. The view passes `RETRY_SAFE`, since 1.2 classes Beast Mode bulk `{update}` as safe to repeat.
-- `sendBatch` is `updateDatasetFunctions`, `sendOne` is `saveFunctionTemplate`, and `chunkSize` is 50.
-- Only the new view uses it in #6. Moving Remap Columns, Migrate Beast Mode Usage, Migrate Downstream Content and `transferFunctions` onto it stays with 1.2 step 6, whose caller table already lists them.
+- `onSend` calls `run.start(keys)` and `onSettled` calls `run.record(...)` with `{ before, after }` expressions, and drives the "Saved 50 of 80" count.
+- By the time #6 lands, 1.2 step 6 has also moved Remap Columns, Migrate Beast Mode Usage, Migrate Downstream Content and `transferFunctions` onto it, so #6 does not touch their save paths.
+
+**Change record through the 1.3 journal** (D6.1, D6.6). Before the first write the view calls `createRunJournal({ feature: 'replaceBeastModeColumns', instance, subject, params: { column, replacement, scope } })` and `run.plan(items)` over the Beast Modes it will try. Each item's entry carries `{ before, after }` expressions plus its dataset and card. #6 adds the `replaceBeastModeColumns` feature label and an Excel row mapper (columns DataSet, Card, Beast Mode, ID, Before, After, Outcome) to Recent Runs. If `createRunJournal` fails, the run does not start, per 1.3. There is no Undo and no in-view log: reverting means editing each Beast Mode, using the run's `before` expressions from Recent Runs.
 
 **`src/components/SqlBlock.jsx`: whole-identifier highlight.** Add an optional `identifiers` prop (an array of names). A segment is marked when its className contains `token identifier` but not `punctuation`, and its text matches a name case-insensitively. Comments and strings are separate token types, so they are never marked, and `Region Code` is a different identifier. The existing `query` substring behavior stays as it is for `DataflowInspector`.
 
@@ -1826,10 +1875,9 @@ batchWithFallback(items, { canFallBack, chunkSize, profile, sendBatch, sendOne }
   column: '',
   page: 'find' | 'scanning' | 'review' | 'applying' | 'results',
   replacement: '',
-  results: null | { changedSinceScan, failed, log, skippedDone, succeeded },
+  results: null | { changedSinceScan, failed, runId, skippedDone, succeeded },
   rows: [],                        // PlanRow[]
-  runKind: null | 'apply' | 'undo',
-  scan: { archivedCount: 0, degraded: false, scanned: 0, stoppedEarly: false, total: 0 },
+  scan: { degraded: false, scanned: 0, stoppedEarly: false, total: 0 },
   scope: { datasets: [{ id, name }], mode: 'datasets' | 'all' },
   selectedIds: new Set()
 }
@@ -1842,13 +1890,11 @@ batchWithFallback(items, { canFallBack, chunkSize, profile, sendBatch, sendOne }
 - **Apply, fresh read (per beta 1.4 and D2).** Re-read each selected template with `getFunctionTemplate` in a pool of 5, recording a per-row failure "Couldn't read the current formula." for a failed read. `hydrateFunctionTemplates` does exactly this and now returns its `failures` (pre-existing bug 5), so it can be used here.
   - The fresh template has no ref to the Find column: record `skippedDone` ("Already up to date").
   - The fresh `expression` differs from the scanned one: skip as `changedSinceScan`. This is a strict equality check, so an edit that touched only a comment or whitespace is also skipped. That is acceptable, since it errs toward not writing an unreviewed change.
-  - Otherwise rewrite the **fresh** template through `toBeastModeUpdateEntry` and `rewriteBeastModeColumns`, then hand it to `batchWithFallback`. The fresh `before` goes into the log.
+  - Otherwise rewrite the **fresh** template through `toBeastModeUpdateEntry` and `rewriteBeastModeColumns`, then hand it to `batchWithFallback`. The fresh expression is the journal entry's `before`.
 - **Tab changes mid-run.** Before each chunk, `getValidTabForInstance(instance)` re-resolves the tab. If no tab on the instance is left, the run stops, the unsent rows are reported as "Not attempted: no Domo tab for this instance is open.", and Results lists them.
-- **Panel closes mid-run.** Unsent chunks are never sent. Each item is atomic, so nothing is half-written. Until beta 1.3 lands nothing records the run. Download Change Log is only offered afterward.
-- **Run lock.** While scanning, applying or undoing, the view passes `unsupportedReason: 'Wait for the run to finish'` to `buildReloadAction` (an existing parameter, VERIFIED-CODE), and its own Back and Cancel buttons are disabled except the scan's Cancel. Once beta 1.6 lands the view calls `useRunLock(isRunning, 'Replace Columns in Beast Modes')`, which also covers close, popup launches and action bar launches. The view is added to 1.6's "Which views lock" table.
+- **Panel closes mid-run.** `useRunLock` blocks closing the view while a run is active (1.6). If the side panel itself closes, unsent chunks are never sent, each item is atomic so nothing is half-written, and the journal keeps every started item, so Recent Runs shows the run as interrupted with what was written.
+- **Run lock.** While scanning or applying, the view calls `useRunLock(isRunning, 'Replace Columns in Beast Modes')`, which covers close, Back, reload, popup launches and action bar launches, and is listed in 1.6's "Which views lock" table. The scan's Cancel stays available.
 - **Validation.** Find is non-empty after trimming and differs from Replace (case-insensitive). Neither may contain a backtick. Replace may contain spaces and punctuation, since the rewriter re-wraps it in backticks.
-
-**Undo and the change journal.** Undo reuses `applyColumnReplacement`'s machinery in reverse: fresh read, write `before` only where the current expression still equals `after`, and save through `batchWithFallback`. Beta 1.3's journal (`docs/plans/beta-phase-1-3-change-journal.md`) has no Restore action (it is listed as out of scope there). So Undo is not a second copy of a planned rollback. When 1.3 lands, the view records each item through `createRunJournal({ feature: 'replaceBeastModeColumns', subject })` with `before`/`after` expressions, Download Change Log becomes the journal download, and Undo reads its `log` from the run's entries. The in-session log array then goes away.
 
 ### UX
 
@@ -1866,7 +1912,7 @@ batchWithFallback(items, { canFallBack, chunkSize, profile, sendBatch, sendOne }
 3. **Review.** Beast Modes grouped by dataset, with card Beast Modes nested under their card. Each row shows chips and an expandable before and after formula. Select rows, then press **Replace in N Beast Modes**.
 4. **Confirm.** AlertDialog with **Replace**. It becomes a HoldToConfirmButton **Hold to Replace** when the selection includes a certified or certification-requested Beast Mode.
 5. **Applying.** Progress bar, no cancel.
-6. **Results.** Outcome per Beast Mode, plus **Download Change Log**, **Undo Changes**, **Retry Failed** (when any failed), **Find Again** and **Done**.
+6. **Results.** Outcome per Beast Mode, plus **View in Recent Runs**, **Retry Failed** (when any failed), **Find Again** and **Done**.
 
 **Find screen**
 
@@ -1910,8 +1956,6 @@ Both radio labels are sentence case. Find and Replace are Autocompletes over the
 +----------------------------------------------------------+
 | 84 Beast Modes on 24 DataSets use `Region`               |
 | (i) `Sales Region` is missing on 3 of these datasets.    |
-| (i) 2 archived Beast Modes also use `Region` and were    |
-|     left alone.                                          |
 |----------------------------------------------------------|
 | [v] [db] Sales Pipeline                           12     |
 |    [x] Region Rollup                                     |
@@ -1944,7 +1988,7 @@ Both radio labels are sentence case. Find and Replace are Autocompletes over the
 **Confirm dialog**
 
 - Title: **Replace `Region` in 80 Beast Modes?**
-- Body: "Each selected Beast Mode's formula will reference `Sales Region` instead. Cards using these Beast Modes pick up the change right away."
+- Body: "Each selected Beast Mode's formula will reference `Sales Region` instead. Cards using these Beast Modes pick up the change right away. This can't be undone here, but Recent Runs keeps every original formula."
 - Added when any certified rows are selected: "**2** certified Beast Modes will lose their certification."
 - Added when any certification-requested rows are selected: "**1** open certification request will be canceled."
 - Buttons: **Cancel** and **Replace**, or **Cancel** and HoldToConfirmButton **Hold to Replace** when either line above applies.
@@ -1968,26 +2012,21 @@ Both radio labels are sentence case. Find and Replace are Autocompletes over the
 |                                the scan), 1 already up   |
 |                                to date                   |
 |----------------------------------------------------------|
-| [ Download Change Log ] [ Undo Changes ] [ Retry Failed ]|
-| [ Find Again ]                                 [ Done ]  |
+| (i) Recent Runs keeps every formula before and after.    |
+| [ View in Recent Runs ] [ Retry Failed ] [ Find Again ]  |
+|                                                [ Done ]  |
 ```
 
-- **Retry Failed** re-runs apply on the failed rows only (fresh read again). Succeeded rows drop out of the selection, following beta 1.5.
+- **View in Recent Runs** opens the 1.3 Recent Runs page on this run, where its Excel and JSON downloads live.
+- **Retry Failed** re-runs apply on the failed rows only (fresh read again), as a new journal run. Succeeded rows drop out of the selection, following beta 1.5.
 - **Find Again** returns to Find with the same scope and fields, so a fresh scan shows what is left.
 - Failure text goes through `describeBeastModeUpdateError`. A 403 maps to "You don't have permission to edit this Beast Mode." Any other error shows Domo's message.
-
-**Undo confirm**
-
-- Title: **Undo Changes to 77 Beast Modes?**
-- Body: "Each Beast Mode's formula goes back to referencing `Region`. Beast Modes edited since the replacement are skipped. Certification and certification requests don't come back, and this counts as another edit to each Beast Mode."
-- Buttons: **Cancel** and **Undo Changes** (plain AlertDialog, no hold: it restores reviewed text and cannot cost a certification that has not already gone).
-- Progress: "Restoring 50 of 77...". Results reuse the Results layout with the title "Restored the original formula of 75 of 77 Beast Modes".
+- There is no Undo (D6.6). The confirm dialog says so: see below.
 
 **States and copy.** Toast titles are Title Case. Descriptions end with a period.
 
 - **Loading context:** the standard view spinner.
 - **Empty result:** toast **No Beast Modes Found**, "No Beast Modes on **Sales Pipeline** reference `Region`." Instance-wide: "No Beast Modes in this instance reference `Region`." The view stays on Find.
-- **Only archived matches:** toast **No Beast Modes Found**, "Only archived Beast Modes reference `Region`, and they were left alone."
 - **Validation:** inline field errors "Enter the column to find.", "Choose a different column to replace it with." and "Column names can't contain backticks."
 - **Scan cancelled:** Review shows what was found so far, with the banner "The scan was stopped after 41,000 of 94,338 Beast Modes. Results may be incomplete."
 - **Scan failed:** ErrorAlert "Couldn't search Beast Modes: <message>." with **Try Again**.
@@ -1998,36 +2037,40 @@ Both radio labels are sentence case. Find and Replace are Autocompletes over the
 - **Success:** toast **Beast Modes Updated**, "Replaced `Region` with `Sales Region` in 80 Beast Modes.", success.
 - **Tab lost mid-run:** toast **Replacement Stopped**, "No Domo tab for this instance is open, so the remaining Beast Modes weren't updated.", warning.
 - **Row notes:** "Skipped: edited after the scan.", "Already up to date.", "Couldn't read the current formula.", "Not attempted: no Domo tab for this instance is open."
-- **Undo success:** toast **Changes Undone**, "Restored the original formula of 77 Beast Modes."
+- **Journal unavailable:** if `createRunJournal` fails, nothing is written and the confirm shows "Couldn't start a record of this run, so nothing was changed: <message>."
 
 ### Implementation plan
 
 0. **Live check before UI work: card Beast Mode propagation (finding 10).** On a scratch dataset with a data version (create it with `POST /api/data/v1/streams` (`createStreamAndDataset`, SPEC-ONLY) and upload one CSV row, since a schema-only dataset rejected card create), create a scratch card through `PUT /api/content/v3/cards/kpi?pageId=-100000` with one card-level formula. Update that template through `bulk/template`, re-read `kpi/definition`, and confirm `formulas[].formula` changed. Then save the card once through the same PUT with the formulas it returned, and confirm the template keeps the new expression. Delete the card (`DELETE /api/content/v1/cards/bulk?cardIds=`, VERIFIED-CODE), the template and the dataset. If the card holds its own copy, card Beast Modes drop out of v1.
-1. **`src/utils/batchWithFallback.js` (new, unless 1.2 step 6 landed).** Implemented to 1.2 section 6 (default `canFallBack`, serial chunks, input-order results). `withRetry` is used when `src/utils/retry.js` exists.
-2. **`src/services/functions.js`.** Add `searchFunctionsPage`, `saveFunctionTemplate`, `toBeastModeUpdateEntry`, and `describeBeastModeUpdateError` (moved). Swap the private strips in `src/services/remapDatasetColumns.js` (`buildBeastModeUpdateEntry`, removed) and `src/services/migrateBeastModeUsage.js` (`buildNestingUpdateEntry`'s first five lines) for `toBeastModeUpdateEntry`, and import `describeBeastModeUpdateError` in `migrateBeastModeUsage.js`. No save-path change in either.
-3. **`src/components/SqlBlock.jsx`.** Add the `identifiers` prop.
-4. **`src/services/beastModeColumnReplace.js` (new).** `applyColumnReplacement`, `planColumnReplacement`, `revertColumnReplacement`, `scanBeastModesForColumn`. Reuses `eachExpressionRef`, `BACKTICK_REF_RE`, `QUALIFIED_REF_RE` (`columnFields.js`), `rewriteBeastModeColumns` (`columnRewriter.js`), `fetchDatasetSchemaColumns` (`columnReferences.js`), `isDataModelType` (`utils/datasetTypes.js`), `indexColumnNames`/`resolveColumnName` (`utils/columnOrphans.js`), `beastModeSaveTarget`/`datasetIdFromBeastModeLinks` (`utils/beastModeLinks.js`), `getFunctionTemplate`, `getDatasetDetailsForList`, `getCardsByIds`, `getValidTabForInstance` (`utils/currentObject.js`) and `batchWithFallback`.
-5. **`src/components/buttons/ReplaceBeastModeColumns.jsx` (new).** Same shape as `RemapColumns.jsx`: `useLaunchView`, `type: 'replaceBeastModeColumns'`, the label, the tooltip and `IconColumnArrowsIn` from `@icons/column-arrows-in.svg?react`.
-6. **`src/utils/availableActions.js`.** Add `replaceBeastModeColumns` in the `isDataset` block (skipped for `DATA_MODEL`) and in the `BEAST_MODE_FORMULA` branch, behind the rights gate the open question settles.
-7. **`src/components/ActionButtons.jsx`.** Render the button right after the `remapColumns` block (lines 288-289) behind `availableActions.has('replaceBeastModeColumns')`.
-8. **`src/components/views/ReplaceBeastModeColumnsView.jsx` (new).**
+1. **Prerequisites (D6.1).** Confirm 1.2 (`src/utils/batchWithFallback.js`, `src/utils/retry.js`, and step 6's caller retrofit), 1.3 (`src/utils/runJournal.js` and Recent Runs) and 1.6 (`src/hooks/useRunLock.js`) have landed. #6 builds none of them.
+2. **Gate the shipped siblings (D6.4), its own commit.** In `src/utils/availableActions.js`, gate `remapColumns` and `migrateBeastModeUsage` on `content.card.edit` or `content.admin`. Add a UI/UX Changes bullet to `docs/RELEASE_NOTES.md` (draft below). This can land before the rest of #6.
+3. **`src/services/functions.js`.** Add `searchFunctionsPage`, `saveFunctionTemplate`, `toBeastModeUpdateEntry`, and `describeBeastModeUpdateError` (moved). Swap the private strips in `src/services/remapDatasetColumns.js` (`buildBeastModeUpdateEntry`, removed) and `src/services/migrateBeastModeUsage.js` (`buildNestingUpdateEntry`'s first five lines) for `toBeastModeUpdateEntry`, and import `describeBeastModeUpdateError` in `migrateBeastModeUsage.js`. No save-path change in either.
+4. **`src/components/SqlBlock.jsx`.** Add the `identifiers` prop.
+5. **`src/services/beastModeColumnReplace.js` (new).** `applyColumnReplacement`, `planColumnReplacement`, `scanBeastModesForColumn` (with `notarchived` in its filters). Reuses `eachExpressionRef`, `BACKTICK_REF_RE`, `QUALIFIED_REF_RE` (`columnFields.js`), `rewriteBeastModeColumns` (`columnRewriter.js`), `fetchDatasetSchemaColumns` (`columnReferences.js`), `isDataModelType` (`utils/datasetTypes.js`), `indexColumnNames`/`resolveColumnName` (`utils/columnOrphans.js`), `beastModeSaveTarget`/`datasetIdFromBeastModeLinks` (`utils/beastModeLinks.js`), `getFunctionTemplate`, `getDatasetDetailsForList`, `getCardsByIds`, `getValidTabForInstance` (`utils/currentObject.js`), `batchWithFallback` and the journal `run` handle.
+6. **`src/components/buttons/ReplaceBeastModeColumns.jsx` (new).** Same shape as `RemapColumns.jsx`: `useLaunchView`, `type: 'replaceBeastModeColumns'`, the label, the tooltip and `IconColumnArrowsIn` from `@icons/column-arrows-in.svg?react`.
+7. **`src/utils/availableActions.js`.** Add `replaceBeastModeColumns` in the `isDataset` block (skipped for `DATA_MODEL`) and in the `BEAST_MODE_FORMULA` branch, gated on `content.card.edit` or `content.admin`.
+8. **`src/components/ActionButtons.jsx`.** Render the button right after the `remapColumns` block (lines 288-289) behind `availableActions.has('replaceBeastModeColumns')`.
+9. **`src/components/views/ReplaceBeastModeColumnsView.jsx` (new).**
    - Find: RadioGroup, `DatasetComboBox` adding entries shown with `FittedTagGroup`, and one Autocomplete per column following `RemapColumnsView`'s virtualized `BrokenColumnRow` pattern.
    - Scanning and Applying: ProgressBar.
    - Review and Results: `DataList` with `selectionMode`, `beta`, `itemActions={['copy']}`, groups by dataset and card, `DataListItem`, `AlertStatusIcon`, and the `ViewHeader` banner.
    - Formulas: `SqlBlock` with `identifiers`.
    - Confirm: `AlertDialog`, with `HoldToConfirmButton` (`src/components/buttons/HoldToConfirmButton.jsx`) when certification is at stake.
-   - Change Log: `exportToExcel` and `generateExportFilename` (`utils/exportData.js`), with columns DataSet, Card, Beast Mode, ID, Before, After and Outcome.
+   - Journal: `createRunJournal` before the first write, `run.finish(outcome)` after the last, and a **View in Recent Runs** button on Results.
+   - Run lock: `useRunLock(isRunning, 'Replace Columns in Beast Modes')`, with `isRunning` true while scanning or applying.
    - Plumbing: `useStatusBar`, `useViewReady`, and `getSidepanelData` checking `data.type === 'replaceBeastModeColumns'` (as `RemapColumnsView` does).
-   - Reload: `buildReloadAction({ viewType: 'replaceBeastModeColumns', unsupportedReason: isRunning ? 'Wait for the run to finish' : undefined, ... })`. No `headerActions.jsx` change, since it resolves `viewType` through `getAvailableActions`.
-9. **`src/sidepanel/App.jsx`.** Import the view and add `slot.type === 'replaceBeastModeColumns'` next to `remapColumns` (line 562). A grep for the sibling `deleteUnusedBeastModes` shows views are enumerated only in `App.jsx`, `availableActions.js`, `ActionButtons.jsx` and the button, so that list is complete.
-10. **Docs.**
+   - Reload: `buildReloadAction({ viewType: 'replaceBeastModeColumns', ... })`. No `headerActions.jsx` change, since it resolves `viewType` through `getAvailableActions`.
+10. **Recent Runs.** Add the `replaceBeastModeColumns` feature label and an Excel row mapper (DataSet, Card, Beast Mode, ID, Before, After, Outcome) where 1.3 keeps them.
+11. **Remap Columns link (D6.7).** In `RemapColumnsView.jsx`, give the "Nothing to Remap" toast (around line 421) an action that launches `replaceBeastModeColumns` on the same dataset, when `availableActions.has('replaceBeastModeColumns')`.
+12. **`src/sidepanel/App.jsx`.** Import the view and add `slot.type === 'replaceBeastModeColumns'` next to `remapColumns` (line 562). A grep for the sibling `deleteUnusedBeastModes` shows views are enumerated only in `App.jsx`, `availableActions.js`, `ActionButtons.jsx` and the button, so that list is complete.
+13. **Docs.**
     - `docs/RELEASE_NOTES.md` WIP bullet (below).
     - `store-listing/STORE_LISTING.txt` at release time, per `store-listing.md`.
-    - Add the view to the lock table in `docs/plans/beta-phase-1-6-run-lock.md`, and note `batchWithFallback`'s first consumer in `docs/plans/beta-phase-1-2-retries-concurrency.md` section 6.
+    - Add the view to the lock table in `docs/plans/beta-phase-1-6-run-lock.md`, and add #6 to the callers table in `docs/plans/beta-phase-1-2-retries-concurrency.md` section 6.
     - `docs/CONTRIBUTING.md` does not list views, so it needs no change.
-11. **Lint.** `npx eslint --no-warn-ignored` on every touched file.
+14. **Lint.** `npx eslint --no-warn-ignored` on every touched file.
 
-**Shared with other work.** `batchWithFallback` belongs to beta 1.2 step 6, and #6 is just its first consumer. Undo and Change Log move onto the 1.3 journal when it lands. Run-lock behavior moves to 1.6's `useRunLock`. The fresh-read and changed-since-scan rules follow 1.4/D2, and Retry Failed follows 1.5. `searchFunctionsPage` is the shared paged search the four existing loops can adopt later.
+**Shared with other work.** #6 consumes 1.2's `batchWithFallback` and `withRetry`, 1.3's journal and Recent Runs, and 1.6's `useRunLock`, and builds none of them. The fresh-read and changed-since-scan rules follow 1.4/D2, and Retry Failed follows 1.5. `searchFunctionsPage` is the shared paged search the four existing loops can adopt later.
 
 ### Edge cases and risks
 
@@ -2036,8 +2079,8 @@ Both radio labels are sentence case. Find and Replace are Autocompletes over the
 - **Partial-name collisions.** `` `Region Code` `` does not match `Region`, in the matcher or in the highlight.
 - **Beast Mode named like the column.** It keeps its name, since the rewriter only touches `name` under column-list parents (VERIFIED-CODE).
 - **Nested Beast Modes.** `DOMO_BEAST_MODE(<id>)` calls are untouched. A nested child that references the column is its own match. The parent's `nonAggregatedColumns` is recomputed by the server.
-- **Data model Beast Modes** (40 expressions instance-wide) are listed but disabled in v1. A data model dataset never gets the button.
-- **Variables** are excluded (`notvariable`). **Archived** matches are counted, not edited.
+- **Data model Beast Modes** (40 expressions instance-wide) are listed but disabled. A data model dataset never gets the button.
+- **Variables** are excluded (`notvariable`). **Archived** Beast Modes are excluded (`notarchived`): none was in use on domo.domo.com (finding 14). Restoring one later brings back its old reference, which this tool will not have rewritten.
 - **Card Beast Modes** are 56% of real hits, and their propagation is settled in step 0 before UI work.
 - **Drill Beast Modes** (saved to `dr:<drillId>:<rootId>`) take the same template path and group under their root card.
 - **Target already in the formula.** Fine, the formula references it twice.
@@ -2045,25 +2088,27 @@ Both radio labels are sentence case. Find and Replace are Autocompletes over the
 - **Large instances.** One to three minutes for about 94k Beast Modes. The scan is cancellable with progress, and only candidates are held in memory.
 - **Concurrent edits.** No `checkSum` enforcement, so the fresh read is the only guard. A short window between re-read and write remains, which is acceptable.
 - **Certification.** Any edit sets EXPIRED. This was tried three ways and cannot be avoided from the client. Certified and requested rows are opt-in with a hold.
-- **Undo after another edit.** Revert skips Beast Modes whose current expression is not the `after` text. Undo is another `lastModified` bump and does not restore certification.
+- **No Undo** (D6.6). A wrong replacement is reverted by hand, one Beast Mode at a time, from the `before` expressions in Recent Runs. The confirm says so, and the default selection leaves every warned row out.
 - **Owner and lastModified.** `owner` survives because the full template goes back. `lastModified` shows the editor.
-- **No change to shipped save paths.** Remap Columns, Migrate Beast Mode Usage and Migrate Downstream Content keep their atomic save until 1.2 step 6. #6 touches them only through the identical field-strip swap and the moved error translator.
-- **Panel close mid-run** before 1.6 and 1.3 cannot be prevented, and leaves no record. Writes are per item, so nothing is half-written.
+- **Shipped save paths.** #6 lands after 1.2 step 6 has retrofitted Remap Columns, Migrate Beast Mode Usage and Migrate Downstream Content, and touches them only through the identical field-strip swap and the moved error translator.
+- **Sibling buttons lose some users** (D6.4). Users without `content.card.edit` or `content.admin` stop seeing Remap Columns and Migrate Beast Mode Usage. Logged as a UI/UX change.
+- **Panel close mid-run.** `useRunLock` blocks the view's own close; a closed side panel stops unsent chunks, and the journal records what was written. Writes are per item, so nothing is half-written.
 
 ### Testing and verification
 
-- **No `/dev-*` route.** Use the CRXJS dev extension while `yarn dev` runs, and `node scripts/ext-shot.js sidepanel --live` with a dataset page open to capture Find, Review, Results and the Undo confirm in light and dark themes. Check the popup button with `node scripts/ext-shot.js popup --live`.
+- **No `/dev-*` route.** Use the CRXJS dev extension while `yarn dev` runs, and `node scripts/ext-shot.js sidepanel --live` with a dataset page open to capture Find, Review, the confirm and Results in light and dark themes. Check the popup button with `node scripts/ext-shot.js popup --live`.
 - **Step 0 card check** (above), before any UI work.
 - **Live checks on a scratch dataset** named `domo-toolkit-probe-6-<purpose>`, created and deleted for the purpose:
   1. Beast Modes referencing `` `Old Col ``, one with a commented ref, one lowercase `` `old col` ``, one `` `Old Col Code` ``. Replace with `New Col`. The first two update, the comment stays, `Old Col Code` is untouched, and `columnPositions` and `nonAggregatedColumns` come back right.
   2. Replace with a missing column. The row shows Target missing and starts unselected. Opted in, it saves with `links[].valid === 'ILLEGAL_REFERENCE'`.
   3. Edit a Beast Mode in Domo between scan and apply: it is reported as edited after the scan.
   4. Delete one selected Beast Mode in Domo before apply: its chunk falls back on the 400, and the rest save.
-  5. Undo restores the originals and skips one edited in between.
-  6. Navigate the Domo tab to another page mid-apply: the run continues on the re-resolved tab. Close the tab: the run stops with the tab-lost toast.
+  5. Recent Runs lists the run with each Beast Mode's `before` and `after`, and its Excel download has the DataSet, Card, Beast Mode, ID, Before, After and Outcome columns. Archive one scratch Beast Mode first and confirm the scan never lists it.
+  6. Navigate the Domo tab to another page mid-apply: the run continues on the re-resolved tab. Close the tab: the run stops with the tab-lost toast, and Recent Runs shows the unsent items as not attempted.
 - **Read-only instance-wide check** on domo.domo.com: progress reaches `totalHits`, Cancel stops between pages, and `Region` finds about 84 Beast Modes on about 24 datasets, with 6 showing Certification requested and the data model dataset rows disabled.
 - **Highlight:** `Region Code`, a `'Region'` literal and a commented ref are not highlighted in the before formula.
-- **Permission:** with a non-admin test user, the button follows the chosen gate, and a Beast Mode locked by someone else is disabled (or, when forced, fails with the permission row note).
+- **Permission:** with a test user who has neither `content.card.edit` nor `content.admin`, none of Replace Columns in Beast Modes, Remap Columns and Migrate Beast Mode Usage shows. With `content.card.edit`, all three show, and a Beast Mode locked by someone else is disabled (or, when forced, fails with the permission row note).
+- **Remap Columns link:** on a dataset with nothing to remap, the toast action opens Replace Columns in Beast Modes on that dataset.
 - **Regression** for the refactor: Remap Columns on a dataset with orphaned Beast Mode refs, and Migrate Beast Mode Usage on a nesting parent, behave as before, including the `ILLEGAL_DEPTH` message.
 - **Lint:** ESLint on every touched file.
 
@@ -2076,7 +2121,11 @@ Both radio labels are sentence case. Find and Replace are Autocompletes over the
 - **Whole-token, case-insensitive matching that ignores comments and strings,** which is how Domo resolves refs (`columnOrphans.js`). The server ignored commented refs in `columnPositions`.
 - **Reuse `rewriteBeastModeColumns` with a spelling map.** No new rewriter, and scanner and rewriter stay in lockstep through `columnFields.js`.
 - **Do not maintain `columnPositions` or `nonAggregatedColumns`.** Both were recomputed server-side from a stale body (VERIFIED-LIVE). `nonAggregatedExpressions` never appears on a GET template. So `toBeastModeUpdateEntry` strips only the four existing fields.
-- **Build `batchWithFallback` to the 1.2 spec and wire only the new view.** This avoids a duplicate helper and keeps #6 off the shipped save paths, whose retrofit 1.2's caller table already owns. It also drops the draft's mistaken claim that `migrateDownstreamContent.js:2299` callers expect a throw (they don't).
+- **Wait for 1.2, 1.3 and 1.6 and build on them** (D6.1). No stand-ins to swap out later, and #6 stays off the shipped save paths, whose retrofit 1.2's caller table owns. It also drops the draft's mistaken claim that `migrateDownstreamContent.js:2299` callers expect a throw (they don't).
+- **The 1.3 journal is the only change record, with no Undo** (D6.6). Recent Runs already carries JSON and Excel downloads, so an in-view log would duplicate it.
+- **Ignore archived Beast Modes** (D6.5). All 24 on domo.domo.com were unused (finding 14).
+- **One rights gate for all three Beast Mode write tools** (D6.4): `content.card.edit` or `content.admin`, the authority Domo names for Beast Mode edits.
+- **Link from Remap Columns' "Nothing to Remap" toast** (D6.7), for users who reach for the wrong tool.
 - **Fall back only on a definite 4xx.** That is 1.2's `canFallBack` default. Firing single calls at a 5xx makes a struggling instance worse.
 - **Fresh read, strict changed-since-scan, and "already up to date" skip,** per 1.4/D2. `getFunctionTemplate` is used directly so a failed read becomes a row failure.
 - **Certification-requested rows are treated like certified ones** (own chip, unselected, hold). An edit cancels the request, and on domo.domo.com requests outnumber certifications 11,989 to 0.
@@ -2085,16 +2134,19 @@ Both radio labels are sentence case. Find and Replace are Autocompletes over the
 - **Whole-identifier highlight in `SqlBlock`.** The existing substring `query` would mark `Region Code`, literals and comments, and Prism splits backticks off identifiers, so a backticked query would match nothing.
 - **Distinct icon `column-arrows-in.svg`.** `column-edit.svg` is Remap Columns' icon, and `swap-horizontal.svg` is Migrate Content's.
 - **Tooltip without a trailing period** to match Remap Columns. Radio labels in sentence case.
-- **Interim run lock through `buildReloadAction`'s `unsupportedReason`,** then `useRunLock` when 1.6 lands.
-- **Undo stays in-session and moves onto the 1.3 journal later.** The journal plan has no Restore action, so Undo is not a duplicate rollback.
+- **Run lock through 1.6's `useRunLock` from the start,** since #6 lands after 1.6.
 - **Error copy through `describeBeastModeUpdateError`,** moved to `functions.js` and exported.
 - **One find and replace pair per run in the UI,** though the service takes a map. It keeps the review readable.
 - **The button shows in the popup too.** `ActionButtons` is shared, and a popup press opens the side panel through `launchView`.
-- **No Remap Columns release note in #6.** The atomic save did ship in v1.9.0 (`git show refs/tags/v1.9.0:src/services/remapDatasetColumns.js`, line 249). But #6 no longer changes it, so that bullet belongs to 1.2.
+- **No Remap Columns save-path release note in #6.** The atomic save did ship in v1.9.0 (`git show refs/tags/v1.9.0:src/services/remapDatasetColumns.js`, line 249). But #6 no longer changes it, so that bullet belongs to 1.2. The new rights gate on Remap Columns and Migrate Beast Mode Usage does get its own note (below).
 
 ### Release notes draft
 
 - Added Replace Columns in Beast Modes, which finds every Beast Mode that uses a column on one or more datasets, or across the whole instance, and replaces it with another column in bulk. ([#6](https://github.com/brycewc/domo-toolkit/issues/6))
+
+UI/UX Changes (its own commit, no issue link):
+
+- Remap Columns and Migrate Beast Mode Usage now only show for users who can edit cards and Beast Modes.
 
 ## #80: Update Code Engine Functions in a Custom App to the Latest Version
 
@@ -2122,7 +2174,7 @@ Interpretations considered:
 
 - **A. Update the instance (card) pins.** This changes what the card runs. **Planned**, for both one card and every card built from a design.
 - **B. Rewrite the design manifest pins.** **Not planned.** The developer's next `domo publish` reverts it, and instance pins override it anyway. The view shows the design's pin read-only.
-- **C. Start from a Code Engine package and update every app that uses it.** Deferred to a follow-up (Open Questions). The service is shaped to take that scope later.
+- **C. Start from a Code Engine package and update every app that uses it.** Deferred to a follow-up (D80.2). The service is shaped to take that scope later.
 - **D. "Latest" means the newest version, unreleased included.** Rejected. The target is the newest **released** version, matching Update Action Versions. The user can pick any released version per package.
 
 ### Scope check
@@ -2265,7 +2317,7 @@ There is no feature-switch check. The data gate already implies Code Engine exis
 | `blocked`     | function missing at target                                                       | not selectable, reason says to rewire it in the card's editor                                                            |
 | `downgrade`   | own pin newer than target, including unreleased pins ahead of the latest release | not preselected. Selectable, chip "Downgrade" or "Unreleased v{pin}"                                                     |
 | `nonSemver`   | own pin isn't `x.y.z` (for example `latest`)                                     | not preselected. Selecting writes the concrete target                                                                    |
-| `inherited`   | `source === 'design'`                                                            | per Open Question 1 (recommended: shown read-only with the design's pin)                                                 |
+| `inherited`   | `source === 'design'`                                                            | not selectable, shown read-only with the design's pin (D80.1)                                                            |
 | `unavailable` | package deleted or unreadable, or `unwired`                                      | not selectable                                                                                                           |
 
 Two per-card flags apply on top of the row status. When neither `isCurrentUserOwner` nor `content.admin` holds, the card's rows lose their preselection and get the chip "You may not own this card". They stay selectable, because group co-ownership coverage is INFERRED. A `notInDesign` alias gets an info chip "Not in the app design" and is otherwise handled normally.
@@ -2309,7 +2361,7 @@ The function returns `{ success, conflict, status, error }`. This is the same th
 3. A **Target versions** block lists each package with its `Select`.
 4. On a card, rows are grouped by package. On a design, cards are `DataList` items with their rows as `children` (DataList's built-in Disclosure sections). Cards with nothing to change start collapsed.
 5. Outdated rows are preselected. Changing a target re-runs the wiring check, and the footer shows "Checking wiring..." with the button disabled.
-6. Click **Update Versions**. A promise toast runs, and the view refreshes in place.
+6. Click **Update Versions**, or hold **Hold to Update Versions** when the selection spans more than one card (D80.3). A promise toast runs, and the view refreshes in place.
 
 **Card scope mockup** (ACE Assistant, card `2141933500`, real data):
 
@@ -2366,7 +2418,7 @@ The function returns `{ success, conflict, status, error }`. This is the same th
 |        You may not own this card                  |
 +---------------------------------------------------+
 | 18 functions on 2 cards will change               |
-| [          (Hold to) Update Versions          ]   |
+| [          Hold to Update Versions            ]   |
 +---------------------------------------------------+
 ```
 
@@ -2401,7 +2453,7 @@ The function returns `{ success, conflict, status, error }`. This is the same th
 ### Implementation plan
 
 1. **Separate bug fix first (not #80).** **Done**, see [Pre-existing bugs found by the plans](#pre-existing-bugs-found-by-the-plans) item 2. `swapAppColumns` now reads and saves through `/api/apps/v1/instances/{instanceId}` alone. #80 should do the same rather than use rows 3, 8, 9 and 10 above, since the project is moving off endpoints outside `/api`. The save in step 4 and the "Save with POST context, PUT context, PUT instance" decision need revisiting on that basis.
-2. **Pool helper.** If `docs/plans/beta-phase-1-2-retries-concurrency.md` step 2 hasn't landed, add `src/utils/promisePool.js` with the same `promisePool(taskFns, concurrency)` signature as `ActivityLogTable.jsx:1846`, and leave moving that call site to the 1.2 work.
+2. **Pool helper.** Import `src/utils/promisePool.js` from #9's commit B. If neither #9 nor `docs/plans/beta-phase-1-2-retries-concurrency.md` step 2 has landed it, build it to 1.2 step 2's `promisePool(tasks, { concurrency, onSettled })` signature (see Shared infrastructure across issues), not the `promisePool(taskFns, concurrency)` form of `ActivityLogTable.jsx:1846`, and leave moving that call site to the 1.2 work.
 3. **Pure helpers.** Add `src/utils/appCodeEngineVersions.js` with `isStrictSemver`, `releasedVersions(versions)`, `buildEffectiveBindings`, `checkWiring`, `classifyAppBinding` and `buildVersionUpdates(rows, selected, packages)`. Reuse `compareSemver` and `classifyContractChanges` (rename hints only).
 4. **Services.** Add `src/services/appCodeEngineVersions.js` with:
    - `getAppCodeEngineBindings({ designId, instanceId, tabId })`, which makes calls #1, #2 (falling back to #3) and #4.
@@ -2416,22 +2468,22 @@ The function returns `{ success, conflict, status, error }`. This is the same th
    - `useStatusBar` (`showPromiseStatus`, and `showStatus` with `actionProps` for Reload Page)
    - `Alert`, HeroUI `Select`, `Chip`, `Checkbox`, `Tooltip`
      A small app-specific `TargetVersionSelect` lives inside the view file, not extracted from the workflow view. Register the slot in `src/sidepanel/App.jsx` next to `updateWorkflowActionVersions`.
-9. **View, design scope (phase 2).** Add the design scope: `DataList` (`src/components/views/DataList.jsx`) items per card with rows as `children`, the skipped-instance subtext, a pooled write, and the multi-card confirmation per Open Question 3 (`src/components/buttons/HoldToConfirmButton.jsx` if chosen).
+9. **View, design scope (phase 2).** Add the design scope: `DataList` (`src/components/views/DataList.jsx`) items per card with rows as `children`, the skipped-instance subtext, a pooled write, and the multi-card confirmation (D80.3): the footer swaps to `src/components/buttons/HoldToConfirmButton.jsx` (default `HOLD_DURATION_FULL`, label "Hold to Update Versions") whenever the selection spans more than one card, and stays a plain **Update Versions** button for one card.
 10. **Docs and lint.** Run `npx eslint --no-warn-ignored` on every touched file. Tick or remove `docs/TODO.md` line 9 ("Update code engine functions in a custom app to the latest version"). Add the WIP bullets to `docs/RELEASE_NOTES.md`. Update `STORE_LISTING.txt` only if its feature list changes, keeping it under the cap.
-11. **Follow-up (separate change, Open Question 2).** A package-side entry from `GetUsageView` on the `instances` group, reading instances from #12 (or #11 per version), feeding the same service with a `packageId` scope.
+11. **Follow-up (separate change, D80.2).** A package-side entry from `GetUsageView` on the `instances` group, reading instances from #12 (or #11 per version), feeding the same service with a `packageId` scope.
 
-Shared work: the change journal (`docs/plans/beta-phase-1-3-change-journal.md`) should record `{ instanceId, cardId, alias, from, to, contextIdBefore, contextIdAfter }` per write when it lands, so a bump can be rolled back. Retries come from 1.2 and the run lock from 1.6.
+Shared work: the view does not journal at first (DX.4). When journaling is revisited after 1.3 ships, the entry per write would be `{ instanceId, cardId, alias, from, to, contextIdBefore, contextIdAfter }`, recorded from the pool's `onSettled`, so a bump can be rolled back. Until then a bump is reverted by re-running the view with the old version as the target. Retries come from 1.2 and the run lock from 1.6.
 
 ### Edge cases and risks
 
 - **Runtime resolution is inferred.** It must be confirmed on a scratch app before shipping (Testing). If it turns out wrong, the feature changes nothing a user can observe.
-- **Miswired-at-pin cards are common** (62 of 549 own bindings). Bumping them doesn't fix them. The view shows the mismatch, and whether to offer a re-sync is Open Question 4.
+- **Miswired-at-pin cards are common** (62 of 549 own bindings). Bumping them doesn't fix them. The view reports the mismatch and never rewires (D80.4); rewiring stays in Domo's editor.
 - **Version-only change can break a call.** The target can require an input that the wiring doesn't fill, or remove one it binds. Those rows are review-only and never preselected. A deleted function is blocked.
 - **Nested schemas.** Output and input `children` are checked by name, so a renamed nested field lands in review rather than being treated as safe.
 - **Several versions of one package on one card.** The per-package target moves them all, and each alias is classified separately.
 - **Unreleased and `latest` pins.** These are guarded by `isStrictSemver` and never preselected.
 - **Deleted packages** are common (41% of slots on domo.domo.com, mostly one template). They are shown as unavailable and never written.
-- **Inherited aliases.** Writing them would change "follows the design" into "pinned" (Open Question 1). The recommended default never writes them.
+- **Inherited aliases.** Writing them would change "follows the design" into "pinned", so the view never writes them (D80.1).
 - **Own aliases not in the design version.** Domo's editor drops them on its next save. The view keeps them and shows an info chip.
 - **Concurrent edit.** The `context.id` check runs against a fresh read inside the same page call that writes. A window of a few hundred milliseconds remains.
 - **A card open while updating** keeps the old iframe until reload. The card-scope toast offers Reload Page.
@@ -2489,6 +2541,7 @@ Run ESLint on every touched file.
 - **Don't extract the workflow view's Select.** It is bound to that view's group model, and extracting it would refactor a shipped view for no shared behavior.
 - **Ship the swapAppColumns fix separately.** It is a v1.9.0 bug unrelated to #80, so it gets its own commit and note without the issue link, per `wip-release-notes.md`.
 - **Phase it: card scope, then design scope.** The design scope adds only the DataList grouping, pooling and confirmation on top of the same services.
+- **Maintainer decisions** (D80.1 to D80.4): inherited functions stay read-only, the package-side entry is a follow-up, a run spanning more than one card holds, and wiring mismatches are reported, never fixed.
 
 ### Release notes draft
 
@@ -2501,15 +2554,15 @@ Run ESLint on every touched file.
 
 The issue has a title and no body. I listed every plausible reading and checked each one against Domo's UI (frontend bundles fetched from `cdndomo.com`) and against the live instance:
 
-| #   | Interpretation                                                                                                                      | What Domo offers today                                                                                                        | Planned?           |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| A   | Change a dashboard page's parent: make a top-level page a subpage, make a subpage top level, or move a subpage under another parent | Only a bulk **Move dashboard** action in Admin > Dashboards, which many users can't reach. Nothing on the dashboard itself.   | **Yes**            |
-| B   | Reorder pages within one level of the nav                                                                                           | The **Manage dashboards** dialog: drag reorder per user, plus a company default order for admins                              | No, already easy   |
-| C   | Move an App Studio page from one App Studio App to another                                                                          | App Studio **Add page > Import app content** copies pages into the current app. Deleting the source is a separate, easy step. | No (open question) |
-| D   | Turn a dashboard into an App Studio page                                                                                            | App Studio **Import dashboard content**, a copy with an option to reference the original cards                                | No, already easy   |
-| E   | Turn an App Studio page into a dashboard                                                                                            | Nothing in Domo. App-only cards and layouts don't carry over.                                                                 | No, out of scope   |
-| F   | Move a page between collections                                                                                                     | Collections hold cards, not pages                                                                                             | N/A                |
-| G   | Move a page to another instance                                                                                                     | Sandbox and content migration, which are separate products                                                                    | No, out of scope   |
+| #   | Interpretation                                                                                                                      | What Domo offers today                                                                                                        | Planned?         |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| A   | Change a dashboard page's parent: make a top-level page a subpage, make a subpage top level, or move a subpage under another parent | Only a bulk **Move dashboard** action in Admin > Dashboards, which many users can't reach. Nothing on the dashboard itself.   | **Yes**          |
+| B   | Reorder pages within one level of the nav                                                                                           | The **Manage dashboards** dialog: drag reorder per user, plus a company default order for admins                              | No, already easy |
+| C   | Move an App Studio page from one App Studio App to another                                                                          | App Studio **Add page > Import app content** copies pages into the current app. Deleting the source is a separate, easy step. | No (D43.1)       |
+| D   | Turn a dashboard into an App Studio page                                                                                            | App Studio **Import dashboard content**, a copy with an option to reference the original cards                                | No, already easy |
+| E   | Turn an App Studio page into a dashboard                                                                                            | Nothing in Domo. App-only cards and layouts don't carry over.                                                                 | No, out of scope |
+| F   | Move a page between collections                                                                                                     | Collections hold cards, not pages                                                                                             | N/A              |
+| G   | Move a page to another instance                                                                                                     | Sandbox and content migration, which are separate products                                                                    | No, out of scope |
 
 The plan covers **interpretation A**. It is for page owners and content admins who reorganize nav trees. Today they have to:
 
@@ -2558,7 +2611,7 @@ The toolkit does all of that from the page itself. It also shows three things Do
 
 **Manage dashboards** (`managePagesTree`, a jQuery sortable with `axis: 'y'`) only reorders siblings, through `PUT /api/content/v1/pages/pageorder` (per user) or `/defaultpageorder` (admin). That is interpretation B, which is **cut**.
 
-**App Studio import** (`PUT /api/content/v1/dataapps/{appId}/views/import`) already covers C and D as copies, so they are **cut**. Chaining copy and delete into "Move to App" is an open question.
+**App Studio import** (`PUT /api/content/v1/dataapps/{appId}/views/import`) already covers C and D as copies, so they are **cut**, and chaining copy and delete into "Move to App" is out too (D43.1).
 
 What the toolkit adds for A, which Domo does not provide:
 
@@ -2567,7 +2620,8 @@ What the toolkit adds for A, which Domo does not provide:
 - the subpages that move along with it;
 - an access preview for each mode, covering the moved page, the new parent and the new top page;
 - correct labels (Domo's "Inherit permissions from top dashboard" actually copies the **immediate** new parent's list);
-- Move Back, plus a written record of the old location.
+- Move Back, plus a written record of the old location;
+- an opt-in cleanup of the access the move leaves behind on the old parent and old top page, which Domo never offers.
 
 **Overlap in this codebase** (all paths confirmed present):
 
@@ -2717,7 +2771,13 @@ Supporting facts:
 - **The 404 the critique saw from stacks happens on pages the caller can't open.** `2102826799` returned 404 there, and `GET /pages/{id}/access` reported `pageAccess: false`. Owners always have access, so an owner never hits that fallback.
 - **`GET /api/content/v1/pages/{id}/access`** returns `{ pageId, ownerId, pageName, owners, pageAccess }` (VERIFIED-LIVE). It is the PAGE detection fallback in `src/models/DomoObjectType.js:1366`, and it has no `isOwner`.
 
-**10. Revoking access: `DELETE /api/content/v1/share/bulk/page/user/{userId}?resourceIds={id,id}` and `.../group/{groupId}?resourceIds=...`.** These are what Domo's admin "Remove access" calls (bundle, function `v` in `pageActions`). INFERRED and not exercised. Needed only if the cleanup open question is answered yes.
+**10. Revoking access: `DELETE /api/content/v1/share/bulk/page/user/{userId}?resourceIds={id,id}` and `.../group/{groupId}?resourceIds=...`.** These are what Domo's admin "Remove access" calls (bundle, function `v` in `pageActions`). INFERRED and not exercised. The access cleanup (D43.4) depends on it, so implementation step 0 probes it on scratch pages before any UI work. The probe has to settle:
+
+- that it removes the principal from exactly the pages in `resourceIds` and returns a success code (and which one);
+- whether removing access from a parent also removes it from that parent's subpages, which would make the cleanup reach pages the user did not pick;
+- whether access the principal still gets through a remaining subpage is re-added to the parent by propagation;
+- what a principal that is an owner of the page, or that has no access there, returns;
+- whether a non-admin owner with `content.page.edit` may call it (INFERRED until a non-admin token is available).
 
 **11. Authorities.** VERIFIED-LIVE, from dataset `073c76f1-c846-48fd-876c-34d98d89a07b`, plus bundle.
 
@@ -2739,16 +2799,18 @@ Supporting facts:
 
 - `typeId === 'PAGE'`.
 - `Number(id) > 0`, the same check as the existing `getWorkspaces` and `migrateDownstreamContent` gates.
-- `userRights.includes('content.admin')`, or (`metadata.isOwner === true` and `userRights.includes('content.page.edit')`). This mirrors Domo's `canUpdateOwnership`; who should see the button is still an open question.
+- `userRights.includes('content.admin')`, or `userRights.includes('content.page.edit')` and (`metadata.isOwner === true` or the page is unlocked) (D43.2). The second half is Domo's own `canMakeChanges`, which its non-admin page picker applies. The lock state is the stacks `page.locked` flag the context already carries next to `page.isOwner`.
 
-When `isOwner` is `null` the button stays hidden. That only happens when no user is hydrated yet or the caller can't open the page, and neither case is an owner (see API 9).
+When `isOwner` is `null` or the lock state is unknown, the non-admin half is false and the button stays hidden for non-admins. That only happens when no user is hydrated yet or the caller can't open the page (stacks 404s, see API 9), and neither case is someone who can edit it.
+
+The server rule for a non-owner on an unlocked page is unverified (API 1). Domo's admin Move doesn't check ownership in the UI, so the server is the only judge, and a refusal shows the 403 copy.
 
 DATA_APP_VIEW, WORKSHEET_VIEW and REPORT_BUILDER_PAGE never get the action. No feature-switch gating is needed.
 
 **The view refuses two kinds of page with an inline alert:**
 
 - `virtualPage: true` (system, BIB folder and personal pages);
-- `parentPageId < 0` (pages inside a Business-in-a-Box folder; see the open question).
+- `parentPageId < 0` (pages inside a Business-in-a-Box folder, blocked in v1 per D43.5).
 
 **Data flow.** Every API call runs through `executeInPage()` in the Domo tab (session auth).
 
@@ -2769,6 +2831,12 @@ DATA_APP_VIEW, WORKSHEET_VIEW and REPORT_BUILDER_PAGE never get the action. No f
    - Refetch the page's access list for the result screen.
    - Call `chrome.tabs.reload(tabId)`.
 6. **Move Back** repeats the call with the original parent (or none) and `ORIGINAL`.
+7. **Access cleanup** (D43.4), offered on the result screen after a successful move when the page left at least one ancestor (the old parent, and the old top page when the page was at level 3). An ancestor the page still sits under is not offered.
+   - Load, in parallel: each old ancestor's access list and owners (`getPageAccessList`, `getPageForMove`), its remaining subpages (`getSubpageIds` for the old parent; `getChildPages` for the old top page, which includes grandchildren), and those subpages' access lists in a pool of 4. Past 25 remaining subpages, skip the per-subpage lists and say so.
+   - Build the candidates with `cleanupCandidates`: every user and group that was on the moved page before the move (`S`, loaded at mount) and is on the old ancestor now, minus that ancestor's owners and the signed-in user. A candidate also on one of the ancestor's remaining subpages is marked with that subpage, since it may have reached the ancestor from there.
+   - Nothing is preselected. The list can't tell a deliberate share on the ancestor from one propagated by the moved page.
+   - On a hold, group the selected (ancestor, principal) pairs by principal and send one `revokePageAccess({ principal, pageIds })` per principal, in a pool of 3 (`promisePool` from #9). Each returns an envelope like `movePage`.
+   - Afterwards, refetch the old ancestors' access lists and show the result per row. Move Back does not restore revoked access, and its tooltip says so once a cleanup has run.
 
 **Error envelope (fixes the draft).** `executeInPage` carries back only `{ message, name, status }` (`src/utils/executeInPage.js:226-240`), so a thrown `toe` never arrives. On origins that block eval, a throw even reads as `null`. `movePage` therefore returns `{ ok: true }` or `{ ok: false, status, toe, message }`, built inside the injected function as in `alerts.js:861`. The read helpers keep the codebase's throw-with-status style.
 
@@ -2789,7 +2857,9 @@ DATA_APP_VIEW, WORKSHEET_VIEW and REPORT_BUILDER_PAGE never get the action. No f
   - **Use parent's access:** `pageAfter = D`, `gains = D minus S`, `losses = S minus D minus owners`, no ancestor gains, and `subpageOnlyWarning` set.
   - **Owners only:** `pageAfter = owners`, `losses = S minus owners`, and `subpageOnlyWarning` set.
   - **Top-level target:** no ancestors. Keep changes nothing, and Owners only is the other option.
-- `mapMoveError(envelope)`: maps status, `PG-MV` codes and `toe` to copy.
+- `needsHold(preview, { listsMissing })` (D43.3): true when `gains`, `losses`, or any `ancestorGains[].added` is non-empty, or a needed access list failed to load.
+- `cleanupCandidates({ before, ancestors, selfId })`. `ancestors` is `[{ id, title, list, owners, subpageLists: [{ id, title, list }] | null }]`. It returns `[{ ancestorId, ancestorTitle, key, principal: { id, name, type }, alsoOn: [{ id, title }] | null }]`, where `alsoOn: null` means the subpages weren't checked.
+- `mapMoveError(envelope)`: maps status, `PG-MV` codes and `toe` to copy. It also maps a revoke envelope.
 
 **State shape (MovePageView):**
 
@@ -2798,15 +2868,24 @@ DATA_APP_VIEW, WORKSHEET_VIEW and REPORT_BUILDER_PAGE never get the action. No f
   page: { id, title, parentId, path: [{ id, title }], owners, height, subpages: [{ id, title, parentPageId }], blocked: null | 'special' | 'bib' },
   accessByPage: Map<pageId, { status: 'loading' | 'loaded' | 'error', users, groups }>,
   target: null | { kind: 'top' } | { kind: 'page', id, title, path, level, topId },
-  mode: 'ORIGINAL' | 'INHERIT' | 'MERGE' | 'OWNER_ONLY',
+  mode: null | 'ORIGINAL' | 'INHERIT' | 'MERGE' | 'OWNER_ONLY',   // null until the user picks one (D43.6)
   screen: 'form' | 'picker' | 'result',
-  run: null | { status: 'running' | 'done' | 'failed', error, previous: { parentId, path }, accessAfter }
+  run: null | { status: 'running' | 'done' | 'failed', error, previous: { parentId, path }, accessAfter },
+  cleanup: null | {
+    status: 'loading' | 'ready' | 'running' | 'done' | 'error',
+    candidates: Candidate[],               // from cleanupCandidates
+    selected: Set<string>,                 // `${ancestorId}:${type}:${principalId}`
+    results: Map<string, { ok, error }>
+  }
 }
 ```
+
+`mode` starts `null` and nothing in the access group is selected (D43.6). A change of destination keeps the chosen mode when it is still available there, and resets it to `null` when it is not (Use parent's access and Combine both don't exist for a top-level target).
 
 **Concurrency and failure handling:**
 
 - Each move is one write, and submit is disabled while it runs.
+- The cleanup is one revoke per principal, in a pool of 3. Until 1.6 lands, its Back and Move Back are disabled while it runs; after, the view calls `useRunLock(isCleaning, 'Move Page')`. A failed revoke marks its rows and the rest continue.
 - The picker's `detailGenRef` and `searchGenRef` guards already drop stale responses.
 - **An access-list failure** never blocks the move. Its preview line shows the error with Retry. While any needed list is missing, the submit control requires the hold.
 - **A 400 that gets past pre-validation** shows the mapped `PG-MV` copy, or else a generic message with `toe`.
@@ -2825,11 +2904,12 @@ DATA_APP_VIEW, WORKSHEET_VIEW and REPORT_BUILDER_PAGE never get the action. No f
 1. Press Move Page. The view opens with a Beta chip.
 2. The view shows the current location and the subpages that move with the page.
 3. Pick **New location**: "Make it a top-level page", or "Put it under another page" then **Choose Page**.
-4. Pick **Access**. Each option shows a live preview.
-5. Press or hold **Move Page**.
+4. Pick **Access**. No option is preselected (D43.6), and each shows a live preview.
+5. Hold **Hold to Move Page** when anyone gains or loses access anywhere, or a needed list failed to load (D43.3); otherwise press **Move Page**.
 6. The result screen shows the new location, the access that resulted, the old location in writing, **Move Back** and **Open Parent Page**.
+7. When the page left an old parent or old top page, the result screen also offers **Clean Up Old Access**: an unselected checklist of the people and groups that could see the page and are still on those old ancestors (D43.4).
 
-**Main screen, with a level-2 destination:**
+**Main screen, with a level-2 destination** (before an access option is picked):
 
 ```
 +--------------------------------------------+
@@ -2845,8 +2925,8 @@ DATA_APP_VIEW, WORKSHEET_VIEW and REPORT_BUILDER_PAGE never get the action. No f
 |   (o) Put it under another page            |
 |       Marketing > Campaigns     [Change]   |
 |                                            |
-| Access                                     |
-|   (o) Keep its current access              |
+| Access          Choose who can see it      |
+|   ( ) Keep its current access              |
 |       12 users and 3 groups keep access.   |
 |       Also gets access: Campaigns (5 users |
 |       and 1 group), Marketing (3 users).   |
@@ -2859,7 +2939,32 @@ DATA_APP_VIEW, WORKSHEET_VIEW and REPORT_BUILDER_PAGE never get the action. No f
 |   ( ) Owners only                          |
 |       11 users and 3 groups lose access.   |
 |                                            |
-| [          Hold to Move Page             ] |
+| [            Move Page (disabled)        ] |
++--------------------------------------------+
+```
+
+Once an option is picked, the footer becomes **Hold to Move Page** whenever its preview shows a gain or loss anywhere, which under a parent is nearly every option.
+
+**Result screen, with the cleanup checklist:**
+
+```
++--------------------------------------------+
+| Moved Q3 Pipeline under Campaigns          |
+| Now at: Marketing > Campaigns > Q3 Pipeline|
+| Was at: Sales > Q3 Pipeline                |
+| [ Move Back ]   [ Open Parent Page ]       |
+|--------------------------------------------|
+| Clean Up Old Access                        |
+| These could see Q3 Pipeline and still have |
+| access to Sales. Domo can't tell which were|
+| shared there on purpose, so none are       |
+| selected.                                  |
+|  Sales                                     |
+|   [ ] Pat Lee                              |
+|   [ ] Regional Managers (group)            |
+|   [ ] Sam Ortiz     [Also through Q4 Plan] |
+|                                            |
+| [      Hold to Remove Access (disabled)  ] |
 +--------------------------------------------+
 ```
 
@@ -2908,15 +3013,24 @@ DATA_APP_VIEW, WORKSHEET_VIEW and REPORT_BUILDER_PAGE never get the action. No f
 - **Preview error:** "Couldn't load access for {Page}", with Retry.
 - **Submit:**
   - No destination: disabled, with the tooltip "Choose where to move this page".
-  - When the hold rule applies (open question): `HoldToConfirmButton` (5 s), labeled "Hold to Move Page".
+  - No access option yet: disabled, with the tooltip "Choose who can see this page".
+  - When `needsHold` is true (D43.3): `HoldToConfirmButton` (`HOLD_DURATION_FULL`, 5 s), labeled "Hold to Move Page".
   - Otherwise: a primary "Move Page".
 - **Running:** "Moving {Page}..."
 - **Success:**
   - Status bar: "Moved {Page} under {Parent}" or "Made {Page} a top-level page".
   - Result screen: "Now at: Marketing > Campaigns > Q3 Pipeline", "Access now: 12 users and 4 groups", and "Was at: Sales > Q3 Pipeline", with each crumb linked.
-  - When the page had ancestors: "{Old Ancestors} still list the people who could see this page. Remove them there if they shouldn't have it."
-  - **Move Back** tooltip: "Move it back under {Old Parent}. Access changes aren't undone." When the page started top level: "Make it top level again. Access changes aren't undone."
+  - **Move Back** tooltip: "Move it back under {Old Parent}. Access changes aren't undone." When the page started top level: "Make it top level again. Access changes aren't undone." After a cleanup: "Move it back under {Old Parent}. Access changes, including removed access, aren't undone."
   - **Open Parent Page**.
+- **Clean Up Old Access** (D43.4), on the result screen only when the page left an ancestor:
+  - Heading **Clean Up Old Access**, then "These could see {Page} and still have access to {Old Ancestors}. Domo can't tell which were shared there on purpose, so none are selected."
+  - Rows grouped by ancestor, labeled with the user's or group's name ("Regional Managers (group)"). Chip **Also through {Subpage}** with tooltip "Also has access to {Subpage}, which is still under {Ancestor}, so it may have reached {Ancestor} from there." When the subpages weren't checked: note "{Ancestor} has more than 25 subpages, so they weren't checked."
+  - Loading: "Checking who still has access..." Load error: "Couldn't load access for {Ancestor}", with Retry.
+  - Nobody to clean up: "Nobody from {Page} is left on {Old Ancestors}." and no button.
+  - Button: `HoldToConfirmButton` (`HOLD_DURATION_FULL`) "Hold to Remove Access", disabled until a row is selected. Running: "Removing access 3 of 7..."
+  - Success toast "Access Removed" / "Removed **7** people and groups from **Sales** and **Sales Home**."
+  - Partial: "Some Access Not Removed" / "Removed **5**, **2** failed." Failed rows keep their checkbox and show the reason. Full failure: "Access Not Removed" / "{reason}"
+  - 401/403 on a revoke: "You don't have permission to change who can see {Ancestor}."
 - **Verify mismatch:** "Domo accepted the move but the page didn't change location. Try again, or move it from Admin > Dashboards."
 - **400:**
   - `PG-MV0015`: "{Page} is already a top-level page."
@@ -2927,15 +3041,16 @@ DATA_APP_VIEW, WORKSHEET_VIEW and REPORT_BUILDER_PAGE never get the action. No f
 
 ### Implementation plan
 
+0. **Revoke probe, before any UI work (D43.4).** On scratch pages and memberless scratch groups (named `domo-toolkit-probe-43-revoke-*`, deleted afterward): build a top page T with child P and grandchild C, share a scratch group to C (it propagates to P and T), share a second group directly to P, then call `DELETE /api/content/v1/share/bulk/page/group/{id}?resourceIds={P},{T}`. Record the status and body, whether C kept the group, whether the propagated entry came back on P or T, the response for a group with no access, and the response for an owner. If revoking from a parent also strips its subpages, the cleanup is limited to principals with no access on any remaining subpage, and the "Also through" rows become disabled.
 1. **`src/services/pages.js`**
    - `getPageForMove({ pageId, tabId })` returns `{ id, title, parentId, owners, isOwner, virtualPage, locked }`.
    - `getPageAccessList({ pageId, tabId })` returns `{ users: [{ id, displayName }], groups: [{ id, name }], totalUserCount }`.
    - `searchPagesForMove({ query, offset, tabId })`: adminsummary with the body from API 5, `limit=50`, mapped to rows and returned as `{ items, totalCount: totalPageCount }`.
    - `getEditableNavPages({ tabId })`: the navigation tree, flattened and filtered as in Design step 3.
    - `movePage({ pageId, parentPageId, pagePermission, tabId })` returns the envelope.
-   - Paginate both adminsummary loops in `getChildPages` with `totalPageCount`.
-   - Fix the `getSubpageIds` JSDoc ("direct children only").
-2. **`src/utils/pageMove.js`** (new): the pure helpers from the Design section.
+   - `revokePageAccess({ pageIds, principal: { id, type }, tabId })`: one `DELETE /api/content/v1/share/bulk/page/{user|group}/{id}?resourceIds={csv}`, returning the same envelope shape as `movePage`.
+   - The `getChildPages` pagination and the `getSubpageIds` JSDoc fix are done (pre-existing bug 3).
+2. **`src/utils/pageMove.js`** (new): the pure helpers from the Design section, including `needsHold` and `cleanupCandidates`.
 3. **`src/components/EntityPicker.jsx`**
    - Add a `retryNonce` state to the paginated search effect's dependencies.
    - Render a Retry button under the error text.
@@ -2947,26 +3062,31 @@ DATA_APP_VIEW, WORKSHEET_VIEW and REPORT_BUILDER_PAGE never get the action. No f
    - `renderRow` shows the breadcrumb, a level chip and a reason chip. `renderDetail` shows the path, owners and card count. `getHref` points at `/page/{id}`.
 5. **`src/components/views/MovePageView.jsx`** (new):
    - Follows `SwapAccountView`: `ViewHeader` with `beta`, `useViewReady`, `getSidepanelData`, `buildReloadAction`.
-   - Reuses `EntityPicker`, `HoldToConfirmButton`, HeroUI `RadioGroup`, `useStatusBar().showPromiseStatus` and `waitForChildPages`.
+   - Reuses `EntityPicker`, `HoldToConfirmButton`, HeroUI `RadioGroup` (no initial value), `useStatusBar().showPromiseStatus` and `waitForChildPages`.
    - Reloads like `UpdateDetailsView`.
+   - The result screen's Clean Up Old Access section: HeroUI `CheckboxGroup` rows grouped by ancestor, `Chip` for "Also through", the hold button, and the revoke run through `promisePool` (concurrency 3).
 6. **`src/components/buttons/MovePage.jsx`** (new): the `GetChildPages.jsx` shape, with `type: 'movePage'`.
 7. **`src/utils/availableActions.js`**: add the gate from the Design section next to the `updateDetails` blocks.
 8. **`src/components/ActionButtons.jsx`**: render `MovePage` right after `UpdateDetails`.
 9. **`src/sidepanel/App.jsx`**: add a `slot.type === 'movePage'` branch with the same props as `swapAccount`.
 10. **Lint:** `npx eslint --no-warn-ignored` on every touched file.
-11. **`docs/RELEASE_NOTES.md`**: the bullets below. The feature goes under "New Features and Improvements", and the child-page fix under "Bug Fixes".
-12. **Optional:** one line in `STORE_LISTING.txt`, staying under the 10,000-character cap.
+11. **`docs/plans/beta-phase-1-6-run-lock.md`**: add `MovePageView.jsx` / `isCleaning` to "Which views lock".
+12. **`docs/RELEASE_NOTES.md`**: the feature bullets below, under "New Features and Improvements". The child-page fix is already logged.
+13. **Optional:** one line in `STORE_LISTING.txt`, staying under the 10,000-character cap.
 
 **Shared work:**
 
-- The pagination fix in step 1 is shared with Get Child Pages and every other `page-child-pages` consumer.
-- `pagePickerAdapter`, `getPageAccessList` and the EntityPicker Retry are generic.
-- Move Back would be a natural first client of the planned change journal (`docs/plans/beta-phase-1-3-change-journal.md`), which hasn't started.
+- `pagePickerAdapter`, `getPageAccessList`, `revokePageAccess` and the EntityPicker Retry are generic.
+- `promisePool` comes from #9 for the cleanup run.
+- Move Page does not journal at first (DX.4). Move Back and the cleanup's revokes are the hook points if that is revisited after 1.3 ships.
 
 ### Edge cases and risks
 
 - **Access widening is the main risk.** Keep and Combine add the page's audience to the new parent **and** its top page. Moving a broadly shared page under a sensitive section opens the parent and the top page to those people (VERIFIED-LIVE for ORIGINAL; whether they can also see the cards is INFERRED). The preview names every ancestor and counts what it gains.
-- **Stale access on old ancestors.** Domo leaves the audience on the old parent and the old top page. The access list doesn't mark where entries came from, so v1 only informs (see the cleanup open question).
+- **Stale access on old ancestors.** Domo leaves the audience on the old parent and the old top page. The access list doesn't mark where entries came from, so the cleanup checklist starts empty and marks entries that may have come from another subpage (D43.4).
+- **The cleanup can revoke a deliberate share.** Someone shared on the old parent on purpose looks the same as a propagated entry. Mitigations: nothing preselected, owners and the user excluded, the "Also through" chip, and a 5 s hold. Revoked access is not restored by Move Back.
+- **Revoke semantics are unverified until step 0.** If revoking from a parent cascades to its subpages, or propagation re-adds the entry, the checklist rules change as step 0 says.
+- **Non-owners on unlocked pages** (D43.2) see the button. If the server turns out to require ownership, they get the 403 copy on submit; the non-admin test settles it.
 - **Preview accuracy.**
   - The preview uses verified rules on current lists. Ancestor gains under MERGE, and OWNER_ONLY's side effects, are INFERRED.
   - Counts are of entries, so a user who is also in a listed group counts in both.
@@ -2980,7 +3100,7 @@ DATA_APP_VIEW, WORKSHEET_VIEW and REPORT_BUILDER_PAGE never get the action. No f
 - **Group-owned pages.** Whether `page.isOwner` is true for members of an owning group is INFERRED. A content admin can still move those pages.
 - **Locked pages.** Locked destinations are excluded for non-owners in nav mode, matching `canMakeChanges`. Locking the moved page itself doesn't block a move (INFERRED).
 - **Concurrent edits.** The GET check catches a move someone else made, and the result screen survives the reload.
-- **Move Back is lost when the panel closes.** The "Was at" text and links remain until then, and after that the user moves the page back by hand.
+- **Move Back and the cleanup are lost when the panel closes.** The "Was at" text and links remain until then, and after that the user moves the page back, or removes access, by hand.
 
 ### Testing and verification
 
@@ -3001,9 +3121,11 @@ DATA_APP_VIEW, WORKSHEET_VIEW and REPORT_BUILDER_PAGE never get the action. No f
 8. Picker: the page's own subpages are hidden, the current parent shows Current, an ID search works, and Retry works after cutting the network in DevTools.
 9. Move Back restores the parent, and the "Was at" text matches the old location.
 10. A virtual page and a BIB page (read-only, for example `659772072`) show the blocked alerts.
-11. As a non-admin owner: the button shows, the nav-mode picker lists level-1 and level-2 pages they can edit, and the move works. As a non-owner, the button is hidden. This needs a non-admin user.
+11. As a non-admin with `content.page.edit`: on a page they own, the button shows, the nav-mode picker lists level-1 and level-2 pages they can edit, and the move works. On an unlocked page they don't own, the button shows; record whether the server accepts the move or returns the 403 copy. On a locked page they don't own, the button is hidden. This needs a non-admin user.
 12. Under session auth, record whether a 400 carries `PG-MV0011` or `PG-MV0015`.
-13. Get Child Pages on `942894016` lists all 107 children.
+13. The view opens with no access option selected and submit disabled; a move with no gains or losses (a top-level page under Keep) is a plain press, and any gain or loss turns it into the hold.
+14. **Cleanup.** Move a page shared to a scratch group out from under a parent and top page. The checklist lists the group under both ancestors, unselected; a group also shared to a sibling subpage carries "Also through". Remove one row with the hold: the group leaves only that ancestor, the moved page and the siblings keep their access, and the refetched lists match.
+15. Cleanup as a non-admin owner: record whether the revoke succeeds or shows the permission copy.
 
 Run ESLint on every touched file.
 
@@ -3019,10 +3141,13 @@ Run ESLint on every touched file.
 - **Label INHERIT "Use {Parent}'s access", and say it can add people.** It copies the immediate parent's whole list, including sibling-propagated entries (VERIFIED-LIVE, probe 6).
 - **The preview covers every ancestor of the destination.** The top page gains under ORIGINAL (VERIFIED-LIVE).
 - **Return an envelope from `movePage`.** `executeInPage` drops every error field except message, name and status (VERIFIED-CODE).
-- **Gate the button on `isOwner` and `content.page.edit`, or `content.admin`. Drop the draft's isOwner-fallback fetch.** This mirrors Domo's `canUpdateOwnership` (bundle). `isOwner` is null only for callers who can't open the page (VERIFIED-LIVE: stacks 404 with `pageAccess: false`).
+- **Gate the button on `content.admin`, or `content.page.edit` with ownership or an unlocked page** (D43.2). This is Domo's own `canMakeChanges` plus content admins. The draft's isOwner-fallback fetch stays dropped: `isOwner` is null only for callers who can't open the page (VERIFIED-LIVE: stacks 404 with `pageAccess: false`).
+- **Hold whenever access changes anywhere** (D43.3), through `needsHold`. Widening a parent and its top page is the main risk, and holding only on losses would leave it at one press.
+- **No preselected access option** (D43.6). Every option changes someone's access under a parent, so the user picks one after reading the previews.
+- **Opt-in cleanup of old ancestors' access** (D43.4), unselected, behind its own 5 s hold, after a revoke probe on scratch pages.
 - **Drop the draft's Domo Everywhere alert.** `virtualPage: true` marks system, BIB folder and personal pages (VERIFIED-LIVE). The view blocks those pages with neutral copy.
 - **Block BIB pages in v1.** Negative parents give wrong titles in adminsummary (VERIFIED-LIVE), and a move into or out of a BIB folder can't be probed without touching pre-existing content.
-- **The subtree always moves, and one page per run.** There is no API mode for anything else, and batches fail as a whole (VERIFIED-LIVE).
+- **The subtree always moves, and one page per run** (D43.7, with no multi-select follow-up). There is no API mode for anything else, and batches fail as a whole (VERIFIED-LIVE).
 - **Show the actual access, refetched, after the move.** Some preview rules are INFERRED.
 - **Move Back restores location only, and the result screen writes the old location out.** Access is not restored (VERIFIED-LIVE, probe 6), and the state is in memory only.
 - **Reload the tab after success.** This is the existing pattern (VERIFIED-CODE), and the side panel slot survives it (VERIFIED-CODE, `instanceViews`).
@@ -3038,10 +3163,9 @@ Run ESLint on every touched file.
 New Features and Improvements:
 
 - Pages now have a Move Page button that moves a page and its subpages under another page or to the top level, previewing who gains or loses access. ([#43](https://github.com/brycewc/domo-toolkit/issues/43))
+- After moving a page, you can remove the people and groups it left behind on its old parent pages. ([#43](https://github.com/brycewc/domo-toolkit/issues/43))
 
-Bug Fixes:
-
-- Get Child Pages now lists every subpage of pages with more than 100 of them. ([#43](https://github.com/brycewc/domo-toolkit/issues/43)) _(TODO: confirm with the maintainer that this fix should carry the issue link, since it came out of planning #43.)_
+The Get Child Pages fix for pages with more than 100 subpages is already logged under Bug Fixes, without the issue link.
 
 ## #10: Pin Preconfigured Set of Features to Left Nav for a New Instance
 
@@ -3052,10 +3176,10 @@ Power users (consultants, CSMs, SEs, admins, Domo staff) land on a lot of instan
 Interpretations considered:
 
 1. **Hand-built preset in options**: a picker over Domo's feature catalog where you add pins one at a time. This duplicates Domo's own Add Pin picker (see Scope check), so it is not planned.
-2. **Captured preset (planned)**: you arrange your nav in Domo the way you like, then click **Capture from Instance** in options. The extension keeps the pins that mean the same thing on any instance (feature pins, smart folders, external links, generic same-instance links, and folders of those) and applies that list elsewhere.
+2. **Captured presets (planned)**: you arrange your nav in Domo the way you like, then click **Capture from Instance** in options and name the preset. The extension keeps the pins that mean the same thing on any instance (feature pins, smart folders, external links, generic same-instance links, and folders of those) and applies that list elsewhere. You can keep several named presets, for example "Customer" and "Internal rig" (D10.6).
 3. **Admin Navigation Views**: pushing a nav to _other_ users on one instance. Domo already does this (Admin > Company Settings > Navigation Views), so it is out of scope.
 
-"The first time you login to a new instance" is read as: the first time the extension sees you signed in on an instance it has no record of, that instance was not already in this browser before the feature was turned on, **and** your personal pins there are still Domo's untouched defaults. The last two conditions keep an instance you have used for years from being overwritten. A manual **Apply Now** covers every other case.
+"The first time you login to a new instance" is read as an **offer, never an automatic change** (D10.1): the first time you open the side panel or popup on an instance this browser has no record of, and your personal pins there are still Domo's untouched defaults, a toast offers to apply your preset in one click. Nothing changes your nav until you press it. A manual **Apply Now** in options covers every other case, with **Replace** and **Add Missing** (D10.2).
 
 ### Scope check
 
@@ -3065,22 +3189,22 @@ Interpretations considered:
 - Pin a whole feature section as a folder in one click (chunk `4343-8566eb7aa4e62752`, component `ew`).
 - Admins can build Navigation Views (`/admin/companysettings/navigationConfigs`) with a pin list, a "personalization disabled" lock, per-pin unlocking (`unlockPins`), and group or user assignments. These belong to one instance and target other people.
 
-**What Domo cannot do:** carry your own nav from one instance to another, or apply it on first sign-in. That is a repeated multi-step chore, the "batches an operation Domo only offers one at a time" case in CLAUDE.md, so the feature belongs. The only "import" entry in the nav bundle (`showImportJson`, `data_etl_import_json`) is the dataset connector, not a pin import, so there is no competing Domo feature.
+**What Domo cannot do:** carry your own nav from one instance to another, or offer it on first sign-in. That is a repeated multi-step chore, the "batches an operation Domo only offers one at a time" case in CLAUDE.md, so the feature belongs. The only "import" entry in the nav bundle (`showImportJson`, `data_etl_import_json`) is the dataset connector, not a pin import, so there is no competing Domo feature.
 
 **Cut because Domo already does it well:** editing pin icons, colors, labels, and order inside the extension. Arrange the nav in Domo, then capture it. The options list only lets you drop an item from the preset or recapture.
 
 **What already exists in this codebase:**
 
-- `src/background.js` `getInstanceUser()` (line 475) and `detectAndStoreContext()` (line 1559, calls `getInstanceUser` at line 1612): the per-detection hook point. `getInstanceUser` returns the cached entry on every detection, so its `.then` runs on every navigation of every tab; the plan adds its own per-instance settle set (Design).
+- `src/background.js` `getInstanceUser()` (line 475): resolves the signed-in user for an instance, used by the offer check and the apply handlers. `detectAndStoreContext()` (line 1559) is no longer a hook point, since nothing runs on detection (D10.1).
 - `src/services/features.js` `getFeatureSwitches(tabId)` and `src/utils/featureSwitches.js` `isFeatureSwitchEnabled(requirement, context)`: switch reading and fail-open checks, reused for feature-pin availability.
 - `src/utils/currentObject.js` `getValidTabForInstance(instance)` (line 748): prefers the active tab, matches by `instanceKeyFromUrl` authority (local ports included), and throws "No open tab found for X". Reused for every options-page action on a chosen instance.
 - `src/utils/constants.js` `DOMO_MATCH_PATTERNS`: tab query patterns for hosted plus internal hosts. Reused for the instance picker.
 - `src/utils/instance.js`: `instanceKeyFromUrl`, `instanceLabel`, `instanceOriginFromKey`.
 - `src/services/governanceToolkit.js` (line 344) and `src/services/pageVariables.js` (line 69) `findStore()`: reaching Domo's Redux store from page context. Reused to refresh the nav in place.
-- `src/hooks/useReleaseNotification.jsx`: a one-time toast with an action button, mounted in both `src/sidepanel/App.jsx` and `src/popup/App.jsx`. The applied notice copies this pattern.
+- `src/hooks/useReleaseNotification.jsx`: a one-time toast with an action button, mounted in both `src/sidepanel/App.jsx` and `src/popup/App.jsx`. The first-visit offer copies this pattern.
 - `src/utils/clearCookies.js`: `chrome.cookies.getAll` over Domo hosts (the manifest already grants `cookies`). Reused as one source of "instances this browser already uses".
 - `src/hooks/usePerInstanceSettings.js`: the `chrome.storage.local.perInstance` map. Not reused for nav state, because `PerInstanceSettings.jsx` draws a card for every key in that map (`Object.entries(settings)`, line 47), so a marker per visited instance would fill that tab with empty cards. Its keys are read as a seeding source.
-- `src/components/buttons/HoldToConfirmButton.jsx`: for the manual replace of a customized nav.
+- `src/components/buttons/HoldToConfirmButton.jsx`: for Replace on a customized nav.
 - Nothing in `src/services/` touches `/api/nav/` today.
 
 ### API and platform findings
@@ -3107,7 +3231,7 @@ list = () => get(PINS);
 | New left nav on?         | `GET /api/nav/v1/leftnav/enabled`                                               | VERIFIED-LIVE                                                                                                                                                                                            | Body `true`. Domo's wrapper treats an error as `false`.                                                                                                                                                                                                 |
 | View applied to a user   | `GET /api/nav/v1/views/users/{userId}/view`                                     | VERIFIED-LIVE: 204 for `1813188617`; 200 for group member `1084204596`                                                                                                                                   | 200 body is the view without pins: `{ id, name, description, createdBy, createdAt, updatedAt, locked, permissionsAware, pins: [], assignments: [] }`. Domo's nav calls this for every signed-in user on load (chunk `4343`), so no authority is needed. |
 | View detail              | `GET /api/nav/v1/views/{viewId}`                                                | VERIFIED-LIVE                                                                                                                                                                                            | Only needed for testing. View pins carry `source: "VIEW"` and a per-pin `locked`.                                                                                                                                                                       |
-| User created date        | `GET /api/content/v3/users/{id}?includeDetails=true`                            | VERIFIED-LIVE                                                                                                                                                                                            | `detail.created` in epoch seconds (`1748879739` for `1813188617`). Same endpoint as `getUserDetails` in `src/services/users.js` (VERIFIED-CODE). Only used if the account-age guard is chosen.                                                          |
+| User created date        | `GET /api/content/v3/users/{id}?includeDetails=true`                            | VERIFIED-LIVE                                                                                                                                                                                            | `detail.created` in epoch seconds (`1748879739` for `1813188617`). Same endpoint as `getUserDetails` in `src/services/users.js` (VERIFIED-CODE). Not used: there is no account-age guard (D10.1).                                                       |
 | Feature switches         | `window.features.getConfig()`                                                   | VERIFIED-CODE (`src/services/features.js`)                                                                                                                                                               | Polls up to 7.5 s, returns `null` if unreadable.                                                                                                                                                                                                        |
 | User ID                  | `instanceUser.user.id`                                                          | VERIFIED-CODE (`getCurrentUser` in `src/services/users.js`)                                                                                                                                              | Already passed through `getInstanceUser`; no extra read.                                                                                                                                                                                                |
 | Nav Redux slice          | `createSlice({ name: 'globalNavV2' })`, reducer `SET_NAVIGATION_PINS({ pins })` | INFERRED from bundle (chunk `64501`)                                                                                                                                                                     | Action type `globalNavV2/SET_NAVIGATION_PINS`. Domo dispatches it with the deduped `GET /pins` result after every pin call. Whether `findStore()` reaches the store holding this slice is a test step.                                                  |
@@ -3197,7 +3321,7 @@ Smart folders and folders are keyed by their server `id` when present, so a capt
 | `folder`                                                                                               | Label + children                                                  | Yes, with only its portable children; dropped if none are left.                                        |
 | `data_app`, `card`, `page`, `dataset`, `dataflow`, `workflow`, `workspace`, `alert`, `app`, `appstore` | Instance-specific numeric ID or GUID                              | No. Skipped at capture and listed.                                                                     |
 
-Captured from the token user's live nav, the preset would keep 7 of 15 pins (Workspaces, Apps, Dashboards, DataSets, DataFlows, Workflows, Code Engine) and skip 8 with a reason: MajorDomo Home (App Studio App `1644570665`), Object Exploration (App Studio App `699403591`), Product Release Training (App Studio App `1316297611`), MajorDomo (workspace `be58b33f-da07-43d3-b874-00c0496b508b`), Feature Owners (card `1404268240`), and Activity Log, Product Feedback Intake, and Snowflake Progress (links with object IDs).
+Captured from the token user's live nav, a preset would keep 7 of 15 pins (Workspaces, Apps, Dashboards, DataSets, DataFlows, Workflows, Code Engine) and skip 8 with a reason: MajorDomo Home (App Studio App `1644570665`), Object Exploration (App Studio App `699403591`), Product Release Training (App Studio App `1316297611`), MajorDomo (workspace `be58b33f-da07-43d3-b874-00c0496b508b`), Feature Owners (card `1404268240`), and Activity Log, Product Feedback Intake, and Snowflake Progress (links with object IDs).
 
 **Feature visibility.** Domo's catalog (chunk `18900`) gives each feature a `show` condition built from switches and authorities. A _pinned_ item renders with `show: true` whatever the catalog says (chunk `4343`), so pinning a feature the instance lacks leaves a dead pin. Switch gates read from the bundle (constants resolved in chunk `63636`), INFERRED:
 
@@ -3228,24 +3352,26 @@ This table mirrors the **nav catalog**, not `DomoObjectType.featureSwitch`, on p
 
 **Where it lives**
 
-- **Options page, new "Nav Pins" tab** (`src/components/options/NavPinSettings.jsx`): the preset list, Capture, Apply Now, Clear, the auto-apply switch, and the per-instance activity list with Undo and Apply Now.
-- **Background** (`src/background.js`): the automatic first-visit check, a per-instance lock and settle set, seeding of known instances, and the apply and undo message handlers.
-- **Side panel and popup**: a one-time toast with Undo on the instance where a preset was just applied, plus a per-tab action badge so the change is visible even if neither surface is opened. No new action button: the feature is not tied to an object type, so `getAvailableActions()` is untouched.
+- **Options page, new "Nav Pins" tab** (D10.5, `src/components/options/NavPinSettings.jsx`): the named presets, Capture, Apply Now (Replace and Add Missing), Rename, Delete, and the per-instance activity list with Undo.
+- **Background** (`src/background.js`): seeding of known instances, the offer check, a per-instance lock, and the apply and undo message handlers. Nothing runs on detection, and the background never changes pins on its own (D10.1).
+- **Side panel and popup**: a one-time offer toast the first time either surface opens on an instance that qualifies, and an Undo toast after an apply started from the offer. No badge, and no new action button: the feature is not tied to an object type, so `getAvailableActions()` is untouched.
 
 **Storage**
 
 ```js
-// chrome.storage.sync (follows the user to new browsers)
-navPinPreset = {
+// chrome.storage.sync (follows the user to new browsers), one item per preset so each gets the 8 KB cap
+navPinPresetIds = ['p_1f3a', 'p_9c02'];             // display order
+'navPinPreset:p_1f3a' = {
   capturedAt: 1795219200000,
-  capturedFrom: 'domo',                         // instance key
-  pins: [                                       // array order is nav order
+  capturedFrom: 'domo',                              // instance key
+  id: 'p_1f3a',
+  name: 'Customer',
+  pins: [                                            // array order is nav order
     { action: { id: 'teams_workspaces', newTab: false, type: 'feature' },
       icon: 'workspace', iconBackgroundColor: '#9E3C15FF', iconColor: '#FFFFFFCC', label: 'Workspaces' },
     { action: { newTab: true, path: '/admin/companysettings', type: 'link' }, icon: 'gear', label: 'Admin' }
   ]
 };
-navPinPresetAuto = true;
 
 // chrome.storage.local (per device)
 navPinKnownInstances = { acme: 1795219000000 };   // instances that were here before; never rendered
@@ -3254,22 +3380,25 @@ navPinLog = {
     appliedKeys: ['feature:teams_workspaces', ...],  // personal keys right after the apply, gates Undo
     at: 1795219300000,
     counts: { added: 4, moved: 3, removed: 2 },
-    desired: [/* resolved pins this run converges to, kept so a resume ignores later preset edits */],
     dropped: [],                     // pins the server accepted but did not keep
     error: null,
+    mode: 'replace',                 // 'replace' | 'addMissing'
     navRefreshed: true,
-    reason: null,                    // 'customized' | 'locked-view' | 'leftnav-off' | 'changed'
-    seen: false,                     // notice dismissed
+    presetId: 'p_1f3a',
+    presetName: 'Customer',          // kept so the row reads right after the preset is renamed or deleted
+    reason: null,                    // 'locked-view' | 'leftnav-off' | 'changed'
     skippedView: ['DataSets'],       // preset pins already shown by a Navigation View
     snapshot: [/* personal pins as they were, for Undo */],
-    status: 'applied',               // applying | applied | failed | skipped | undone
+    status: 'applied',               // offered | dismissed | applying | applied | failed | undone
     unavailable: ['Task Center'],    // preset pins whose switch is off here
     unchecked: false                 // true when switches were unreadable and gates failed open
   }
 };
 ```
 
-A stored pin drops `id`, `sourceId`, `userId`, `order`, `source`, and `locked` (children too), keeping a 30-pin preset near 5 KB, under `chrome.storage.sync`'s 8,192-byte per-item cap. Capture measures the serialized size and refuses above 8,000 bytes.
+A stored pin drops `id`, `sourceId`, `userId`, `order`, `source`, and `locked` (children too), keeping a 30-pin preset near 5 KB, under `chrome.storage.sync`'s 8,192-byte per-item cap. Capture measures each preset's serialized size and refuses above 8,000 bytes. Presets share `chrome.storage.sync`'s 102,400-byte total with the extension's other synced settings, so Capture also refuses a new preset when the area's `getBytesInUse()` would pass 90,000.
+
+There is no auto-apply switch (D10.4). The offer needs no switch either: with no preset there is nothing to offer, and a dismissed offer never returns for that instance.
 
 **New modules**
 
@@ -3279,13 +3408,14 @@ A stored pin drops `id`, `sourceId`, `userId`, `order`, `source`, and `locked` (
   - `resolvePresetPin(presetPin, targetOrigin)` turns a `path` link back into a full `url`.
   - `NAV_FEATURE_SWITCHES` (the table above, with a one-line note that it mirrors the nav catalog, not `DomoObjectType`) and `isPresetPinAvailable(pin, context)`, wrapping `isFeatureSwitchEnabled` and recursing into folder children.
   - `DOMO_DEFAULT_FEATURE_IDS` (the six seed IDs plus `automate_workflow` and `automate_code_engine_projects`) and `isUntouchedNav(personalPins)`: true when there are none, or every personal pin is a `feature` pin whose ID is in that set. It is a subset test, so a default the server leaves out does not matter; an unknown extra default only yields a safe false "customized" skip.
-  - `buildDesiredPins(preset, { context, currentPins, origin })` returns `{ desired, skippedView, unavailable }`: resolves links, drops unavailable pins, and drops any pin whose `pinKey` matches a `VIEW` pin already in the nav.
+  - `buildDesiredPins(preset, { context, currentPins, origin })` returns `{ desired, skippedView, unavailable }`: resolves links, drops unavailable pins, and drops any pin whose `pinKey` matches a `VIEW` pin already in the nav. With an unlocked Navigation View this puts the preset after the view's pins and skips the ones it already shows (D10.3).
+  - `newPresetId()` and `presetStorageKey(id)` (`navPinPreset:<id>`).
 - `src/services/navPins.js`, each function taking `tabId`, all through `executeInPage`:
   - `getNavPins(tabId)`: `GET /api/nav/v1/pins`.
   - `getNavPinEligibility({ userId }, tabId)`: one injected call returning `{ leftNavEnabled, view, pins }` (`leftnav/enabled`, then `views/users/{id}/view` with 204 as `null`, then `pins`). A failed fetch throws with `error.status`.
-  - `applyNavPins({ desired, userId }, tabId)`: one injected call that runs the converge below sequentially, then refreshes Domo's nav in place, and returns `{ counts, dropped, finalPins, navRefreshed, orderMatches }`. The injected function cannot import, so it carries inlined copies of `pinKey`, Domo's dedupe `d`, and `findStore()` (the same pattern as `detectCurrentObject` and `pageVariables.js`); its JSDoc says so.
+  - `applyNavPins({ desired, mode, userId }, tabId)`: one injected call that runs the converge (`mode: 'replace'`) or the append (`mode: 'addMissing'`) below sequentially, then refreshes Domo's nav in place, and returns `{ counts, dropped, finalPins, navRefreshed, orderMatches }`. The injected function cannot import, so it carries inlined copies of `pinKey`, Domo's dedupe `d`, and `findStore()` (the same pattern as `detectCurrentObject` and `pageVariables.js`); its JSDoc says so.
 
-**Converge algorithm** (idempotent; uses only the three calls Domo's UI uses)
+**Replace: converge algorithm** (idempotent; uses only the three calls Domo's UI uses)
 
 1. `P` = current pins with `source === 'PERSONAL'` and not `locked`. `VIEW` pins are never touched, whatever their `locked` flag.
 2. `D` = the desired list (from `buildDesiredPins`, or the snapshot for Undo).
@@ -3295,33 +3425,30 @@ A stored pin drops `id`, `sourceId`, `userId`, `order`, `source`, and `locked` (
 6. Read the last response (every call returns the full list) and compare personal keys to `D`. A pin that was posted but is absent goes to `dropped` (reported, not a failure). `orderMatches: false` is reported as a warning.
 7. Refresh in place: `findStore()`; if `getState().globalNavV2` exists, dispatch `{ type: 'globalNavV2/SET_NAVIGATION_PINS', payload: { pins: d(finalPins) } }` and set `navRefreshed: true`.
 
-Moving and appending before deleting means the nav is never empty mid-run, kept pins keep their IDs, and re-running from any interruption converges.
+Moving and appending before deleting means the nav is never empty mid-run, kept pins keep their IDs, and re-running from any interruption converges. An interrupted Replace is finished by running Apply Now again; the `applying` log entry keeps the first `snapshot` so Undo still restores the nav from before the first attempt.
 
-**Automatic flow (background)**
+**Add Missing** (D10.2). For each `d` in `desired`, in order, whose `pinKey` matches no personal pin and no `VIEW` pin, `POST /pins/append` (folders as in step 4 above). No PATCH, no DELETE, and no reorder: existing pins keep their place and new ones land at the end. Steps 6 and 7 (verify, refresh) run as in Replace. It never needs a hold, since it removes nothing.
 
-1. In `detectAndStoreContext`, inside the existing `getInstanceUser(...).then`, call `maybeApplyNavPreset(context.instance, instanceUser, tabId)` without awaiting it.
-2. `maybeApplyNavPreset` returns at once when the instance is in the in-memory `navPresetSettled` Set or `navPresetInFlight` Map. This keeps the per-navigation cost to a Set lookup. `chrome.storage.onChanged` on `navPinPreset` or `navPinPresetAuto` clears the Set.
-3. It reads `navPinPreset`, `navPinPresetAuto` (sync) and `navPinLog`, `navPinKnownInstances` (local). If `navPinKnownInstances` is absent entirely (first run on this device, for example a synced preset arriving on a new browser), it runs `seedKnownNavInstances({ exclude: instance })` first.
-4. Settle and return when auto is off, there is no preset, the instance is known, or a log entry exists with any status other than `applying`. If the entry is `applied` and not `seen`, re-set the per-tab badge on the way out.
-5. Under the per-instance lock: if switches are `null`, `await getFeatureSwitches(tabId)` (it polls up to 7.5 s); if still `null`, continue fail-open and mark `unchecked`. Then `getNavPinEligibility({ userId: instanceUser.user.id })`:
-   - left nav `false`: log `skipped`, reason `leftnav-off`
-   - a view with `locked: true`: log `skipped`, reason `locked-view`
-   - an unlocked view: per open question 3
-   - `!isUntouchedNav(P)`: log `skipped`, reason `customized`
-6. **Resume:** when the entry is `applying`, skip step 5's untouched check, keep the stored `snapshot` and `desired`, and converge again.
-7. Otherwise write `{ status: 'applying', snapshot: P, desired }` **before** mutating, call `applyNavPins`, then write `applied` (with `appliedKeys`) or `failed`.
-8. On `applied`, set the per-tab badge (`chrome.action.setBadgeText({ tabId, text: 'PIN' })`) and broadcast `NAV_PRESET_APPLIED { instance, tabId }`. No tab reload (Design decisions).
+**First-visit offer** (D10.1; replaces the automatic apply)
 
-**Transient versus final failures.** A network error, a 5xx, a 401 (session not ready), or a failed `leftnav/enabled` read writes nothing permanent: the instance is not settled and the next detection retries, capped at 3 attempts per instance per service worker lifetime (in-memory counter). A 4xx other than 401 on a pin write, or the third transient failure mid-apply, logs `failed` with the error; the `snapshot` is kept so Undo and Apply Now stay available.
+1. `useNavPresetOffer` runs in the side panel and popup once their current context names an instance. It sends `GET_NAV_PRESET_OFFER { instance }` to the background.
+2. The background reads `navPinPresetIds` (sync) and `navPinLog`, `navPinKnownInstances` (local). If `navPinKnownInstances` is absent entirely (first run on this device, for example synced presets arriving on a new browser), it runs `seedKnownNavInstances({ exclude: instance })` first.
+3. It answers `{ offer: false }` when there is no preset, the instance is known, or a log entry exists for it (any status, `dismissed` included).
+4. Otherwise, with the tab from `getValidTabForInstance` and the user from `getInstanceUser`, it calls `getNavPinEligibility`. No offer, and nothing logged, when the left nav is off, a **locked** view applies, or `!isUntouchedNav(P)`. An unlocked view does not block the offer (D10.3). A failed read answers no offer and logs nothing, so the next open asks again.
+5. Otherwise it logs `{ status: 'offered' }` for the instance and answers `{ offer: true, presets: [{ id, name, pinCount }] }`.
+6. The hook shows the offer toast (UX). With one preset, its action sends `APPLY_NAV_PRESET { instance, mode: 'replace', presetId }`; with several, it opens the options page at `#nav-pins?instance=<key>` so the user picks one there. Closing the toast without acting sends `NAV_PRESET_OFFER_DISMISSED { instance }`, which logs `dismissed`. The offer is Replace because the nav is still Domo's defaults.
+7. After an apply from the offer, the toast that reports it carries an **Undo** action (`UNDO_NAV_PRESET`).
 
-**Seeding known instances** (`seedKnownNavInstances`). Runs when `navPinPresetAuto` turns on, on `chrome.runtime.onInstalled` when a preset exists, and on first run on a device (step 3). Sources, each mapped through `instanceKeyFromUrl`: hosts of `chrome.cookies.getAll({ domain: 'domo.com' })`, open tabs on `DOMO_MATCH_PATTERNS`, `perInstance` keys, `instanceUsersBackup` (session), and `defaultDomoInstance` (sync). Seeding triggered by a detection excludes that detection's own instance, whose sign-in cookie is already set, and that instance then goes through the normal untouched check.
+**Seeding known instances** (`seedKnownNavInstances`). Runs when the first preset is captured, on `chrome.runtime.onInstalled` when a preset exists, and on first run on a device (offer step 2). Sources, each mapped through `instanceKeyFromUrl`: hosts of `chrome.cookies.getAll({ domain: 'domo.com' })`, open tabs on `DOMO_MATCH_PATTERNS`, `perInstance` keys, `instanceUsersBackup` (session), and `defaultDomoInstance` (sync). Seeding triggered by an offer check excludes that instance, whose sign-in cookie is already set, and that instance then goes through the normal untouched check.
 
-**Manual flows (messages to background, sharing the lock)**
+**Apply, Undo, and preview (messages to background, sharing a per-instance lock)**
 
-- `APPLY_NAV_PRESET { instance }`: resolves the tab with `getValidTabForInstance`, the user with `getInstanceUser`, and always reads switches with `getFeatureSwitches(tabId)` (the cache can be cold after a service worker restart). No untouched check; the UI confirms with a hold when `isUntouchedNav` is false. A locked view still blocks it.
-- `UNDO_NAV_PRESET { instance }`: re-reads pins and refuses with reason `changed` unless the personal keys still equal `appliedKeys`; otherwise converges to `snapshot` and logs `undone`.
-- `GET_NAV_PRESET_PREVIEW { instance }`: read-only, returns `{ customized, personalCount, view }` so the options row knows whether to show the hold.
-- Capture is read-only, so the options page calls `getNavPins(tabId)` and `toPresetPin` directly and writes `navPinPreset`.
+- `APPLY_NAV_PRESET { instance, mode, presetId }`: resolves the tab with `getValidTabForInstance`, the user with `getInstanceUser`, and always reads switches with `getFeatureSwitches(tabId)` (it polls up to 7.5 s, and the cache can be cold after a service worker restart; if still `null`, it continues fail-open and marks `unchecked`). A locked view blocks it with reason `locked-view`, and left nav off with `leftnav-off`. Otherwise it writes `{ status: 'applying', mode, presetId, presetName, snapshot: P }` **before** mutating (keeping an existing `applying` entry's snapshot), calls `applyNavPins`, then writes `applied` (with `appliedKeys`) or `failed`. No tab reload (Design decisions).
+- `UNDO_NAV_PRESET { instance }`: re-reads pins and refuses with reason `changed` unless the personal keys still equal `appliedKeys`; otherwise converges to `snapshot` with Replace and logs `undone`.
+- `GET_NAV_PRESET_PREVIEW { instance }`: read-only, returns `{ customized, personalCount, view }` so the options row knows whether Replace needs the hold.
+- Capture is read-only, so the options page calls `getNavPins(tabId)` and `toPresetPin` directly and writes the preset item and `navPinPresetIds`.
+
+**Failures.** A network error, a 5xx, or a 401 (session not ready) before the first write changes nothing and logs `failed` with the error, leaving Apply Now available. A failure mid-apply logs `failed`; the `snapshot` is kept so Undo and Apply Now stay available, and running Apply Now again converges from wherever it stopped.
 
 Every page call goes through `executeInPage`, so `canActOnHost()` already gates internal instances.
 
@@ -3332,20 +3459,18 @@ Every page call goes through `executeInPage`, so `canActOnHost()` already gates 
 **Flow:**
 
 1. The user arranges their nav in Domo on a familiar instance.
-2. Options > Nav Pins > pick that instance in **Capture From** > **Capture from Instance**.
-3. The preset renders. Pins left out are listed under "Not Captured" with a reason.
-4. **Apply to New Instances Automatically** turns on once a preset exists, and every instance this browser already knows is recorded as known.
-5. On a new instance the preset is applied right after sign-in. The nav updates in place, the toolbar icon shows a PIN badge on that tab, and opening the side panel or popup there shows a toast with Undo.
+2. Options > Nav Pins > pick that instance in **Capture From** > **Capture from Instance**, then name the preset (or pick an existing one to recapture into).
+3. The preset renders. Pins left out are listed under "Not Captured" with a reason. Every instance this browser already knows is recorded as known when the first preset is captured.
+4. The first time the user opens the side panel or popup on a new instance whose nav is still Domo's defaults, a toast offers the preset. Pressing **Apply** replaces the default pins in place, and the confirmation toast carries Undo. Closing the offer dismisses it for that instance.
+5. Any time, Options > Nav Pins > **Apply To** an open instance, pick a preset, and press **Replace** or **Add Missing**.
 
 **Options tab mockup:**
 
 ```
  Favicon Preferences   Per-Instance Settings   [Nav Pins]   General Settings
 
- Nav Pin Preset
- Captured from domo.domo.com on Nov 19, 2026 (7 pins)
- [on] Apply to New Instances Automatically
-      Replaces Domo's default pins the first time you sign in to an instance.
+ Nav Pin Presets                                   [Customer v] [Rename] [Delete]
+ Customer: captured from domo.domo.com on Nov 19, 2026 (7 pins)
 
  +--------------------------------------------------+
  | [icon] Workspaces          Feature            (x) |
@@ -3358,71 +3483,91 @@ Every page call goes through `executeInPage`, so `canActOnHost()` already gates 
  +--------------------------------------------------+
  > Not Captured (8)   MajorDomo Home: App Studio App only on domo.domo.com ...
 
- Capture From [domo.domo.com v]  [Capture from Instance]
- Apply To     [acme.domo.com v]  [Apply Now]
-                                 [Clear Preset]
+ Capture From [domo.domo.com v]  Into [New preset...  v]  [Capture from Instance]
+ Apply To     [acme.domo.com v]  Preset [Customer v]       [Replace] [Add Missing]
 
  Instances
- globex.domo.com    Applied Nov 19, 2026 (4 added, 3 moved, 2 removed)  [Undo]
- initech.domo.com   Skipped: your nav was already customized. Use Apply Now to replace it.  [Apply Now]
+ globex.domo.com    Customer applied Nov 19, 2026 (4 added, 3 moved, 2 removed)  [Undo]
+ initech.domo.com   Internal rig added Nov 20, 2026 (3 added)                     [Undo]
  umbrella.domo.com  Skipped: an admin locked the nav on this instance.
 ```
 
-**Applied toast in the side panel and popup** (shown once per applied instance, `timeout: 0`, `onClose` marks it seen and clears the tab badge):
+**First-visit offer in the side panel and popup** (once per instance, `timeout: 0`; closing it logs `dismissed`):
+
+```
+ +----------------------------------------------------------+
+ | (i) Use Your Nav Pins Here?                               |
+ |     Replace Domo's default pins on globex.domo.com with   |
+ |     your Customer preset (7 pins).                [Apply] |
+ +----------------------------------------------------------+
+```
+
+With several presets the description reads "You have 3 nav pin presets. Choose one to replace Domo's default pins on globex.domo.com." and the action is **Choose Preset**, which opens the Nav Pins tab with globex.domo.com preselected in Apply To.
+
+**After applying from the offer:**
 
 ```
  +----------------------------------------------------------+
  | (i) Nav Pins Applied                                      |
- |     Your 7 preset pins replaced the default pins on       |
+ |     Your 7 Customer pins replaced the default pins on     |
  |     globex.domo.com.                               [Undo] |
  +----------------------------------------------------------+
 ```
 
 **States and copy** (toast titles in Title Case, descriptions end with a period):
 
-| State                             | Where                       | Copy                                                                                                                                                |
-| --------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No preset                         | Options                     | Empty state: "No nav pin preset yet. Arrange your left nav in Domo, then capture it from that instance."                                            |
-| No Domo tab open                  | Options pickers             | Disabled select, tooltip "Open a Domo instance in a tab to capture or apply."                                                                       |
-| Signed out on that tab (401)      | Toast (danger)              | "Signed Out" / "Sign in to acme.domo.com, then try again."                                                                                          |
-| Capturing, applying, undoing      | Button                      | `isPending` on the pressed button.                                                                                                                  |
-| Capture success                   | Toast                       | "Preset Captured" / "Saved 7 pins from domo.domo.com. 8 instance-specific pins were left out."                                                      |
-| Capture, nothing portable         | Toast (warning)             | "Nothing to Capture" / "None of your pins on domo.domo.com can be used on other instances."                                                         |
-| Capture too large                 | Toast (danger)              | "Preset Too Large" / "Remove some pins or folders and capture again."                                                                               |
-| Apply on an untouched nav         | Options                     | Plain **Apply Now** button.                                                                                                                         |
-| Apply on a customized nav         | Options                     | **Apply Now** becomes a `HoldToConfirmButton`, helper text "Replaces the 12 pins you added on acme.domo.com. You can undo this."                    |
-| Apply success                     | Toast                       | "Nav Pins Applied" / "Added 4, moved 3, and removed 2 pins on acme.domo.com."                                                                       |
-| Apply success, nav not refreshed  | Toast suffix                | " Reload the page to see them."                                                                                                                     |
-| Some pins unavailable             | Toast suffix and log row    | "Task Center isn't available on this instance and was skipped."                                                                                     |
-| Pins already in a Navigation View | Toast suffix and log row    | "DataSets is already in your nav from a Navigation View."                                                                                           |
-| Switches unreadable               | Log row                     | "Applied without checking which features this instance has."                                                                                        |
-| Server dropped a pin              | Log row                     | "Domo didn't keep Code Engine on this instance."                                                                                                    |
-| Order differs                     | Toast (warning)             | "Nav Pins Applied Out of Order" / "Your pins were added on acme.domo.com, but not in your preset's order."                                          |
-| Partial or full failure           | Toast (danger) and log row  | "Nav Pins Not Fully Applied" / "Stopped on acme.domo.com after an error: {message}. Use Undo or Apply Now to finish."                               |
-| Locked view (permission denied)   | Log row, Apply Now disabled | "Skipped: an admin locked the nav on this instance."                                                                                                |
-| Left nav off                      | Log row                     | "Skipped: this instance doesn't use the left nav."                                                                                                  |
-| Customized at first visit         | Log row                     | "Skipped: your nav was already customized. Use Apply Now to replace it."                                                                            |
-| Undo success                      | Toast                       | "Nav Pins Restored" / "Restored your previous pins on acme.domo.com."                                                                               |
-| Undo after later edits            | Toast (warning)             | "Can't Undo" / "Your pins on acme.domo.com changed after the preset was applied. Edit them in Domo or use Apply Now."                               |
-| Undo, no tab                      | Options row                 | Undo disabled, tooltip "Open acme.domo.com in a tab to undo."                                                                                       |
-| Clear Preset                      | Options                     | Plain button. Toast "Preset Cleared" / "Your nav pins on every instance are unchanged." with a **Restore** action holding the old preset in memory. |
+| State                             | Where                           | Copy                                                                                                                                                    |
+| --------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No preset                         | Options                         | Empty state: "No nav pin presets yet. Arrange your left nav in Domo, then capture it from that instance."                                               |
+| No Domo tab open                  | Options pickers                 | Disabled select, tooltip "Open a Domo instance in a tab to capture or apply."                                                                           |
+| Signed out on that tab (401)      | Toast (danger)                  | "Signed Out" / "Sign in to acme.domo.com, then try again."                                                                                              |
+| Capturing, applying, undoing      | Button                          | `isPending` on the pressed button.                                                                                                                      |
+| Naming a new preset               | Options                         | Input "Preset name", required, unique (case-insensitive); error "You already have a preset named Customer."                                             |
+| Capture success                   | Toast                           | "Preset Captured" / "Saved 7 pins from domo.domo.com to Customer. 8 instance-specific pins were left out."                                              |
+| Recapture into a preset           | Options                         | Plain button; the preset's pins are replaced and its name kept. Instances already applied are not changed.                                              |
+| Capture, nothing portable         | Toast (warning)                 | "Nothing to Capture" / "None of your pins on domo.domo.com can be used on other instances."                                                             |
+| Capture too large                 | Toast (danger)                  | "Preset Too Large" / "Remove some pins or folders and capture again."                                                                                   |
+| Sync storage full                 | Toast (danger)                  | "No Room for Another Preset" / "Delete a preset you no longer use, then capture again."                                                                 |
+| Offer (one preset)                | Side panel and popup toast      | "Use Your Nav Pins Here?" / "Replace Domo's default pins on globex.domo.com with your Customer preset (7 pins)." Action **Apply**.                      |
+| Offer (several presets)           | Side panel and popup toast      | "Use Your Nav Pins Here?" / "You have 3 nav pin presets. Choose one to replace Domo's default pins on globex.domo.com." Action **Choose Preset**.       |
+| Offer dismissed                   | Log row                         | "Offer dismissed." with **Replace** and **Add Missing** still available.                                                                                |
+| Replace on an untouched nav       | Options                         | Plain **Replace** button.                                                                                                                               |
+| Replace on a customized nav       | Options                         | **Replace** becomes a `HoldToConfirmButton` (`HOLD_DURATION_FULL`), helper text "Replaces the 12 pins you added on acme.domo.com. You can undo this."   |
+| Add Missing                       | Options                         | Plain button, helper text "Adds the preset pins you don't have yet to the end of your nav. Nothing is removed."                                         |
+| Add Missing, nothing missing      | Toast                           | "Nothing to Add" / "Every pin in Customer is already in your nav on acme.domo.com."                                                                     |
+| Replace success                   | Toast                           | "Nav Pins Applied" / "Added 4, moved 3, and removed 2 pins on acme.domo.com." with an **Undo** action when started from the offer.                      |
+| Add Missing success               | Toast                           | "Nav Pins Added" / "Added 3 pins on acme.domo.com."                                                                                                     |
+| Apply success, nav not refreshed  | Toast suffix                    | " Reload the page to see them."                                                                                                                         |
+| Some pins unavailable             | Toast suffix and log row        | "Task Center isn't available on this instance and was skipped."                                                                                         |
+| Pins already in a Navigation View | Toast suffix and log row        | "DataSets is already in your nav from a Navigation View."                                                                                               |
+| Switches unreadable               | Log row                         | "Applied without checking which features this instance has."                                                                                            |
+| Server dropped a pin              | Log row                         | "Domo didn't keep Code Engine on this instance."                                                                                                        |
+| Order differs                     | Toast (warning)                 | "Nav Pins Applied Out of Order" / "Your pins were added on acme.domo.com, but not in your preset's order."                                              |
+| Partial or full failure           | Toast (danger) and log row      | "Nav Pins Not Fully Applied" / "Stopped on acme.domo.com after an error: {message}. Use Undo, or apply again to finish."                                |
+| Locked view (permission denied)   | Log row, Apply buttons disabled | "Skipped: an admin locked the nav on this instance."                                                                                                    |
+| Left nav off                      | Log row                         | "Skipped: this instance doesn't use the left nav."                                                                                                      |
+| Unlocked Navigation View          | Options helper text             | "Your preset pins go after the pins your admin set, and any the admin already pinned are skipped."                                                      |
+| Undo success                      | Toast                           | "Nav Pins Restored" / "Restored your previous pins on acme.domo.com."                                                                                   |
+| Undo after later edits            | Toast (warning)                 | "Can't Undo" / "Your pins on acme.domo.com changed after the preset was applied. Edit them in Domo or use Apply Now."                                   |
+| Undo, no tab                      | Options row                     | Undo disabled, tooltip "Open acme.domo.com in a tab to undo."                                                                                           |
+| Rename preset                     | Options                         | Inline input with the same unique-name rule. Log rows keep the name they were applied with.                                                             |
+| Delete preset                     | Options                         | Plain button. Toast "Preset Deleted" / "Your nav pins on every instance are unchanged." with a **Restore** action holding the deleted preset in memory. |
 
-Undo is not hold-gated: it only runs while the nav is exactly what the apply produced, so it can never delete pins added later.
+Undo is not hold-gated: it only runs while the nav is exactly what the apply produced, so it can never delete pins added later. Add Missing's Undo converges back to the snapshot too, which removes only the pins it added.
 
 ### Implementation plan
 
-1. **`src/utils/navPins.js` (new):** `buildDesiredPins`, `DOMO_DEFAULT_FEATURE_IDS`, `isPresetPinAvailable`, `isUntouchedNav`, `NAV_FEATURE_SWITCHES`, `PIN_SKIP_REASONS`, `pinKey`, `resolvePresetPin`, `toPresetPin`, exported in the order `code-style.md` sorting requires. Reuse `isFeatureSwitchEnabled` from `src/utils/featureSwitches.js`.
-2. **`src/services/navPins.js` (new):** `applyNavPins`, `getNavPinEligibility`, `getNavPins`, through `executeInPage` from `src/utils/executeInPage.js`. Throw with `error.status` on failed fetches (architecture.md). Inline copies of `pinKey`, Domo's dedupe, and `findStore()` (from `src/services/pageVariables.js`) inside the injected function.
+1. **`src/utils/navPins.js` (new):** `buildDesiredPins`, `DOMO_DEFAULT_FEATURE_IDS`, `isPresetPinAvailable`, `isUntouchedNav`, `NAV_FEATURE_SWITCHES`, `newPresetId`, `PIN_SKIP_REASONS`, `pinKey`, `presetStorageKey`, `resolvePresetPin`, `toPresetPin`, exported in the order `code-style.md` sorting requires. Reuse `isFeatureSwitchEnabled` from `src/utils/featureSwitches.js`.
+2. **`src/services/navPins.js` (new):** `applyNavPins` (with `mode: 'replace' | 'addMissing'`), `getNavPinEligibility`, `getNavPins`, through `executeInPage` from `src/utils/executeInPage.js`. Throw with `error.status` on failed fetches (architecture.md). Inline copies of `pinKey`, Domo's dedupe, and `findStore()` (from `src/services/pageVariables.js`) inside the injected function.
 3. **`src/utils/currentObject.js`:** add `listOpenDomoInstances()` next to `getValidTabForInstance`: `chrome.tabs.query({ url: DOMO_MATCH_PATTERNS })`, filtered by `isDomoUrl`, mapped to `{ instance, label }` and deduped. Actions then call `getValidTabForInstance(instance)`.
 4. **`src/background.js`:**
-   - Add `navPresetAttempts` (Map), `navPresetInFlight` (Map), `navPresetSettled` (Set), and functions `applyNavPresetToInstance(instance, { force })`, `maybeApplyNavPreset(instance, instanceUser, tabId)`, `seedKnownNavInstances({ exclude })`, `undoNavPreset(instance)`, placed per the module sort rule.
-   - Call `maybeApplyNavPreset` from the `getInstanceUser(...).then` in `detectAndStoreContext` (line 1612), after `applyInstanceUser`.
-   - Add `APPLY_NAV_PRESET`, `GET_NAV_PRESET_PREVIEW`, `NAV_PRESET_SEEN` (clears the tab badge, sets `seen`), and `UNDO_NAV_PRESET` to the `onMessage` switch, sorted.
-   - In `chrome.storage.onChanged`, clear `navPresetSettled` on preset or auto changes, and seed when `navPinPresetAuto` turns on. In `onInstalled`, seed when a preset exists.
-5. **`src/hooks/useNavPinPreset.js` (new):** reads and writes `navPinPreset` and `navPinPresetAuto` (sync) and `navPinLog` (local), subscribing to `chrome.storage.onChanged` like `usePerInstanceSettings`.
-6. **`src/hooks/useNavPresetNotification.jsx` (new):** modeled on `useReleaseNotification.jsx`. Given the current context's instance, shows the applied toast once with an Undo action (`UNDO_NAV_PRESET`) and sends `NAV_PRESET_SEEN` on close. Call it from `src/sidepanel/App.jsx` and `src/popup/App.jsx` where the tab context is available.
-7. **`src/components/options/NavPinSettings.jsx` (new):** the tab UI, from HeroUI `Card`, `ListBox`, `Select`, `Switch`, `Disclosure` (Not Captured), `Chip` (type), `Button`, plus `HoldToConfirmButton`. Type labels reuse `ObjectTypeIcon` where a pin type maps to a `DomoObjectType`, with a generic icon for features.
-8. **`src/options/App.jsx`:** add the `nav-pins` `Tabs.Tab` and `Tabs.Panel` after `per-instance-settings`, with the same heading and muted subtitle pattern ("Capture your left nav once and apply it on other instances.").
+   - Add `navPresetInFlight` (Map, the per-instance lock) and functions `applyNavPresetToInstance(instance, { mode, presetId })`, `getNavPresetOffer(instance)`, `seedKnownNavInstances({ exclude })`, `undoNavPreset(instance)`, placed per the module sort rule.
+   - Add `APPLY_NAV_PRESET`, `GET_NAV_PRESET_OFFER`, `GET_NAV_PRESET_PREVIEW`, `NAV_PRESET_OFFER_DISMISSED`, and `UNDO_NAV_PRESET` to the `onMessage` switch, sorted.
+   - Seed known instances when `navPinPresetIds` goes from empty to non-empty (in `chrome.storage.onChanged`), and in `onInstalled` when a preset exists. Nothing is added to `detectAndStoreContext`.
+5. **`src/hooks/useNavPinPresets.js` (new):** reads and writes `navPinPresetIds` and the `navPinPreset:<id>` items (sync) and `navPinLog` (local), subscribing to `chrome.storage.onChanged` like `usePerInstanceSettings`. Exposes `capture`, `rename`, `remove`, and `restore`.
+6. **`src/hooks/useNavPresetOffer.jsx` (new):** modeled on `useReleaseNotification.jsx`. Given the current context's instance, asks `GET_NAV_PRESET_OFFER` once per mount, shows the offer toast (Apply, or Choose Preset opening `#nav-pins?instance=<key>`), sends `NAV_PRESET_OFFER_DISMISSED` on close, and shows the applied toast with Undo (`UNDO_NAV_PRESET`). Call it from `src/sidepanel/App.jsx` and `src/popup/App.jsx` where the tab context is available.
+7. **`src/components/options/NavPinSettings.jsx` (new):** the tab UI, from HeroUI `Card`, `ListBox`, `Select` (preset, Capture From, Into, Apply To, Preset), `Input` (name), `Disclosure` (Not Captured), `Chip` (type), `Button`, plus `HoldToConfirmButton` for Replace on a customized nav. It reads `instance` from the `#nav-pins?instance=` hash to preselect Apply To. Type labels reuse `ObjectTypeIcon` where a pin type maps to a `DomoObjectType`, with a generic icon for features.
+8. **`src/options/App.jsx`:** add the `nav-pins` `Tabs.Tab` and `Tabs.Panel` after `per-instance-settings` (D10.5), with the same heading and muted subtitle pattern ("Capture your left nav and apply it on other instances."), and route the `#nav-pins` hash (with its query) to it.
 9. **`docs/RELEASE_NOTES.md`:** add the WIP bullets below.
 10. Run `npx eslint --no-warn-ignored` on every touched file.
 
@@ -3430,39 +3575,44 @@ Undo is not hold-gated: it only runs while the nav is exactly what the apply pro
 
 ### Edge cases and risks
 
-- **Server default unverified (highest risk).** If a brand-new user's `GET /pins` returns synthesized defaults without numeric `id`s, they cannot be moved or deleted. Mitigation: if any personal pin lacks a numeric `id`, stop and log `failed` with "Could not read your default pins on this instance." The fresh-user test settles it.
-- **Established instance on first sight.** Covered by seeding plus the untouched check. A long-used nav that is still exactly the defaults gets the preset, which matches the intent.
-- **New device or reinstall.** The synced preset arrives with auto on and an empty local log; first-run seeding marks every instance this browser already has cookies or tabs for as known.
+- **Server default unverified (highest risk).** If a brand-new user's `GET /pins` returns synthesized defaults without numeric `id`s, they cannot be moved or deleted. Mitigation: if any personal pin lacks a numeric `id`, Replace stops and logs `failed` with "Could not read your default pins on this instance." (Add Missing still works.) The fresh-user test settles it.
+- **Nothing changes without a press** (D10.1). The worst a wrong offer can do is show a toast on an instance that didn't need it, and closing it dismisses it there for good.
+- **Established instance on first sight.** Seeding plus the untouched check keep the offer off instances this browser already used. A long-used nav that is still exactly the defaults gets the offer, which is harmless.
+- **New device or reinstall.** Synced presets arrive with an empty local log; first-run seeding marks every instance this browser already has cookies or tabs for as known.
 - **Cookie seeding gaps.** Users who clear Domo cookies (the extension offers this) lose that seed source; the untouched check remains. Whether every instance host keeps a host-scoped cookie is INFERRED and checked in testing.
-- **First-run Domo flows.** No reload is ever forced, so invite acceptance, password set, and welcome tours are not interrupted.
+- **The offer only appears when a surface opens.** A user who never opens the side panel or popup on a new instance never sees it. Apply Now in options still covers that instance.
+- **First-run Domo flows.** No reload is ever forced, and nothing runs until the user presses Apply, so invite acceptance, password set, and welcome tours are not interrupted.
 - **Feature visibility beyond switches.** Authority-gated features (DataSets for a user without dataset rights) fail open and could leave a dead pin for a low-privilege user. Acceptable for this audience; the log lists what was applied.
 - **Frontend drift.** Feature IDs, switch names, the reorder `order: null` meaning, and the `globalNavV2` slice come from Domo's bundle. An unknown feature ID is applied as-is, a renamed default ID yields a safe "customized" skip, a wrong reorder meaning shows as the out-of-order warning, and a missing slice falls back to "Reload the page."
-- **Navigation Views.** `VIEW` pins are never moved or deleted, even unlocked ones, since deleting a view pin's ID could change the admin's view. Preset pins a view already shows are skipped to avoid visible duplicates.
-- **Folders.** Same-label folders with different contents are replaced, not merged. A folder whose children are all instance-specific is dropped at capture. Domo caps folders at 100 children (`navigation/folder-full`).
-- **Navigation mid-apply.** An SPA route change does not stop the injected script; a full reload does, and the `applying` entry resumes on the next detection with the original snapshot.
-- **Two tabs at first sign-in.** The in-flight Map serializes within one service worker; the `applying` marker covers a restart.
-- **Sync quota.** The 8 KB item cap is checked at capture; folders with many children are the likeliest overflow.
+- **Navigation Views.** `VIEW` pins are never moved or deleted, even unlocked ones, since deleting a view pin's ID could change the admin's view. With an unlocked view, the preset goes after the view's pins and pins the view already shows are skipped (D10.3).
+- **Folders.** Same-label folders with different contents are replaced under Replace, and appended as a second folder under Add Missing (their keys differ). A folder whose children are all instance-specific is dropped at capture. Domo caps folders at 100 children (`navigation/folder-full`).
+- **Navigation mid-apply.** An SPA route change does not stop the injected script; a full reload does. The `applying` entry keeps the first snapshot, and the log row offers Undo and a re-run, which converges from where it stopped.
+- **Two tabs at once.** The offer is logged `offered` before the toast shows, so a second tab's surface gets no second offer. The in-flight Map serializes applies within one service worker.
+- **Sync quota.** The 8 KB per-preset cap is checked at capture, and so is the 100 KB area total, which presets share with other synced settings; folders with many children are the likeliest overflow.
+- **Deleted or renamed presets.** Log rows keep the preset's name from when it was applied, and Undo works from the stored snapshot, so neither depends on the preset still existing.
 - **Same-instance links.** The ID heuristic (`\d{5,}` or a UUID) can skip a generic path with a long number; it never keeps a wrong one.
 - **Internal instances (rigs, local).** Gated by `canActOnHost`; good throwaway targets.
 
 ### Testing and verification
 
 - **Compile and lint:** `yarn dev` (usually already running on 31573), watch the Vite output, `npx eslint --no-warn-ignored` on each new or changed file.
-- **Options UI:** CRXJS dev extension, `node scripts/ext-shot.js options` for the empty and populated states. Seed `navPinPreset` and `navPinLog` from the options page DevTools console to shoot each status row.
-- **Capture (read-only, safe anywhere):** capture from domo.domo.com and confirm 7 kept and 8 skipped, as listed in API findings.
-- **Seeding:** in the debug profile console, run `chrome.cookies.getAll({ domain: 'domo.com' })` from the service worker and confirm instance hosts appear; turn auto on and confirm `navPinKnownInstances` lists them.
-- **Apply and undo (writes):** only on a rig, local instance, or trial, never on someone else's nav:
+- **Options UI:** CRXJS dev extension, `node scripts/ext-shot.js options` for the empty and populated states. Seed `navPinPresetIds`, two `navPinPreset:<id>` items, and `navPinLog` from the options page DevTools console to shoot each status row and the preset picker.
+- **Capture (read-only, safe anywhere):** capture from domo.domo.com into a new preset and confirm 7 kept and 8 skipped, as listed in API findings. Capture again into a second name, recapture into the first, rename one, delete one and Restore it.
+- **Seeding:** in the debug profile console, run `chrome.cookies.getAll({ domain: 'domo.com' })` from the service worker and confirm instance hosts appear; capture the first preset and confirm `navPinKnownInstances` lists them.
+- **Offer, apply and undo (writes):** only on a rig, local instance, or trial, never on someone else's nav:
   1. Create a fresh test user there, sign in as that user in the debug profile, and record the first `GET /api/nav/v1/pins` (settles the default set and whether defaults have real `id`s; adjust `DOMO_DEFAULT_FEATURE_IDS`).
-  2. Let the auto flow run. Confirm the personal pins match the preset order, view pins are untouched, the nav updated without a reload (`findStore()` reached `globalNavV2`), and the tab shows the badge.
-  3. Open the side panel, press Undo in the toast, confirm the snapshot returns.
-  4. Apply again, add one pin in Domo, press Undo, confirm "Can't Undo".
-  5. Customize the nav, use Apply Now, confirm the hold appears.
-  6. Assign a locked Navigation View to the test user, confirm the `locked-view` skip; assign an unlocked one and confirm the chosen behavior and the view-duplicate skip.
-  7. Throttle the network, reload mid-apply, confirm the next detection resumes from `applying` and keeps the first snapshot.
-  8. With Task Center in the preset, turn off `hopper` on the rig and confirm it is listed as unavailable.
-  9. Confirm `order: null` on `PATCH /pins/{id}` moves a pin last (watch the Network panel response order).
-  10. Append a folder holding a feature, a link, and a smart folder inline, and confirm all three children come back.
-- **Background lifecycle:** open two tabs to the new instance at once and confirm a single apply in the Network panel; restart the service worker mid-apply and confirm resume.
+  2. Navigate around without opening the side panel or popup: confirm no pin call is made.
+  3. Open the side panel: the offer shows once. With one preset, press Apply. Confirm the personal pins match the preset order, view pins are untouched, and the nav updated without a reload (`findStore()` reached `globalNavV2`). Open the popup: no second offer.
+  4. Press Undo in the applied toast, confirm the snapshot returns.
+  5. With two presets, reset `navPinLog` for the instance: the offer reads Choose Preset and opens the Nav Pins tab with the instance preselected. Close an offer instead and confirm it never returns there.
+  6. Apply again, add one pin in Domo, press Undo, confirm "Can't Undo".
+  7. Customize the nav: no offer on a fresh log entry. In options, Replace shows the hold; Add Missing appends only the missing preset pins at the end and removes nothing, and its Undo removes only those.
+  8. Assign a locked Navigation View to the test user: no offer, and both Apply buttons are disabled. Assign an unlocked one: the preset lands after the view's pins and duplicates are skipped.
+  9. Throttle the network, reload mid-apply, confirm the log row shows `applying` with the first snapshot, and that Replace again finishes the converge.
+  10. With Task Center in the preset, turn off `hopper` on the rig and confirm it is listed as unavailable.
+  11. Confirm `order: null` on `PATCH /pins/{id}` moves a pin last (watch the Network panel response order).
+  12. Append a folder holding a feature, a link, and a smart folder inline, and confirm all three children come back.
+- **Background lifecycle:** open the side panel on two tabs of the new instance at once and confirm one offer; restart the service worker mid-apply and confirm the log and Undo survive.
 
 ### Design decisions made
 
@@ -3472,26 +3622,29 @@ Undo is not hold-gated: it only runs while the nav is exactly what the apply pro
 - **Cross-instance identity uses the id-free branch of Domo's own key.** Domo keys smart folders and folders by server ID, which never matches across instances. Evidence: chunk `64501` function `d`.
 - **Append folders with children inline, falling back to `?folderId=`.** Domo's feature-section pin does exactly this in one POST. Evidence: chunk `4343` component `ew`; the critique's claim that Domo only ever creates one-child folders was checked and is wrong for that path.
 - **Refresh the nav through Redux instead of reloading the tab.** A reload can throw away first-login flows, and Domo itself refreshes by dispatching `SET_NAVIGATION_PINS`. Evidence: chunk `64501` slice `globalNavV2`; `findStore()` in `src/services/pageVariables.js`. This settles the draft's reload question.
-- **Settle each instance in memory.** `getInstanceUser`'s `.then` runs on every detection. Evidence: `background.js` lines 475 and 1612.
-- **Await feature switches before an automatic apply.** `getInstanceUser` resolves before switches arrive, and `isFeatureSwitchEnabled` fails open on `null`. Evidence: `background.js` lines 316 and 508, `src/utils/featureSwitches.js`.
-- **Resume skips the untouched check and keeps the first snapshot.** A half-applied nav is no longer untouched. Evidence: the critique's ordering analysis, reproduced against the draft's flow.
+- **An offer, never an automatic apply** (D10.1). Nothing runs on detection, so the badge, the settle set, the retry counter, and the resume logic are gone. Untouched-nav and known-instance checks still decide when to offer.
+- **Replace and Add Missing** (D10.2). Replace converges (hold on a customized nav); Add Missing only appends, so it needs no hold.
+- **Unlocked Navigation Views don't block** (D10.3). The preset goes after the view's pins, minus duplicates.
+- **Several named presets, one sync item each** (D10.6). Each keeps the 8 KB item cap; there is no default preset, so the offer applies the only one directly and otherwise sends the user to pick.
+- **Read feature switches before every apply.** The background's cache can be cold, and `isFeatureSwitchEnabled` fails open on `null`. Evidence: `background.js` lines 316 and 508, `src/utils/featureSwitches.js`.
+- **A re-run keeps the first snapshot.** A half-applied nav is no longer the nav Undo should restore. Evidence: the critique's ordering analysis.
 - **Undo only while the nav still equals the applied result.** A converge-to-snapshot would otherwise delete pins added later. Evidence: critique UX review.
 - **Known instances live in their own unrendered key, seeded from cookies, tabs, and settings.** `perInstance` and `instanceUsersBackup` alone miss most instances (`instanceUsersBackup` is session storage). Evidence: `background.js` line 258 and `persistInstanceUsers`, manifest `cookies` permission, `src/utils/clearCookies.js`.
 - **Never touch `VIEW` pins, locked or not, and skip preset pins a view already shows.** Users cannot remove admin pins in Domo either, and Domo hides the personal copy on a collision. Evidence: views `56236e41-309c-4bdb-8191-8ea420ba12bf` and `b9217b4c-26a3-45bf-b0f0-e4f42ce25ed5`, chunk `11746` `unlockPins`, chunk `64501` dedupe.
 - **An unassigned view named "Default" is not a default.** Evidence: `views/users/1813188617/view` returns 204 while that view exists.
 - **Gate feature pins on the nav catalog's switches only.** Domo renders pinned items regardless of `show`; authority mirroring would be fragile. Evidence: chunks `4343`, `18900`.
-- **Preset in `chrome.storage.sync`, log and snapshots in `chrome.storage.local`.** The preset should follow the user; snapshots are per-device history. Evidence: existing sync settings (`faviconRules`, `defaultDomoInstance`).
+- **Presets in `chrome.storage.sync`, log and snapshots in `chrome.storage.local`.** Presets should follow the user; snapshots and offer state are per-device history. Evidence: existing sync settings (`faviconRules`, `defaultDomoInstance`).
 - **Reuse `getValidTabForInstance` and `DOMO_MATCH_PATTERNS` instead of a new tab hook.** Evidence: `src/utils/currentObject.js` line 748, `src/utils/constants.js` line 37.
-- **Applied notice is a toast plus a per-tab badge, not a new Alert.** Same pattern as release notes, and visible without opening a surface. Evidence: `src/hooks/useReleaseNotification.jsx`.
-- **Clear Preset is a plain button with a Restore toast.** It touches no nav. Evidence: critique scope review.
-- **Retry transient errors up to 3 times instead of logging `leftnav-off` on a failed read.** Domo's own wrapper hides the error as `false`, which would wrongly mark the instance. Evidence: Domo's `isLeftNavEnabled` wrapper, as read in the draft investigation.
+- **The offer is a toast, not a new Alert.** Same pattern as release notes. Evidence: `src/hooks/useReleaseNotification.jsx`.
+- **Delete Preset is a plain button with a Restore toast.** It touches no nav. Evidence: critique scope review.
+- **A failed eligibility read means no offer and no log entry, never `leftnav-off`.** Domo's own wrapper hides the error as `false`, which would wrongly mark the instance; leaving it unlogged lets the next open ask again. Evidence: Domo's `isLeftNavEnabled` wrapper, as read in the draft investigation.
 - **Use `instanceUser.user.id`, not `window.bootstrap`.** Already in hand. Evidence: `getInstanceUser`.
 - **No new action button.** The feature is not object-scoped. Evidence: `ActionButtons.jsx` gating.
 
 ### Release notes draft
 
-- You can now capture your left nav pins as a preset in Settings and have them replace Domo's default pins the first time you sign in to a new instance. ([#10](https://github.com/brycewc/domo-toolkit/issues/10))
-- A nav pin preset can also be applied to any open instance on demand, with Undo to restore the pins you had before. ([#10](https://github.com/brycewc/domo-toolkit/issues/10))
+- You can now save your left nav pins as named presets in Settings, and the extension offers to apply one the first time you open it on a new instance. ([#10](https://github.com/brycewc/domo-toolkit/issues/10))
+- A nav pin preset can also replace your pins or add the missing ones on any open instance, with Undo to restore the pins you had before. ([#10](https://github.com/brycewc/domo-toolkit/issues/10))
 
 ## Appendix: writes made on domo.domo.com during planning
 
