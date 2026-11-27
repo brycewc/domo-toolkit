@@ -99,7 +99,7 @@ export async function getOwnedApprovals(userId, tabId = null) {
               approverId: userId,
               lastModifiedBefore: null,
               submitterId: null,
-              templateId: null,
+              templateIds: null,
               title: null
             },
             reverseSort: false
@@ -259,53 +259,15 @@ export async function getOwnedCertificationProcesses(userId, tabId = null) {
 }
 
 /**
- * Count the approval requests created from a template, without paging through
- * every request. Selects only the `workflowSearch` connection `totalCount`,
- * filtered by `templateIds` the same way getTemplateApprovals does. Used to show
- * a tally in the delete view's dependency check.
+ * Count the approval requests created from a template. The workflowSearch
+ * connection has no `totalCount` field, so this pages through the full
+ * request list via getTemplateApprovals. Used to show a tally in the delete
+ * view's dependency check.
  * @param {string} templateId - The approval template ID
  * @param {number|null} tabId - Optional Chrome tab ID
  * @returns {Promise<number|null>} The request count, or null if unavailable
  */
 export async function getTemplateApprovalCount(templateId, tabId = null) {
-  // Cheap path: read the connection's total instead of paging edges. If an
-  // instance does not expose `totalCount` on workflowSearch (comes back null or
-  // the query errors), fall back to counting the full, paged request list.
-  const total = await executeInPage(
-    async (templateId) => {
-      const response = await fetch('/api/synapse/approval/graphql', {
-        body: JSON.stringify({
-          operationName: 'getRequestCount',
-          query:
-            'query getRequestCount($query: QueryRequest!) {\n  workflowSearch(query: $query, type: "AC") {\n    totalCount\n  }\n}',
-          variables: {
-            query: {
-              active: null,
-              approverId: null,
-              lastModifiedBefore: null,
-              submitterId: null,
-              templateIds: [templateId],
-              title: null
-            }
-          }
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST'
-      });
-      if (!response.ok) {
-        const error = new Error(`HTTP ${response.status}`);
-        error.status = response.status;
-        throw error;
-      }
-      const data = await response.json();
-      return data?.data?.workflowSearch?.totalCount ?? null;
-    },
-    [templateId],
-    tabId
-  ).catch(() => null);
-
-  if (typeof total === 'number') return total;
-
   const approvals = await getTemplateApprovals(templateId, tabId).catch(() => null);
   return Array.isArray(approvals) ? approvals.length : null;
 }
@@ -315,9 +277,8 @@ export async function getTemplateApprovalCount(templateId, tabId = null) {
  * Mirrors getOwnedApprovals but filters the workflow search by templateIds
  * instead of approverId, so it returns the template's requests regardless of
  * who the approver is or what status they are in. The QueryRequest input field
- * is the array `templateIds: [ID!]`, NOT the singular `templateId` that Domo's
- * UI sends, which the server silently ignores (returning every template's
- * requests); confirmed via schema introspection. Walks the cursor-paginated
+ * is the array `templateIds: [ID!]`; the server rejects the old singular
+ * `templateId` with an HTTP 400. Walks the cursor-paginated
  * workflowSearch (the API returns roughly 30 edges per page) until there are
  * no more pages, and returns the richer per-approval field set the Approval
  * Center UI itself reads (template title, status, timestamps, current pending
