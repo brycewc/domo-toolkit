@@ -107,7 +107,7 @@ This section settles the pieces that #8 (Bulk Select Delete Cards on Dashboard, 
 
 ### Landing order
 
-1. **#9, commit A: shared card plumbing.** `cardUrlOnPage` and `canManageCard` (with `GetCardsView.transformCardsToItems` switched to `cardUrlOnPage`), the `getCardsForParent` options, `getCardsForContext`, DataList `renderItemDetail`, and `CardBatchList`. No user-visible change, so no release note.
+1. **#9, commit A: shared card plumbing.** `cardUrlOnPage` and `canManageCard` (with `GetCardsView.transformCardsToItems` switched to `cardUrlOnPage`), the `getCardsForParent` options, `getCardsForContext`, DataList `renderItemDetail`, and `CardBatchList`. No user-visible change, so no release note. **Done.** `GetCollectionsView`'s identical `appCardUrl` moved onto `cardUrlOnPage` in the same change.
 2. **#9, commit B: executors and holds.** `src/utils/promisePool.js`, recorded in `docs/plans/beta-phase-1-2-retries-concurrency.md` (amendments below), plus the three hold constants in `src/utils/constants.js` with `HoldToConfirmButton.jsx` and `DeleteObjectView.jsx` switched to them (no behavior change). Moving `ActivityLogTable.jsx`'s local `promisePool` stays with 1.2, as #80 also proposes. The envelope `retryAfter` field has already landed.
 3. **#9 feature commits.**
 4. **#8:** `batchWithFallback` in its own commit with the 1.2 doc amendment, unless 1.2 step 6 has landed it first. Then the feature, adopting everything from commits A and B. The `computeIsOwner` fix it once depended on is done.

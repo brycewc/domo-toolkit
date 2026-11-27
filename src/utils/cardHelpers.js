@@ -2,6 +2,24 @@
  * Shared utilities for components that work with cards, forms, workflows, and queues
  */
 
+/** Domo's own `canManageKpi` rule. `isCurrentUserOwner` counts group owners but needs `owners` in the card read's parts. */
+export function canManageCard({ card, userRights = [] }) {
+  return (
+    userRights.includes('content.admin') ||
+    card?.isCurrentUserOwner === true ||
+    (userRights.includes('content.card.edit') && !card?.locked)
+  );
+}
+
+/** Card URL scoped to the page it sits on, so opening it keeps the page's filters; null outside a known page. */
+export function cardUrlOnPage({ cardId, objectId, objectType, origin, parentId }) {
+  if (objectType === 'PAGE') return `${origin}/page/${objectId}/kpis/details/${cardId}`;
+  if (parentId && (objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW')) {
+    return `${origin}/app-studio/${parentId}/pages/${objectId}/kpis/details/${cardId}`;
+  }
+  return null;
+}
+
 /** Names the `getCardsForParent` views that failed, or counts them past three; null when none did. */
 export function describeFailedViews(viewGroups, { bold = false } = {}) {
   const names = viewGroups.filter((vg) => vg.error).map((vg) => (bold ? `**${vg.viewName}**` : vg.viewName));

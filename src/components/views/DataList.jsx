@@ -62,7 +62,7 @@ import { ViewHeader } from './ViewHeader';
  * Features:
  * - Hierarchical/nested item display
  * - Expandable/collapsible sections with Disclosure
- * - Item counts and metadata
+ * - Item counts, plus an optional per-row detail line (`renderItemDetail`)
  * - Clickable links to navigate
  * - Action buttons for each item (with built-in copy and openAll handling)
  * - Configurable header action buttons (with built-in copy and openAll handling)
@@ -104,6 +104,7 @@ import { ViewHeader } from './ViewHeader';
  * @param {Function} [props.isSelectable] - `(item) => boolean` filter. When `selectionMode` is true, only items returning true get a checkbox-wrapped label; others get an empty 16px placeholder to preserve column alignment. Defaults to `() => true`.
  * @param {Function} [props.getUnselectableTooltip] - `(item) => string | null`. When it returns a string for a row that `isSelectable` rejects, that row renders a disabled (unchecked, dimmed) checkbox showing the string on hover, instead of the empty placeholder. This gives a list where many/all rows are currently unavailable a real checkbox column plus a hover explanation of why each is disabled, rather than a column of blank gaps that just look unchecked. Return null (or omit the prop) to keep the placeholder behavior other views rely on. The checkbox is `isReadOnly` (can't be toggled) but stays hoverable so the tooltip fires.
  * @param {Function} [props.getItemBadge] - `(item) => { icon: React.ReactNode, tooltip: string } | null`. Optional trailing status adornment for leaf rows. When it returns a badge, DataList renders `icon` pinned at the row's end (outside the truncating label container, so it never clips with the title), wrapped in a tooltip showing `tooltip`. Purely presentational: it does not affect selection. Returns null for rows with no badge.
+ * @param {Function} [props.renderItemDetail] - `(item) => React.ReactNode | null`. Optional second block rendered under the label of a leaf (childless, non-group) row at any depth, aligned with the label and outside every pressable element, so interactive content inside it works. Rows are compared by this function's identity, so memoize it on the data it reads. Setting it also raises the virtualizer's row estimate to `DETAIL_ROW_HEIGHT`.
  * @param {Function} [props.getItemLock] - `(item) => { locked: boolean, tooltip: string } | null`. When it returns `locked`, the item's checkbox renders read-only (kept checked, can't be unchecked) and muted, wrapped in a tooltip showing `tooltip`. Uses `aria-disabled` rather than `isDisabled` so the tooltip still fires and the row's label link stays clickable. The consumer must also keep the id in `selectedIds` (e.g. re-add it in `onSelectionChange`) so the lock holds. Applies to both leaf rows and parent (group-header) rows; a locked parent gets the same read-only + muted checkbox while its disclosure toggle stays interactive.
  * @param {Object} [props.selectAll] - Opt-in bulk-selection control. When provided and `selectionMode` is true, DataList renders a standardized tri-state "Select all" checkbox below the `banner` (above the items list). Shape: `{ ariaLabel?: string, count: number, isDisabled?: boolean, onToggle: (checked: boolean) => void, showCount?: boolean, total: number }`. `count`/`total` drive the visual state (checked when `count === total`, indeterminate when `0 < count < total`); the checkbox is disabled when `total === 0` or `isDisabled` is true. `onToggle(true)` should select every eligible item, `onToggle(false)` should clear. `showCount` appends `(count / total)` to the label. The consumer owns what "all" means and supplies `count`/`total`/`onToggle`, so grouped or async lists keep their own reconciliation. Ignored when `selectionMode` is false.
  * @param {Boolean} [props.fillHeight] - When true, the root Card fills its parent's available height (`h-full`) instead of being content-sized (`max-h-fit`), so the items list scrolls internally and the footer stays pinned at the bottom. Requires a parent that provides a constrained height (a flex/grid column). Default false preserves content-sizing.
@@ -143,6 +144,7 @@ export function DataList({
   onRefresh,
   onSelectionChange,
   onStatusUpdate,
+  renderItemDetail,
   selectAll,
   selectedIds,
   selectionMode = false,
@@ -610,6 +612,7 @@ export function DataList({
                   key={expansionSeedKey}
                 >
                   <VirtualizedItems
+                    estimatedRowHeight={renderItemDetail ? DETAIL_ROW_HEIGHT : ROW_HEIGHT}
                     items={sortedItems}
                     renderItem={(item) => (
                       <DataListItem
@@ -626,6 +629,7 @@ export function DataList({
                         item={item}
                         itemActions={itemActions}
                         objectType={objectType}
+                        renderItemDetail={renderItemDetail}
                         selectedIds={selectedIds}
                         selectionMode={selectionMode}
                         shareEnabled={shareEnabled}
@@ -681,6 +685,7 @@ export function DataList({
                         itemActions={itemActions}
                         key={item.id || index}
                         objectType={objectType}
+                        renderItemDetail={renderItemDetail}
                         selectedIds={selectedIds}
                         selectionMode={selectionMode}
                         shareEnabled={shareEnabled}
@@ -860,13 +865,15 @@ function openUrlsWithLimit({ itemLabel, onStatusUpdate, urls }) {
 
 // Row geometry for virtualization. ROW_HEIGHT matches `min-h-9` on flat rows
 // and Disclosure headings; long-wrapping labels self-correct via
-// `measureElement`. MAX_VISIBLE_CHILDREN_ROWS caps the height of bounded child
+// `measureElement`. DETAIL_ROW_HEIGHT is a row plus one `renderItemDetail`
+// line. MAX_VISIBLE_CHILDREN_ROWS caps the height of bounded child
 // lists so an expanded group with 1000s of items doesn't push the page. The cap
 // is lifted for a lone group in a `fillHeight` DataList, which owns a
 // height-constrained scroll viewport that nothing else is competing for.
 // The trailing colon is the delimiter the handler splits on; no type id has one.
 const ACTIVITY_LOG_TYPE_ACTION = 'activityLogType:';
 const ROW_HEIGHT = 36;
+const DETAIL_ROW_HEIGHT = 58;
 const MAX_VISIBLE_CHILDREN_ROWS = 12;
 const VIRTUAL_OVERSCAN = 5;
 
@@ -903,6 +910,7 @@ function arePropsEqualForRow(prev, next) {
   if (prev.isSelectable !== next.isSelectable) return false;
   if (prev.isInSelectionScope !== next.isInSelectionScope) return false;
   if (prev.depth !== next.depth) return false;
+  if (prev.renderItemDetail !== next.renderItemDetail) return false;
   // Deleting or filtering a group away can leave a row as the list's only item
   // (or stop it being one), which flips how an expanded group sizes itself.
   if (prev.isSoleItem !== next.isSoleItem) return false;
@@ -948,7 +956,6 @@ function arePropsEqualForRow(prev, next) {
  * @param {String} props.item.url - Optional URL for link
  * @param {Number} props.item.count - Optional count to display
  * @param {Array} props.item.children - Optional nested children
- * @param {Object} props.item.metadata - Optional additional metadata
  * @param {ItemActionType[]} props.itemActions - Array of action types to show (if not provided, uses default logic)
  * @param {Function} props.onItemAction - Callback when action is clicked
  * @param {Boolean} props.showActions - Whether to show action buttons
@@ -977,6 +984,7 @@ function DataListItemImpl({
   objectType,
   onItemAction,
   onToggleExpanded,
+  renderItemDetail,
   selectedIds,
   selectionMode = false,
   shareEnabled = false,
@@ -1661,6 +1669,9 @@ function DataListItemImpl({
         {item.countLabel ? ` ${item.countLabel}` : ''})
       </p>
     );
+    const detail = !item.isVirtualParent && typeof renderItemDetail === 'function' ? renderItemDetail(item) : null;
+    // Lines the detail up under the label: the depth indent plus the 16px checkbox column and its 8px gap.
+    const detailIndent = (selectionMode && depth > 0 ? depth * 8 : 0) + (inSelectionScope ? 24 : 0);
     return (
       <div className='w-full'>
         <div
@@ -1723,6 +1734,14 @@ function DataListItemImpl({
           {badgeNode}
           {statusIndicator ?? (selectionMode && !showActionsInSelectionMode ? null : actions)}
         </div>
+        {detail != null && detail !== false && (
+          <div
+            className='-mt-1 mb-1.5 min-w-0 text-sm'
+            style={detailIndent ? { paddingLeft: `${detailIndent}px` } : undefined}
+          >
+            {detail}
+          </div>
+        )}
       </div>
     );
   }
@@ -1746,6 +1765,7 @@ function DataListItemImpl({
     objectType,
     onItemAction,
     onToggleExpanded,
+    renderItemDetail,
     selectedIds,
     selectionMode,
     shareEnabled,
@@ -2042,6 +2062,7 @@ function DataListItemImpl({
               {item.children.length > virtualThreshold ? (
                 <VirtualizedItems
                   bounded
+                  estimatedRowHeight={renderItemDetail ? DETAIL_ROW_HEIGHT : ROW_HEIGHT}
                   fillHeight={fillHeight && isSoleItem}
                   items={item.children}
                   renderItem={(child) => <DataListItem {...childRenderProps(child)} />}
@@ -2062,7 +2083,7 @@ function DataListItemImpl({
                   className='w-full divide-y divide-border overscroll-auto'
                   offset={2}
                   orientation='vertical'
-                  style={{ height: MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT }}
+                  style={{ height: MAX_VISIBLE_CHILDREN_ROWS * (renderItemDetail ? DETAIL_ROW_HEIGHT : ROW_HEIGHT) }}
                 >
                   {item.children.map((child, index) => (
                     <DataListItem key={child.id || index} {...childRenderProps(child)} />
@@ -2175,18 +2196,19 @@ function useSharedScroller(ref, enabled) {
  * call site passes `depth + 1`).
  *
  * @param {Object} props
- * @param {boolean} props.bounded - When true, cap height at MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT.
+ * @param {boolean} props.bounded - When true, cap height at MAX_VISIBLE_CHILDREN_ROWS rows.
+ * @param {number} [props.estimatedRowHeight] - Row height before measuring; DETAIL_ROW_HEIGHT when rows carry a detail line.
  * @param {boolean} props.fillHeight - When true alongside `bounded`, window off the DataList's viewport instead of capping. The child call site passes this only for a group with no siblings.
  * @param {Array} props.items - Items to render.
  * @param {(item: Object, index: number) => React.ReactNode} props.renderItem
  */
-function VirtualizedItems({ bounded = false, fillHeight = false, items, renderItem }) {
+function VirtualizedItems({ bounded = false, estimatedRowHeight = ROW_HEIGHT, fillHeight = false, items, renderItem }) {
   const parentRef = useRef(null);
   const inline = bounded && fillHeight;
   const { scroller, scrollMargin } = useSharedScroller(parentRef, inline);
   const virtualizer = useVirtualizer({
     count: items.length,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => estimatedRowHeight,
     // Inline lists don't scroll themselves, so the virtualizer has to watch the
     // ancestor that does. Null until the effect resolves it, which the
     // virtualizer tolerates (it measures nothing until it has an element).
@@ -2199,7 +2221,7 @@ function VirtualizedItems({ bounded = false, fillHeight = false, items, renderIt
     ? {
         // Inline: the wrapper below already spans the full run of rows, so the
         // container just wraps it. Nested scroller: cap the visible window.
-        height: inline ? undefined : Math.min(items.length * ROW_HEIGHT, MAX_VISIBLE_CHILDREN_ROWS * ROW_HEIGHT)
+        height: inline ? undefined : Math.min(items.length, MAX_VISIBLE_CHILDREN_ROWS) * estimatedRowHeight
       }
     : undefined;
 

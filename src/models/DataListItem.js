@@ -17,7 +17,8 @@ export class DataListItem {
    * @param {string} config.label - Display label for the item
    * @param {string} [config.url] - Optional URL for navigation
    * @param {string} [config.typeId] - Object type identifier (e.g., 'PAGE', 'DATA_APP_VIEW')
-   * @param {string} [config.metadata] - Optional metadata string for display (e.g., "ID: 123")
+   * @param {string} [config.metadata] - Optional descriptive string (e.g., "ID: 123"). DataList never renders it;
+   *   a view that wants a visible second line passes DataList's `renderItemDetail`.
    * @param {boolean} [config.muted] - When true, DataList renders the row's
    *   label (name + `currentColor` icon) muted, marking it as a secondary or
    *   container entry rather than a direct result. Any annotation marker keeps

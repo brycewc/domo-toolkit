@@ -11,7 +11,7 @@ import { extractPageContentIds, getFormsForPage, getQueuesForPage, getWorkflowsF
 import { getBeastModeUsageForObject } from '@/services/beastModes';
 import { getCardsForObject, getCardsForParent } from '@/services/cards';
 import { DRILL_ONLY_NOTE, groupBeastModeUsageByCard } from '@/utils/beastModeLinks';
-import { describeFailedViews, waitForCards } from '@/utils/cardHelpers';
+import { cardUrlOnPage, describeFailedViews, waitForCards } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { soleExpandedGroupIds, withCanonicalGroups } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -500,12 +500,7 @@ function transformCardsToItems(cards, origin, objectType, objectId, parentId) {
       const domoObject = new DomoObject('CARD', card.id, origin, {
         name: (card.title || card.name || '').trim()
       });
-      // Override generic card URL with page-specific URL when on a page or app
-      if (objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW') {
-        domoObject.url = `${origin}/app-studio/${parentId}/pages/${objectId}/kpis/details/${card.id}`;
-      } else if (objectType === 'PAGE') {
-        domoObject.url = `${origin}/page/${objectId}/kpis/details/${card.id}`;
-      }
+      domoObject.url = cardUrlOnPage({ cardId: card.id, objectId, objectType, origin, parentId }) ?? domoObject.url;
       return DataListItem.fromDomoObject(domoObject);
     });
 }

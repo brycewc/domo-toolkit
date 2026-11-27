@@ -338,6 +338,101 @@ export async function getCardsByIds({ cardIds, includeFiltered = true, parts = '
 }
 
 /**
+ * Load the cards a bulk card tool works on: the current object's cards, or with
+ * `scope: 'parent'` every view's cards across its App Studio app or worksheet.
+ *
+ * @param {Object} params
+ * @param {import('@/models/DomoContext').DomoContext} params.context - The context the view was launched on
+ * @param {string|null} [params.hydrateParts=null] - When set, every card is re-read through `getCardsByIds`
+ *   with these parts and merged over the source card, which keeps source-only fields such as stacks' `access`
+ * @param {string|null} [params.parentId=null] - Parent scope only; defaults to the context object's parent
+ * @param {string|null} [params.parts=null] - Extra parts for the source read (page-type sources only)
+ * @param {'object'|'parent'} [params.scope='object']
+ * @param {number|null} [params.tabId=null] - Target tab; defaults to the context's tab
+ * @returns {Promise<{
+ *   cards: Array<Object>,
+ *   failedViews: Array<{error: string, viewId: string, viewName: string}>,
+ *   groups: Array<{cardIds: string[], viewId: string, viewName: string}>,
+ *   missingIds: string[],
+ *   parentName: string|null
+ * }>} Each card appears once, with a string `id`, an untrimmed `title`, and a `loadIndex`
+ *   from sorting by trimmed title. `groups` is empty outside parent scope, and lists each
+ *   view's card IDs in load order. `missingIds` are source cards the hydrate did not return.
+ * @throws {Error} If the object's card read fails, or in parent scope if the app read fails
+ */
+export async function getCardsForContext({
+  context,
+  hydrateParts = null,
+  parentId = null,
+  parts = null,
+  scope = 'object',
+  tabId = null
+}) {
+  const domoObject = context?.domoObject;
+  const targetTabId = tabId ?? context?.tabId ?? null;
+  const sourceCards = [];
+  let failedViews = [];
+  let groups = [];
+  let parentName = null;
+
+  if (scope === 'parent') {
+    const resolvedParentId = parentId ?? domoObject?.parent?.id;
+    if (!resolvedParentId) throw new Error('Could not determine the parent app or worksheet.');
+    const result = await getCardsForParent({ cardsOnly: true, parentId: resolvedParentId, parts, tabId: targetTabId });
+    parentName = result.parentName;
+    failedViews = result.viewGroups
+      .filter((vg) => vg.error)
+      .map(({ error, viewId, viewName }) => ({ error, viewId, viewName }));
+    groups = result.viewGroups
+      .filter((vg) => !vg.error)
+      .map(({ cards, viewId, viewName }) => {
+        sourceCards.push(...cards);
+        return { cardIds: cards.map((card) => String(card.id)), viewId, viewName };
+      });
+  } else {
+    const cards = await getCardsForObject({
+      metadata: domoObject?.metadata,
+      objectId: domoObject?.id,
+      objectType: domoObject?.typeId,
+      parts,
+      tabId: targetTabId
+    });
+    sourceCards.push(...(cards || []));
+  }
+
+  const byId = new Map();
+  for (const card of sourceCards) {
+    if (card?.id == null) continue;
+    const id = String(card.id);
+    if (!byId.has(id)) byId.set(id, { ...card, id });
+  }
+
+  const missingIds = [];
+  if (hydrateParts && byId.size > 0) {
+    const hydrated = await getCardsByIds({ cardIds: [...byId.keys()], parts: hydrateParts, tabId: targetTabId });
+    const hydratedById = new Map(hydrated.map((card) => [String(card.id), card]));
+    for (const [id, card] of byId) {
+      const fresh = hydratedById.get(id);
+      if (fresh) {
+        byId.set(id, { ...card, ...fresh, id });
+      } else {
+        byId.delete(id);
+        missingIds.push(id);
+      }
+    }
+    groups = groups
+      .map((group) => ({ ...group, cardIds: group.cardIds.filter((id) => byId.has(id)) }))
+      .filter((group) => group.cardIds.length > 0);
+  }
+
+  const cards = [...byId.values()]
+    .sort((a, b) => (a.title || a.name || '').trim().localeCompare((b.title || b.name || '').trim()))
+    .map((card, loadIndex) => ({ ...card, loadIndex }));
+
+  return { cards, failedViews, groups, missingIds, parentName };
+}
+
+/**
  * Get all cards for a given object (page, dataset, dataflow, or Beast Mode)
  * @param {Object} params - Parameters for fetching cards
  * @param {string} params.objectId - The object ID (page, dataset, dataflow, or Beast Mode ID)
@@ -463,6 +558,7 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
  * @param {Object} params
  * @param {boolean} [params.cardsOnly=false] - Read only each view's cards, skipping its forms, workflows, and queues
  * @param {string} params.parentId - The DATA_APP or WORKSHEET ID
+ * @param {string|null} [params.parts=null] - Extra parts for each view's card read (see `getCardsForObject`)
  * @param {number|null} [params.tabId=null] - Target tab
  * @returns {Promise<{
  *   parentName: string,
@@ -477,7 +573,7 @@ export async function getCardsForObject({ metadata, objectId, objectType, parts 
  *   }>
  * }>} The forms, queues, and workflows lists are absent with `cardsOnly`
  */
-export async function getCardsForParent({ cardsOnly = false, parentId, tabId = null }) {
+export async function getCardsForParent({ cardsOnly = false, parentId, parts = null, tabId = null }) {
   // 1. Fetch the parent app/worksheet to get its name and view list.
   const parentData = await executeInPage(
     async (parentId) => {
@@ -512,7 +608,11 @@ export async function getCardsForParent({ cardsOnly = false, parentId, tabId = n
           return fallback;
         });
 
-      const cardsRead = settle(getCardsForObject({ objectId: viewId, objectType: 'DATA_APP_VIEW', tabId }), ['cards'], []);
+      const cardsRead = settle(
+        getCardsForObject({ objectId: viewId, objectType: 'DATA_APP_VIEW', parts, tabId }),
+        ['cards'],
+        []
+      );
 
       if (cardsOnly) {
         const cards = await cardsRead;

@@ -15,6 +15,7 @@ import {
 } from '@/services/appDb';
 import { getCardsByIds, getCardsForObject } from '@/services/cards';
 import { getAppContentSummary } from '@/services/customApps';
+import { cardUrlOnPage } from '@/utils/cardHelpers';
 import { getValidTabForInstance } from '@/utils/currentObject';
 import { soleExpandedGroupIds } from '@/utils/dataListGroups';
 import { getSidepanelData } from '@/utils/sidepanel';
@@ -207,18 +208,6 @@ function appCardsOf(cards) {
 }
 
 /**
- * Card URL scoped to the page it sits on, so opening it keeps the page's filters.
- * @returns {string|null} null for a card outside any known page
- */
-function appCardUrl({ cardId, objectId, objectType, origin, parentId }) {
-  if (objectType === 'PAGE') return `${origin}/page/${objectId}/kpis/details/${cardId}`;
-  if (parentId && (objectType === 'DATA_APP_VIEW' || objectType === 'WORKSHEET_VIEW')) {
-    return `${origin}/app-studio/${parentId}/pages/${objectId}/kpis/details/${cardId}`;
-  }
-  return null;
-}
-
-/**
  * One row per app card that uses any collection, with its collections nested beneath.
  * Cards with no collections are left out.
  */
@@ -359,7 +348,7 @@ async function fetchCollectionItems({ appId, domoObject, origin, scope, tabId })
         cards: appCardsOf(pageCards),
         origin,
         tabId,
-        urlFor: (card) => appCardUrl({ cardId: card.id, objectId, objectType, origin, parentId: domoObject.parent?.id })
+        urlFor: (card) => cardUrlOnPage({ cardId: card.id, objectId, objectType, origin, parentId: domoObject.parent?.id })
       });
     }
 
