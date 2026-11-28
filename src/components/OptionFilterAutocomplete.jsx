@@ -10,6 +10,7 @@ import { FittedTagGroup } from '@/components/FittedTagGroup';
  * find the same action.
  * @param {Object} props
  * @param {string} props.className - Class name for the autocomplete root
+ * @param {Function} props.getTagIcon - Optional icon for a selected option's tag, given its ID
  * @param {Function} props.getTagClassName - Optional class name for a selected option's tag, given its ID
  * @param {boolean} props.isDisabled - Whether the autocomplete is disabled
  * @param {string} props.label - Accessible name, and the noun in the search placeholder
@@ -22,6 +23,7 @@ import { FittedTagGroup } from '@/components/FittedTagGroup';
 export function OptionFilterAutocomplete({
   className,
   getTagClassName,
+  getTagIcon,
   isDisabled = false,
   label,
   onChange,
@@ -67,6 +69,7 @@ export function OptionFilterAutocomplete({
                 onRemove={handleRemoveTags}
                 items={selectedIds.map((id) => ({
                   className: getTagClassName?.(id),
+                  icon: getTagIcon?.(id),
                   id,
                   label: labelsById.get(id) ?? String(id)
                 }))}

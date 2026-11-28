@@ -12,7 +12,7 @@ const OVERFLOW_GAP_PX = 4;
  * one tag always shows, truncated if even it does not fit.
  * @param {Object} props
  * @param {string} props.ariaLabel - Accessible name for the tag group
- * @param {Array<{className?: string, id: string|number, label: string}>} props.items - Tags in display order
+ * @param {Array<{className?: string, icon?: React.ReactNode, id: string|number, label: string}>} props.items - Tags in display order
  * @param {Function} props.onRemove - Called with the Set of removed tag IDs
  */
 export function FittedTagGroup({ ariaLabel, items, onRemove }) {
@@ -65,6 +65,7 @@ export function FittedTagGroup({ ariaLabel, items, onRemove }) {
         <TagGroup.List className='min-w-0 flex-nowrap'>
           {visibleItems.map((item) => (
             <Tag className={`min-w-0 ${item.className ?? ''}`} id={item.id} key={item.id} textValue={item.label}>
+              {item.icon}
               <span className='truncate text-xs'>{item.label}</span>
             </Tag>
           ))}
@@ -79,6 +80,7 @@ export function FittedTagGroup({ ariaLabel, items, onRemove }) {
       >
         {items.map((item) => (
           <span data-measure-tag className={`tag tag--sm tag--surface ${item.className ?? ''}`} key={item.id}>
+            {item.icon}
             <span className='text-xs'>{item.label}</span>
             <span className='size-3 shrink-0' />
           </span>

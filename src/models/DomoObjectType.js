@@ -27,6 +27,8 @@ export class DomoObjectType {
    *   via `getObjectType()`. Use when Domo has renamed a type (e.g. OBJECTIVE → GOAL) so existing references
    *   to the old name keep working without a separate registry entry.
    * @param {Object} [options.api] - API configuration for fetching object details
+   * @param {string} [options.color] - HeroUI chip color (`accent`, `success`, `warning`, `danger`, `default`) for
+   *   chips that color by type, such as the activity log's Source column. Omit to let the chip pick its own.
    * @param {Array<Object>} [options.copyConfigs] - Additional copy actions for the long-press dropdown
    *   Each entry: { label: string, source: string|Function, primary?: boolean, when?: string|Object|Function }
    *   - label: display label (e.g., 'Package ID')
@@ -101,6 +103,7 @@ export class DomoObjectType {
     this.activityLogTypes = options.activityLogTypes ?? [id];
     this.aliases = options.aliases ?? null;
     this.api = options.api ?? null;
+    this.color = options.color ?? null;
     this.copyConfigs = options.copyConfigs ?? null;
     this.extractConfig = options.extractConfig ?? null;
     this.featureSwitch = options.featureSwitch ?? null;
@@ -325,6 +328,7 @@ export class DomoObjectType {
 export const ObjectTypeRegistry = {
   ACCOUNT: new DomoObjectType('ACCOUNT', 'Account', {
     api: { endpoint: '/data/v1/accounts/{id}', paths: { created: 'createdAt', name: 'name' } },
+    color: 'accent',
     icon: { component: 'Key' },
     idPattern: /^\d+$/,
     relatedData: [
@@ -340,29 +344,36 @@ export const ObjectTypeRegistry = {
     urlPath: '/datacenter/accounts?id={id}'
   }),
   ACCOUNT_TEMPLATE: new DomoObjectType('ACCOUNT_TEMPLATE', 'Account Template', {
+    color: 'warning',
     icon: { component: 'Key' },
     idPattern: /.*/
   }),
   ACHIEVEMENT: new DomoObjectType('ACHIEVEMENT', 'Achievement', {
     aliases: ['ACHIEVEMENT_ADMIN', 'USER_ACHIEVEMENT'],
     api: { endpoint: '/content/v1/achievements/{id}', paths: { name: 'name' } },
+    color: 'danger',
     icon: { component: 'CertifiedCompany' },
     idPattern: /.*/
   }),
   ADC_COLUMN_POLICY: new DomoObjectType('ADC_COLUMN_POLICY', 'Column PDP Policy', {
+    color: 'danger',
     idPattern: /^\d+$/
   }),
   ADC_COLUMN_POLICY_GROUP: new DomoObjectType('ADC_COLUMN_POLICY_GROUP', 'Column PDP Policy Group', {
+    color: 'default',
     idPattern: /^\d+$/
   }),
   ADC_COLUMN_POLICY_MAPPING: new DomoObjectType('ADC_COLUMN_POLICY_MAPPING', 'Column PDP Policy Mapping', {
+    color: 'accent',
     idPattern: /.*/
   }),
   ADC_FILTER: new DomoObjectType('ADC_FILTER', 'PDP Filter', {
+    color: 'success',
     idPattern: /^\d+$/
   }),
-  ADC_MASK: new DomoObjectType('ADC_MASK', 'PDP Mask', { idPattern: /^\d+$/ }),
+  ADC_MASK: new DomoObjectType('ADC_MASK', 'PDP Mask', { color: 'warning', idPattern: /^\d+$/ }),
   ADC_POLICY: new DomoObjectType('ADC_POLICY', 'PDP Policy', {
+    color: 'accent',
     icon: { component: 'Adc' },
     idPattern: /^\d+$/
   }),
@@ -371,6 +382,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/ai/v1/agents/{id}?include=all,context,toolkits,settings',
       paths: { name: 'name' }
     },
+    color: 'accent',
     extractConfig: { keyword: 'agents' },
     icon: { component: 'AiRobot' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
@@ -385,9 +397,10 @@ export const ObjectTypeRegistry = {
     ],
     urlPath: '/ai-library/agents/{id}'
   }),
-  AI_CHAT: new DomoObjectType('AI_CHAT', 'AI Chat', { icon: { component: 'AiChat' }, idPattern: /.*/ }),
+  AI_CHAT: new DomoObjectType('AI_CHAT', 'AI Chat', { color: 'success', icon: { component: 'AiChat' }, idPattern: /.*/ }),
   AI_MODEL: new DomoObjectType('AI_MODEL', 'AI Model', {
     api: { endpoint: '/datascience/ml/v1/models/{id}', paths: { name: 'name' } },
+    color: 'danger',
     extractConfig: { keyword: 'model' },
     featureSwitch: 'ai-services',
     icon: { component: 'AiModel' },
@@ -396,6 +409,7 @@ export const ObjectTypeRegistry = {
   }),
   AI_PROJECT: new DomoObjectType('AI_PROJECT', 'AI Project', {
     api: { endpoint: '/datascience/ml/v1/projects/{id}', paths: { name: 'name' } },
+    color: 'accent',
     extractConfig: { keyword: 'projects' },
     featureSwitch: 'ai-services',
     icon: { component: 'AiBook' },
@@ -404,6 +418,7 @@ export const ObjectTypeRegistry = {
   }),
   AI_TOOLKIT: new DomoObjectType('AI_TOOLKIT', 'AI Toolkit', {
     api: { endpoint: '/ai/v1/toolkits/{id}', paths: { name: 'name' } },
+    color: 'default',
     extractConfig: { keyword: 'toolkits' },
     featureSwitch: 'ai-services',
     icon: { component: 'Toolbox' },
@@ -416,6 +431,7 @@ export const ObjectTypeRegistry = {
       filterByIdField: 'id',
       paths: { name: 'name' }
     },
+    color: 'warning',
     extractConfig: { keyword: 'domo-provided' },
     icon: { component: 'Toolbox' },
     idPattern: /^[a-z][a-z0-9_]*$/,
@@ -423,6 +439,7 @@ export const ObjectTypeRegistry = {
   }),
   ALERT: new DomoObjectType('ALERT', 'Alert', {
     api: { endpoint: '/social/v4/alerts/{id}', paths: { created: 'createdAt', name: 'name' } },
+    color: 'warning',
     extractConfig: { keyword: 'alerts' },
     icon: { component: 'RingingBell' },
     idPattern: /^\d+$/,
@@ -442,6 +459,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/apps/v1/designs/{id}?parts=versions',
       paths: { created: 'createdDate', latestVersion: 'latestVersion', name: 'name', versions: 'versions' }
     },
+    color: 'success',
     extractConfig: { keyword: 'assetlibrary' },
     icon: { component: 'CodeTags' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
@@ -453,6 +471,7 @@ export const ObjectTypeRegistry = {
   }),
   APP_INSTANCE: new DomoObjectType('APP_INSTANCE', 'Custom App', {
     api: { endpoint: '/apps/v1/instances/{id}', paths: { created: 'createdDate' } },
+    color: 'accent',
     icon: { component: 'Code' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parent: { id: 'metadata.details.designId', typeId: 'RYUU_APP' },
@@ -477,6 +496,7 @@ export const ObjectTypeRegistry = {
         name: ['data.request.title', 'data.request.templateTitle']
       }
     },
+    color: 'accent',
     copyConfigs: [{ label: 'Approval Template ID', source: 'parent.id' }],
     extractConfig: { keyword: 'request-details' },
     featureSwitch: 'approvalcenter',
@@ -486,12 +506,13 @@ export const ObjectTypeRegistry = {
     relatedData: [{ source: 'parent' }],
     urlPath: '/approval/request-details/{id}'
   }),
-  AUTHORITY: new DomoObjectType('AUTHORITY', 'Grant', { idPattern: /.*/ }),
+  AUTHORITY: new DomoObjectType('AUTHORITY', 'Grant', { color: 'danger', idPattern: /.*/ }),
   BEAST_MODE_FORMULA: new DomoObjectType('BEAST_MODE_FORMULA', 'Beast Mode', {
     api: {
       endpoint: '/query/v1/functions/template/{id}?hidden=true',
       paths: { name: 'name' }
     },
+    color: 'default',
     copyConfigs: [
       { label: 'DataSet ID', source: 'metadata.context.datasetId' },
       { label: 'Card ID', source: 'parent.id', when: { field: 'parent.typeId', matches: 'CARD' } },
@@ -543,6 +564,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v1/cards?urns={id}&includeFiltered=true&parts=metadata,datasources,domoapp,owners',
       paths: { created: '[0].created', details: '[0]', name: '[0].title' }
     },
+    color: 'accent',
     copyConfigs: [
       {
         label: 'DataSet ID',
@@ -639,6 +661,7 @@ export const ObjectTypeRegistry = {
         name: 'data.certification.request.entityTitle'
       }
     },
+    color: 'success',
     copyConfigs: [{ label: 'Certification Process ID', source: 'parent.id' }],
     extractConfig: { keyword: 'request-details' },
     featureSwitch: 'certified-content',
@@ -663,6 +686,7 @@ export const ObjectTypeRegistry = {
       method: 'POST',
       paths: { details: 'data.template', name: 'data.template.title' }
     },
+    color: 'danger',
     extractConfig: {
       keyword: 'edit-form'
     },
@@ -674,6 +698,7 @@ export const ObjectTypeRegistry = {
   CHANNEL: new DomoObjectType('CHANNEL', 'Buzz Channel', {
     aliases: ['GROUP_CHAT'],
     api: { endpoint: '/buzz/v1/channels/{id}', paths: { created: 'channel.created', name: 'channel.title' } },
+    color: 'accent',
     icon: { component: 'ChatBubbles' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
@@ -683,6 +708,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/codeengine/v2/packages/{id}?parts=functions,versions,privateFunctions',
       paths: { created: 'createdOn', name: 'name' }
     },
+    color: 'warning',
     extractConfig: { keyword: 'codeengine' },
     featureSwitch: 'code-engine',
     icon: { component: 'CurlyBrackets' },
@@ -729,6 +755,7 @@ export const ObjectTypeRegistry = {
       nameFromDisplayName: true,
       paths: { name: 'version' }
     },
+    color: 'accent',
     copyConfigs: [
       { label: 'Package ID', primary: true, source: 'parent.id' },
       { label: 'Version Number', source: 'id' },
@@ -791,17 +818,21 @@ export const ObjectTypeRegistry = {
     ]
   }),
   COLLECTION: new DomoObjectType('COLLECTION', 'Collection', {
+    color: 'default',
     icon: { component: 'Folder' },
     idPattern: /.*/
   }),
   CONFIG_APP: new DomoObjectType('CONFIG_APP', 'Config App', {
+    color: 'danger',
     idPattern: /.*/
   }),
   CONFIG_APP_CONFIGURATION: new DomoObjectType('CONFIG_APP_CONFIGURATION', 'Config App Configuration', {
+    color: 'success',
     idPattern: /.*/
   }),
   CONNECTOR: new DomoObjectType('CONNECTOR', 'Connector', {
     api: { endpoint: '/data/v1/connectors/{id}?language=en', paths: { name: 'label' } },
+    color: 'danger',
     copyConfigs: [{ label: 'Provider Key', source: 'metadata.details.connectionType' }],
     icon: { component: 'Connector' },
     idPattern: /^com\.[a-z0-9_-]+(\.[a-z0-9_-]+)+$/i,
@@ -827,6 +858,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v2/views/{id}',
       paths: { created: 'created', name: 'name' }
     },
+    color: 'danger',
     icon: { component: 'Document' },
     idPattern: /^\d+$/,
     parent: {
@@ -841,15 +873,20 @@ export const ObjectTypeRegistry = {
     },
     relatedData: [{ label: 'Resource', source: 'parent' }]
   }),
-  CUSTOMER: new DomoObjectType('CUSTOMER', 'Customer', { idPattern: /.*/ }),
-  CUSTOMER_LANDING_ENTITY: new DomoObjectType('CUSTOMER_LANDING_ENTITY', 'Customer Landing Entity', { idPattern: /.*/ }),
+  CUSTOMER: new DomoObjectType('CUSTOMER', 'Customer', { color: 'accent', idPattern: /.*/ }),
+  CUSTOMER_LANDING_ENTITY: new DomoObjectType('CUSTOMER_LANDING_ENTITY', 'Customer Landing Entity', {
+    color: 'warning',
+    idPattern: /.*/
+  }),
   CUSTOMER_STATE: new DomoObjectType('CUSTOMER_STATE', 'Customer State', {
     api: { endpoint: '/content/v1/customer-states/{id}', paths: { name: 'name' } },
+    color: 'success',
     icon: { component: 'Building' },
     idPattern: /.*/
   }),
   DATA_APP: new DomoObjectType('DATA_APP', 'Studio App', {
     api: { endpoint: '/content/v1/dataapps/{id}', paths: { name: 'title' } },
+    color: 'accent',
     extractConfig: { keyword: 'app-studio' },
     featureSwitch: 'data-app',
     icon: { component: 'DataApp' },
@@ -878,6 +915,7 @@ export const ObjectTypeRegistry = {
       fallback: { endpoint: '/content/v1/pages/{id}/access', paths: { name: 'pageName' } },
       paths: { created: 'page.created', name: 'title' }
     },
+    color: 'success',
     copyConfigs: [{ label: 'App ID', source: 'parent.id' }],
     extractConfig: { keyword: 'pages' },
     featureSwitch: 'data-app',
@@ -904,22 +942,26 @@ export const ObjectTypeRegistry = {
     urlPath: '/app-studio/{parent}/pages/{id}'
   }),
   DATA_DICTIONARY: new DomoObjectType('DATA_DICTIONARY', 'Data Dictionary', {
+    color: 'warning',
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   DATA_FUSION: new DomoObjectType('DATA_FUSION', 'Data Fusion', {
     ...derivedDatasetConfig(),
+    color: 'default',
     extractConfig: { keyword: 'fusion' },
     icon: { component: 'Domofusion' }
   }),
   DATA_MODEL: new DomoObjectType('DATA_MODEL', 'Data Model', {
     ...derivedDatasetConfig(),
     activityLogTypes: ['DATA_SOURCE', 'VIEW'],
+    color: 'danger',
     extractConfig: { keyword: 'datamodels' },
     featureSwitch: 'data-modeling',
     icon: { component: 'Model' }
   }),
   DATA_SCIENCE_NOTEBOOK: new DomoObjectType('DATA_SCIENCE_NOTEBOOK', 'Jupyter Workspace', {
     api: { endpoint: '/datascience/v1/workspaces/{id}', paths: { created: 'created', name: 'name' } },
+    color: 'accent',
     extractConfig: { keyword: 'jupyter-workspaces' },
     featureSwitch: ['jupyter-notebooks', 'jupyter-notebooks-ga'],
     icon: { component: 'Jupyter' },
@@ -958,6 +1000,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/data/v3/datasources/{id}?includeAllDetails=true',
       paths: { created: 'created', name: 'name' }
     },
+    color: 'success',
     copyConfigs: [
       // Accounts live on the stream (`parent.metadata.details.accounts`) now
       // that the singular `accountId` field has been removed from the
@@ -1017,6 +1060,7 @@ export const ObjectTypeRegistry = {
   DATAFLOW_TYPE: new DomoObjectType('DATAFLOW_TYPE', 'DataFlow', {
     aliases: ['DATAFLOW'],
     api: { endpoint: '/dataprocessing/v2/dataflows/{id}', paths: { created: 'created', name: 'name' } },
+    color: 'danger',
     extractConfig: { keyword: 'dataflows' },
     icon: { component: 'Dataflow' },
     idPattern: /^\d+$/,
@@ -1052,6 +1096,7 @@ export const ObjectTypeRegistry = {
       nameFormat: 'timestamp',
       paths: { name: 'beginTime' }
     },
+    color: 'accent',
     copyConfigs: [{ label: 'DataFlow ID', source: 'parent.id' }],
     extractConfig: { keyword: 'details', offset: 1 },
     icon: { component: 'Play' },
@@ -1061,6 +1106,7 @@ export const ObjectTypeRegistry = {
     urlPath: '/datacenter/dataflows/{parent}/details/{id}'
   }),
   DEPLOYMENT: new DomoObjectType('DEPLOYMENT', 'Repository Deployment', {
+    color: 'success',
     icon: { component: 'Package' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
@@ -1069,6 +1115,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v1/cards?urns=dr:{id}:{parent}&includeFiltered=true&parts=metadata,datasources',
       paths: { created: '[0].created', details: '[0]', name: '[0].title' }
     },
+    color: 'danger',
     copyConfigs: [
       {
         label: 'URN',
@@ -1122,6 +1169,7 @@ export const ObjectTypeRegistry = {
   }),
   ENIGMA_FORM: new DomoObjectType('ENIGMA_FORM', 'Form', {
     api: { endpoint: '/forms/v2/{id}', paths: { name: 'name' } },
+    color: 'success',
     icon: { component: 'CardNotebook' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     // A workflow form's domainId is "<modelId> - <version>".
@@ -1142,6 +1190,7 @@ export const ObjectTypeRegistry = {
   }),
   ENIGMA_FORM_INSTANCE: new DomoObjectType('ENIGMA_FORM_INSTANCE', 'Form Instance', {
     api: { endpoint: '/forms/v1/instances/{id}', paths: { name: 'revision' } },
+    color: 'warning',
     icon: { component: 'CardNotebook' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parent: { id: 'metadata.details.formId', typeId: 'ENIGMA_FORM' },
@@ -1149,6 +1198,7 @@ export const ObjectTypeRegistry = {
   }),
   EXECUTOR_APPLICATION: new DomoObjectType('EXECUTOR_APPLICATION', 'Governance Toolkit Application', {
     api: { endpoint: '/executor/v1/applications/{id}', paths: { name: 'name' } },
+    color: 'danger',
     extractConfig: { keyword: 'governance-toolkit', valueMap: GOVERNANCE_TOOLKIT_APPLICATION_ID_BY_SLUG },
     icon: { component: 'Domobox' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
@@ -1160,6 +1210,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/executor/v1/applications/{parent}/jobs/{id}',
       paths: { name: 'jobName' }
     },
+    color: 'accent',
     // Domo publishes no deep link to a job, so the extension's own param is what
     // carries it; the background drives the toolkit UI to open it on arrival.
     extractConfig: { keyword: GOVERNANCE_TOOLKIT_JOB_PARAM },
@@ -1190,6 +1241,7 @@ export const ObjectTypeRegistry = {
   }),
   FILE: new DomoObjectType('FILE', 'Document', {
     api: { endpoint: '/data/v1/data-files/{id}/details', paths: { name: 'name' } },
+    color: 'accent',
     icon: { component: 'Document' },
     idPattern: /^\d+$/
   }),
@@ -1198,6 +1250,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/data/v1/data-files/{parent}/revisions/{id}',
       paths: { name: 'name' }
     },
+    color: 'warning',
     icon: { component: 'Document' },
     idPattern: /^\d+$/,
     parent: 'FILE',
@@ -1205,12 +1258,14 @@ export const ObjectTypeRegistry = {
   }),
   FILESET: new DomoObjectType('FILESET', 'Document Collection', {
     api: { endpoint: '/files/v1/filesets/{id}', paths: { name: 'name' } },
+    color: 'success',
     extractConfig: { keyword: 'documents' },
     icon: { component: 'Folder' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     urlPath: '/datacenter/documents/{id}/overview'
   }),
   FILESET_DIRECTORY: new DomoObjectType('FILESET_DIRECTORY', 'Document Collection Directory', {
+    color: 'danger',
     icon: { component: 'Folder' },
     idPattern: /.*/
   }),
@@ -1219,6 +1274,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/files/v1/filesets/{parent}/files/{id}',
       paths: { name: 'name' }
     },
+    color: 'default',
     icon: { component: 'Document' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parent: 'FILESET',
@@ -1227,6 +1283,7 @@ export const ObjectTypeRegistry = {
   GOAL: new DomoObjectType('GOAL', 'Goal', {
     aliases: ['OBJECTIVE'],
     api: { endpoint: '/social/v1/objectives/{id}', paths: { name: 'name' } },
+    color: 'success',
     extractConfig: { keyword: 'goals' },
     featureSwitch: ['goals-beta', 'goals-v1'],
     icon: { component: 'Goals' },
@@ -1234,16 +1291,19 @@ export const ObjectTypeRegistry = {
     urlPath: '/goals/{id}'
   }),
   GOAL_DELEGATE: new DomoObjectType('GOAL_DELEGATE', 'Goal Delegate', {
+    color: 'warning',
     icon: { component: 'Person' },
     idPattern: /^\d+$/
   }),
   GOAL_PERIOD: new DomoObjectType('GOAL_PERIOD', 'Goal Period', {
     api: { endpoint: '/social/v1/objectives/periods/{id}', paths: { name: 'name' } },
+    color: 'danger',
     icon: { component: 'CalendarTime' },
     idPattern: /^\d+$/
   }),
   GOAL_TAG: new DomoObjectType('GOAL_TAG', 'Goal Tag', {
     api: { endpoint: '/social/v1/objectives/tags?all=true', filterByIdField: 'id', paths: { name: 'name' } },
+    color: 'accent',
     icon: { component: 'Tag' },
     idPattern: /^\d+$/,
     parent: { id: 'metadata.details.category.id', typeId: 'TAG_CATEGORY' },
@@ -1251,6 +1311,7 @@ export const ObjectTypeRegistry = {
   }),
   GROUP: new DomoObjectType('GROUP', 'Group', {
     api: { endpoint: '/content/v2/groups/{id}', paths: { created: 'created', name: 'name' } },
+    color: 'success',
     extractConfig: { keyword: 'groups' },
     icon: { component: 'People' },
     idPattern: /^\d+$/,
@@ -1259,6 +1320,7 @@ export const ObjectTypeRegistry = {
   }),
   HOPPER_QUEUE: new DomoObjectType('HOPPER_QUEUE', 'Task Center Queue', {
     api: { endpoint: '/queues/v1/{id}', paths: { created: 'createdOn', name: 'name' } },
+    color: 'danger',
     copyConfigs: [
       // Shown only when the queue is viewed from inside a workflow (the back-references
       // are absent on the standalone queue page). The plain-click copy falls back to the
@@ -1297,6 +1359,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/queues/v1/{parent}/tasks/{id}?render=true',
       paths: { created: 'createdOn', name: 'displayEntity.name' }
     },
+    color: 'success',
     extractConfig: { keyword: 'id' },
     featureSwitch: 'hopper',
     icon: { component: 'FormatListChecks' },
@@ -1312,6 +1375,7 @@ export const ObjectTypeRegistry = {
     urlPath: '/queues/tasks?queueId={parent}&id={id}&openTaskDrawer=true'
   }),
   HUDDLE: new DomoObjectType('HUDDLE', 'Buzz Thread', {
+    color: 'success',
     icon: { component: 'ChatBubble' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
@@ -1320,6 +1384,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/social/v1/objectives/key-results/{id}',
       paths: { name: 'name' }
     },
+    color: 'default',
     extractConfig: { keyword: 'key-results' },
     icon: { component: 'Goals' },
     idPattern: /^\d+$/,
@@ -1328,6 +1393,7 @@ export const ObjectTypeRegistry = {
     urlPath: '/goals/key-results/{id}'
   }),
   LANDING_ENTITY: new DomoObjectType('LANDING_ENTITY', 'Landing Entity', {
+    color: 'danger',
     icon: { component: 'Building' },
     idPattern: /.*/
   }),
@@ -1336,6 +1402,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/datastores/v1/collections/{id}',
       paths: { name: 'name' }
     },
+    color: 'warning',
     extractConfig: { keyword: 'appDb' },
     icon: { component: 'DataCollection' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
@@ -1349,19 +1416,23 @@ export const ObjectTypeRegistry = {
   }),
   MAGNUM_DATASTORE: new DomoObjectType('MAGNUM_DATASTORE', 'AppDB Datastore', {
     api: { endpoint: '/datastores/v1/{id}', paths: { created: 'createdOn', name: 'name' } },
+    color: 'success',
     icon: { component: 'DataCollection' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   METRIC: new DomoObjectType('METRIC', 'Metric', {
+    color: 'accent',
     featureSwitch: 'metrics',
     icon: { component: 'ChartLine' },
     idPattern: /.*/
   }),
   NAV_PIN_ITEM: new DomoObjectType('NAV_PIN_ITEM', 'Nav Pin Item', {
+    color: 'warning',
     icon: { component: 'Pin' },
     idPattern: /^\d+$/
   }),
   OAUTH2_CLIENT_CREDENTIALS: new DomoObjectType('OAUTH2_CLIENT_CREDENTIALS', 'Oauth 2.0 Client Credentials', {
+    color: 'success',
     icon: { component: 'Key' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
@@ -1372,6 +1443,7 @@ export const ObjectTypeRegistry = {
       fallback: { endpoint: '/content/v1/pages/{id}/access', paths: { name: 'pageName' } },
       paths: { created: 'page.created', name: 'title' }
     },
+    color: 'warning',
     extractConfig: { keyword: 'page' },
     icon: { component: 'PagesBars' },
     idPattern: /^-?\d+$/,
@@ -1398,6 +1470,7 @@ export const ObjectTypeRegistry = {
   PAGE_COLLECTION: new DomoObjectType('PAGE_COLLECTION', 'Page Collection', {
     // A collection is stored as a page row, so the page endpoint returns it.
     api: { endpoint: '/content/v1/pages/{id}', paths: { name: 'title' } },
+    color: 'success',
     icon: { component: 'Pages' },
     idPattern: /^\d+$/,
     parent: { id: 'metadata.details.parentPageId', typeId: 'PAGE' },
@@ -1405,6 +1478,7 @@ export const ObjectTypeRegistry = {
   }),
   PROJECT: new DomoObjectType('PROJECT', 'Project', {
     api: { endpoint: '/content/v1/projects/{id}', paths: { created: 'created', name: 'projectName' } },
+    color: 'accent',
     extractConfig: { keyword: 'project' },
     featureSwitch: '!no-projects-tasks',
     icon: { component: 'Project' },
@@ -1413,6 +1487,7 @@ export const ObjectTypeRegistry = {
   }),
   PROJECT_LIST: new DomoObjectType('PROJECT_LIST', 'Project List', {
     api: { endpoint: '/content/mobile/v1/projects/lists?ids={id}', filterByIdField: 'id', paths: { name: 'name' } },
+    color: 'success',
     icon: { component: 'ListBulleted' },
     idPattern: /^\d+$/,
     parent: { id: 'metadata.details.projectId', typeId: 'PROJECT' },
@@ -1420,6 +1495,7 @@ export const ObjectTypeRegistry = {
   }),
   PROJECT_TASK: new DomoObjectType('PROJECT_TASK', 'Task', {
     api: { endpoint: '/content/v1/tasks/{id}', paths: { name: 'taskName' } },
+    color: 'warning',
     extractConfig: { keyword: 'taskId' },
     featureSwitch: '!no-projects-tasks',
     icon: { component: 'Project' },
@@ -1429,12 +1505,14 @@ export const ObjectTypeRegistry = {
     urlPath: '/project?taskId={id}'
   }),
   PROJECT_TASK_ATTACHMENT: new DomoObjectType('PROJECT_TASK_ATTACHMENT', 'Task Attachment', {
+    color: 'danger',
     icon: { component: 'Document' },
     idPattern: /^\d+$/,
     // No endpoint goes from an attachment to its task, so only a caller listing a task's attachments knows it.
     parent: 'PROJECT_TASK'
   }),
   PROXY_USER: new DomoObjectType('PROXY_USER', 'Proxy User', {
+    color: 'warning',
     idPattern: /.*/
   }),
   PUBLIC_URL: new DomoObjectType('PUBLIC_URL', 'Embed URL', {
@@ -1453,11 +1531,13 @@ export const ObjectTypeRegistry = {
         paths: { name: 'gatewayToken' }
       }))
     },
+    color: 'default',
     icon: { component: 'CodeTags' },
     idPattern: /^(?=.*[A-Za-z])[A-Za-z0-9]{5}$/
   }),
   PUBLICATION: new DomoObjectType('PUBLICATION', 'Publication', {
     api: { endpoint: '/publish/v2/publications/{id}', paths: { created: 'created', name: 'name' } },
+    color: 'accent',
     extractConfig: { keyword: 'id' },
     featureSwitch: ['publish-everywhere', 'publish-everywhere-v2'],
     icon: { component: 'Newspaper' },
@@ -1465,16 +1545,19 @@ export const ObjectTypeRegistry = {
     urlPath: '/admin/domo-everywhere/publications?id={id}'
   }),
   PUBLICATION_GROUP: new DomoObjectType('PUBLICATION_GROUP', 'Publication Group', {
+    color: 'warning',
     idPattern: /^\d+$/
   }),
   REPORT: new DomoObjectType('REPORT', 'Report', {
     // Left id-only: the audit log mixes id spaces under this type (Unsubscribed
     // events key off a schedule id, Created/Updated/Deleted do not), so an api or
     // urlPath would resolve the wrong object for one action or the other.
+    color: 'success',
     idPattern: /^\d+$/
   }),
   REPORT_BUILDER: new DomoObjectType('REPORT_BUILDER', 'Report Builder', {
     api: { endpoint: '/content/v1/reportbuilder/{id}', paths: { name: 'title' } },
+    color: 'warning',
     copyConfigs: [
       { label: 'App ID', source: 'metadata.context.dataAppId' },
       { label: 'Report Page ID', source: 'metadata.context.reportPageId' }
@@ -1505,6 +1588,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v3/stacks/{id}',
       paths: { created: 'page.created', name: 'title' }
     },
+    color: 'danger',
     featureSwitch: 'report-builder',
     icon: { component: 'PagesBars' },
     idPattern: /^\d+$/,
@@ -1526,6 +1610,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v1/reportbuilder/views/{id}',
       paths: { name: 'subject' }
     },
+    color: 'default',
     featureSwitch: 'report-builder',
     icon: { component: 'Document' },
     idPattern: /^\d+$/,
@@ -1540,6 +1625,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v1/reportschedules/{id}',
       paths: { created: 'schedule.startDate', name: 'title' }
     },
+    color: 'accent',
     featureSwitch: 'scheduled-reports',
     icon: { component: 'Calendar' },
     idPattern: /^\d+$/,
@@ -1556,6 +1642,7 @@ export const ObjectTypeRegistry = {
   }),
   REPOSITORY: new DomoObjectType('REPOSITORY', 'Sandbox Repository', {
     api: { endpoint: '/version/v1/repositories/{id}', paths: { name: 'name' } },
+    color: 'danger',
     extractConfig: { keyword: 'repositories' },
     featureSwitch: ['domo-versions-standard', 'domo-versions-ui'],
     icon: { component: 'Sandcastle' },
@@ -1563,10 +1650,12 @@ export const ObjectTypeRegistry = {
     urlPath: '/admin/sandbox/repositories/{id}'
   }),
   REPOSITORY_AUTHORIZATION: new DomoObjectType('REPOSITORY_AUTHORIZATION', 'Repository Authorization', {
+    color: 'accent',
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   ROLE: new DomoObjectType('ROLE', 'Role', {
     api: { endpoint: '/authorization/v1/roles/{id}', paths: { created: 'created', name: 'name' } },
+    color: 'warning',
     extractConfig: { keyword: 'roles' },
     icon: { component: 'Shield' },
     idPattern: /^\d+$/,
@@ -1577,6 +1666,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/apps/v1/designs/{id}?parts=versions',
       paths: { created: 'createdDate', latestVersion: 'latestVersion', name: 'name', versions: 'versions' }
     },
+    color: 'warning',
     extractConfig: { keyword: 'assetlibrary' },
     icon: { component: 'Code' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
@@ -1586,8 +1676,9 @@ export const ObjectTypeRegistry = {
     ],
     urlPath: '/assetlibrary/{id}/overview'
   }),
-  SEGMENT: new DomoObjectType('SEGMENT', 'Segment', { idPattern: /^\d+$/ }),
+  SEGMENT: new DomoObjectType('SEGMENT', 'Segment', { color: 'warning', idPattern: /^\d+$/ }),
   SESSION: new DomoObjectType('SESSION', 'Session', {
+    color: 'default',
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   STREAM: new DomoObjectType('STREAM', 'Stream', {
@@ -1596,6 +1687,7 @@ export const ObjectTypeRegistry = {
       nameTemplate: '{dataProvider.name} Stream {id}',
       paths: { created: 'createdAt', name: 'dataProvider.name' }
     },
+    color: 'warning',
     icon: { component: 'Database' },
     idPattern: /^\d+$/,
     parent: { id: 'metadata.details.dataSource.id', typeId: 'DATA_SOURCE' },
@@ -1603,12 +1695,14 @@ export const ObjectTypeRegistry = {
     relatedData: [{ source: 'parent' }]
   }),
   SUBSCRIPTION: new DomoObjectType('SUBSCRIPTION', 'Subscription', {
+    color: 'success',
     featureSwitch: ['publish-everywhere', 'publish-everywhere-v2'],
     icon: { component: 'FileDrawer' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   TAG_CATEGORY: new DomoObjectType('TAG_CATEGORY', 'Goal Tag Category', {
     api: { endpoint: '/social/v1/objectives/tags/categories?all=true', filterByIdField: 'id', paths: { name: 'name' } },
+    color: 'default',
     icon: { component: 'Tag' },
     idPattern: /^\d+$/
   }),
@@ -1624,6 +1718,7 @@ export const ObjectTypeRegistry = {
       method: 'POST',
       paths: { details: 'data.template', name: 'data.template.title' }
     },
+    color: 'warning',
     extractConfig: { keyword: 'approval', offset: 2 },
     featureSwitch: 'approvalcenter',
     icon: { component: 'ApprovalCenter' },
@@ -1645,6 +1740,7 @@ export const ObjectTypeRegistry = {
     urlPath: '/approval/edit-request-form/{id}'
   }),
   TOKEN: new DomoObjectType('TOKEN', 'API Client', {
+    color: 'danger',
     icon: { component: 'Key' },
     idPattern: /^\d+$/
   }),
@@ -1653,6 +1749,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/content/v3/users/{id}?includeDetails=true',
       paths: { created: 'detail.created', name: 'displayName' }
     },
+    color: 'accent',
     extractConfig: { keyword: 'people' },
     icon: { component: 'Person' },
     idPattern: /^\d+$/,
@@ -1666,9 +1763,11 @@ export const ObjectTypeRegistry = {
     urlPath: '/admin/people/{id}?tab=profile'
   }),
   USER_CUSTOM_KEY: new DomoObjectType('USER_CUSTOM_KEY', 'User Custom Attribute', {
+    color: 'danger',
     idPattern: /.*/
   }),
   USER_TEMPLATE: new DomoObjectType('USER_TEMPLATE', 'User Template', {
+    color: 'success',
     copyConfigs: true,
     idPattern: /^\d+$/
   }),
@@ -1677,17 +1776,20 @@ export const ObjectTypeRegistry = {
       endpoint: '/query/v1/functions/template/{id}?hidden=true',
       paths: { name: 'name' }
     },
+    color: 'success',
     icon: { component: 'Variable' },
     idPattern: /^\d+$/,
     urlPath: '/datacenter/beastmode?id={id}'
   }),
   VARIABLE_CONTROL: new DomoObjectType('VARIABLE_CONTROL', 'Variable Control', {
     api: { endpoint: '/content/v1/variable/controls?ids={id}', filterByIdField: 'id', paths: { name: 'name' } },
+    color: 'accent',
     idPattern: /^\d+$/,
     parent: { id: 'metadata.details.function.id', typeId: 'VARIABLE' },
     relatedData: [{ source: 'parent' }]
   }),
   VECTOR_INDEX: new DomoObjectType('VECTOR_INDEX', 'Vector Index', {
+    color: 'danger',
     icon: { component: 'Vector' },
     idPattern: /.*/
   }),
@@ -1696,13 +1798,16 @@ export const ObjectTypeRegistry = {
     // stream only carries its definition, so it never counts as the parent.
     ...derivedDatasetConfig({ fetcher: 'singleSourceDataset', typeId: 'DATA_SOURCE' }),
     activityLogTypes: ['DATA_SOURCE', 'VIEW'],
+    color: 'accent',
     extractConfig: { keyword: 'datasources' },
     icon: { component: 'TableSelect' }
   }),
   VIEW_ADVANCED_EDITOR: new DomoObjectType('VIEW_ADVANCED_EDITOR', 'View Advanced Editor', {
+    color: 'default',
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   VIRTUAL_USER: new DomoObjectType('VIRTUAL_USER', 'Virtual User', {
+    color: 'default',
     idPattern: /^vu:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   }),
   WAREHOUSE_ACCOUNT: new DomoObjectType('WAREHOUSE_ACCOUNT', 'Cloud Integration', {
@@ -1710,6 +1815,7 @@ export const ObjectTypeRegistry = {
       endpoint: '/query/v1/byos/accounts/{id}',
       paths: { created: 'properties.friendlyName.created', name: 'friendlyName' }
     },
+    color: 'success',
     extractConfig: { keyword: 'cloud-integrations' },
     icon: { component: 'DataWarehouse' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
@@ -1718,16 +1824,20 @@ export const ObjectTypeRegistry = {
     urlPath: '/cloud-integrations/{id}/settings'
   }),
   WORKBENCH_AGENT: new DomoObjectType('WORKBENCH_AGENT', 'On Premise Agent', {
+    color: 'accent',
     idPattern: /.*/
   }),
   WORKBENCH_GROUP: new DomoObjectType('WORKBENCH_GROUP', 'Workbench Group', {
+    color: 'success',
     idPattern: /^\d+$/
   }),
   WORKBENCH_JOB: new DomoObjectType('WORKBENCH_JOB', 'On Premise Job', {
     aliases: ['JOB'],
+    color: 'warning',
     idPattern: /^\d+$/
   }),
   WORKBENCH_SCHEDULE: new DomoObjectType('WORKBENCH_SCHEDULE', 'On Premise Job Schedule', {
+    color: 'danger',
     idPattern: /.*/
   }),
   WORKFLOW_INSTANCE: new DomoObjectType('WORKFLOW_INSTANCE', 'Workflow Execution', {
@@ -1737,6 +1847,7 @@ export const ObjectTypeRegistry = {
       nameFormat: 'timestamp',
       paths: { name: ['startedAt', 'createdAt'] }
     },
+    color: 'warning',
     copyConfigs: [{ label: 'Workflow ID', source: 'parent.id' }],
     extractConfig: {
       keyword: 'instances',
@@ -1760,6 +1871,7 @@ export const ObjectTypeRegistry = {
   }),
   WORKFLOW_MODEL: new DomoObjectType('WORKFLOW_MODEL', 'Workflow', {
     api: { endpoint: '/workflow/v1/models/{id}', paths: { created: 'createdOn', name: 'name' } },
+    color: 'success',
     extractConfig: { keyword: 'workflows', offset: 2 },
     featureSwitch: 'workflows',
     icon: { component: 'Workflow' },
@@ -1791,6 +1903,7 @@ export const ObjectTypeRegistry = {
       nameFromDisplayName: true,
       paths: { name: 'version' }
     },
+    color: 'accent',
     copyConfigs: [
       { label: 'Workflow ID', primary: true, source: 'parent.id' },
       { label: 'Version Number', source: 'id' }
@@ -1804,6 +1917,7 @@ export const ObjectTypeRegistry = {
   }),
   WORKFLOW_TRIGGER: new DomoObjectType('WORKFLOW_TRIGGER', 'Workflow Trigger', {
     api: { endpoint: '/workflow/v2/triggers/{id}', paths: { name: 'name' } },
+    color: 'danger',
     icon: { component: 'Clock' },
     idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     parent: 'WORKFLOW_MODEL',
@@ -1812,6 +1926,7 @@ export const ObjectTypeRegistry = {
   }),
   WORKSHEET: new DomoObjectType('WORKSHEET', 'Worksheet', {
     api: { endpoint: '/content/v1/dataapps/{id}', paths: { name: 'title' } },
+    color: 'warning',
     extractConfig: { keyword: 'app-studio' },
     featureSwitch: 'app-studio-worksheets',
     icon: { component: 'Worksheets' },
@@ -1825,6 +1940,7 @@ export const ObjectTypeRegistry = {
       fallback: { endpoint: '/content/v1/pages/{id}/access', paths: { name: 'pageName' } },
       paths: { created: 'page.created', name: 'title' }
     },
+    color: 'accent',
     copyConfigs: [{ label: 'Worksheet ID', source: 'parent.id' }],
     extractConfig: { keyword: 'pages' },
     featureSwitch: 'app-studio-worksheets',
@@ -1845,6 +1961,7 @@ export const ObjectTypeRegistry = {
   }),
   WORKSPACE: new DomoObjectType('WORKSPACE', 'Workspace', {
     api: { endpoint: '/nav/v1/workspaces/{id}', paths: { name: 'name' } },
+    color: 'danger',
     extractConfig: { keyword: 'workspaces' },
     featureSwitch: ['workspaces-react', 'workspaces-v1'],
     icon: { component: 'Workspace' },

@@ -23,6 +23,9 @@
 - Get Card Pages on other objects, and deleting a page, now offer a Check Workspaces option for the cards involved, including on the toast when no pages are found.
 - Once workspaces are checked, cards in a workspace no longer count as orphaned or as cards that only live here.
 - Hovering over a cut-off notification now shows its full text.
+- Object types in the activity log now show their icon and name in a color per type, with the type key on hover.
+- The activity log has new Object ID and Source ID columns, hidden by default and available from the Columns menu.
+- Activity log exports now include every column, including hidden ones, plus Object Type and Source Type columns.
 
 ## Bug Fixes
 
@@ -33,5 +36,6 @@
 - Remapping or migrating columns on a pro-code app card no longer resets the card's Code Engine and workflow settings to the app design's.
 - Get App Cards and Get Worksheet Cards no longer silently leave out a page that failed to load, and flag it in the list instead.
 - Get Card Pages and Get Beast Modes for a whole app or worksheet now warn when a page's cards could not be loaded.
+- Exporting the activity log while using the DomoStats dataset now fills in the Source columns.
 
 - Deleting a dataset or dataflow now requires a hold when a Jupyter Workspace uses a dataset the delete removes.

@@ -3,6 +3,7 @@ import { AnimatePresence } from 'motion/react';
 import { useMemo, useState } from 'react';
 
 import { AnimatedCheck } from '@/components/AnimatedCheck';
+import { KeyTooltipRegion } from '@/components/KeyTooltipRegion';
 import { exportToCSV, exportToExcel, generateExportFilename } from '@/utils/exportData';
 import IconAddColumn from '@icons/add-column.svg?react';
 import IconChevronDown from '@icons/chevron-down.svg?react';
@@ -29,6 +30,7 @@ const HEADING_HEIGHT = 40;
  *     manualSort: boolean,             // optional: when true and this column is the active
  *                                      //   sort, skip local sort (parent has sorted upstream)
  *     canHide: boolean,               // optional: appears in visibility toggle (default true)
+ *     exportOnly: boolean,            // optional: included in exports but never rendered (default false)
  *     width: number|string,           // optional: CSS width
  *     minWidth: number|string,        // optional: CSS min-width
  *     maxWidth: number|string,        // optional: CSS max-width
@@ -93,9 +95,14 @@ export function DataTable({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  const visibleColumns = useMemo(() => columns.filter((c) => !hiddenColumns.has(c.id)), [columns, hiddenColumns]);
+  const displayColumns = useMemo(() => columns.filter((c) => !c.exportOnly), [columns]);
 
-  const toggleableColumns = useMemo(() => columns.filter((c) => c.canHide !== false), [columns]);
+  const visibleColumns = useMemo(
+    () => displayColumns.filter((c) => !hiddenColumns.has(c.id)),
+    [displayColumns, hiddenColumns]
+  );
+
+  const toggleableColumns = useMemo(() => displayColumns.filter((c) => c.canHide !== false), [displayColumns]);
 
   const sortedData = useMemo(() => {
     if (!sortDescriptor?.column) return data;
@@ -146,9 +153,9 @@ export function DataTable({
       const filename = exportConfig.filename || generateExportFilename(entityName);
 
       if (format === 'csv') {
-        exportToCSV(exportData, visibleColumns, filename);
+        exportToCSV(exportData, columns, filename);
       } else if (format === 'xlsx') {
-        await exportToExcel(exportData, visibleColumns, filename);
+        await exportToExcel(exportData, columns, filename);
       }
     } catch (error) {
       console.error('Export failed:', error);
@@ -253,7 +260,7 @@ export function DataTable({
           Virtualizer's first layout pass, before it pins the scroll container's pixel width.
           Together they keep table overflow inside the scroll container and off the document,
           so the page-level scroll bars never flash in during load. */}
-      <div className='relative flex h-0 min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
+      <KeyTooltipRegion className='relative flex h-0 min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
         <Virtualizer
           layout={TableLayout}
           layoutOptions={{
@@ -307,7 +314,7 @@ export function DataTable({
             <p className='text-sm text-muted'>No results found</p>
           </div>
         )}
-      </div>
+      </KeyTooltipRegion>
     </div>
   );
 }

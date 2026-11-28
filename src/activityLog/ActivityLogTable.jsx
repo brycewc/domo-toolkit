@@ -19,6 +19,8 @@ import { Alert } from '@/components/Alert';
 import { AlertStatusIcon } from '@/components/AlertStatusIcon';
 import { CloseButton } from '@/components/CloseButton';
 import { InactiveUserOverlay } from '@/components/InactiveUserOverlay';
+import { ObjectTypeChip } from '@/components/ObjectTypeChip';
+import { ObjectTypeIcon } from '@/components/ObjectTypeIcon';
 import { OptionFilterAutocomplete } from '@/components/OptionFilterAutocomplete';
 import { UserFilterAutocomplete } from '@/components/UserFilterAutocomplete';
 import { usePerInstanceSettings } from '@/hooks/usePerInstanceSettings';
@@ -235,9 +237,7 @@ export function ActivityLogTable() {
     let cancelled = false;
     resolveTabId()
       .then((resolvedTabId) =>
-        resolvedTabId
-          ? searchUsers(DEFAULT_EXCLUDED_USER_NAME, resolvedTabId, 0, { includeInactive: true })
-          : null
+        resolvedTabId ? searchUsers(DEFAULT_EXCLUDED_USER_NAME, resolvedTabId, 0, { includeInactive: true }) : null
       )
       .then((result) => {
         if (cancelled) return;
@@ -411,7 +411,10 @@ export function ActivityLogTable() {
   }, [events, activityLogType, spansOneObjectType]);
 
   const objectTypeFilterOptions = useMemo(
-    () => objectTypeOptions.map((type) => ({ id: type, label: type })),
+    () =>
+      objectTypeOptions
+        .map((type) => ({ id: type, label: getObjectType(type)?.name ?? type }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
     [objectTypeOptions]
   );
 
@@ -517,7 +520,15 @@ export function ActivityLogTable() {
       createUserColumn({ customAvatarIds, domoOrigin, inactiveUserIds, userNameMap }),
       createActionColumn({ actionTranslations }),
       createObjectColumn({ baseUrl, objectUrlMap }),
-      isDataset ? createSourceColumn({ objectUrlMap }) : createAdditionalCommentColumn()
+      createIdColumn({ header: 'Object ID', key: 'objectId' }),
+      createExportOnlyColumn({ header: 'Object Type', key: 'objectType' }),
+      ...(isDataset
+        ? [
+            createSourceColumn({ objectUrlMap }),
+            createIdColumn({ header: 'Source ID', key: 'sourceId' }),
+            createExportOnlyColumn({ header: 'Source Type', key: 'sourceType' })
+          ]
+        : [createAdditionalCommentColumn()])
     ];
   }, [domoOrigin, tabId, actionOptions, customAvatarIds, inactiveUserIds, objectUrlMap, source, userNameMap]);
 
@@ -527,7 +538,9 @@ export function ActivityLogTable() {
       // Show comment column only when single object, or when it replaces the dataset's Source column
       additionalComment: activityLogType === 'single-object' || switchedToApi,
       // Show object column only when multiple objects
+      objectId: false,
       objectName: activityLogType !== 'single-object',
+      sourceId: false,
       userName: !actor
     }),
     [activityLogType, actor, switchedToApi]
@@ -555,7 +568,9 @@ export function ActivityLogTable() {
         .catch((err) => {
           console.error(`Error counting events for ${task.key}:`, err);
           if (countGeneration !== countGenerationRef.current) return;
-          setObjectStates((prev) => (prev[task.key] ? { ...prev, [task.key]: { ...prev[task.key], countFailed: true } } : prev));
+          setObjectStates((prev) =>
+            prev[task.key] ? { ...prev, [task.key]: { ...prev[task.key], countFailed: true } } : prev
+          );
         });
     });
   };
@@ -1015,8 +1030,43 @@ export function ActivityLogTable() {
     const resolvedTabId = await resolveTabId();
     if (!resolvedTabId) return filteredEvents;
 
-    const allEvents = [];
     const exportPageSize = 1000;
+
+    if (source === 'dataset') {
+      const datasetId = await resolveDatasetId(domoInstance);
+      const filters = buildDatasetFilters({
+        actionFilter: actionFilterRef.current,
+        actor,
+        dateRangeEpoch,
+        mode: userFilterModeRef.current,
+        objects,
+        userFilter: userFilterRef.current
+      });
+      const sortDirection =
+        sortDescriptorRef.current?.column === 'time' ? sortDescriptorRef.current.direction : 'descending';
+      const datasetEvents = [];
+      let total = Infinity;
+      while (datasetEvents.length < total) {
+        const result = await getActivityLogFromDataset({
+          datasetId,
+          filters,
+          limit: exportPageSize,
+          offset: datasetEvents.length,
+          sortDirection,
+          tabId: resolvedTabId
+        });
+        const events = result?.events ?? [];
+        if (events.length === 0) break;
+        datasetEvents.push(...events);
+        total = result?.total ?? 0;
+      }
+      const deduped = deduplicateEvents(datasetEvents);
+      return objectTypeFilter.size > 0
+        ? deduped.filter((event) => event.objectType && objectTypeFilter.has(event.objectType))
+        : deduped;
+    }
+
+    const allEvents = [];
     // In exclude mode the audit API can't negate, so don't fan out per user;
     // fetch unfiltered and strip the excluded users client-side (see filteredEvents).
     const excludeMode = userFilterModeRef.current === 'exclude';
@@ -1074,7 +1124,18 @@ export function ActivityLogTable() {
       result = result.filter((event) => event.objectType && objectTypeFilter.has(event.objectType));
     }
     return result;
-  }, [resolveTabId, objects, actor, hasScope, filteredEvents, userFilterKey, dateRangeEpoch, objectTypeFilter]);
+  }, [
+    resolveTabId,
+    objects,
+    actor,
+    hasScope,
+    filteredEvents,
+    userFilterKey,
+    dateRangeEpoch,
+    objectTypeFilter,
+    source,
+    domoInstance
+  ]);
 
   // Memoize filter toolbar so it doesn't re-render during event fetches
   const customFilters = useMemo(
@@ -1153,12 +1214,24 @@ export function ActivityLogTable() {
         {(activityLogType !== 'single-object' || !spansOneObjectType) && (
           <OptionFilterAutocomplete
             className='w-full sm:w-64'
+            getTagClassName={getObjectTypeTagClassName}
+            getTagIcon={(id) => <ObjectTypeIcon className='size-3 shrink-0' typeId={id} />}
             isDisabled={objectTypeFilterOptions.length === 0}
             label='Object type'
             options={objectTypeFilterOptions}
             placeholder='Filter by object types...'
             value={objectTypeFilter}
             onChange={setObjectTypeFilter}
+            renderOption={(option) => (
+              <Chip
+                className={getObjectType(option.id) ? 'lowercase' : ''}
+                color={getObjectTypeColor(option.id)}
+                variant='soft'
+              >
+                <ObjectTypeIcon className='shrink-0' typeId={option.id} />
+                <Chip.Label>{option.label}</Chip.Label>
+              </Chip>
+            )}
           />
         )}
       </>
@@ -1555,6 +1628,30 @@ function createAdditionalCommentColumn({ key = 'additionalComment' } = {}) {
   };
 }
 
+function createExportOnlyColumn({ header, key }) {
+  return { exportOnly: true, header, id: key };
+}
+
+function createIdColumn({ header, key }) {
+  return {
+    allowsSorting: true,
+    cell: (row) => {
+      const id = row[key];
+      if (id == null || id === '') return '-';
+
+      return (
+        <span className='truncate text-sm' title={String(id)}>
+          {id}
+        </span>
+      );
+    },
+    header,
+    id: key,
+    minWidth: 120,
+    width: '1fr'
+  };
+}
+
 /**
  * Helper function to create an object column with type and name
  */
@@ -1585,7 +1682,7 @@ function createObjectColumn({ idKey = 'objectId', nameKey = 'objectName', object
               {name || '-'}
             </span>
           )}
-          {type && <span className='chip chip--accent chip--soft chip--sm w-fit'>{type}</span>}
+          <ObjectTypeChip color={getObjectTypeColor(type)} typeId={type} />
         </div>
       );
     },
@@ -1614,7 +1711,7 @@ function createSourceColumn({ idKey = 'sourceId', nameKey = 'sourceName', object
       const type = row[typeKey];
       const id = row[idKey];
       const tooltip = id ? `${name || '-'} (${id})` : name || '-';
-      const chipColor = getSourceTypeColor(type);
+      const chipColor = getObjectTypeColor(type);
       const url = objectUrlMap[`${type}:${id}`];
 
       return (
@@ -1634,7 +1731,7 @@ function createSourceColumn({ idKey = 'sourceId', nameKey = 'sourceName', object
               {name || '-'}
             </span>
           )}
-          {type && <span className={`chip chip--${chipColor} chip--soft chip--sm w-fit`}>{type}</span>}
+          <ObjectTypeChip color={chipColor} typeId={type} />
         </div>
       );
     },
@@ -1649,16 +1746,9 @@ const DEFAULT_EXCLUDED_USER_NAME = 'MajorDomo Service Account';
 
 const FRESHNESS_POLL_MS = 5 * 60 * 1000;
 
-// Soft chip palette for unknown source types. These must be real HeroUI chip
-// COLORS, not variant names. HeroUI v3 splits chips into a color axis
-// (accent/success/warning/danger/default) and a variant axis
-// (primary/secondary/tertiary/soft); `chip--tertiary` sets a transparent
-// background and `chip--secondary` has no rule at all, so feeding those as
-// "colors" produced invisible or unstyled chips (DATA_SOURCE hashed to tertiary
-// and rendered as bare text). USER/GROUP reserve accent/success, leaving these
-// three visible soft colors. Each type hashes deterministically so the same
-// type lands on the same color every row.
-const SOURCE_TYPE_FALLBACK_COLORS = ['warning', 'danger', 'default'];
+// Real HeroUI chip colors, not variant names: `chip--tertiary` and `chip--secondary` are variants and render as
+// bare text.
+const UNREGISTERED_TYPE_COLORS = ['accent', 'danger', 'default', 'success', 'warning'];
 
 /**
  * Helper function to create a timestamp column with formatted date/time
@@ -1793,9 +1883,40 @@ function getActionColor(action) {
   return 'accent';
 }
 
-/** Soft chip colors for an action's filter tag, written out whole so Tailwind picks them up. */
 function getActionTagClassName(action) {
-  switch (getActionColor(action)) {
+  return getSoftTagClassName(getActionColor(action));
+}
+
+/** The type's registry `color`, or a stable hashed color for a type the registry lacks. */
+function getObjectTypeColor(type) {
+  if (!type) return 'default';
+  const normalized = String(type).toUpperCase();
+  const registryColor = getObjectType(normalized)?.color;
+  if (registryColor) return registryColor;
+
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i++) {
+    hash = (hash * 31 + normalized.charCodeAt(i)) | 0;
+  }
+  const index = Math.abs(hash) % UNREGISTERED_TYPE_COLORS.length;
+  return UNREGISTERED_TYPE_COLORS[index];
+}
+
+function getObjectTypeTagClassName(typeId) {
+  const casing = getObjectType(typeId) ? 'lowercase' : '';
+  return `${casing} ${getSoftTagClassName(getObjectTypeColor(typeId))}`;
+}
+
+function getShortTimezone() {
+  const parts = new Intl.DateTimeFormat(undefined, {
+    timeZoneName: 'short'
+  }).formatToParts(new Date());
+  return parts.find((p) => p.type === 'timeZoneName')?.value ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+/** Soft chip colors for a filter tag, written out whole so Tailwind picks them up. */
+function getSoftTagClassName(color) {
+  switch (color) {
     case 'danger':
       return 'bg-danger-soft text-danger-soft-foreground hover:bg-danger-soft-hover';
     case 'default':
@@ -1807,32 +1928,6 @@ function getActionTagClassName(action) {
     default:
       return 'bg-accent-soft text-accent-soft-foreground hover:bg-accent-soft-hover';
   }
-}
-
-function getShortTimezone() {
-  const parts = new Intl.DateTimeFormat(undefined, {
-    timeZoneName: 'short'
-  }).formatToParts(new Date());
-  return parts.find((p) => p.type === 'timeZoneName')?.value ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-}
-
-/**
- * Map a DomoStats source type to a chip color. USER and GROUP are pinned
- * (accent/success) so the common cases are visually anchored; everything else
- * is hashed to a stable color from SOURCE_TYPE_FALLBACK_COLORS.
- */
-function getSourceTypeColor(type) {
-  if (!type) return 'default';
-  const normalized = String(type).toUpperCase();
-  if (normalized === 'USER') return 'accent';
-  if (normalized === 'GROUP') return 'success';
-
-  let hash = 0;
-  for (let i = 0; i < normalized.length; i++) {
-    hash = (hash * 31 + normalized.charCodeAt(i)) | 0;
-  }
-  const index = Math.abs(hash) % SOURCE_TYPE_FALLBACK_COLORS.length;
-  return SOURCE_TYPE_FALLBACK_COLORS[index];
 }
 
 /**
